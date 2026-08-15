@@ -1,0 +1,160 @@
+:root {
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --border: #e5e8ee;
+  --text: #1f2733;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --primary-h: #1d4ed8;
+  --danger: #dc2626;
+  --ok: #16a34a;
+  --warn: #d97706;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* 保证 HTML hidden 属性始终生效（覆盖 display:flex 等） */
+[hidden] { display: none !important; }
+
+body {
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* ===== 登录 ===== */
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  width: 340px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.06);
+}
+.login-card h1 { font-size: 20px; margin-bottom: 6px; }
+.login-card .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.login-card label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+.login-card input { width: 100%; }
+
+/* ===== 主视图 ===== */
+.main { max-width: 960px; margin: 0 auto; padding: 24px; }
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.topbar .title { display: flex; align-items: center; gap: 12px; }
+.topbar h1 { font-size: 20px; }
+.topbar .actions { display: flex; gap: 8px; }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.toolbar .hint { color: var(--muted); font-size: 12px; }
+
+/* ===== 音源卡片 ===== */
+.sources { display: flex; flex-direction: column; gap: 12px; }
+.source-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.source-card.disabled { opacity: .62; }
+.source-main { flex: 1; min-width: 0; }
+.source-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.source-title .name { font-size: 16px; font-weight: 600; }
+.source-title .id { font-family: ui-monospace, Consolas, monospace; color: var(--muted); font-size: 12px; }
+.source-meta { margin-top: 6px; color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; }
+.source-ops { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* ===== 控件 ===== */
+input, select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+  background: #fff;
+}
+input:focus, select:focus { outline: none; border-color: var(--primary); }
+
+.btn {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn:hover { background: #f8fafc; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.primary:hover { background: var(--primary-h); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--danger); }
+.btn.sm { padding: 5px 10px; font-size: 12px; }
+
+/* 开关 */
+.switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: #cbd5e1; border-radius: 22px; transition: .2s;
+}
+.switch .slider::before {
+  content: ""; position: absolute; width: 16px; height: 16px;
+  left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s;
+}
+.switch input:checked + .slider { background: var(--ok); }
+.switch input:checked + .slider::before { transform: translateX(18px); }
+
+/* ===== 徽章 ===== */
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px;
+}
+.badge.live { background: #dcfce7; color: #15803d; }
+.badge.dead { background: #fee2e2; color: #b91c1c; }
+.badge.type { background: #e0e7ff; color: #3730a3; font-family: ui-monospace, monospace; }
+.badge.secret { background: #fef3c7; color: #b45309; }
+
+/* ===== 模态框 ===== */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(15,23,42,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal {
+  background: #fff; border-radius: 12px; width: 460px; max-width: 92vw;
+  max-height: 90vh; overflow: auto;
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-head h2 { font-size: 17px; }
+.modal-head .close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--muted); }
+.modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.modal-body label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.modal-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+}
+.modal-foot .error { flex: 1; }
+
+.error { color: var(--danger); font-size: 13px; min-height: 18px; }
+.hint { color: var(--muted); }
+.empty { text-align: center; color: var(--muted); padding: 40px; }

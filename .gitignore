@@ -1,0 +1,43 @@
+# ---- Node.js ----
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- 环境变量 / 密钥（只提交 .env.example）----
+.env
+*.env
+!*.env.example
+
+# ---- 部署脚本（含服务器 IP/密码，禁止上传）----
+deploy/
+
+# ---- Android / Gradle ----
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+*.ipr
+*.iws
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ---- Backend 运行时数据 ----
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/*.db-shm
+
+# ---- 临时 / 参考目录（已从仓库移除）----
+reference/
+research/
+音源/
+
+# ---- 工具 / 系统 ----
+.dsh-vision-toolkit/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>音乐源管理后台</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <!-- 登录视图 -->
+  <div id="loginView" class="login-wrap">
+    <form class="login-card" id="loginForm">
+      <h1>🎵 音乐源管理后台</h1>
+      <p class="sub">管理音源：添加 / 切换 / 启用禁用 / 权重</p>
+      <label>用户名</label>
+      <input type="text" id="loginUser" autocomplete="username" placeholder="admin" required>
+      <label>密码</label>
+      <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••" required>
+      <div class="error" id="loginError"></div>
+      <button type="submit" class="btn primary">登录</button>
+    </form>
+  </div>
+
+  <!-- 主视图 -->
+  <div id="mainView" class="main" hidden>
+    <header class="topbar">
+      <div class="title">
+        <h1>🎵 音乐源管理后台</h1>
+        <span class="badge live" id="healthBadge">加载中…</span>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" id="reloadBtn">⟳ 重载注册表</button>
+        <button class="btn ghost" id="logoutBtn">退出</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <button class="btn primary" id="addBtn">＋ 添加音源</button>
+      <span class="hint">音源故障会自动降级；密钥加密存储、仅脱敏展示</span>
+    </div>
+
+    <div id="sourcesList" class="sources"></div>
+  </div>
+
+  <!-- 添加/编辑模态框 -->
+  <div id="modal" class="modal-mask" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="modalTitle">添加音源</h2>
+        <button class="close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <label>音源 ID（唯一，如 kuwo）</label>
+        <input type="text" id="f_id" placeholder="kuwo" autocomplete="off">
+
+        <label>显示名称</label>
+        <input type="text" id="f_name" placeholder="酷我">
+
+        <label>类型</label>
+        <select id="f_type">
+          <option value="kuwo">kuwo（酷我·妖狐 API）</option>
+          <option value="netease">netease（网易云·meting）</option>
+        </select>
+
+        <label>权重（越大越优先，搜索排序/降级顺序）</label>
+        <input type="number" id="f_weight" value="100">
+
+        <div id="configFields"></div>
+      </div>
+      <div class="modal-foot">
+        <div class="error" id="modalError"></div>
+        <button class="btn" id="modalCancel">取消</button>
+        <button class="btn primary" id="modalSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

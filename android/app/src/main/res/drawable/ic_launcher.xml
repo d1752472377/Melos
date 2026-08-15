@@ -1,0 +1,41 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 深暖黑圆角底 -->
+    <path
+        android:fillColor="#171310"
+        android:pathData="M24,0 L84,0 C97.25,0 108,10.75 108,24 L108,84 C108,97.25 97.25,108 84,108 L24,108 C10.75,108 0,97.25 0,84 L0,24 C0,10.75 10.75,0 24,0 Z" />
+    <!-- 声波弧 -->
+    <path
+        android:strokeColor="#F2B25C"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.95"
+        android:pathData="M20,44 C27,26 45,15 66,14" />
+    <path
+        android:strokeColor="#F2B25C"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.55"
+        android:pathData="M26,58 C32,46 44,38 56,36" />
+    <path
+        android:strokeColor="#F2B25C"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.3"
+        android:pathData="M32,72 C36,64 44,59 50,58" />
+    <!-- 音符 -->
+    <path
+        android:fillColor="#F2B25C"
+        android:pathData="M49,64.5 C56,64.5 58.5,68.5 58.5,72 C58.5,75.5 56,79.5 49,79.5 C42,79.5 39.5,75.5 39.5,72 C39.5,68.5 42,64.5 49,64.5 Z" />
+    <path
+        android:strokeColor="#F2B25C"
+        android:strokeWidth="3.6"
+        android:strokeLineCap="round"
+        android:pathData="M53.5,66 L53.5,38" />
+    <path
+        android:fillColor="#F2B25C"
+        android:pathData="M53.5,38 C66,41 71,51 68,62 C70,52 66,43 53.5,40.5 Z" />
+</vector>

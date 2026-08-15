@@ -1,0 +1,37 @@
+import 'dotenv/config';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`缺少环境变量 ${name}，请检查 backend/.env（可参考 .env.example）`);
+  return v;
+}
+
+const encryptionKeyHex = requireEnv('ENCRYPTION_KEY');
+const encryptionKey = Buffer.from(encryptionKeyHex, 'hex');
+if (encryptionKey.length !== 32) {
+  throw new Error('ENCRYPTION_KEY 必须是 32 字节（64 个 hex 字符）');
+}
+
+export const config = {
+  port: parseInt(process.env.PORT || '3000', 10),
+  host: process.env.HOST || '127.0.0.1',
+
+  // 管理端登录账号
+  adminUser: process.env.ADMIN_USER || 'admin',
+  adminPassword: process.env.ADMIN_PASSWORD || '',
+
+  // 音源密钥加密主密钥（Buffer，32 字节）
+  encryptionKey,
+
+  // 数据库路径
+  dbPath: process.env.DB_PATH || join(__dirname, '..', '..', 'data', 'music.db'),
+
+  // 种子数据用（可选）
+  kuwoApiKey: process.env.KUWO_API_KEY || '',
+  kuwoSecretKey: process.env.KUWO_SECRET_KEY || '',
+  chkszApiKey: process.env.CHKSZ_API_KEY || '',
+};

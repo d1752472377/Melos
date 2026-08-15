@@ -1,0 +1,8 @@
+<resources>
+    <!-- 应用主题：透明状态栏 + 浅色，界面由 Compose 控制 -->
+    <style name="Theme.AestheticMusic" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
