@@ -1,4 +1,4 @@
-import { buildApp } from './app.js';
+import { buildApp } from './lib/app.js';
 import { config } from './lib/config.js';
 
 // 本地 / 自托管入口：构建应用并监听端口。

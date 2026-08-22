@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "description": "音乐 App 后端：音源管理 + 统一音乐业务 API",
   "type": "module",
-  "main": "src/index.js",
+  "main": "src/start.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "start": "node src/start.js",
+    "dev": "node --watch src/start.js",
     "seed": "node src/seed.js"
   },
   "license": "MIT",
