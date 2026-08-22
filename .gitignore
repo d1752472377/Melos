@@ -41,3 +41,6 @@ research/
 .dsh-vision-toolkit/
 .DS_Store
 Thumbs.db
+
+# ---- Vercel CLI 本地元数据 ----
+.vercel/
