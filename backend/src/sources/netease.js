@@ -16,9 +16,19 @@ const QUALITY_MAP = {
 export class NeteaseSource extends MusicSource {
   constructor({ id, name, cookie }) {
     super({ id, name, type: 'netease' });
+    this.cookie = cookie || '';
     this.meting = new Meting('netease');
     this.meting.format(true);
     if (cookie) this.meting.cookie(cookie);
+    // 歌手接口专用实例：type=100 返回的是歌手结构，format(true) 的格式化管线只认歌曲结构会崩，
+    // 因此用不格式化的原始实例，自行解析 JSON。
+    this.metingRaw = new Meting('netease');
+    if (cookie) this.metingRaw.cookie(cookie);
+  }
+
+  /** 具备歌手搜索/详情能力 */
+  get supportsArtist() {
+    return true;
   }
 
   async search(keyword, limit = 20) {
@@ -33,6 +43,68 @@ export class NeteaseSource extends MusicSource {
       platform: this.id,
     }));
   }
+
+  /** 歌手搜索（网易云 type=100），返回 [{ id, name, avatar, alias }] */
+  async searchArtist(keyword, limit = 8) {
+    const raw = await this.metingRaw.search(String(keyword), { type: 100, limit: Math.min(limit, 30) });
+    const v = this._parse(raw);
+    const artists = Array.isArray(v?.result?.artists) ? v.result.artists : [];
+    return artists.slice(0, limit).map((a) => ({
+      id: String(a.id),
+      name: a.name || '',
+      avatar: a.img1v1Url || a.picUrl || null,
+      alias: Array.isArray(a.alias) ? a.alias.filter(Boolean).join('/') : '',
+      platform: this.id,
+    }));
+  }
+
+  /**
+   * 歌手详情 + 热门歌曲。
+   * 用网易云公开 API /api/artist/{id}（比 meting.artist 多返回头像/别名等歌手信息）。
+   * 注意：公开接口的热门歌可能含 VIP/无版权曲目，播放失败由上层多源降级兜底。
+   */
+  async getArtist(artistId, limit = 50) {
+    const res = await fetch(`https://music.163.com/api/artist/${encodeURIComponent(String(artistId))}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://music.163.com',
+        ...(this.cookie ? { Cookie: this.cookie } : {}),
+      },
+    });
+    if (!res.ok) throw new Error(`[netease] 歌手接口 HTTP ${res.status}`);
+    const j = await res.json();
+    const info = j?.artist;
+    if (!info?.id) throw new Error('[netease] 歌手接口返回为空');
+    const hotSongs = Array.isArray(j.hotSongs) ? j.hotSongs.slice(0, limit) : [];
+    return {
+      info: {
+        id: String(info.id),
+        name: info.name || '',
+        avatar: info.img1v1Url || info.picUrl || null,
+        alias: Array.isArray(info.alias) ? info.alias.filter(Boolean).join('/') : '',
+        albumSize: info.albumSize ?? null,
+        musicSize: info.musicSize ?? null,
+        platform: this.id,
+      },
+      songs: hotSongs
+        .filter((s) => s?.id)
+        .map((s) => {
+          // 兼容两种字段：v1 公开接口 artists[]/album{}，v3 接口 ar[]/al{}
+          const artistArr = Array.isArray(s.artists) ? s.artists : (Array.isArray(s.ar) ? s.ar : []);
+          const albumObj = s.album || s.al || {};
+          const pic = albumObj.picUrl || null;
+          return {
+            id: String(s.id),
+            title: s.name || '',
+            artist: artistArr.map((a) => a?.name).filter(Boolean).join('/'),
+            album: albumObj.name || '',
+            artwork: pic ? (String(pic).startsWith('//') ? `https:${pic}` : pic) : null,
+            platform: this.id,
+          };
+        }),
+    };
+  }
+
 
   async getSongUrl(song, quality) {
     const br = QUALITY_MAP[quality] || 320000;

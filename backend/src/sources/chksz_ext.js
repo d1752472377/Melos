@@ -20,7 +20,7 @@ class ChkszPointSource extends ChkszSource {
     this.sizeMap = kind === 'qq' ? QQ_SIZE : KUGOU_SIZE;
   }
 
-  async _raw(path, params = {}) {
+  async _raw(path, params = {}, _retried = false) {
     if (!this.apiKey) throw new Error(`[${this.kind}] 未配置 apiKey`);
     const q = { type: 'json', ...params, apikey: this.apiKey };
     const url = new URL(this.baseUrl + path);
@@ -41,7 +41,20 @@ class ChkszPointSource extends ChkszSource {
     } catch {
       throw new Error(`[${this.kind}] 非 JSON 响应 status=${res.status}`);
     }
-    if (res.status === 401 || res.status === 402 || res.status === 403 || res.status === 429) {
+    // 官方文档错误语义（https://api.chksz.com 智能体接入提示词）：
+    //   402 免费和付费额度均耗尽 —— 不重试，等次日额度或兑换 LDC
+    //   429 超过速率限制(20次/分钟) —— 按 Retry-After 等待后最多重试一次
+    //   401 Key 无效 / 403 被封禁 —— 不重试
+    if (res.status === 402) {
+      throw new Error(`[${this.kind}] ChKSz 额度已用尽(402)，请次日再试或兑换 LDC`);
+    }
+    if (res.status === 429) {
+      if (_retried) throw new Error(`[${this.kind}] ChKSz 限流(429)，重试后仍失败`);
+      const waitSec = Math.min(parseInt(res.headers?.get?.('retry-after') || '5', 10) || 5, 30);
+      await new Promise((r) => setTimeout(r, waitSec * 1000));
+      return this._raw(path, params, true);
+    }
+    if (res.status === 401 || res.status === 403) {
       throw new Error(`[${this.kind}] HTTP ${res.status}: ${json.msg || text.slice(0, 160)}`);
     }
     if (json.code && json.code !== 200) {

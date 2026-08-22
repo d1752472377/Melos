@@ -30,6 +30,28 @@ export class MusicSource {
     return null;
   }
 
+  /**
+   * 歌手搜索：按关键词返回歌手数组 [{ id, name, avatar, alias }]
+   * 不支持的源可不覆盖（registry 会跳过）。
+   */
+  async searchArtist(keyword, limit) {
+    throw new Error(`${this.type}(${this.id}).searchArtist 未实现`);
+  }
+
+  /**
+   * 歌手详情+热门歌曲：返回 { info: { id, name, avatar, alias }, songs: [标准歌曲对象] }
+   * 不支持的源可不覆盖（registry 会跳过）。
+   */
+  async getArtist(artistId, limit) {
+    throw new Error(`${this.type}(${this.id}).getArtist 未实现`);
+  }
+
+  /** 是否具备歌手能力（子类覆盖了对应方法即为 true） */
+  get supportsArtist() {
+    return false;
+  }
+
+
   /** 自检（连通性探测），子类可覆盖 */
   async healthCheck() {
     try {

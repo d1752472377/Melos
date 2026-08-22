@@ -67,8 +67,13 @@ export class ChkszSource extends MusicSource {
     };
   }
 
-  async search(keyword, limit = 20) {
-    const data = await this._get('/api/163_search', { keyword, limit: Math.min(Number(limit) || 20, 50) });
+  /** offset：163_search 支持的分页偏移（官方文档），为后续"加载更多"预留 */
+  async search(keyword, limit = 20, offset = 0) {
+    const data = await this._get('/api/163_search', {
+      keyword,
+      limit: Math.min(Number(limit) || 20, 50),
+      offset: Math.max(Number(offset) || 0, 0),
+    });
     const songs = Array.isArray(data.songs) ? data.songs : [];
     return songs.map((s) => this._toSong(s));
   }

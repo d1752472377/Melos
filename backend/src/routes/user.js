@@ -48,11 +48,11 @@ export function registerUserRoutes(app, { config, db }) {
     const { username, password, nickname } = req.body || {};
     const err = validateRegisterInput(username, password, nickname);
     if (err) return reply.code(400).send({ code: 400, msg: err });
-    if (getUserByUsername(db, String(username))) {
+    if (await getUserByUsername(db, String(username))) {
       return reply.code(409).send({ code: 409, msg: '用户名已存在' });
     }
     const salt = crypto.randomBytes(16).toString('hex');
-    const user = insertUser(db, {
+    const user = await insertUser(db, {
       username: String(username),
       passwordHash: hashPassword(password, salt),
       salt,
@@ -64,7 +64,7 @@ export function registerUserRoutes(app, { config, db }) {
 
   app.post('/api/user/login', async (req, reply) => {
     const { username, password } = req.body || {};
-    const user = getUserByUsername(db, String(username || ''));
+    const user = await getUserByUsername(db, String(username || ''));
     if (!user) return reply.code(401).send({ code: 401, msg: '用户名或密码错误' });
     const hash = hashPassword(String(password || ''), user.salt);
     const a = Buffer.from(hash);
@@ -88,7 +88,7 @@ export function registerUserRoutes(app, { config, db }) {
     if (nickname != null && String(nickname).length > 24) {
       return reply.code(400).send({ code: 400, msg: '昵称最长 24 字' });
     }
-    const user = updateUserProfile(db, req.userRow.id, {
+    const user = await updateUserProfile(db, req.userRow.id, {
       nickname: nickname != null ? String(nickname) : undefined,
       avatar: avatar != null ? String(avatar) : undefined,
     });
@@ -97,33 +97,33 @@ export function registerUserRoutes(app, { config, db }) {
 
   app.get('/api/user/favorites', { preHandler: auth }, async (req) => ({
     code: 200,
-    data: listFavorites(db, req.userRow.id),
+    data: await listFavorites(db, req.userRow.id),
   }));
 
   app.put('/api/user/favorites', { preHandler: auth }, async (req) => {
-    replaceFavorites(db, req.userRow.id, req.body?.songs);
-    return { code: 200, data: listFavorites(db, req.userRow.id) };
+    await replaceFavorites(db, req.userRow.id, req.body?.songs);
+    return { code: 200, data: await listFavorites(db, req.userRow.id) };
   });
 
   app.get('/api/user/history', { preHandler: auth }, async (req) => ({
     code: 200,
-    data: listHistory(db, req.userRow.id),
+    data: await listHistory(db, req.userRow.id),
   }));
 
   app.put('/api/user/history', { preHandler: auth }, async (req) => {
-    replaceHistory(db, req.userRow.id, req.body?.songs);
-    return { code: 200, data: listHistory(db, req.userRow.id) };
+    await replaceHistory(db, req.userRow.id, req.body?.songs);
+    return { code: 200, data: await listHistory(db, req.userRow.id) };
   });
 
   app.get('/api/user/playlists', { preHandler: auth }, async (req) => ({
     code: 200,
-    data: listPlaylists(db, req.userRow.id),
+    data: await listPlaylists(db, req.userRow.id),
   }));
 
   app.post('/api/user/playlists', { preHandler: auth }, async (req, reply) => {
     const name = String(req.body?.name || '').trim();
     if (!name || name.length > 30) return reply.code(400).send({ code: 400, msg: '歌单名需 1-30 字' });
-    const p = createPlaylist(db, req.userRow.id, { name, coverUrl: req.body?.coverUrl });
+    const p = await createPlaylist(db, req.userRow.id, { name, coverUrl: req.body?.coverUrl });
     return { code: 200, data: p };
   });
 
@@ -132,7 +132,7 @@ export function registerUserRoutes(app, { config, db }) {
     if (name !== undefined && (!name || name.length > 30)) {
       return reply.code(400).send({ code: 400, msg: '歌单名需 1-30 字' });
     }
-    const p = updatePlaylistMeta(db, req.userRow.id, req.params.id, {
+    const p = await updatePlaylistMeta(db, req.userRow.id, req.params.id, {
       name: name || undefined,
       coverUrl: req.body?.coverUrl != null ? String(req.body.coverUrl) : undefined,
     });
@@ -141,25 +141,25 @@ export function registerUserRoutes(app, { config, db }) {
   });
 
   app.delete('/api/user/playlists/:id', { preHandler: auth }, async (req, reply) => {
-    const r = deletePlaylist(db, req.userRow.id, req.params.id);
+    const r = await deletePlaylist(db, req.userRow.id, req.params.id);
     if (!r.changes) return reply.code(404).send({ code: 404, msg: '歌单不存在' });
     return { code: 200, msg: '已删除' };
   });
 
   app.get('/api/user/playlists/:id/songs', { preHandler: auth }, async (req, reply) => {
-    const songs = listPlaylistSongs(db, req.userRow.id, req.params.id);
+    const songs = await listPlaylistSongs(db, req.userRow.id, req.params.id);
     if (songs === null) return reply.code(404).send({ code: 404, msg: '歌单不存在' });
     return { code: 200, data: songs };
   });
 
   app.put('/api/user/playlists/:id/songs', { preHandler: auth }, async (req, reply) => {
-    const p = replacePlaylistSongs(db, req.userRow.id, req.params.id, req.body?.songs);
+    const p = await replacePlaylistSongs(db, req.userRow.id, req.params.id, req.body?.songs);
     if (!p) return reply.code(404).send({ code: 404, msg: '歌单不存在' });
     return { code: 200, data: p };
   });
 
   app.post('/api/user/playlists/:id/songs', { preHandler: auth }, async (req, reply) => {
-    const p = addPlaylistSongs(db, req.userRow.id, req.params.id, req.body?.songs);
+    const p = await addPlaylistSongs(db, req.userRow.id, req.params.id, req.body?.songs);
     if (!p) return reply.code(404).send({ code: 404, msg: '歌单不存在' });
     return { code: 200, data: p };
   });
@@ -167,18 +167,18 @@ export function registerUserRoutes(app, { config, db }) {
   app.delete('/api/user/playlists/:id/songs', { preHandler: auth }, async (req, reply) => {
     const { platform, id } = req.query;
     if (!platform || !id) return reply.code(400).send({ code: 400, msg: '需要 platform / id' });
-    const p = removePlaylistSong(db, req.userRow.id, req.params.id, String(platform), String(id));
+    const p = await removePlaylistSong(db, req.userRow.id, req.params.id, String(platform), String(id));
     if (!p) return reply.code(404).send({ code: 404, msg: '歌单不存在' });
     return { code: 200, data: p };
   });
 
   app.post('/api/user/stats/report', { preHandler: auth }, async (req) => {
-    const n = insertPlayEvents(db, req.userRow.id, req.body?.events);
+    const n = await insertPlayEvents(db, req.userRow.id, req.body?.events);
     return { code: 200, data: { accepted: n } };
   });
 
   app.get('/api/user/stats', { preHandler: auth }, async (req) => ({
     code: 200,
-    data: getUserStats(db, req.userRow.id),
+    data: await getUserStats(db, req.userRow.id),
   }));
 }

@@ -27,8 +27,12 @@ export const config = {
   // 音源密钥加密主密钥（Buffer，32 字节）
   encryptionKey,
 
-  // 数据库路径
-  dbPath: process.env.DB_PATH || join(__dirname, '..', '..', 'data', 'music.db'),
+  // 数据库：libSQL 连接串
+  //   file:./data/music.db          本地文件（单机）
+  //   http://<host>:<port>          远端 libSQL 服务（分布式部署，多节点共享中央库）
+  //   libsql://xxx.turso.io         Turso Cloud
+  dbUrl: process.env.DB_URL || `file:${join(__dirname, '..', '..', 'data', 'music.db')}`,
+  dbAuthToken: process.env.DB_AUTH_TOKEN || undefined,
 
   // 种子数据用（可选）
   kuwoApiKey: process.env.KUWO_API_KEY || '',

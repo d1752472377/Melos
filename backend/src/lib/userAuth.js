@@ -53,7 +53,7 @@ export function requireUser(config, db) {
     if (!payload) {
       return reply.code(401).send({ code: 401, msg: '未登录或登录已过期' });
     }
-    const user = getUserById(db, payload.uid);
+    const user = await getUserById(db, payload.uid);
     if (!user) {
       return reply.code(401).send({ code: 401, msg: '账号不存在' });
     }

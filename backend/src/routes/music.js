@@ -3,6 +3,8 @@
  *   GET /api/search?keyword=&limit=
  *   GET /api/song/url?platform=&id=&title=&quality=
  *   GET /api/lyric?platform=&id=&title=
+ *   GET /api/artist/search?keyword=&limit=     （歌手搜索）
+ *   GET /api/artist?platform=&id=&limit=       （歌手详情+热门歌曲）
  *   GET /api/sources        （健康状态列表，便于排查）
  */
 export function registerMusicRoutes(app, registry) {
@@ -44,6 +46,39 @@ export function registerMusicRoutes(app, registry) {
   });
 
   app.get('/api/sources', async () => ({ code: 200, data: registry.list() }));
+
+  // 歌手搜索（当前仅 netease 源支持）
+  app.get('/api/artist/search', async (req, reply) => {
+    const { keyword } = req.query;
+    if (!keyword) return reply.code(400).send({ code: 400, msg: '缺少 keyword' });
+    const source = registry.getArtistSource(req.query.platform ? String(req.query.platform) : undefined);
+    if (!source) return reply.code(503).send({ code: 503, msg: '没有支持歌手搜索的可用音源（需启用 netease）' });
+    const limit = Math.min(parseInt(req.query.limit || '8', 10) || 8, 30);
+    try {
+      const artists = await source.searchArtist(String(keyword), limit);
+      return { code: 200, data: artists };
+    } catch (e) {
+      return reply.code(502).send({ code: 502, msg: `歌手搜索失败: ${e.message}` });
+    }
+  });
+
+  // 歌手详情 + 热门歌曲
+  app.get('/api/artist', async (req, reply) => {
+    const { id } = req.query;
+    if (!id) return reply.code(400).send({ code: 400, msg: '缺少 id' });
+    // 歌手 ID 是平台内标识，必须用对应平台的源；未指定 platform 时回退到任一具备能力的源
+    const source = req.query.platform
+      ? registry.getArtistSource(String(req.query.platform))
+      : registry.getArtistSource();
+    if (!source) return reply.code(503).send({ code: 503, msg: '没有支持歌手详情的可用音源（需启用 netease）' });
+    const limit = Math.min(parseInt(req.query.limit || '50', 10) || 50, 100);
+    try {
+      const detail = await source.getArtist(String(id), limit);
+      return { code: 200, data: detail };
+    } catch (e) {
+      return reply.code(502).send({ code: 502, msg: `获取歌手失败: ${e.message}` });
+    }
+  });
 
   // 歌单详情（当前支持网易云歌单 ID）
   app.get('/api/playlist', async (req, reply) => {

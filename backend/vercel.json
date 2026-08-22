@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/[...].js": {
+      "regions": ["hkg1"],
+      "includeFiles": [
+        "public/**",
+        "node_modules/@libsql/linux-x64-gnu/**"
+      ]
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/[...]" },
+    { "source": "/admin", "destination": "/api/[...]" },
+    { "source": "/admin/(.*)", "destination": "/api/[...]" }
+  ]
+}

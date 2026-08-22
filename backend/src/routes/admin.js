@@ -40,7 +40,8 @@ export function registerAdminRoutes(app, { config, db, registry }) {
   });
 
   app.get('/admin/sources', { preHandler: auth }, async () => {
-    return { code: 200, data: listSources(db).map((row) => toSafeRow(row, config.encryptionKey)) };
+    const rows = await listSources(db);
+    return { code: 200, data: rows.map((row) => toSafeRow(row, config.encryptionKey)) };
   });
 
   app.post('/admin/sources', { preHandler: auth }, async (req, reply) => {
@@ -51,17 +52,17 @@ export function registerAdminRoutes(app, { config, db, registry }) {
     if (!SUPPORTED_TYPES.includes(type)) {
       return reply.code(400).send({ code: 400, msg: `不支持的音源类型: ${type}（支持 ${SUPPORTED_TYPES.join(', ')}）` });
     }
-    if (getSource(db, id)) {
+    if (await getSource(db, id)) {
       return reply.code(409).send({ code: 409, msg: `音源 ${id} 已存在` });
     }
     const enc = encryptConfig(cfg || {}, config.encryptionKey);
-    const row = insertSource(db, { id, name, type, weight: weight ?? 100, config: enc });
-    registry.reload();
+    const row = await insertSource(db, { id, name, type, weight: weight ?? 100, config: enc });
+    await registry.reload();
     return { code: 200, data: toSafeRow(row, config.encryptionKey) };
   });
 
   app.put('/admin/sources/:id', { preHandler: auth }, async (req, reply) => {
-    const cur = getSource(db, req.params.id);
+    const cur = await getSource(db, req.params.id);
     if (!cur) return reply.code(404).send({ code: 404, msg: '音源不存在' });
 
     const body = req.body || {};
@@ -80,20 +81,20 @@ export function registerAdminRoutes(app, { config, db, registry }) {
       weight: body.weight ?? cur.weight,
       config: encryptConfig(mergedCfg, config.encryptionKey),
     };
-    const row = updateSource(db, req.params.id, fields);
-    registry.reload();
+    const row = await updateSource(db, req.params.id, fields);
+    await registry.reload();
     return { code: 200, data: toSafeRow(row, config.encryptionKey) };
   });
 
   app.delete('/admin/sources/:id', { preHandler: auth }, async (req, reply) => {
-    const r = deleteSource(db, req.params.id);
+    const r = await deleteSource(db, req.params.id);
     if (!r.changes) return reply.code(404).send({ code: 404, msg: '音源不存在' });
-    registry.reload();
+    await registry.reload();
     return { code: 200, msg: '已删除' };
   });
 
   app.get('/admin/sources/:id/test', { preHandler: auth }, async (req, reply) => {
-    const row = getSource(db, req.params.id);
+    const row = await getSource(db, req.params.id);
     if (!row) return reply.code(404).send({ code: 404, msg: '音源不存在' });
     try {
       const cfg = decryptConfig(row.config, config.encryptionKey);
@@ -106,7 +107,7 @@ export function registerAdminRoutes(app, { config, db, registry }) {
   });
 
   app.get('/admin/reload', { preHandler: auth }, async () => {
-    registry.reload();
+    await registry.reload();
     return { code: 200, data: registry.list() };
   });
 }
