@@ -32,8 +32,8 @@ data class UpdateInfo(
  */
 object UpdateService {
 
-    /** 服务器更新描述文件地址（部署后端时同目录放 update.json） */
-    const val UPDATE_URL = "http://43.248.3.147:18787/update.json"
+    /** 服务器更新描述文件地址（GitHub Release 资产，经 Vercel 转发） */
+    const val UPDATE_URL = "https://music.dovislab.com/update.json"
 
     suspend fun checkUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
         try {
