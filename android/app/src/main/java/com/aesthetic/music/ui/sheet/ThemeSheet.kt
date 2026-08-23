@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.PlayerTheme
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
@@ -116,48 +117,42 @@ private fun ThemeOptionItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(9f / 16f)
-                .clip(RoundedCornerShape(0.dp))
+                .border(if (selected) 2.dp else 1.dp, if (selected) PrimaryBrown else Color.Black.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(background)
-                .then(
-                    if (selected) {
-                        Modifier.border(2.dp, PrimaryBrown, RoundedCornerShape(0.dp))
-                    } else {
-                        Modifier
-                    }
-                )
                 .clickable(onClick = onClick)
-                .padding(10.dp),
+                .padding(8.dp),
         ) {
             if (selected) {
                 Box(
-                    Modifier
+                    modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(20.dp)
+                        .size(18.dp)
                         .clip(CircleShape)
                         .background(PrimaryBrown),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("✓", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    Text("✓", color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp))
                 }
             }
             // 预览占位元素
             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.12f)))
+                Box(Modifier.fillMaxWidth().height(32.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.15f)))
                 Spacer(Modifier.height(4.dp))
-                Box(Modifier.fillMaxWidth(0.6f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(Color.White.copy(alpha = 0.4f)))
+                Box(Modifier.fillMaxWidth(0.6f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.5f)))
             }
         }
         Spacer(Modifier.height(8.dp))
         Box(
-            Modifier
-                .clip(RoundedCornerShape(999.dp))
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
                 .background(if (selected) PrimaryBrown else Stone100)
                 .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 5.dp)
+                .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Text(
-                name,
-                style = MaterialTheme.typography.labelMedium,
+                text = name,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
                 color = if (selected) Color.White else TextMuted,
             )
         }

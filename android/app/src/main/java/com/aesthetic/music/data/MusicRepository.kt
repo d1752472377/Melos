@@ -4,6 +4,7 @@ import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.AuthData
+import com.aesthetic.music.data.api.CategoriesData
 import com.aesthetic.music.data.api.DailyData
 import com.aesthetic.music.data.api.LoginBody
 import com.aesthetic.music.data.api.LyricData
@@ -94,6 +95,11 @@ class MusicRepository(
     suspend fun getRankSongs(id: String): Result<List<Song>> = runCatching {
         val resp = api.rankDetail(id)
         if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "获取榜单歌曲失败")
+    }
+
+    suspend fun getCategories(): Result<CategoriesData> = runCatching {
+        val resp = api.categories()
+        if (resp.code == 200) resp.data ?: CategoriesData() else throw Exception(resp.msg ?: "获取分类歌单失败")
     }
 
     // ==================== 用户 ====================

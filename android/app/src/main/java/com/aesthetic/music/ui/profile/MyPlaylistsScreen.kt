@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,16 +40,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
+import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
@@ -94,32 +98,42 @@ fun MyPlaylistsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .border(1.dp, Stone200, RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(Surface)
                             .clickable(onClick = onBack),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
                             tint = TextMuted,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                     Spacer(Modifier.width(12.dp))
-                    Text(
-                        "我的歌单 (${playlists.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "我的歌单",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = TextPrimary,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = "共 ${playlists.size} 个自建歌单",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = TextSoft
+                        )
+                    }
                     Box(
-                        Modifier
-                            .clip(RoundedCornerShape(20.dp))
+                        modifier = Modifier
+                            .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = PrimaryBrown.copy(alpha = 0.3f))
+                            .clip(RoundedCornerShape(16.dp))
                             .background(PrimaryBrown)
                             .clickable { showCreate = true }
                             .padding(horizontal = 14.dp, vertical = 7.dp)
@@ -127,7 +141,14 @@ fun MyPlaylistsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("新建歌单", style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "新建歌单",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = Color.White
+                            )
                         }
                     }
                 }
@@ -140,7 +161,7 @@ fun MyPlaylistsScreen(
                     Box(Modifier.fillMaxWidth().padding(vertical = 80.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                Icons.AutoMirrored.Filled.QueueMusic,
+                                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                                 contentDescription = null,
                                 tint = TextSoft,
                                 modifier = Modifier.size(56.dp),
@@ -204,42 +225,48 @@ private fun PlaylistRowItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
+            .clip(RoundedCornerShape(10.dp))
             .background(Surface)
             .clickable(onClick = onOpen)
-            .padding(10.dp),
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SongCover(playlist.coverUrl, Modifier.size(48.dp), corner = 10.dp)
+        SongCover(playlist.coverUrl, Modifier.size(46.dp), corner = 8.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                playlist.name,
-                style = MaterialTheme.typography.titleSmall,
+                text = playlist.name,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(1.dp))
             Text(
-                "${playlist.songs.size} 首" + if (playlist.cloudId.isNotBlank()) " · 已同步" else "",
-                style = MaterialTheme.typography.bodySmall,
+                text = "${playlist.songs.size} 首" + if (playlist.cloudId.isNotBlank()) " · 已同步" else "",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = TextSoft,
             )
         }
 
         if (currentSong != null) {
             Box(
-                Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Stone100)
+                modifier = Modifier
+                    .border(1.dp, Stone200, RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Surface)
                     .clickable { onAddCurrent(currentSong) }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(2.dp))
-                    Text("加入当前", style = MaterialTheme.typography.labelSmall, color = PrimaryBrown, fontWeight = FontWeight.Medium)
+                    Text("加入当前", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp), color = PrimaryBrown, fontWeight = FontWeight.Medium)
                 }
             }
             Spacer(Modifier.width(6.dp))
@@ -254,10 +281,10 @@ private fun PlaylistRowItem(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Filled.Edit,
+                imageVector = Icons.Filled.Edit,
                 contentDescription = "重命名",
                 tint = TextSoft,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(15.dp),
             )
         }
 
@@ -270,10 +297,10 @@ private fun PlaylistRowItem(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Filled.Delete,
+                imageVector = Icons.Filled.Delete,
                 contentDescription = "删除",
                 tint = TextSoft,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(15.dp),
             )
         }
     }

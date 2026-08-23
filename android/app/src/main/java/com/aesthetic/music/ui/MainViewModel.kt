@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
+import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.api.UserStatsDto
@@ -83,6 +84,10 @@ class MainViewModel : ViewModel() {
     val newSongs: StateFlow<List<Song>> = _newSongs.asStateFlow()
     private val _ranks = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val ranks: StateFlow<List<PlaylistItem>> = _ranks.asStateFlow()
+    private val _hotSongs = MutableStateFlow<List<Song>>(emptyList())
+    val hotSongs: StateFlow<List<Song>> = _hotSongs.asStateFlow()
+    private val _homeCategories = MutableStateFlow<List<HomeCategoryDto>>(emptyList())
+    val homeCategories: StateFlow<List<HomeCategoryDto>> = _homeCategories.asStateFlow()
     val isLoadingContent = MutableStateFlow(false)
     val contentError = MutableStateFlow<String?>(null)
 
@@ -235,9 +240,23 @@ class MainViewModel : ViewModel() {
             val daily = repository.getDaily(8)
             val news = repository.getNewSongs(20)
             val ranks = repository.getRanks()
+            val categories = repository.getCategories()
             daily.onSuccess { _dailyPlaylists.value = it.playlists }
             news.onSuccess { _newSongs.value = it.songs }
-            ranks.onSuccess { _ranks.value = it.ranks }
+            categories.onSuccess { _homeCategories.value = it.categories }
+            ranks.onSuccess {
+                _ranks.value = it.ranks
+                if (it.ranks.isNotEmpty() && _hotSongs.value.isEmpty()) {
+                    val hotRank = it.ranks.firstOrNull { r -> r.kind == "hot" }
+                        ?: it.ranks.firstOrNull { r -> r.name.contains("热歌") }
+                        ?: it.ranks.first()
+                    launch {
+                        repository.getRankSongs(hotRank.id).onSuccess { songs ->
+                            _hotSongs.value = songs
+                        }
+                    }
+                }
+            }
             if (daily.isFailure && news.isFailure && ranks.isFailure) {
                 contentError.value = "内容加载失败，请检查网络"
             }

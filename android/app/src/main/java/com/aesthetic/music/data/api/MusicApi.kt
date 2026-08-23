@@ -42,6 +42,8 @@ data class PlaylistItem(
     val playCount: Long? = null,
     val trackCount: Long? = null,
     val platform: String? = null,
+    /** 排行榜语义：hot / new / rising / original / other；非榜单为 null */
+    val kind: String? = null,
 )
 
 /** 登录用户 */
@@ -229,6 +231,9 @@ interface MusicApi {
     @GET("api/rank/{id}")
     suspend fun rankDetail(@Path("id") id: String): ApiResponse<List<Song>>
 
+    @GET("api/categories")
+    suspend fun categories(): ApiResponse<CategoriesData>
+
     // ==================== 用户 ====================
 
     @POST("api/user/register")
@@ -299,4 +304,19 @@ data class NewSongsData(
 data class RanksData(
     val title: String = "排行榜",
     val ranks: List<PlaylistItem> = emptyList(),
+)
+
+/** 首页分类歌单 */
+data class CategoriesData(
+    val title: String = "分类歌单",
+    val categories: List<HomeCategoryDto> = emptyList(),
+)
+
+data class HomeCategoryDto(
+    val id: String = "",
+    val title: String = "",
+    val quote: String = "",
+    val coverUrl: String? = null,
+    val previewSongs: List<String> = emptyList(),
+    val playlist: PlaylistItem? = null,
 )

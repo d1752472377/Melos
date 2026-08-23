@@ -26,30 +26,55 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.Stone200
 
-/** 歌曲封面：带占位背景 + 圆角 */
+/** 歌曲封面：带精致渐变占位 + 圆角 + 平滑渐入 */
 @Composable
 fun SongCover(
     url: String?,
     modifier: Modifier = Modifier,
     corner: Dp = 12.dp,
 ) {
+    val context = LocalContext.current
+    val placeholderBrush = if (Palette.isDark) {
+        Brush.linearGradient(listOf(Color(0xFF26262E), Color(0xFF1B1B22)))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFEDE9FE), Color(0xFFE0E7FF)))
+    }
+    val iconTint = if (Palette.isDark) Color(0xFF64748B) else Color(0xFF818CF8).copy(alpha = 0.65f)
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(corner))
-            .background(Stone200),
+            .background(placeholderBrush),
+        contentAlignment = Alignment.Center
     ) {
         if (!url.isNullOrBlank()) {
             AsyncImage(
-                model = url,
+                model = ImageRequest.Builder(context)
+                    .data(url)
+                    .crossfade(true)
+                    .crossfade(200)
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
         } else {
-            Box(Modifier.fillMaxSize().background(Stone200))
+            Icon(
+                imageVector = Icons.Filled.MusicNote,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }

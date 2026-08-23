@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -174,7 +175,7 @@ fun PlayerScreen(
                     onClick = { showThemeSheet = true },
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
 
             // 歌曲信息
             Row(
@@ -184,31 +185,37 @@ fun PlayerScreen(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        song?.title ?: "未在播放",
-                        style = MaterialTheme.typography.displaySmall,
+                        text = song?.title ?: "未在播放",
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = Color.White,
                         maxLines = 2,
                     )
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        song?.subtitleText ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.6f),
+                        text = song?.subtitleText ?: "",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 13.sp
+                        ),
+                        color = Color.White.copy(alpha = 0.65f),
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(
-                        Modifier
-                            .size(40.dp)
+                        modifier = Modifier
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.1f))
+                            .background(Color.White.copy(alpha = 0.12f))
                             .clickable(onClick = onToggleFavorite),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                             contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                            tint = if (isFavorite) Rose else Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.size(22.dp),
+                            tint = if (isFavorite) Rose else Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
@@ -469,14 +476,16 @@ private fun AnimatedCoverBox(
                     contentDescription = null,
                     modifier = Modifier
                         .size(280.dp)
-                        .clip(RoundedCornerShape(20.dp)),
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp)),
                     contentScale = ContentScale.Crop,
                 )
             } else {
                 Box(
                     Modifier
                         .size(280.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(Color.White.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -816,15 +825,16 @@ private fun PlayerChip(
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, Color.White.copy(alpha = if (active) 0.35f else 0.15f), RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(if (active) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.1f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 9.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(14.dp))
+        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(13.dp))
         Spacer(Modifier.size(4.dp))
-        Text(text, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+        Text(text, style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp), color = Color.White.copy(alpha = 0.9f))
     }
 }
 

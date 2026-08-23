@@ -4,6 +4,7 @@
  *   GET /api/newsongs     新歌速递（网易云公开接口）
  *   GET /api/ranks        排行榜列表
  *   GET /api/rank/:id     排行榜歌曲（经 chksz/netease 歌单接口拉取）
+ *   GET /api/categories   首页分类歌单（流行/电音/民谣/摇滚）
  *
  * 说明：每日推荐强依赖登录 cookie，公开部署下退化为“个性化歌单精选”，
  * 接口形状与推荐位一致，后续有网易云会员 cookie 时可直接替换数据源。
@@ -38,6 +39,52 @@ async function fetchJson(url, headers = {}) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+/** 网易云官方榜名称 → 稳定 kind，供 App 按语义取榜而不是 ranks[0] */
+function classifyRankKind(name) {
+  const n = String(name || '');
+  if (n.includes('热歌')) return 'hot';
+  if (n.includes('新歌')) return 'new';
+  if (n.includes('飙升')) return 'rising';
+  if (n.includes('原创')) return 'original';
+  return 'other';
+}
+
+function rankKindOrder(kind) {
+  switch (kind) {
+    case 'hot': return 0;
+    case 'new': return 1;
+    case 'rising': return 2;
+    case 'original': return 3;
+    default: return 9;
+  }
+}
+
+/** 首页分类歌单：标签走网易云公开 playlist/highquality，预览曲目走歌单详情前 3 首 */
+const HOME_CATEGORIES = [
+  { id: 'pop', title: '流行', cat: '流行', quote: '人生走在路上，愿你心花路放' },
+  { id: 'edm', title: '电音', cat: '电子', quote: '跟随强劲节拍，释放自由灵魂' },
+  { id: 'folk', title: '民谣', cat: '民谣', quote: '一把木吉他，诉说岁月温柔' },
+  { id: 'rock', title: '摇滚', cat: '摇滚', quote: '热血不灭，唱响青春回响' },
+];
+
+function toPlaylistItem(p) {
+  return {
+    id: String(p.id),
+    name: p.name || '',
+    coverUrl: p.coverImgUrl || p.picUrl || null,
+    playCount: p.playCount ?? null,
+    trackCount: p.trackCount ?? null,
+    platform: 'chksz',
+  };
+}
+
+function previewLine(song) {
+  const title = song?.title || '';
+  const artist = song?.artist || '';
+  if (title && artist) return `${title} - ${artist}`;
+  return title || artist;
 }
 
 function neteaseSongToStandard(s, platform = 'chksz') {
@@ -97,23 +144,66 @@ export function registerContentRoutes(app, registry) {
   });
 
   // 排行榜列表
+  // kind 给 App 首页「新歌榜 / 热歌榜」Tab 精确取数；旧客户端忽略该字段即可。
   app.get('/api/ranks', async (req, reply) => {
     try {
-      const data = await cached('ranks', async () => {
+      const data = await cached('ranks:v2', async () => {
         const j = await fetchJson('https://music.163.com/api/toplist/detail');
-        const list = (j.list || []).slice(0, 20).map((p) => ({
-          id: String(p.id),
-          name: p.name || '',
-          coverUrl: p.coverImgUrl || p.picUrl || null,
-          playCount: p.playCount ?? null,
-          trackCount: p.trackCount ?? null,
-          platform: 'chksz',
-        }));
+        const list = (j.list || []).slice(0, 20).map((p) => {
+          const name = p.name || '';
+          return {
+            id: String(p.id),
+            name,
+            coverUrl: p.coverImgUrl || p.picUrl || null,
+            playCount: p.playCount ?? null,
+            trackCount: p.trackCount ?? null,
+            platform: 'chksz',
+            kind: classifyRankKind(name),
+          };
+        });
+        list.sort((a, b) => rankKindOrder(a.kind) - rankKindOrder(b.kind));
         return { title: '排行榜', ranks: list };
       });
       return { code: 200, data };
     } catch (e) {
       return reply.code(502).send({ code: 502, msg: `获取排行榜失败: ${e.message}` });
+    }
+  });
+
+  // 首页分类歌单：每个分类取一张高质量歌单 + 前 3 首预览
+  app.get('/api/categories', async (req, reply) => {
+    try {
+      const data = await cached('categories:v1', async () => {
+        const categories = [];
+        for (const def of HOME_CATEGORIES) {
+          const j = await fetchJson(
+            `https://music.163.com/api/playlist/highquality/list?cat=${encodeURIComponent(def.cat)}&limit=1`,
+          );
+          const raw = Array.isArray(j.playlists) ? j.playlists[0] : null;
+          const playlist = raw ? toPlaylistItem(raw) : null;
+          let previewSongs = [];
+          if (playlist?.id) {
+            try {
+              const songs = await getPlaylistSongs(registry, playlist.id);
+              previewSongs = songs.slice(0, 3).map(previewLine).filter(Boolean);
+            } catch {
+              previewSongs = [];
+            }
+          }
+          categories.push({
+            id: def.id,
+            title: def.title,
+            quote: def.quote,
+            coverUrl: playlist?.coverUrl || null,
+            previewSongs,
+            playlist,
+          });
+        }
+        return { title: '分类歌单', categories };
+      });
+      return { code: 200, data };
+    } catch (e) {
+      return reply.code(502).send({ code: 502, msg: `获取分类歌单失败: ${e.message}` });
     }
   });
 

@@ -7,16 +7,20 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,9 +47,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.settings.SettingsStore
@@ -69,6 +78,7 @@ import com.aesthetic.music.ui.settings.SettingsScreen
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
+import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
@@ -113,6 +123,8 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     // 内容体系
     val dailyPlaylists by viewModel.dailyPlaylists.collectAsState()
     val newSongs by viewModel.newSongs.collectAsState()
+    val hotSongs by viewModel.hotSongs.collectAsState()
+    val homeCategories by viewModel.homeCategories.collectAsState()
     val ranks by viewModel.ranks.collectAsState()
     val isLoadingContent by viewModel.isLoadingContent.collectAsState()
 
@@ -178,26 +190,19 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             // ===== 内容页 =====
             when (tab) {
                 AppTab.HOME -> HomeScreen(
-                    history = history,
-                    currentSong = playerState.currentSong,
-                    isPlaying = playerState.isPlaying,
-                    positionMs = playerState.positionMs,
-                    durationMs = playerState.durationMs,
+                    dailyPlaylists = dailyPlaylists,
+                    newSongs = newSongs,
+                    hotSongs = hotSongs,
                     hotPlaylists = hotPlaylists,
-                    hotLoading = isLoadingHot,
+                    ranks = ranks,
+                    homeCategories = homeCategories,
                     favorites = favorites,
-                    favoriteSongs = favoriteSongs,
                     onPlaySong = { song, list -> playSong(song, list) },
-                    onTogglePlayback = playerManager::toggle,
-                    onOpenPlayer = {
-                        playerManager.startProgress()
-                        viewModel.showPlayer.value = true
-                    },
                     onSearchBarClick = { viewModel.switchTab(AppTab.PLAYLIST) },
-                    onOpenRecentAll = { viewModel.switchTab(AppTab.PLAYLIST) },
                     onOpenPlaylistDetail = viewModel::openPlaylistDetail,
+                    onOpenRank = viewModel::openRankDetail,
                     onOpenDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
-                    onOpenFavorites = { viewModel.showFavorites.value = true },
+                    onToggleFavorite = viewModel::toggleFavorite,
                 )
 
                 AppTab.DISCOVER -> DiscoverScreen(
@@ -213,20 +218,25 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 )
 
                 AppTab.PLAYLIST -> PlaylistScreen(
+                    myPlaylists = myPlaylists,
+                    collectedPlaylists = hotPlaylists,
+                    favoriteSongs = favoriteSongs,
                     history = history,
                     searchResults = searchResults,
                     searchQuery = searchQuery,
                     isSearching = isSearching,
                     favorites = favorites,
                     matchedArtists = matchedArtists,
-                    onBack = { viewModel.switchTab(AppTab.HOME) },
                     onSearch = viewModel::search,
-                    onPlaySong = {
-                        val list = if (searchQuery.isNotBlank()) searchResults else history
-                        playSong(it, list)
-                    },
+                    onPlaySong = { song, list -> playSong(song, list) },
                     onToggleFavorite = viewModel::toggleFavorite,
+                    onOpenPlaylistDetail = viewModel::openPlaylistDetail,
+                    onOpenMyPlaylist = { id -> viewModel.openMyPlaylist(id) },
+                    onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
+                    onRenamePlaylist = viewModel::renamePlaylist,
+                    onDeletePlaylist = viewModel::deletePlaylist,
                     onOpenImport = { viewModel.showImportDialog.value = true },
+                    onOpenFavorites = { viewModel.showFavorites.value = true },
                     onOpenArtist = viewModel::openArtist,
                 )
 
@@ -616,92 +626,145 @@ private fun PlaylistDetailOverlay(
                 .padding(top = 24.dp)
                 .padding(bottom = 150.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
-                    Modifier
-                        .background(Surface, CircleShape)
-                        .clickable(onClick = onBack)
-                        .padding(8.dp),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Surface)
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
                         tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                Spacer(Modifier.size(10.dp))
-                Text(
-                    "$title (${songs.size}首)",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f),
-                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "共 ${songs.size} 首曲目",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = TextSoft
+                    )
+                }
                 if (isLocal) {
                     Row(
-                        Modifier
+                        modifier = Modifier
+                            .border(1.dp, Stone200, RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(Surface)
                             .clickable(onClick = onAddCurrent)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.Filled.Add,
+                            imageVector = Icons.Filled.Add,
                             contentDescription = null,
-                            tint = TextMuted,
+                            tint = PrimaryBrown,
                             modifier = Modifier.size(14.dp),
                         )
-                        Spacer(Modifier.size(4.dp))
-                        Text("加入当前", style = MaterialTheme.typography.labelMedium, color = TextPrimary)
+                        Spacer(Modifier.width(3.dp))
+                        Text("加入当前", style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), color = PrimaryBrown)
                     }
+                    Spacer(Modifier.width(8.dp))
                 }
                 if (songs.isNotEmpty()) {
-                    Spacer(Modifier.size(8.dp))
                     Row(
-                        Modifier
+                        modifier = Modifier
+                            .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = PrimaryBrown.copy(alpha = 0.3f))
+                            .clip(RoundedCornerShape(16.dp))
                             .background(PrimaryBrown)
                             .clickable(onClick = onPlayAll)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.Filled.PlayArrow,
+                            imageVector = Icons.Filled.PlayArrow,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(14.dp),
                         )
-                        Spacer(Modifier.size(4.dp))
-                        Text("播放全部", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "播放全部",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = Color.White
+                        )
                     }
                 }
             }
-            Spacer(Modifier.size(10.dp))
+
+            Spacer(Modifier.height(16.dp))
+
             if (isLoading && songs.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("加载中…", color = TextSoft)
+                    Text("探索曲目中…", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
-                LazyColumn {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     items(songs.size) { index ->
                         val song = songs[index]
                         Row(
-                            Modifier
+                            modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 7.dp)
-                                .clickable { onPlaySong(song) },
+                                .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Surface)
+                                .clickable { onPlaySong(song) }
+                                .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "${index + 1}",
+                                text = "${index + 1}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = TextSoft,
-                                modifier = Modifier.padding(horizontal = 8.dp),
+                                color = if (index < 3) PrimaryBrown else TextSoft,
+                                fontWeight = if (index < 3) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.width(22.dp),
                             )
-                            SongCover(song.artwork, Modifier.size(44.dp), corner = 0.dp)
-                            Spacer(Modifier.size(12.dp))
+                            SongCover(song.artwork, Modifier.size(44.dp), corner = 8.dp)
+                            Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(song.title, style = MaterialTheme.typography.titleSmall, color = TextPrimary, maxLines = 1)
-                                Text(song.subtitleText, style = MaterialTheme.typography.bodySmall, color = TextSoft, maxLines = 1)
+                                Text(
+                                    text = song.title,
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.height(1.dp))
+                                Text(
+                                    text = song.subtitleText,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = TextSoft,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -710,3 +773,5 @@ private fun PlaylistDetailOverlay(
         }
     }
 }
+
+

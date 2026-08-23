@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Surface
@@ -71,10 +72,10 @@ fun LoginSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Surface, // 统一应用主题色，移除 M3 默认淡紫调
+        containerColor = Surface,
         tonalElevation = 0.dp,
-        dragHandle = null, // 自定义顶部样式
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        dragHandle = null,
+        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
     ) {
         Column(
             modifier = Modifier
@@ -91,14 +92,16 @@ fun LoginSheet(
                 Column {
                     Text(
                         text = if (isRegister) "注册 Melos 账号" else "欢迎回来",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = TextPrimary
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = if (isRegister) "创建账号以开始同步歌单与音乐偏好" else "登录以获取完整的云端体验",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = TextSoft
                     )
                 }
@@ -114,12 +117,12 @@ fun LoginSheet(
                         imageVector = Icons.Filled.Close,
                         contentDescription = "关闭",
                         tint = TextMuted,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
             // 表单字段
             AuthField(
@@ -129,7 +132,7 @@ fun LoginSheet(
                 onValueChange = { if (it.length <= 20) username = it }
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
 
             AuthField(
                 label = "密码",
@@ -140,7 +143,7 @@ fun LoginSheet(
             )
 
             if (isRegister) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
                 AuthField(
                     label = "昵称（可选）",
                     placeholder = "个性化的显示名称",
@@ -151,18 +154,18 @@ fun LoginSheet(
 
             // 错误信息展示
             if (!error.isNullOrBlank()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     text = error,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.Medium
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(22.dp))
 
-            // 核心 Submit 主按钮
+            // 核心 Submit 主按钮 (Level 1 CTA)
             Button(
                 onClick = {
                     if (isRegister) onRegister(username, password, nickname)
@@ -171,8 +174,8 @@ fun LoginSheet(
                 enabled = !busy && isInputValid,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(25.dp),
+                    .height(48.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PrimaryBrown,
                     contentColor = Color.White,
@@ -182,8 +185,10 @@ fun LoginSheet(
             ) {
                 Text(
                     text = if (busy) "处理中..." else if (isRegister) "创建账号" else "立即登录",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                 )
             }
 
@@ -197,13 +202,13 @@ fun LoginSheet(
             ) {
                 Text(
                     text = if (isRegister) "已有 Melos 账号？" else "还没有账号？",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = TextSoft
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = if (isRegister) "去登录" else "免费注册",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = PrimaryBrown,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
@@ -227,30 +232,30 @@ private fun AuthField(
     Column {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
             color = TextPrimary,
             fontWeight = FontWeight.SemiBold
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(5.dp))
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary, fontSize = 14.sp),
             visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = if (secret) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(Stone100)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (value.isEmpty()) {
                         Text(
                             text = placeholder,
                             color = TextMuted,
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
                         )
                     }
                     innerTextField()

@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.artist
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,23 +30,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Rose
+import com.aesthetic.music.ui.theme.Stone100
+import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.TextFaint
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 歌手页（全屏覆盖层）：头像 + 名称 + 别名，下方热门歌曲列表。
- * 数据来自后端 /api/artist（当前 netease 源），播放复用全局取直链降级链。
+ * 歌手页：精致分层设计 + 现代艺术质感。
  */
 @Composable
 fun ArtistScreen(
@@ -73,45 +79,63 @@ fun ArtistScreen(
                 .padding(bottom = 150.dp) // 避开底栏悬浮 Dock
         ) {
             // 顶栏：返回 + 标题 + 播放全部
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
-                    Modifier
-                        .background(Surface, CircleShape)
-                        .clickable(onClick = onBack)
-                        .padding(8.dp),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Surface)
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
                         tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(12.dp))
                 Text(
-                    name.ifBlank { "歌手" },
-                    style = MaterialTheme.typography.titleMedium,
+                    text = name.ifBlank { "歌手详情" },
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = TextPrimary,
-                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
                 if (songs.isNotEmpty()) {
+                    // Level 1 主操作播放胶囊
                     Row(
-                        Modifier
-                            .clip(RoundedCornerShape(18.dp))
+                        modifier = Modifier
+                            .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = PrimaryBrown.copy(alpha = 0.3f))
+                            .clip(RoundedCornerShape(16.dp))
                             .background(PrimaryBrown)
                             .clickable(onClick = onPlayAll)
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.Filled.PlayArrow,
+                            imageVector = Icons.Filled.PlayArrow,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(14.dp),
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text("播放全部", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                        Text(
+                            text = "播放全部",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = Color.White
+                        )
                     }
                 }
             }
@@ -119,39 +143,55 @@ fun ArtistScreen(
             // 歌手头部信息
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 16.dp),
+                modifier = Modifier.padding(top = 18.dp, bottom = 4.dp),
             ) {
-                SongCover(avatar, Modifier.size(84.dp), corner = 42.dp) // corner=半径 → 圆形
+                Box(
+                    modifier = Modifier
+                        .size(76.dp)
+                        .border(1.5.dp, AccentCyan.copy(alpha = 0.4f), CircleShape)
+                        .clip(CircleShape)
+                ) {
+                    SongCover(avatar, Modifier.fillMaxSize(), corner = 38.dp)
+                }
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        name.ifBlank { "未知歌手" },
-                        style = MaterialTheme.typography.titleLarge,
+                        text = name.ifBlank { "未知歌手" },
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (!alias.isNullOrBlank()) {
                         Spacer(Modifier.height(4.dp))
-                        Text(
-                            alias,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSoft,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Stone100)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = alias,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextSoft,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        if (isLoading) "加载中…" else "热门歌曲 ${songs.size} 首",
-                        style = MaterialTheme.typography.labelMedium,
+                        text = if (isLoading) "探索音乐库中…" else "热门单曲 · 共 ${songs.size} 首",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = TextMuted,
                     )
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
             // 热门歌曲列表
             if (!isLoading && songs.isEmpty()) {
@@ -161,11 +201,11 @@ fun ArtistScreen(
                         .padding(top = 60.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("暂无歌曲", color = TextSoft, style = MaterialTheme.typography.bodySmall)
+                    Text("暂无相关歌曲", color = TextSoft, style = MaterialTheme.typography.bodySmall)
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    itemsIndexed(songs) { position, song ->
+                    itemsIndexed(songs, key = { _, s -> s.platform + ":" + s.id }) { position, song ->
                         ArtistSongRow(
                             index = position + 1,
                             song = song,
@@ -191,33 +231,38 @@ private fun ArtistSongRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
+            .clip(RoundedCornerShape(10.dp))
             .background(Surface)
             .clickable(onClick = onClick)
-            .padding(10.dp),
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            index.toString(),
+            text = index.toString(),
             style = MaterialTheme.typography.labelMedium,
             color = if (index <= 3) PrimaryBrown else TextSoft,
             fontWeight = if (index <= 3) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.width(24.dp),
+            modifier = Modifier.width(22.dp),
         )
-        SongCover(song.artwork, Modifier.size(46.dp), corner = 8.dp)
-        Spacer(Modifier.width(12.dp))
+        SongCover(song.artwork, Modifier.size(44.dp), corner = 8.dp)
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                song.title,
-                style = MaterialTheme.typography.titleSmall,
+                text = song.title,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(1.dp))
             Text(
-                song.subtitleText,
-                style = MaterialTheme.typography.bodySmall,
+                text = song.subtitleText,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = TextSoft,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -225,16 +270,16 @@ private fun ArtistSongRow(
         }
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(34.dp)
                 .clip(CircleShape)
                 .clickable(onClick = onToggleFavorite),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                 contentDescription = "收藏",
-                tint = if (isFavorite) Rose else TextSoft,
-                modifier = Modifier.size(20.dp),
+                tint = if (isFavorite) Rose else TextFaint,
+                modifier = Modifier.size(19.dp),
             )
         }
     }

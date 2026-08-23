@@ -1,8 +1,8 @@
 package com.aesthetic.music.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,16 +27,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 迷你播放器（移植自参考 App 的 MiniPlayer）：
- * 底部悬浮迷你条，显示当前歌曲 + 播放/暂停 + 下一首，点击打开全屏播放器。
+ * 迷你播放器：精致微圆角封面 + Level 1 核心播放圆键 + 顶部进度条。
  */
 @Composable
 fun MiniPlayer(
@@ -50,49 +54,96 @@ fun MiniPlayer(
     modifier: Modifier = Modifier,
 ) {
     if (song == null) return
-    Box(modifier = modifier.fillMaxWidth().background(Surface)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpenPlayer)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SongCover(song.artwork, Modifier.size(40.dp), corner = 10.dp)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(song.title, style = MaterialTheme.typography.titleSmall, color = TextPrimary, maxLines = 1)
-                Text(song.artist, style = MaterialTheme.typography.bodySmall, color = TextSoft, maxLines = 1)
-            }
-            Icon(
-                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (isPlaying) "暂停" else "播放",
-                tint = PrimaryBrown,
-                modifier = Modifier
-                    .size(22.dp)
-                    .clickable(onClick = onToggle),
-            )
-            Spacer(Modifier.width(6.dp))
-            Icon(
-                Icons.Filled.SkipNext,
-                contentDescription = "下一首",
-                tint = TextSoft,
-                modifier = Modifier
-                    .size(22.dp)
-                    .clickable(onClick = onNext),
-            )
-        }
-        // 底部进度细条
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Surface)
+    ) {
+        // 顶部进度细条 (2.dp)
         if (durationMs > 0) {
             LinearProgressIndicator(
                 progress = { (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.dp)
-                    .align(Alignment.BottomCenter),
+                    .align(Alignment.TopCenter),
                 color = PrimaryBrown,
-                trackColor = Color.Transparent,
+                trackColor = Stone200.copy(alpha = 0.4f),
             )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenPlayer)
+                .padding(horizontal = 16.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 8.dp 唱片封面
+            SongCover(song.artwork, Modifier.size(42.dp), corner = 8.dp)
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    text = song.artist.ifBlank { "未知歌手" },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.sp
+                    ),
+                    color = TextSoft,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // Level 1 实色圆形播放按钮
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryBrown)
+                    .clickable(onClick = onToggle),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPlaying) "暂停" else "播放",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // Level 4 Ghost 切歌键
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onNext),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SkipNext,
+                    contentDescription = "下一首",
+                    tint = TextMuted,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
+

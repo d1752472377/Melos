@@ -39,6 +39,8 @@ research/
 
 # ---- 工具 / 系统 ----
 .dsh-vision-toolkit/
+.gopath/
+.shots/
 .DS_Store
 Thumbs.db
 

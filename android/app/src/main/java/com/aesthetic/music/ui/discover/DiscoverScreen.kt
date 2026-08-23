@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.discover
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -28,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,13 +40,19 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.theme.AccentAmber
+import com.aesthetic.music.ui.theme.AccentCoral
+import com.aesthetic.music.ui.theme.AccentCyan
+import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Stone100
+import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 发现页：内容体系（每日推荐 / 新歌速递 / 排行榜）+ 热门歌单。
+ * 发现页：按反 AI 味原则重塑，色彩锚点分明、卡片与列表排版精致。
  */
 @Composable
 fun DiscoverScreen(
@@ -60,33 +69,36 @@ fun DiscoverScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (isLoading && dailyPlaylists.isEmpty() && newSongs.isEmpty() && ranks.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("加载中…", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
+                Text("正在探索音乐库…", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
             }
             return@Box
         }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
             contentPadding = PaddingValues(
-                top = 28.dp,
+                top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = 150.dp // 完美避开底栏播放器及 Dock
+                bottom = 150.dp // 避开底栏 Dock
             )
         ) {
             // 顶栏标题
-            item {
+            item(key = "discover_header") {
                 Column {
                     Text(
-                        "发现",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold
+                        text = "发现",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = TextPrimary
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "每日推荐 · 新歌 · 排行榜",
+                        text = "每日精选 · 全球新歌 · 权威榜单",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSoft,
                     )
@@ -95,14 +107,14 @@ fun DiscoverScreen(
 
             // 每日推荐
             if (dailyPlaylists.isNotEmpty()) {
-                item { SectionTitle("每日推荐", "为你精选") }
-                item {
+                item(key = "section_daily") { SectionTitle("每日推荐", "为你精选的调频", AccentAmber) }
+                item(key = "row_daily") {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
+                        contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
-                        items(dailyPlaylists) { item ->
-                            PlaylistCard(item = item, width = 132.dp, onClick = { onOpenPlaylist(item) })
+                        items(dailyPlaylists, key = { it.id }) { item ->
+                            PlaylistCard(item = item, width = 124.dp, onClick = { onOpenPlaylist(item) })
                         }
                     }
                 }
@@ -110,22 +122,22 @@ fun DiscoverScreen(
 
             // 新歌速递
             if (newSongs.isNotEmpty()) {
-                item { SectionTitle("新歌速递", "第一时间听见") }
-                items(newSongs.take(10)) { song ->
+                item(key = "section_newsongs") { SectionTitle("新歌速递", "第一时间听见心动", AccentMint) }
+                items(newSongs.take(8), key = { it.platform + ":" + it.id }) { song ->
                     NewSongRow(song = song, onClick = { onPlaySong(song) })
                 }
             }
 
             // 排行榜
             if (ranks.isNotEmpty()) {
-                item { SectionTitle("排行榜", "热门榜单") }
-                item {
+                item(key = "section_ranks") { SectionTitle("排行榜", "热门权威榜单", AccentCyan) }
+                item(key = "row_ranks") {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
+                        contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
-                        items(ranks.take(12)) { item ->
-                            PlaylistCard(item = item, width = 132.dp, onClick = { onOpenRank(item) })
+                        items(ranks.take(12), key = { it.id }) { item ->
+                            PlaylistCard(item = item, width = 124.dp, onClick = { onOpenRank(item) })
                         }
                     }
                 }
@@ -133,8 +145,8 @@ fun DiscoverScreen(
 
             // 热门歌单
             if (hotPlaylists.isNotEmpty()) {
-                item { SectionTitle("热门歌单", "大家都在听") }
-                items(hotPlaylists.chunked(2)) { rowItems ->
+                item(key = "section_hot") { SectionTitle("热门歌单", "大家都在循环的宝藏", AccentCoral) }
+                items(hotPlaylists.chunked(2), key = { it.firstOrNull()?.id ?: "" }) { rowItems ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -152,24 +164,38 @@ fun DiscoverScreen(
             }
 
             if (isHotLoading && hotPlaylists.isEmpty()) {
-                item { Text("热门歌单加载中…", color = TextSoft, style = MaterialTheme.typography.bodySmall) }
+                item(key = "hot_loading") { Text("热门歌单加载中…", color = TextSoft, style = MaterialTheme.typography.bodySmall) }
             }
         }
     }
 }
 
 @Composable
-private fun SectionTitle(title: String, subtitle: String) {
-    Column(Modifier.padding(top = 10.dp, bottom = 4.dp)) {
+private fun SectionTitle(title: String, subtitle: String, accentColor: Color) {
+    Column(Modifier.padding(top = 8.dp, bottom = 2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(accentColor)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = TextPrimary
+            )
+        }
+        Spacer(Modifier.height(1.dp))
         Text(
-            title,
-            style = MaterialTheme.typography.titleLarge,
-            color = TextPrimary,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodySmall,
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 12.sp
+            ),
             color = TextSoft
         )
     }
@@ -180,45 +206,52 @@ private fun NewSongRow(song: Song, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
+            .clip(RoundedCornerShape(10.dp))
             .background(Surface)
             .clickable(onClick = onClick)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 赋予单曲封面圆角与尺寸微调
-        SongCover(song.artwork, Modifier.size(48.dp), corner = 10.dp)
-        Spacer(Modifier.width(12.dp))
+        SongCover(song.artwork, Modifier.size(46.dp), corner = 8.dp)
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                song.title,
-                style = MaterialTheme.typography.titleSmall,
+                text = song.title,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                song.subtitleText,
-                style = MaterialTheme.typography.bodySmall,
+                text = song.subtitleText,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 11.sp
+                ),
                 color = TextSoft,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
+        // Level 4 纯圆微播放标
         Box(
             modifier = Modifier
-                .padding(end = 6.dp)
-                .size(32.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(PrimaryBrown.copy(alpha = 0.1f)),
+                .padding(end = 4.dp)
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(Stone100),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Filled.PlayArrow,
+                imageVector = Icons.Filled.PlayArrow,
                 contentDescription = "播放",
                 tint = PrimaryBrown,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -229,35 +262,36 @@ private fun PlaylistCard(item: PlaylistItem, width: Dp, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .width(width)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
     ) {
         Box(
-            Modifier
+            modifier = Modifier
                 .size(width)
-                .clip(RoundedCornerShape(14.dp)) // 歌单封面圆角化
+                .border(1.dp, Stone200.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(10.dp))
         ) {
-            SongCover(item.coverUrl, Modifier.fillMaxSize(), corner = 14.dp)
+            SongCover(item.coverUrl, Modifier.fillMaxSize(), corner = 10.dp)
             if (item.playCount != null) {
-                // 精致毛玻璃感播放量标记
+                // Level 3 微型播放量徽章 (4dp corner)
                 Box(
-                    Modifier
+                    modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                        .padding(5.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Filled.PlayArrow,
+                            imageVector = Icons.Filled.PlayArrow,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(10.dp),
+                            modifier = Modifier.size(9.dp),
                         )
                         Spacer(Modifier.size(2.dp))
                         Text(
-                            formatCount(item.playCount),
+                            text = formatCount(item.playCount),
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
@@ -266,19 +300,24 @@ private fun PlaylistCard(item: PlaylistItem, width: Dp, onClick: () -> Unit) {
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(7.dp))
         Text(
-            item.name,
-            style = MaterialTheme.typography.titleSmall,
+            text = item.name,
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
             color = TextPrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             lineHeight = 16.sp
         )
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(1.dp))
         Text(
-            "${item.trackCount ?: 0} 首",
-            style = MaterialTheme.typography.bodySmall,
+            text = "${item.trackCount ?: 0} 首",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 11.sp
+            ),
             color = TextSoft,
         )
     }
@@ -288,35 +327,36 @@ private fun PlaylistCard(item: PlaylistItem, width: Dp, onClick: () -> Unit) {
 private fun GridPlaylistCard(item: PlaylistItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
     ) {
         Box(
-            Modifier
+            modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, Stone200.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(10.dp))
         ) {
-            SongCover(item.coverUrl, Modifier.fillMaxSize(), corner = 14.dp)
+            SongCover(item.coverUrl, Modifier.fillMaxSize(), corner = 10.dp)
             if (item.playCount != null) {
                 Box(
-                    Modifier
+                    modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                        .padding(5.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Filled.PlayArrow,
+                            imageVector = Icons.Filled.PlayArrow,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(10.dp),
+                            modifier = Modifier.size(9.dp),
                         )
                         Spacer(Modifier.size(2.dp))
                         Text(
-                            formatCount(item.playCount),
+                            text = formatCount(item.playCount),
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
@@ -325,17 +365,26 @@ private fun GridPlaylistCard(item: PlaylistItem, modifier: Modifier = Modifier, 
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(7.dp))
         Text(
-            item.name,
-            style = MaterialTheme.typography.titleSmall,
+            text = item.name,
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
             color = TextPrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             lineHeight = 16.sp
         )
-        Spacer(Modifier.height(2.dp))
-        Text("${item.trackCount ?: 0} 首", style = MaterialTheme.typography.bodySmall, color = TextSoft)
+        Spacer(Modifier.height(1.dp))
+        Text(
+            text = "${item.trackCount ?: 0} 首",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 11.sp
+            ),
+            color = TextSoft
+        )
     }
 }
 

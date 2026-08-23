@@ -72,6 +72,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
+    implementation(libs.androidx.compose.foundation)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

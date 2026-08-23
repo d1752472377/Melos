@@ -62,7 +62,7 @@ export async function buildApp() {
       '/api/search', '/api/song/url', '/api/lyric',
       '/api/artist/search', '/api/artist',
       '/api/sources',
-      '/api/daily', '/api/newsongs', '/api/ranks', '/api/rank/:id',
+      '/api/daily', '/api/newsongs', '/api/ranks', '/api/rank/:id', '/api/categories',
       '/api/user/register', '/api/user/login', '/api/user/me', '/api/user/favorites',
       '/api/user/history', '/api/user/playlists', '/api/user/stats',
       '/admin/login', '/admin/sources',

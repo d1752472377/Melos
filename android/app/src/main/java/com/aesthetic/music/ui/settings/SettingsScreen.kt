@@ -3,6 +3,7 @@ package com.aesthetic.music.ui.settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -80,54 +82,55 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(Background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 20.dp)
             .padding(bottom = 150.dp),
     ) {
         // 顶栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 28.dp, bottom = 12.dp),
+                .padding(top = 24.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
+                modifier = Modifier
+                    .size(36.dp)
+                    .border(1.dp, Stone200, RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(Surface)
                     .clickable(onClick = onBack),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "返回",
                     tint = TextMuted,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
             Text(
-                "设置",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                text = "设置",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                ),
                 color = TextPrimary
             )
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.size(38.dp))
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
 
         // ===== 外观 =====
-        SectionCard(title = "外观") {
+        SectionCard(title = "外观与主题") {
             // 三档主题胶囊选择器
             Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(Stone100)
-                    .padding(4.dp),
+                    .padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 listOf(
@@ -148,17 +151,17 @@ fun SettingsScreen(
                     )
 
                     Box(
-                        Modifier
+                        modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
                             .background(bgAnimated)
                             .clickable { onThemeModeChange(mode) }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 7.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = textAnimated,
                         )
@@ -166,7 +169,7 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // 悬浮胶囊开关
             Row(
@@ -176,31 +179,33 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
-                    Modifier
-                        .size(32.dp)
+                    modifier = Modifier
+                        .size(34.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(TagBg),
+                        .background(Stone100),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.Filled.Widgets,
+                        imageVector = Icons.Filled.Widgets,
                         contentDescription = null,
-                        tint = TagText,
+                        tint = PrimaryBrown,
                         modifier = Modifier.size(16.dp)
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "系统悬浮胶囊",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        text = "桌面悬浮胶囊",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
                         color = TextPrimary
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(1.dp))
                     Text(
-                        if (floatingCapsuleEnabled) "播放时跨 App 悬浮显示（需悬浮窗权限）" else "播放时跨 App 悬浮显示",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = if (floatingCapsuleEnabled) "播放时跨 App 悬浮显示（需悬浮窗权限）" else "在桌面上便捷控制播放",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = TextSoft,
                     )
                 }
@@ -208,13 +213,11 @@ fun SettingsScreen(
                     checked = floatingCapsuleEnabled,
                     onCheckedChange = onFloatingCapsuleChange,
                     colors = SwitchDefaults.colors(
-                        // 开启状态
                         checkedThumbColor = Color.White,
                         checkedTrackColor = PrimaryBrown,
                         checkedBorderColor = Color.Transparent,
-                        // 关闭状态（加深轨道颜色，提升对比度）
                         uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Stone200, // 或 Color(0xFFE2E2E2)
+                        uncheckedTrackColor = Stone200,
                         uncheckedBorderColor = Color.Transparent
                     ),
                 )
@@ -224,9 +227,10 @@ fun SettingsScreen(
         Spacer(Modifier.height(14.dp))
 
         // ===== 播放与音质 =====
-        SectionCard(title = "播放与音质") {
+        SectionCard(title = "播放与音效") {
             SettingRow(
                 icon = Icons.Filled.MusicNote,
+                iconTint = PrimaryBrown,
                 label = "音质等级",
                 subtitle = quality.label,
                 onClick = { showQualityDialog = true }
@@ -236,9 +240,10 @@ fun SettingsScreen(
         Spacer(Modifier.height(14.dp))
 
         // ===== 关于 =====
-        SectionCard(title = "关于") {
+        SectionCard(title = "关于软件") {
             SettingRow(
                 icon = Icons.Filled.SystemUpdate,
+                iconTint = PrimaryBrown,
                 label = "检查更新",
                 subtitle = updateStatus,
                 onClick = {
@@ -253,24 +258,27 @@ fun SettingsScreen(
             )
             SettingRow(
                 icon = Icons.Filled.Info,
-                label = "版本号",
+                iconTint = PrimaryBrown,
+                label = "当前版本",
                 subtitle = com.aesthetic.music.BuildConfig.VERSION_NAME,
                 onClick = {}
             )
         }
     }
 
-    // ===== 音质选择弹窗 (精美配色重构) =====
+    // ===== 音质选择弹窗 =====
     if (showQualityDialog) {
         AlertDialog(
             onDismissRequest = { showQualityDialog = false },
             containerColor = Surface,
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(14.dp),
             title = {
                 Text(
-                    "选择音质",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    text = "选择播放音质",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = TextPrimary
                 )
             },
@@ -279,9 +287,9 @@ fun SettingsScreen(
                     QualityLevel.entries.forEach { level ->
                         val isSelected = quality == level
                         Row(
-                            Modifier
+                            modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) Stone100 else Color.Transparent)
                                 .clickable {
                                     onQualityChange(level)
@@ -297,17 +305,19 @@ fun SettingsScreen(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                level.label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                text = level.label,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                ),
                                 color = TextPrimary
                             )
                         }
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "高音质（无损）加载更快占用空间相对较大，部分歌曲可能受版权限制自动降级播放。",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "高音质（无损）加载更快占用空间相对较大，部分歌曲可能受音源限制自动降级。",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = TextSoft,
                     )
                 }
@@ -324,19 +334,23 @@ fun SettingsScreen(
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)) // 16dp 圆角卡片
+            .border(1.dp, Stone200, RoundedCornerShape(12.dp))
+            .shadow(0.5.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
+            .clip(RoundedCornerShape(12.dp))
             .background(Surface)
             .padding(vertical = 12.dp)
     ) {
         Text(
-            title,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
+            text = title,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            ),
             color = TextSoft,
             letterSpacing = 0.5.sp,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
         )
         Spacer(Modifier.height(4.dp))
         content()
@@ -346,6 +360,7 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun SettingRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
     label: String,
     subtitle: String,
     onClick: () -> Unit,
@@ -354,39 +369,41 @@ private fun SettingRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier
-                .size(32.dp)
+            modifier = Modifier
+                .size(34.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(TagBg),
+                .background(Stone100),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = TagText, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                label,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
+                text = label,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 color = TextPrimary
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(1.dp))
             Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = TextSoft,
                 maxLines = 2
             )
         }
         Icon(
-            Icons.Filled.ChevronRight,
+            imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
             tint = TextMuted,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(16.dp)
         )
     }
 }
