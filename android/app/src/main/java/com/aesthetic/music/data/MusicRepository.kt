@@ -1,6 +1,8 @@
 package com.aesthetic.music.data
 
 import com.aesthetic.music.data.api.ApiClient
+import com.aesthetic.music.data.api.ArtistDetailData
+import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.AuthData
 import com.aesthetic.music.data.api.DailyData
 import com.aesthetic.music.data.api.LoginBody
@@ -30,9 +32,20 @@ class MusicRepository(
 
     // ==================== 音乐 ====================
 
-    suspend fun search(keyword: String, limit: Int = 20): Result<List<Song>> = runCatching {
+    suspend fun search(keyword: String, limit: Int = 30): Result<List<Song>> = runCatching {
         val resp = api.search(keyword, limit)
         if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "搜索失败")
+    }
+
+    /** 歌手搜索（后端无支持音源时返回失败，调用方静默降级即可） */
+    suspend fun searchArtists(keyword: String, limit: Int = 8): Result<List<ArtistItem>> = runCatching {
+        val resp = api.artistSearch(keyword, limit)
+        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "歌手搜索失败")
+    }
+
+    suspend fun getArtist(platform: String?, id: String, limit: Int = 50): Result<ArtistDetailData> = runCatching {
+        val resp = api.artistDetail(platform, id, limit)
+        if (resp.code == 200) resp.data ?: throw Exception("获取歌手失败") else throw Exception(resp.msg ?: "获取歌手失败")
     }
 
     suspend fun getSongUrl(song: Song, quality: String = "lossless"): Result<SongUrlData> = runCatching {

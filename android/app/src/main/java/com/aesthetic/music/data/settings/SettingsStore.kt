@@ -40,6 +40,7 @@ object SettingsStore {
     private const val KEY_FLOATING_CAPSULE = "floating_capsule_enabled"
     private const val KEY_PLAYER_THEME = "player_theme"
     private const val KEY_PLAYBACK_SPEED = "playback_speed"
+    private const val KEY_PREFERRED_BASE = "preferred_base_url"
 
     private var prefs: SharedPreferences? = null
 
@@ -108,5 +109,17 @@ object SettingsStore {
             p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
         } catch (_: Exception) {
         }
+    }
+
+    // ===== 后端节点（分布式故障转移）=====
+    /** 上次成功连通的后端地址，下次启动优先使用 */
+    fun getPreferredBaseUrl(): String? = try {
+        p()?.getString(KEY_PREFERRED_BASE, null)
+    } catch (_: Exception) {
+        null
+    }
+
+    fun setPreferredBaseUrl(url: String) {
+        try { p()?.edit()?.putString(KEY_PREFERRED_BASE, url)?.apply() } catch (_: Exception) {}
     }
 }

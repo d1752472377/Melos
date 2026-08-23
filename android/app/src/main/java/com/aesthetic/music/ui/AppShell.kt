@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.player.PlayerManager
@@ -55,6 +56,7 @@ import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.cache.CacheListScreen
 import com.aesthetic.music.ui.components.MiniPlayer
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.artist.ArtistScreen
 import com.aesthetic.music.ui.discover.DiscoverScreen
 import com.aesthetic.music.ui.favorites.FavoritesScreen
 import com.aesthetic.music.ui.home.HomeScreen
@@ -89,6 +91,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val showCacheList by viewModel.showCacheList.collectAsState()
     val showLogin by viewModel.showLogin.collectAsState()
     val showMyPlaylists by viewModel.showMyPlaylists.collectAsState()
+    val showArtist by viewModel.showArtist.collectAsState()
 
     val playerState by playerManager.state.collectAsState()
     val history by viewModel.history.collectAsState()
@@ -96,6 +99,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
+    val matchedArtists by viewModel.searchArtists.collectAsState()
+    val artistDetail by viewModel.artistDetail.collectAsState()
+    val isLoadingArtist by viewModel.isLoadingArtist.collectAsState()
     val hotPlaylists by viewModel.hotPlaylists.collectAsState()
     val isLoadingHot by viewModel.isLoadingHot.collectAsState()
     val playlistSongs by viewModel.playlistSongs.collectAsState()
@@ -212,6 +218,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     searchQuery = searchQuery,
                     isSearching = isSearching,
                     favorites = favorites,
+                    matchedArtists = matchedArtists,
                     onBack = { viewModel.switchTab(AppTab.HOME) },
                     onSearch = viewModel::search,
                     onPlaySong = {
@@ -220,6 +227,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     },
                     onToggleFavorite = viewModel::toggleFavorite,
                     onOpenImport = { viewModel.showImportDialog.value = true },
+                    onOpenArtist = viewModel::openArtist,
                 )
 
                 AppTab.PROFILE -> ProfileScreen(
@@ -265,6 +273,27 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             showAddToPlaylist = true
                         }
                     },
+                )
+            }
+
+            // ===== 歌手页 =====
+            val artistRef = showArtist
+            if (artistRef != null) {
+                val info = artistDetail?.info
+                val artistSongs = artistDetail?.songs.orEmpty()
+                ArtistScreen(
+                    name = info?.name?.takeIf { it.isNotBlank() } ?: artistRef.name,
+                    alias = info?.alias,
+                    avatar = info?.avatar,
+                    songs = artistSongs,
+                    isLoading = isLoadingArtist,
+                    favorites = favorites,
+                    onBack = viewModel::closeArtist,
+                    onPlaySong = { playSong(it, artistSongs) },
+                    onPlayAll = {
+                        if (artistSongs.isNotEmpty()) playSong(artistSongs.first(), artistSongs)
+                    },
+                    onToggleFavorite = viewModel::toggleFavorite,
                 )
             }
 

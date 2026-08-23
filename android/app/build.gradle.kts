@@ -12,8 +12,8 @@ android {
         applicationId = "com.aesthetic.music"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.5.5"
+        versionCode = 12
+        versionName = "1.6.0"
     }
 
     // 修复部分国产 ROM 安装器报“解析软件包时出现问题(33)”：

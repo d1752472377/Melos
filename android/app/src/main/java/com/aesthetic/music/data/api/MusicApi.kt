@@ -113,6 +113,25 @@ data class ContentData<T>(
     val data: T? = null,
 )
 
+/** 歌手条目（/api/artist/search 与歌手详情 info 共用） */
+data class ArtistItem(
+    val id: String = "",
+    val name: String = "",
+    val avatar: String? = null,
+    val alias: String? = null,
+    val platform: String? = null,
+    /** 歌手专辑数（仅详情接口返回） */
+    val albumSize: Long? = null,
+    /** 歌手歌曲数（仅详情接口返回） */
+    val musicSize: Long? = null,
+)
+
+/** /api/artist 返回的详情 + 热门歌曲 */
+data class ArtistDetailData(
+    val info: ArtistItem? = null,
+    val songs: List<Song> = emptyList(),
+)
+
 /** 请求体：注册 */
 data class RegisterBody(
     val username: String,
@@ -155,8 +174,21 @@ interface MusicApi {
     @GET("api/search")
     suspend fun search(
         @Query("keyword") keyword: String,
-        @Query("limit") limit: Int = 20,
+        @Query("limit") limit: Int = 30,
     ): ApiResponse<List<Song>>
+
+    @GET("api/artist/search")
+    suspend fun artistSearch(
+        @Query("keyword") keyword: String,
+        @Query("limit") limit: Int = 8,
+    ): ApiResponse<List<ArtistItem>>
+
+    @GET("api/artist")
+    suspend fun artistDetail(
+        @Query("platform") platform: String? = null,
+        @Query("id") id: String,
+        @Query("limit") limit: Int = 50,
+    ): ApiResponse<ArtistDetailData>
 
     @GET("api/song/url")
     suspend fun songUrl(

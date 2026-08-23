@@ -3,6 +3,8 @@ package com.aesthetic.music.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.data.api.ArtistDetailData
+import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.api.UserStatsDto
@@ -17,6 +19,9 @@ import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.UserStore
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +67,11 @@ class MainViewModel : ViewModel() {
     val isSearching = MutableStateFlow(false)
     val searchError = MutableStateFlow<String?>(null)
 
+    /** 搜索命中的歌手（后端不支持时为空列表，静默降级） */
+    private val _searchArtists = MutableStateFlow<List<ArtistItem>>(emptyList())
+    val searchArtists: StateFlow<List<ArtistItem>> = _searchArtists.asStateFlow()
+    private var searchJob: Job? = null
+
     // 发现页：热门歌单 + 内容体系
     private val _hotPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val hotPlaylists: StateFlow<List<PlaylistItem>> = _hotPlaylists.asStateFlow()
@@ -105,23 +115,78 @@ class MainViewModel : ViewModel() {
 
     // ==================== 搜索 ====================
 
-    fun search(keyword: String) {
+    /**
+     * 防抖搜索：输入框每敲一个字都会调到这里，400ms 内的新输入会取消上一次请求，
+     * 避免打爆上游 API（部分音源有 QPS 限制）。immediate=true 跳过等待（如 IME 搜索键）。
+     */
+    fun search(keyword: String, immediate: Boolean = false) {
         val kw = keyword.trim()
         searchQuery.value = kw
+        searchJob?.cancel()
         if (kw.isEmpty()) {
             _searchResults.value = emptyList()
+            _searchArtists.value = emptyList()
             return
         }
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
+            if (!immediate) delay(400)
             isSearching.value = true
             searchError.value = null
-            repository.search(kw).onSuccess { list ->
-                _searchResults.value = list
-            }.onFailure { e ->
-                searchError.value = e.message ?: "搜索失败"
+            // 歌曲与歌手并行查询；歌手失败静默降级，不影响歌曲列表
+            coroutineScope {
+                launch {
+                    repository.search(kw).onSuccess { list ->
+                        _searchResults.value = list
+                    }.onFailure { e ->
+                        searchError.value = e.message ?: "搜索失败"
+                    }
+                }
+                launch {
+                    repository.searchArtists(kw).onSuccess { list ->
+                        _searchArtists.value = list
+                    }.onFailure { _searchArtists.value = emptyList() }
+                }
             }
             isSearching.value = false
         }
+    }
+
+    // ==================== 歌手页 ====================
+
+    /** 当前打开的歌手（null = 关闭），AppShell 据此渲染全屏覆盖层 */
+    val showArtist = MutableStateFlow<ArtistRef?>(null)
+    private val _artistDetail = MutableStateFlow<ArtistDetailData?>(null)
+    val artistDetail: StateFlow<ArtistDetailData?> = _artistDetail.asStateFlow()
+    val isLoadingArtist = MutableStateFlow(false)
+
+    /** 歌手页定位信息（平台内标识） */
+    data class ArtistRef(val platform: String, val id: String, val name: String)
+
+    fun openArtist(artist: ArtistItem) {
+        openArtist(
+            ArtistRef(
+                platform = artist.platform ?: "netease",
+                id = artist.id,
+                name = artist.name,
+            )
+        )
+    }
+
+    fun openArtist(ref: ArtistRef) {
+        showArtist.value = ref
+        viewModelScope.launch {
+            isLoadingArtist.value = true
+            _artistDetail.value = null
+            repository.getArtist(ref.platform, ref.id).onSuccess { detail ->
+                _artistDetail.value = detail
+            }
+            isLoadingArtist.value = false
+        }
+    }
+
+    fun closeArtist() {
+        showArtist.value = null
+        _artistDetail.value = null
     }
 
     fun addToHistory(song: Song) {
@@ -490,8 +555,10 @@ class MainViewModel : ViewModel() {
 
     fun switchTab(tab: AppTab) {
         currentTab.value = tab
-        // 切 Tab 时关闭二级页面（歌单详情/收藏页等覆盖层），否则会盖住新 Tab 内容
+        // 切 Tab 时关闭二级页面（歌单详情/歌手页/收藏页等覆盖层），否则会盖住新 Tab 内容
         showPlaylistDetail.value = null
+        showArtist.value = null
+        _artistDetail.value = null
         showFavorites.value = false
         showCacheList.value = false
         showMyPlaylists.value = false

@@ -2,6 +2,7 @@ package com.aesthetic.music.ui.playlist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +15,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -45,6 +48,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -70,11 +74,13 @@ fun PlaylistScreen(
     searchQuery: String,
     isSearching: Boolean,
     favorites: Set<String>,
+    matchedArtists: List<ArtistItem> = emptyList(),
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
     onPlaySong: (Song) -> Unit,
     onToggleFavorite: (Song) -> Unit,
     onOpenImport: () -> Unit,
+    onOpenArtist: (ArtistItem) -> Unit = {},
 ) {
     val showSearch = searchQuery.isNotBlank()
     val baseList = if (showSearch) searchResults else history
@@ -144,6 +150,41 @@ fun PlaylistScreen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
+            }
+
+            // 匹配歌手（搜索时后端命中的歌手，点击进歌手页）
+            if (showSearch && matchedArtists.isNotEmpty()) {
+                item {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                    ) {
+                        matchedArtists.forEach { artist ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onOpenArtist(artist) }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                            ) {
+                                SongCover(artist.avatar, Modifier.size(56.dp), corner = 28.dp)
+                                Spacer(Modifier.height(5.dp))
+                                Text(
+                                    artist.name,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 64.dp),
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
             }
 
             // 歌曲列表或空状态

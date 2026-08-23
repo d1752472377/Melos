@@ -10,9 +10,10 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     /**
-     * 后端地址（公网部署，服务器 8787 经 NAT 映射到 18787）。
+     * 后端地址：Vercel Serverless（函数在 hkg1，数据库 Turso 云库）。
+     * 自定义域名 music.dovislab.com 用于绕开 *.vercel.app 在大陆的 DNS 污染。
      */
-    const val BASE_URL = "http://43.248.3.147:18787/"
+    const val BASE_URL = "https://music.dovislab.com/"
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
