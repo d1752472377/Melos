@@ -122,9 +122,16 @@ fun DiscoverScreen(
 
             // 新歌速递
             if (newSongs.isNotEmpty()) {
-                item(key = "section_newsongs") { SectionTitle("新歌速递", "第一时间听见心动", AccentMint) }
-                items(newSongs.take(8), key = { it.platform + ":" + it.id }) { song ->
-                    NewSongRow(song = song, onClick = { onPlaySong(song) })
+                item(key = "section_newsongs") {
+                    Column {
+                        SectionTitle("新歌速递", "第一时间听见心动", AccentMint)
+                        Spacer(Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            newSongs.take(8).forEach { song ->
+                                NewSongRow(song = song, onClick = { onPlaySong(song) })
+                            }
+                        }
+                    }
                 }
             }
 
@@ -173,24 +180,27 @@ fun DiscoverScreen(
 @Composable
 private fun SectionTitle(title: String, subtitle: String, accentColor: Color) {
     Column(Modifier.padding(top = 8.dp, bottom = 2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .size(6.dp)
+                    .size(7.dp)
                     .clip(CircleShape)
                     .background(accentColor)
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(7.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 22.sp
                 ),
                 color = TextPrimary
             )
         }
-        Spacer(Modifier.height(1.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             text = subtitle,
             style = MaterialTheme.typography.bodySmall.copy(
@@ -206,52 +216,53 @@ private fun NewSongRow(song: Song, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-            .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
-            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, Stone200.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .shadow(1.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.03f))
+            .clip(RoundedCornerShape(12.dp))
             .background(Surface)
             .clickable(onClick = onClick)
-            .padding(8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SongCover(song.artwork, Modifier.size(46.dp), corner = 8.dp)
-        Spacer(Modifier.width(10.dp))
+        SongCover(song.artwork, Modifier.size(48.dp), corner = 10.dp)
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = song.title,
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 ),
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(3.dp))
             Text(
                 text = song.subtitleText,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 11.sp
+                    fontSize = 12.sp
                 ),
                 color = TextSoft,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        // Level 4 纯圆微播放标
+        // 强化右侧播放按钮视觉重量：更有锚定感的圆形高对比底色与微投影
         Box(
             modifier = Modifier
                 .padding(end = 4.dp)
-                .size(30.dp)
+                .size(36.dp)
+                .shadow(1.dp, CircleShape, ambientColor = PrimaryBrown.copy(alpha = 0.2f))
                 .clip(CircleShape)
-                .background(Stone100),
+                .background(PrimaryBrown.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Filled.PlayArrow,
                 contentDescription = "播放",
                 tint = PrimaryBrown,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }

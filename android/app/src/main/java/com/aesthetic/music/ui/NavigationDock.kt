@@ -83,17 +83,24 @@ private fun DockIcon(
 ) {
     Box(
         modifier = Modifier
-            .size(40.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) PrimaryBrown.copy(alpha = 0.1f) else Color.Transparent)
+            .size(48.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (selected) PrimaryBrown else TextSoft,
-            modifier = Modifier.size(22.dp),
-        )
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Color.Transparent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) PrimaryBrown else TextSoft,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
