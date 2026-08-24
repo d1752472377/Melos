@@ -26,6 +26,8 @@ android/.idea/
 *.aab
 *.keystore
 *.jks
+# 项目统一签名文件例外：入库以保证任何机器打包签名一致
+!android/keystore/*.jks
 
 # ---- Backend 运行时数据 ----
 backend/data/*.db

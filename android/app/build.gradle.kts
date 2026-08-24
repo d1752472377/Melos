@@ -17,16 +17,24 @@ android {
         versionName = "1.6.0"
     }
 
-    // 修复部分国产 ROM 安装器报“解析软件包时出现问题(33)”：
-    // 强制同时生成 v1(JAR) + v2 签名，兼容老式包解析器。
+    // 统一签名：所有机器共用仓库内 keystore，保证不同机器打出的 APK 签名一致，
+    // OTA 覆盖安装不会因签名不匹配被拒。v1+v2 同开：修复部分国产 ROM 安装器报
+    // "解析软件包时出现问题(33)"（老式包解析器需要 JAR 签名）。
     signingConfigs {
-        getByName("debug") {
+        create("shared") {
+            storeFile = rootProject.file("keystore/aesthetic.jks")
+            storePassword = "***REMOVED***"
+            keyAlias = "aesthetic"
+            keyPassword = "***REMOVED***"
             enableV1Signing = true
             enableV2Signing = true
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             // 开启 R8 + 资源收缩：Compose 运行时体量大，不混淆不裁剪会显著拉长
             // 冷启动 JIT 预热与滑动首帧耗时（首次安装卡、用一会儿变顺的主因之一）。
@@ -37,6 +45,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("shared")
         }
     }
 
