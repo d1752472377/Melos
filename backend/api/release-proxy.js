@@ -7,7 +7,7 @@
 //   /download     → 返回下载页 HTML
 
 const REPO = 'd1752472377/Melos';
-const RELEASE_TAG = 'v1.6.0';
+const RELEASE_TAG = 'v1.7.0';
 
 async function getAssetUrl(assetName) {
   const token = process.env.GITHUB_TOKEN;
