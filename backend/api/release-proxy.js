@@ -84,40 +84,106 @@ export default async function handler(req, res) {
   }
 }
 
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function renderDownloadPage(info) {
-  const v = info.versionName || '?';
-  const log = (info.updateLog || '').replace(/\n/g, '<br>');
-  const size = info.apkSize ? formatSize(info.apkSize) : '?';
-  const time = info.publishTime || '';
+  const v = esc(info.versionName || '?');
+  const size = info.apkSize ? formatSize(info.apkSize) : '';
+  const time = esc(info.publishTime || '');
+  // 更新日志按行渲染；含"注意/卸载"的行高亮为警示样式
+  const rows = (info.updateLog || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const warn = /注意|卸载|必须/.test(s);
+      return `<li${warn ? ' class="warn"' : ''}>${esc(s)}</li>`;
+    })
+    .join('\n');
+  const md5Short = info.md5 ? `MD5 ${esc(String(info.md5)).slice(0, 12)}…` : '';
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aesthetic Music 下载</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121214">
+<title>Aesthetic Music · 下载</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#1e1e22;color:#e8e4df;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
-  .card{width:90%;max-width:420px;background:#28282c;border-radius:16px;padding:36px 28px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)}
-  .brand{font-size:28px;font-weight:700;letter-spacing:6px;background:linear-gradient(135deg,#f59e0b,#fbbf24);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .sub{color:#9e9891;font-size:13px;margin-top:6px}
-  .version{margin-top:20px;font-size:15px;color:#fde68a}
-  .log{color:#b8b2aa;font-size:13px;line-height:1.7;margin-top:10px;text-align:left;padding:0 8px}
-  .size{color:#7c756e;font-size:12px;margin-top:8px}
-  .btn{display:block;margin-top:24px;padding:14px;background:#f59e0b;color:#1e1e22;font-weight:700;font-size:16px;border-radius:10px;text-decoration:none}
-  .btn:active{opacity:.85}
-  .tips{margin-top:14px;color:#7c756e;font-size:12px;text-align:center;line-height:1.7}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:radial-gradient(120% 120% at 50% 0%,#26262b 0%,#17171a 55%,#121214 100%);
+    color:#e8e4df;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    min-height:100vh;min-height:100dvh;
+    display:flex;align-items:center;justify-content:center;
+    padding:max(24px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
+  }
+  .card{
+    width:100%;max-width:400px;
+    background:#232327;border:1px solid #34343a;border-radius:20px;
+    padding:30px 22px 22px;text-align:center;
+    box-shadow:0 14px 44px rgba(0,0,0,.45);
+  }
+  .icon{
+    width:72px;height:72px;margin:0 auto 14px;border-radius:19px;
+    background:linear-gradient(135deg,#f59e0b,#fbbf24);
+    display:flex;align-items:center;justify-content:center;
+    font-size:34px;color:#1e1e22;font-weight:800;
+    box-shadow:0 6px 20px rgba(245,158,11,.35);
+    user-select:none;
+  }
+  .brand{
+    font-size:22px;font-weight:800;letter-spacing:5px;
+    background:linear-gradient(135deg,#f59e0b,#fbbf24);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .sub{color:#9e9891;font-size:11.5px;margin-top:4px;letter-spacing:2px}
+  .version{
+    display:inline-block;margin-top:16px;padding:5px 14px;border-radius:999px;
+    background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);
+    color:#fde68a;font-size:13px;font-weight:600;
+  }
+  ul.log{list-style:none;text-align:left;margin:16px 2px 0;display:flex;flex-direction:column;gap:7px}
+  ul.log li{position:relative;padding-left:15px;font-size:13px;line-height:1.65;color:#c9c4bd}
+  ul.log li::before{content:"";position:absolute;left:2px;top:.6em;width:5px;height:5px;border-radius:50%;background:#f59e0b}
+  ul.log li.warn{
+    color:#fecaca;background:rgba(239,68,68,.09);
+    border:1px solid rgba(239,68,68,.25);border-radius:10px;
+    padding:8px 10px 8px 27px;font-weight:500;
+  }
+  ul.log li.warn::before{background:#ef4444;left:11px;top:50%;transform:translateY(-50%)}
+  .meta{margin-top:13px;color:#7c756e;font-size:11.5px}
+  .btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    margin-top:18px;height:54px;border-radius:14px;
+    background:linear-gradient(135deg,#f59e0b,#fbbf24);
+    color:#1e1e22;font-weight:700;font-size:16px;text-decoration:none;
+    box-shadow:0 6px 18px rgba(245,158,11,.3);
+    transition:transform .12s ease,filter .12s ease;
+  }
+  .btn small{font-weight:500;font-size:12px;opacity:.75}
+  .btn:active{transform:scale(.97)}
+  @media (hover:hover){.btn:hover{filter:brightness(1.07)}}
+  .tips{margin-top:14px;color:#7c756e;font-size:11.5px;line-height:1.7}
 </style>
 </head>
 <body>
 <div class="card">
+  <div class="icon">&#9834;</div>
   <div class="brand">AESTHETIC</div>
-  <div class="sub">Music Player</div>
-  <div class="version">当前版本 v${v}</div>
-  ${log ? `<div class="log">${log}</div>` : ''}
-  <div class="size">大小 ${size}${time ? ' · ' + time : ''}</div>
-  <a class="btn" href="/latest.apk">下载 APK</a>
-  <div class="tips">Android 7.0+<br>仅限已安装用户更新或手动安装</div>
+  <div class="sub">MUSIC PLAYER</div>
+  <div class="version">v${v}${time ? ' &middot; ' + time : ''}</div>
+  ${rows ? `<ul class="log">${rows}</ul>` : ''}
+  <a class="btn" href="/latest.apk">下载安装包${size ? ` <small>${esc(size)}</small>` : ''}</a>
+  <div class="meta">${md5Short}</div>
+  <div class="tips">Android 7.0+ · 更换签名版本需先卸载旧版<br>若点击无反应请长按选择浏览器打开</div>
 </div>
 </body>
 </html>`;
