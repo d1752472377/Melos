@@ -109,10 +109,15 @@ export class Registry {
     return [...preferred, ...rest].map((e) => e.source);
   }
 
-  /** 聚合搜索：合并所有健康源结果，按权重排序，去重 */
-  async search(keyword, limit = 20) {
+  /** 聚合搜索：合并所有健康源结果，按权重排序，去重。
+   *  platformId 可选：只聚合指定源（App 端搜索页的平台切换）。 */
+  async search(keyword, limit = 20, platformId = null) {
     // 只统计"健康"的源来分摊配额：不健康源不参与请求，也不该拉低每源配额。
-    const healthy = this.active.filter(({ row }) => this._isHealthy(row.id));
+    let healthy = this.active.filter(({ row }) => this._isHealthy(row.id));
+    if (platformId) {
+      healthy = healthy.filter(({ row }) => row.id === platformId);
+      if (healthy.length === 0) return [];
+    }
     // 超额请求（×2，至少 limit）：补偿部分源返回不足/去重损耗；合并后统一裁剪到 limit。
     const perSource = Math.min(50, Math.max(limit, Math.ceil((limit * 2) / Math.max(healthy.length, 1))));
     const results = await Promise.allSettled(

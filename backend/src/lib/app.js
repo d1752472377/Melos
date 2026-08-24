@@ -59,9 +59,9 @@ export async function buildApp() {
     version: '0.2.0',
     admin: '/admin/',
     endpoints: [
-      '/api/search', '/api/song/url', '/api/lyric',
-      '/api/artist/search', '/api/artist',
-      '/api/sources',
+      '/api/search', '/api/search/hot', '/api/search/playlist', '/api/search/album',
+      '/api/search/lyric', '/api/album', '/api/song/url', '/api/lyric',
+      '/api/artist/search', '/api/artist', '/api/sources',
       '/api/daily', '/api/newsongs', '/api/ranks', '/api/rank/:id', '/api/categories',
       '/api/user/register', '/api/user/login', '/api/user/me', '/api/user/favorites',
       '/api/user/history', '/api/user/playlists', '/api/user/stats',

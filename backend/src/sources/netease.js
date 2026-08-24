@@ -154,6 +154,124 @@ export class NeteaseSource extends MusicSource {
     }));
   }
 
+  // ==================== 官方搜索扩展（/api/search/get 多 type） ====================
+  //
+  // 网易云公开搜索接口的 type：1 单曲 / 10 专辑 / 100 歌手 / 1000 歌单 / 1006 歌词匹配。
+  // 与 meting 管线解耦，直接走公开 API（同 getArtist 的直连模式），失败向上抛由路由层兜底。
+
+  /** 统一的公开搜索入口：返回 j.result（无结果时为空对象） */
+  async _publicSearch(type, keyword, limit) {
+    const url =
+      `https://music.163.com/api/search/get/?s=${encodeURIComponent(String(keyword))}` +
+      `&type=${type}&limit=${Math.min(limit, 50)}&offset=0`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://music.163.com',
+        ...(this.cookie ? { Cookie: this.cookie } : {}),
+      },
+    });
+    if (!res.ok) throw new Error(`[netease] 搜索接口 HTTP ${res.status}`);
+    const j = await res.json();
+    if (j?.code && j.code !== 200) throw new Error(`[netease] 搜索接口 code=${j.code}`);
+    return j?.result || {};
+  }
+
+  /** 兼容 v1(artists[]/album{}) 与 v3(ar[]/al{}) 两种歌曲字段结构 */
+  _songFromPublic(s) {
+    const artistArr = Array.isArray(s.artists) ? s.artists : (Array.isArray(s.ar) ? s.ar : []);
+    const albumObj = s.album || s.al || {};
+    const pic = albumObj.picUrl || null;
+    return {
+      id: String(s.id),
+      title: s.name || '',
+      artist: artistArr.map((a) => a?.name).filter(Boolean).join('/'),
+      album: albumObj.name || '',
+      artwork: pic ? (String(pic).startsWith('//') ? `https:${pic}` : pic) : null,
+      platform: this.id,
+    };
+  }
+
+  /** 歌单搜索（type=1000） */
+  async searchPlaylists(keyword, limit = 20) {
+    const r = await this._publicSearch(1000, keyword, limit);
+    const arr = Array.isArray(r.playlists) ? r.playlists : [];
+    return arr.map((p) => ({
+      id: String(p.id),
+      name: p.name || '',
+      coverUrl: p.coverImgUrl || p.picUrl || null,
+      playCount: p.playCount ?? null,
+      trackCount: p.trackCount ?? null,
+      platform: this.id,
+    }));
+  }
+
+  /** 专辑搜索（type=10） */
+  async searchAlbums(keyword, limit = 20) {
+    const r = await this._publicSearch(10, keyword, limit);
+    const arr = Array.isArray(r.albums) ? r.albums : [];
+    return arr.map((a) => ({
+      id: String(a.id),
+      name: a.name || '',
+      artist: Array.isArray(a.artists) ? a.artists.map((x) => x?.name).filter(Boolean).join('/') : '',
+      coverUrl: a.picUrl || null,
+      size: a.size ?? null,
+      platform: this.id,
+    }));
+  }
+
+  /** 专辑详情 + 全部曲目（公开 /api/album/{id}） */
+  async getAlbum(albumId) {
+    const res = await fetch(`https://music.163.com/api/album/${encodeURIComponent(String(albumId))}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://music.163.com',
+        ...(this.cookie ? { Cookie: this.cookie } : {}),
+      },
+    });
+    if (!res.ok) throw new Error(`[netease] 专辑接口 HTTP ${res.status}`);
+    const j = await res.json();
+    const info = j?.album;
+    if (!info?.id) throw new Error('[netease] 专辑接口返回为空');
+    const songs = Array.isArray(j.songs) ? j.songs : [];
+    return {
+      info: {
+        id: String(info.id),
+        name: info.name || '',
+        artist: Array.isArray(info.artists) ? info.artists.map((x) => x?.name).filter(Boolean).join('/') : '',
+        coverUrl: info.picUrl || null,
+        size: info.size ?? null,
+        platform: this.id,
+      },
+      songs: songs.filter((s) => s?.id).map((s) => this._songFromPublic(s)),
+    };
+  }
+
+  /** 歌词关键词搜歌（type=1006）：返回歌曲列表（按歌词内容命中） */
+  async searchByLyric(keyword, limit = 20) {
+    const r = await this._publicSearch(1006, keyword, limit);
+    const arr = Array.isArray(r.songs) ? r.songs : [];
+    return arr.map((s) => this._songFromPublic(s));
+  }
+
+  /** 热搜词（官方 /api/search/hot/detail） */
+  async hotSearchWords(limit = 12) {
+    const res = await fetch('https://music.163.com/api/search/hot/detail', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://music.163.com',
+        ...(this.cookie ? { Cookie: this.cookie } : {}),
+      },
+    });
+    if (!res.ok) throw new Error(`[netease] 热搜接口 HTTP ${res.status}`);
+    const j = await res.json();
+    const arr = Array.isArray(j?.data) ? j.data : [];
+    return arr
+      .map((d) => d?.searchWord)
+      .filter(Boolean)
+      .slice(0, limit);
+  }
+
   _parse(raw) {
     try {
       const v = JSON.parse(raw);

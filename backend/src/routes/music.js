@@ -1,6 +1,11 @@
 /**
  * 业务 API（App 端调用，无需鉴权）：
- *   GET /api/search?keyword=&limit=
+ *   GET /api/search?keyword=&limit=&platform=      （聚合搜索；platform 可选：只搜指定源）
+ *   GET /api/search/hot                             （热搜词，netease 官方）
+ *   GET /api/search/playlist?keyword=&limit=        （歌单搜索，netease）
+ *   GET /api/search/album?keyword=&limit=           （专辑搜索，netease）
+ *   GET /api/search/lyric?keyword=&limit=           （歌词关键词搜歌，netease）
+ *   GET /api/album?id=                              （专辑详情+曲目，netease）
  *   GET /api/song/url?platform=&id=&title=&quality=
  *   GET /api/lyric?platform=&id=&title=
  *   GET /api/artist/search?keyword=&limit=     （歌手搜索）
@@ -12,8 +17,88 @@ export function registerMusicRoutes(app, registry) {
     const { keyword } = req.query;
     if (!keyword) return reply.code(400).send({ code: 400, msg: '缺少 keyword' });
     const limit = Math.min(parseInt(req.query.limit || '20', 10) || 20, 50);
-    const songs = await registry.search(String(keyword), limit);
+    const platform = req.query.platform ? String(req.query.platform) : null;
+    const songs = await registry.search(String(keyword), limit, platform);
     return { code: 200, data: songs };
+  });
+
+  // 热搜词（App 搜索页"热门搜索"）；无 netease 源时返回兜底空列表而非报错
+  app.get('/api/search/hot', async () => {
+    const source = registry.getSourceByType('netease');
+    if (!source || !source.hotSearchWords) return { code: 200, data: [] };
+    try {
+      const words = await source.hotSearchWords(12);
+      return { code: 200, data: words };
+    } catch {
+      return { code: 200, data: [] };
+    }
+  });
+
+  // 歌单搜索（netease type=1000）
+  app.get('/api/search/playlist', async (req, reply) => {
+    const { keyword } = req.query;
+    if (!keyword) return reply.code(400).send({ code: 400, msg: '缺少 keyword' });
+    const source = registry.getSourceByType('netease');
+    if (!source || !source.searchPlaylists) {
+      return reply.code(503).send({ code: 503, msg: '没有支持歌单搜索的可用音源（需启用 netease）' });
+    }
+    const limit = Math.min(parseInt(req.query.limit || '20', 10) || 20, 50);
+    try {
+      const list = await source.searchPlaylists(String(keyword), limit);
+      return { code: 200, data: list };
+    } catch (e) {
+      return reply.code(502).send({ code: 502, msg: `歌单搜索失败: ${e.message}` });
+    }
+  });
+
+  // 专辑搜索（netease type=10）
+  app.get('/api/search/album', async (req, reply) => {
+    const { keyword } = req.query;
+    if (!keyword) return reply.code(400).send({ code: 400, msg: '缺少 keyword' });
+    const source = registry.getSourceByType('netease');
+    if (!source || !source.searchAlbums) {
+      return reply.code(503).send({ code: 503, msg: '没有支持专辑搜索的可用音源（需启用 netease）' });
+    }
+    const limit = Math.min(parseInt(req.query.limit || '20', 10) || 20, 50);
+    try {
+      const list = await source.searchAlbums(String(keyword), limit);
+      return { code: 200, data: list };
+    } catch (e) {
+      return reply.code(502).send({ code: 502, msg: `专辑搜索失败: ${e.message}` });
+    }
+  });
+
+  // 歌词关键词搜歌（netease type=1006）
+  app.get('/api/search/lyric', async (req, reply) => {
+    const { keyword } = req.query;
+    if (!keyword) return reply.code(400).send({ code: 400, msg: '缺少 keyword' });
+    const source = registry.getSourceByType('netease');
+    if (!source || !source.searchByLyric) {
+      return reply.code(503).send({ code: 503, msg: '没有支持歌词搜索的可用音源（需启用 netease）' });
+    }
+    const limit = Math.min(parseInt(req.query.limit || '20', 10) || 20, 50);
+    try {
+      const songs = await source.searchByLyric(String(keyword), limit);
+      return { code: 200, data: songs };
+    } catch (e) {
+      return reply.code(502).send({ code: 502, msg: `歌词搜索失败: ${e.message}` });
+    }
+  });
+
+  // 专辑详情 + 曲目列表（点击专辑搜索结果时拉取）
+  app.get('/api/album', async (req, reply) => {
+    const { id } = req.query;
+    if (!id) return reply.code(400).send({ code: 400, msg: '缺少 id' });
+    const source = registry.getSourceByType('netease');
+    if (!source || !source.getAlbum) {
+      return reply.code(503).send({ code: 503, msg: '没有支持专辑详情的可用音源（需启用 netease）' });
+    }
+    try {
+      const detail = await source.getAlbum(String(id));
+      return { code: 200, data: detail };
+    } catch (e) {
+      return reply.code(502).send({ code: 502, msg: `获取专辑失败: ${e.message}` });
+    }
   });
 
   app.get('/api/song/url', async (req, reply) => {
