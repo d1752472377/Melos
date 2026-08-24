@@ -1,0 +1,10 @@
+{
+  "versionName": "1.7.0",
+  "versionCode": 13,
+  "apkUrl": "https://music.dovislab.com/latest.apk",
+  "apkSize": 2893095,
+  "md5": "72e5f9cafb0809aa481d1861ef69c224",
+  "forceUpdate": false,
+  "publishTime": "2026-08-25 00:37",
+  "updateLog": "首页全新改版：今日推荐/随便听听/分类歌单/排行榜\n新增独立搜索页、最近播放页，歌词拖动吸附\n聚合搜索扩展：平台筛选/热搜词/专辑详情\n热歌榜取数修正；分类歌单接入真实数据\nR8 裁剪优化：包体 21MB → 2.8MB\n注意：更换统一签名，需先卸载旧版再安装本版"
+}
