@@ -17,23 +17,30 @@ android {
         versionName = "1.6.0"
     }
 
-    // 统一签名：所有机器共用仓库内 keystore，保证不同机器打出的 APK 签名一致，
-    // OTA 覆盖安装不会因签名不匹配被拒。v1+v2 同开：修复部分国产 ROM 安装器报
-    // "解析软件包时出现问题(33)"（老式包解析器需要 JAR 签名）。
+    // 统一签名（私有签发）：keystore 不入库，每台打包机器需手动放置到
+    // android/keystore/aesthetic.jks，保证不同机器打出的 APK 签名一致、OTA
+    // 覆盖安装不互斥。文件缺失时回退本机默认 debug 签名（仅限日常开发调试，
+    // 正式发布必须使用统一签名）。v1+v2 同开：修复部分国产 ROM 安装器报
+    // "解析软件包时出现问题(33)"。
+    val sharedKeystoreFile = rootProject.file("keystore/aesthetic.jks")
+
     signingConfigs {
-        create("shared") {
-            storeFile = rootProject.file("keystore/aesthetic.jks")
-            storePassword = "***REMOVED***"
-            keyAlias = "aesthetic"
-            keyPassword = "***REMOVED***"
-            enableV1Signing = true
-            enableV2Signing = true
+        if (sharedKeystoreFile.exists()) {
+            create("shared") {
+                storeFile = sharedKeystoreFile
+                storePassword = "***REMOVED***"
+                keyAlias = "aesthetic"
+                keyPassword = "***REMOVED***"
+                enableV1Signing = true
+                enableV2Signing = true
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("shared")
+            signingConfig = signingConfigs.findByName("shared")
+                ?: signingConfigs.getByName("debug")
         }
         release {
             // 开启 R8 + 资源收缩：Compose 运行时体量大，不混淆不裁剪会显著拉长
@@ -45,7 +52,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("shared")
+            signingConfig = signingConfigs.findByName("shared")
         }
     }
 
