@@ -22,6 +22,11 @@ object StatsTracker {
 
     private val pending = mutableMapOf<String, PlayEventDto>()
     private var lastFlushAt = 0L
+    /** 本地统计内存累积值：攒够 5 秒才落盘一次（原先每 500ms 一次 Gson+SharedPreferences 往返） */
+    @Volatile
+    private var pendingListenMs = 0L
+    @Volatile
+    private var lastStatsFlushAt = 0L
 
     /** 一首歌真正开始播放时计数一次 */
     fun onPlayStarted(song: Song?) {
@@ -32,7 +37,13 @@ object StatsTracker {
     /** 每 500ms 由播放器调用一次，累计本地统计并攒批上报 */
     fun tick(song: Song, deltaMs: Long, durationMs: Long) {
         if (deltaMs <= 0) return
-        StatsStore.addListen(deltaMs)
+        pendingListenMs += deltaMs
+        val now = System.currentTimeMillis()
+        if (now - lastStatsFlushAt >= 5_000) {
+            StatsStore.addListen(pendingListenMs)
+            pendingListenMs = 0
+            lastStatsFlushAt = now
+        }
         if (!UserStore.isLoggedIn()) return
         val key = song.platform + ":" + song.id
         val cur = pending[key] ?: PlayEventDto(
@@ -45,11 +56,15 @@ object StatsTracker {
             listenedMs = cur.listenedMs + deltaMs,
             durationMs = if (durationMs > 0) durationMs else cur.durationMs,
         )
-        val now = System.currentTimeMillis()
         if (now - lastFlushAt >= 30_000) flushNow()
     }
 
     fun flushNow() {
+        // 先把未落的本地统计冲掉，保证"退出前最后一次刷新"数据完整
+        if (pendingListenMs > 0) {
+            StatsStore.addListen(pendingListenMs)
+            pendingListenMs = 0
+        }
         if (pending.isEmpty()) return
         lastFlushAt = System.currentTimeMillis()
         val batch = pending.values.toList()

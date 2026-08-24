@@ -35,15 +35,22 @@ object UpdateService {
     /** 服务器更新描述文件地址（GitHub Release 资产，经 Vercel 转发） */
     const val UPDATE_URL = "https://music.dovislab.com/update.json"
 
-    suspend fun checkUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
+    /** 更新检查结果三态：此前"网络失败"与"确无更新"都返回 null，UI 会把断网误报成已是最新版 */
+    sealed class CheckResult {
+        data class Available(val info: UpdateInfo) : CheckResult()
+        object UpToDate : CheckResult()
+        data class Failed(val reason: String? = null) : CheckResult()
+    }
+
+    suspend fun checkUpdate(): CheckResult = withContext(Dispatchers.IO) {
         try {
             val client = OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(15, TimeUnit.SECONDS)
                 .build()
             val resp = client.newCall(Request.Builder().url(UPDATE_URL).build()).execute()
-            if (!resp.isSuccessful) return@withContext null
-            val body = resp.body?.string() ?: return@withContext null
+            if (!resp.isSuccessful) return@withContext CheckResult.Failed("HTTP ${resp.code}")
+            val body = resp.body?.string() ?: return@withContext CheckResult.Failed("空响应")
             val json = JSONObject(body)
             val info = UpdateInfo(
                 versionName = json.optString("versionName"),
@@ -56,9 +63,10 @@ object UpdateService {
                 publishTime = json.optString("publishTime"),
             )
             // 比本地 versionCode 高才算有新版本
-            if (info.versionCode > BuildConfig.VERSION_CODE) info else null
-        } catch (_: Exception) {
-            null // 网络异常静默失败，不影响主流程
+            if (info.versionCode > BuildConfig.VERSION_CODE) CheckResult.Available(info) else CheckResult.UpToDate
+        } catch (e: Exception) {
+            // 网络异常必须显式区分，不能静默当成"无更新"
+            CheckResult.Failed(e.message)
         }
     }
 
@@ -100,8 +108,17 @@ object UpdateService {
             throw Exception("安装包大小校验失败（$received / ${info.apkSize}），请重新检查更新")
         }
         if (info.md5.isNotBlank()) {
-            val digest = java.security.MessageDigest.getInstance("MD5").digest(file.readBytes())
-            val actual = digest.joinToString("") { "%02x".format(it) }
+            // 流式计算摘要：整包 readBytes 会把几十上百 MB APK 读进内存，低内存设备 OOM
+            val digest = java.security.MessageDigest.getInstance("MD5")
+            file.inputStream().use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    digest.update(buf, 0, n)
+                }
+            }
+            val actual = digest.digest().joinToString("") { "%02x".format(it) }
             if (!actual.equals(info.md5, ignoreCase = true)) {
                 file.delete()
                 throw Exception("安装包校验失败，请重新检查更新")

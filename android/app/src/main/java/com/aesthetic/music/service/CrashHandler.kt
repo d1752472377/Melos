@@ -14,7 +14,11 @@ import java.util.Locale
  */
 object CrashHandler {
 
+    /** 崩溃日志最多保留份数，超出删除最旧的（此前只写不清、无限增长） */
+    private const val MAX_LOG_FILES = 10
+
     fun init(context: Context) {
+        pruneOldLogs(context)
         val default = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
@@ -35,6 +39,15 @@ object CrashHandler {
             } catch (_: Exception) {
             }
             default?.uncaughtException(thread, throwable)
+        }
+    }
+
+    private fun pruneOldLogs(context: Context) {
+        try {
+            val dir = File(context.getExternalFilesDir(null), "crash")
+            val logs = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: return
+            logs.drop(MAX_LOG_FILES).forEach { it.delete() }
+        } catch (_: Exception) {
         }
     }
 }

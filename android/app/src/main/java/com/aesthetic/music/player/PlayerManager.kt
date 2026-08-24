@@ -10,6 +10,7 @@ import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.SettingsStore
+import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.StatsTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,13 +27,24 @@ import kotlinx.coroutines.withContext
 /** 播放模式（参考 App 的 PlayMode） */
 enum class PlayMode { SEQUENCE, REPEAT, SHUFFLE }
 
-/** 播放器全局状态 */
+/**
+ * 高频播放进度：每 500ms 更新一次。
+ * 与低频 [PlayerState] 分离——只有迷你播放器/播放页底部控件订阅它，
+ * 进度跳动不再带动 AppShell 及整棵内容树重组。
+ */
+data class PlaybackProgress(
+    val positionMs: Long = 0,
+    val durationMs: Long = 0,
+)
+
+/** 播放器全局状态（歌级/低频状态；不含高频进度，见 [PlaybackProgress]） */
+// @Immutable：本类所有更新都走 copy() 整体替换、从不原地改集合，
+// 标注后 Compose 可把接收它的子组件视为可跳过
+@androidx.compose.runtime.Immutable
 data class PlayerState(
     val queue: List<Song> = emptyList(),
     val currentIndex: Int = -1,
     val isPlaying: Boolean = false,
-    val positionMs: Long = 0,
-    val durationMs: Long = 0,
     val lyrics: List<LyricLine> = emptyList(),
     val isLoading: Boolean = false,
     val playMode: PlayMode = PlayMode.SEQUENCE,
@@ -68,11 +80,17 @@ class PlayerManager private constructor(private val appContext: Context) {
     )
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
+    /** 高频进度流：仅 MiniPlayer / PlayerScreen 底部控件订阅 */
+    private val _progress = MutableStateFlow(PlaybackProgress())
+    val progress: StateFlow<PlaybackProgress> = _progress.asStateFlow()
+
     private var progressJob: Job? = null
     private var sleepJob: Job? = null
     private var pendingSeekMs: Long = 0
     private var statsSongKey: String? = null
     private var lastSessionSaveAt = 0L
+    /** 上次悬浮胶囊展示签名（歌曲+播放状态），用于跳过重复的窗口刷新 */
+    private var lastCapsuleSignature: String? = null
 
     /** 外部监听（系统悬浮胶囊 / MediaSession 等） */
     var onStateChanged: ((PlayerState) -> Unit)? = null
@@ -94,10 +112,9 @@ class PlayerManager private constructor(private val appContext: Context) {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_READY -> {
-                        _state.value = _state.value.copy(
-                            durationMs = player.duration.takeIf { it > 0 } ?: _state.value.durationMs,
-                            isLoading = false,
-                        )
+                        val duration = player.duration.takeIf { it > 0 } ?: _progress.value.durationMs
+                        _progress.value = _progress.value.copy(durationMs = duration)
+                        _state.value = _state.value.copy(isLoading = false)
                         notifyState()
                     }
                     Player.STATE_BUFFERING -> {
@@ -129,18 +146,25 @@ class PlayerManager private constructor(private val appContext: Context) {
         updateFloatingCapsule(s)
     }
 
-    /** 系统悬浮胶囊联动（参考 App：播放时显示/更新，关闭开关则隐藏） */
+    /** 系统悬浮胶囊联动（参考 App：播放时显示/更新，关闭开关则隐藏）。
+     *  节流：仅在"歌曲或播放状态真正变化"时才触碰悬浮窗；
+     *  进度轮询等高频状态更新不会引发 WindowManager 操作。 */
     private fun updateFloatingCapsule(s: PlayerState) {
         val song = s.currentSong
         if (!SettingsStore.isFloatingCapsuleEnabled()) {
-            if (com.aesthetic.music.service.FloatCapsuleManager.isShowing()) {
-                com.aesthetic.music.service.FloatCapsuleManager.hide()
+            if (lastCapsuleSignature != null || FloatCapsuleManager.isShowing()) {
+                lastCapsuleSignature = null
+                FloatCapsuleManager.hide()
             }
             return
         }
         if (song == null) return
         if (s.isPlaying || s.isLoading) {
-            com.aesthetic.music.service.FloatCapsuleManager.show(
+            val signature = "${song.platform}:${song.id}|playing=${s.isPlaying}"
+            // 同一首歌同一播放状态：悬浮窗已在展示，跳过重复刷新
+            if (signature == lastCapsuleSignature && FloatCapsuleManager.isShowing()) return
+            lastCapsuleSignature = signature
+            FloatCapsuleManager.show(
                 context = appContext,
                 title = song.title,
                 artist = song.artist,
@@ -150,7 +174,11 @@ class PlayerManager private constructor(private val appContext: Context) {
                 onTap = {},
             )
         } else {
-            com.aesthetic.music.service.FloatCapsuleManager.updatePlayState(false)
+            // 暂停：只把按钮图标切为"播放"，无窗口操作
+            lastCapsuleSignature = null
+            if (FloatCapsuleManager.isShowing()) {
+                FloatCapsuleManager.updatePlayState(false)
+            }
         }
     }
 
@@ -190,18 +218,25 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     // ==================== 断点续播 ====================
 
-    /** App 启动时恢复上次的队列与进度（不自动出声，点播放即从断点继续） */
+    /** App 启动时恢复上次的队列与进度（不自动出声，点播放即从断点继续）。
+     *  队列 JSON 的磁盘读取与 Gson 解析在 IO 线程完成，避免冷启动主线程卡顿。 */
     fun restoreSession() {
         if (_state.value.queue.isNotEmpty()) return
-        val session = PlayerSessionStore.load()
-        if (session.queue.isEmpty()) return
-        pendingSeekMs = session.positionMs
-        _state.value = _state.value.copy(
-            queue = session.queue,
-            currentIndex = session.currentIndex.coerceIn(0, session.queue.lastIndex),
-            positionMs = session.positionMs,
-        )
-        notifyState()
+        scope.launch(Dispatchers.IO) {
+            val session = PlayerSessionStore.load()
+            withContext(Dispatchers.Main) {
+                // 解析期间用户可能已手动开始播放，此时丢弃旧断点
+                if (_state.value.queue.isNotEmpty()) return@withContext
+                if (session.queue.isEmpty()) return@withContext
+                pendingSeekMs = session.positionMs
+                _progress.value = PlaybackProgress(positionMs = session.positionMs)
+                _state.value = _state.value.copy(
+                    queue = session.queue,
+                    currentIndex = session.currentIndex.coerceIn(0, session.queue.lastIndex),
+                )
+                notifyState()
+            }
+        }
     }
 
     private fun saveSession() {
@@ -211,7 +246,7 @@ class PlayerManager private constructor(private val appContext: Context) {
             com.aesthetic.music.data.settings.PlayerSession(
                 queue = s.queue,
                 currentIndex = s.currentIndex,
-                positionMs = player.currentPosition.takeIf { it > 0 } ?: s.positionMs,
+                positionMs = player.currentPosition.takeIf { it > 0 } ?: _progress.value.positionMs,
             )
         )
     }
@@ -290,7 +325,8 @@ class PlayerManager private constructor(private val appContext: Context) {
         val song = s.currentSong ?: return
         scope.launch {
             // 重置歌词/进度
-            _state.value = _state.value.copy(lyrics = emptyList(), positionMs = 0, errorMessage = null)
+            _progress.value = PlaybackProgress()
+            _state.value = _state.value.copy(lyrics = emptyList(), errorMessage = null)
             val result = repository.getSongUrl(song, SettingsStore.getQuality().value)
             result.onSuccess { data ->
                 val url = data.url
@@ -335,7 +371,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                 player.prepare()
                 if (pendingSeekMs > 0) {
                     player.seekTo(pendingSeekMs.coerceAtLeast(0))
-                    _state.value = _state.value.copy(positionMs = pendingSeekMs)
+                    _progress.value = PlaybackProgress(positionMs = pendingSeekMs)
                     pendingSeekMs = 0
                 }
                 startPlaybackService()
@@ -431,7 +467,7 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     fun seekTo(positionMs: Long) {
         player.seekTo(positionMs)
-        _state.value = _state.value.copy(positionMs = positionMs)
+        _progress.value = _progress.value.copy(positionMs = positionMs)
         saveSession()
     }
 
@@ -440,7 +476,9 @@ class PlayerManager private constructor(private val appContext: Context) {
         seekTo(line.timeMs)
     }
 
-    /** 开始轮询播放进度（同时做统计与断点保存） */
+    /** 开始轮询播放进度（同时做统计与断点保存）。
+     *  进度只写 [progress] 流，不再 copy 整个 PlayerState：
+     *  播放期间 AppShell 与各内容页不会每 500ms 被拖着重组一次。 */
     fun startProgress() {
         if (progressJob?.isActive == true) return
         progressJob = scope.launch {
@@ -451,9 +489,12 @@ class PlayerManager private constructor(private val appContext: Context) {
                 lastTick = now
                 val s = _state.value
                 val pos = player.currentPosition.coerceAtLeast(0)
-                _state.value = s.copy(positionMs = pos)
+                _progress.value = PlaybackProgress(
+                    positionMs = pos,
+                    durationMs = player.duration.takeIf { it > 0 } ?: _progress.value.durationMs,
+                )
                 if (s.isPlaying && s.currentSong != null && pos > 0) {
-                    StatsTracker.tick(s.currentSong!!, delta.coerceAtMost(2000), s.durationMs)
+                    StatsTracker.tick(s.currentSong!!, delta.coerceAtMost(2000), _progress.value.durationMs)
                 }
                 if (now - lastSessionSaveAt > 5000) {
                     lastSessionSaveAt = now

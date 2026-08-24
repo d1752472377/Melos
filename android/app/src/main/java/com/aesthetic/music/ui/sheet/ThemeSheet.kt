@@ -73,10 +73,17 @@ fun ThemeSheet(
                 modifier = Modifier.weight(1f),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            Icon(
-                Icons.Filled.Close, contentDescription = "关闭", tint = TextSoft,
-                modifier = Modifier.size(20.dp).clickable(onClick = onClose),
-            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp) // 触控热区 ≥32dp，此前 20dp 极易点空
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Close, contentDescription = "关闭", tint = TextSoft,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
 
         Spacer(Modifier.height(8.dp))

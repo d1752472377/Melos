@@ -10,6 +10,11 @@ retrofit = "2.11.0"
 okhttp = "4.12.0"
 coil = "2.7.0"
 media3 = "1.4.1"
+jankstats = "1.0.0"
+benchmark = "1.3.3"
+baselineprofile = "1.3.3"
+uiautomator = "2.3.0"
+androidxTestExtJunit = "1.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,8 +37,15 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
+# JankStats 所在的正式发布构件（曾用名 metrics-jankstats，发布时更名）
+androidx-metrics-performance = { group = "androidx.metrics", name = "metrics-performance", version.ref = "jankstats" }
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
+androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "baselineprofile" }

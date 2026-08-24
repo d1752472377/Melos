@@ -134,6 +134,28 @@ data class ArtistDetailData(
     val songs: List<Song> = emptyList(),
 )
 
+/** 专辑搜索条目（也用于专辑详情 info） */
+data class AlbumItem(
+    val id: String = "",
+    val name: String = "",
+    val artist: String = "",
+    val coverUrl: String? = null,
+    /** 专辑曲目数（搜索与详情均可能返回） */
+    val size: Long? = null,
+    val platform: String? = null,
+)
+
+/** /api/album 返回的专辑详情 + 全部曲目 */
+data class AlbumDetailData(
+    val info: AlbumItem? = null,
+    val songs: List<Song> = emptyList(),
+)
+
+/** 热搜词（/api/search/hot） */
+data class HotWordDto(
+    val word: String = "",
+)
+
 /** 请求体：注册 */
 data class RegisterBody(
     val username: String,
@@ -177,12 +199,44 @@ interface MusicApi {
     suspend fun search(
         @Query("keyword") keyword: String,
         @Query("limit") limit: Int = 30,
+        /** 可选：只搜指定平台（netease/kuwo/kugou/qq...），null = 聚合全部健康源 */
+        @Query("platform") platform: String? = null,
     ): ApiResponse<List<Song>>
+
+    /** 热搜词（搜索页"热门搜索"区） */
+    @GET("api/search/hot")
+    suspend fun hotSearchWords(): ApiResponse<List<HotWordDto>>
+
+    /** 歌单搜索（netease） */
+    @GET("api/search/playlist")
+    suspend fun searchPlaylists(
+        @Query("keyword") keyword: String,
+        @Query("limit") limit: Int = 20,
+    ): ApiResponse<List<PlaylistItem>>
+
+    /** 专辑搜索（netease） */
+    @GET("api/search/album")
+    suspend fun searchAlbums(
+        @Query("keyword") keyword: String,
+        @Query("limit") limit: Int = 20,
+    ): ApiResponse<List<AlbumItem>>
+
+    /** 歌词关键词搜歌（netease type=1006） */
+    @GET("api/search/lyric")
+    suspend fun searchByLyric(
+        @Query("keyword") keyword: String,
+        @Query("limit") limit: Int = 20,
+    ): ApiResponse<List<Song>>
+
+    /** 专辑详情 + 曲目列表 */
+    @GET("api/album")
+    suspend fun albumDetail(@Query("id") id: String): ApiResponse<AlbumDetailData>
 
     @GET("api/artist/search")
     suspend fun artistSearch(
         @Query("keyword") keyword: String,
         @Query("limit") limit: Int = 8,
+        @Query("platform") platform: String? = null,
     ): ApiResponse<List<ArtistItem>>
 
     @GET("api/artist")

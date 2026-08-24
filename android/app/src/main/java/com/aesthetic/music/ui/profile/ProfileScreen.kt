@@ -73,6 +73,7 @@ fun ProfileScreen(
     user: UserInfo?,
     localStats: LocalStats,
     cloudStats: UserStatsDto?,
+    cloudStatsLoading: Boolean = false,
     historyCount: Int,
     favoritesCount: Int,
     cacheCount: Int,
@@ -157,7 +158,12 @@ fun ProfileScreen(
 
             // 听歌统计卡片 (仪表盘质感: 12dp)
             item(key = "profile_stats_card") {
-                StatsCard(localStats = localStats, cloudStats = cloudStats, isLoggedIn = user != null)
+                StatsCard(
+                    localStats = localStats,
+                    cloudStats = cloudStats,
+                    isLoggedIn = user != null,
+                    cloudLoading = cloudStatsLoading,
+                )
             }
 
             // 资料库卡片 (列表容器: 12dp)
@@ -299,17 +305,31 @@ private fun UserCard(
 }
 
 @Composable
-private fun StatsCard(localStats: LocalStats, cloudStats: UserStatsDto?, isLoggedIn: Boolean) {
+private fun StatsCard(
+    localStats: LocalStats,
+    cloudStats: UserStatsDto?,
+    isLoggedIn: Boolean,
+    cloudLoading: Boolean = false,
+) {
     val totalPlayMs = if (isLoggedIn && cloudStats != null) cloudStats.totalPlayMs else localStats.totalPlayMs
     val totalPlays = if (isLoggedIn && cloudStats != null) cloudStats.totalPlays else localStats.totalPlays
     val todayPlayMs = if (isLoggedIn && cloudStats != null) cloudStats.todayPlayMs else localStats.dayPlayMs
     val topArtist = cloudStats?.topArtists?.firstOrNull()?.artist
 
+    // 徽标三态：已登录但云端数据未就绪时数值其实是本机的，
+    // 不能标"云端实时"造成自相矛盾（原先正是这个 bug）
+    val badgeText: String
+    val badgeColor: Color
+    when {
+        isLoggedIn && cloudStats != null -> { badgeText = "云端实时"; badgeColor = AccentAmber }
+        isLoggedIn && cloudLoading -> { badgeText = "云端同步中…"; badgeColor = AccentCyan }
+        else -> { badgeText = "本机统计"; badgeColor = TextSoft }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Stone200, RoundedCornerShape(12.dp))
-            .shadow(0.5.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
             .clip(RoundedCornerShape(12.dp))
             .background(Surface)
             .padding(16.dp),
@@ -339,16 +359,16 @@ private fun StatsCard(localStats: LocalStats, cloudStats: UserStatsDto?, isLogge
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(if (isLoggedIn) AccentAmber.copy(alpha = 0.12f) else Stone100)
+                    .background(badgeColor.copy(alpha = 0.12f))
                     .padding(horizontal = 6.dp, vertical = 2.5.dp)
             ) {
                 Text(
-                    text = if (isLoggedIn) "云端实时" else "本机统计",
+                    text = badgeText,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
                     ),
-                    color = if (isLoggedIn) AccentAmber else TextSoft
+                    color = badgeColor
                 )
             }
         }
@@ -429,7 +449,6 @@ private fun LibraryCard(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Stone200, RoundedCornerShape(12.dp))
-            .shadow(0.5.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
             .clip(RoundedCornerShape(12.dp))
             .background(Surface),
     ) {
@@ -536,6 +555,7 @@ private fun NicknameDialog(
     onConfirm: (String) -> Unit,
 ) {
     var input by remember { mutableStateOf(current) }
+    val canSave = input.trim().isNotEmpty()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("修改昵称", fontWeight = FontWeight.Bold) },
@@ -553,7 +573,11 @@ private fun NicknameDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(input) }) { Text("保存", color = PrimaryBrown, fontWeight = FontWeight.Bold) }
+            // 空白昵称会被 VM 静默丢弃，直接禁用保存避免"点了没反应"的困惑
+            TextButton(
+                onClick = { onConfirm(input.trim()) },
+                enabled = canSave,
+            ) { Text("保存", color = PrimaryBrown, fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消", color = TextSoft) }

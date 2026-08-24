@@ -68,10 +68,12 @@ object StatsStore {
         }
     }
 
-    private fun today(): String {
-        val f = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-        return f.format(java.util.Date())
+    // ThreadLocal 格式化器：SimpleDateFormat 非线程安全，而本类会被主线程与 IO 线程同时使用
+    private val dayFormat = object : ThreadLocal<java.text.SimpleDateFormat>() {
+        override fun initialValue() = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
     }
+
+    private fun today(): String = dayFormat.get()?.format(java.util.Date()) ?: ""
 
     fun formatDuration(ms: Long): String {
         val minutes = ms / 60000

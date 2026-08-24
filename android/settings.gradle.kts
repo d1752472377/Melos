@@ -21,4 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "AestheticMusic"
 include(":app")
+include(":baselineprofile")
 

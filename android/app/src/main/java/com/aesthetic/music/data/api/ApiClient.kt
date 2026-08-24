@@ -1,5 +1,6 @@
 package com.aesthetic.music.data.api
 
+import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.settings.UserStore
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -30,9 +31,13 @@ object ApiClient {
                 }
                 chain.proceed(newRequest)
             }
-            .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BASIC
-            })
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    addInterceptor(HttpLoggingInterceptor().apply {
+                        level = HttpLoggingInterceptor.Level.BASIC
+                    })
+                }
+            }
             .build()
     }
 

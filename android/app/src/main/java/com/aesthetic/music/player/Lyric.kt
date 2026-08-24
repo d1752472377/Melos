@@ -24,9 +24,12 @@ fun parseLrc(lrc: String?): List<LyricLine> {
             val min = m.groupValues[1].toLongOrNull() ?: continue
             val sec = m.groupValues[2].toLongOrNull() ?: continue
             val fracStr = m.groupValues[3]
-            val frac = when {
-                fracStr.isEmpty() -> 0L
-                fracStr.length == 2 -> fracStr.toLong() * 10
+            // 分数位按位数补齐到毫秒：".5"=500ms（十分之一秒）、".50"=500ms（百分秒）、".500"=500ms。
+            // 原实现对一位小数走 take(3) 直接得 5ms，歌词会提前约半秒高亮
+            val frac = when (fracStr.length) {
+                0 -> 0L
+                1 -> fracStr.toLongOrNull()?.times(100) ?: 0L
+                2 -> fracStr.toLongOrNull()?.times(10) ?: 0L
                 else -> fracStr.take(3).toLongOrNull() ?: 0L
             }
             lines.add(LyricLine(min * 60_000 + sec * 1000 + frac, text))

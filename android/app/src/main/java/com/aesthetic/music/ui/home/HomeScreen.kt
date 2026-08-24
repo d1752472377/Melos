@@ -88,6 +88,8 @@ fun HomeScreen(
     ranks: List<PlaylistItem>,
     homeCategories: List<HomeCategoryDto> = emptyList(),
     favorites: Set<String>,
+    contentError: String? = null,
+    onRetryContent: (() -> Unit)? = null,
     onPlaySong: (Song, List<Song>) -> Unit,
     onSearchBarClick: () -> Unit,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
@@ -139,6 +141,35 @@ fun HomeScreen(
                     modifier = Modifier.padding(top = 8.dp, bottom = 18.dp)
                 )
                 SearchEntry(onClick = onSearchBarClick)
+            }
+        }
+
+        // 内容加载失败横幅：全部区块为空时给出原因与重试入口（原先失败即各区块静默消失）
+        if (contentError != null && featuredPlaylist == null && poolSongs.isEmpty()) {
+            item(key = "home_error_banner") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Surface)
+                        .padding(vertical = 28.dp),
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                ) {
+                    Text(contentError, color = TextSoft, style = MaterialTheme.typography.bodyMedium)
+                    if (onRetryContent != null) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = "重试",
+                            color = PrimaryBrown,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = onRetryContent)
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
             }
         }
 
@@ -210,7 +241,9 @@ fun HomeScreen(
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(randomDisplaySongs, key = { it.platform + ":" + it.id }) { song ->
+                        // 行号参与 key：同曲重复/空 id 时避免 LazyList key 碰撞崩溃
+                        items(randomDisplaySongs.size, key = { "rand_$it" }) { i ->
+                            val song = randomDisplaySongs[i]
                             RandomSongCard(
                                 song = song,
                                 onClick = { onPlaySong(song, randomDisplaySongs) }
@@ -241,7 +274,9 @@ fun HomeScreen(
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(recommendList.take(8), key = { it.id }) { playlist ->
+                        val recommendItems = recommendList.take(8)
+                        items(recommendItems.size, key = { "reco_$it" }) { i ->
+                            val playlist = recommendItems[i]
                             RecommendPlaylistCard(
                                 playlist = playlist,
                                 onClick = { onOpenPlaylistDetail(playlist) }
@@ -268,7 +303,9 @@ fun HomeScreen(
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(categories, key = { it.title }) { category ->
+                    // 标题可能被兜底成重复的"分类"，行号 key 保证唯一
+                    items(categories.size, key = { "cat_$it" }) { idx ->
+                        val category = categories[idx]
                         CategoryCard(
                             category = category,
                             onClick = {
@@ -313,7 +350,10 @@ fun HomeScreen(
                         onSelectTab = { rankTab = it },
                         songs = rankDisplaySongs,
                         favorites = favorites,
-                        onPlaySong = { song -> onPlaySong(song, rankDisplaySongs) },
+                        // 记忆化回调：捕获的列表不变时 lambda 引用稳定，子树可跳过重组
+                        onPlaySong = remember(rankDisplaySongs, onPlaySong) {
+                            { song: Song -> onPlaySong(song, rankDisplaySongs) }
+                        },
                         onToggleFavorite = onToggleFavorite
                     )
                 }
@@ -509,7 +549,6 @@ private fun RandomSongCard(
             url = song.artwork,
             modifier = Modifier
                 .size(118.dp)
-                .shadow(3.dp, RoundedCornerShape(14.dp), ambientColor = Color.White)
                 .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(14.dp)),
             corner = 14.dp
         )
@@ -552,12 +591,6 @@ private fun RecommendPlaylistCard(
     Row(
         modifier = Modifier
             .width(250.dp)
-            .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(18.dp),
-                ambientColor = Color.White,
-                spotColor = Color.White
-            )
             .border(1.dp, cardBorder, RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(bgGradient)
@@ -746,12 +779,6 @@ private fun CategoryCard(
     Column(
         modifier = Modifier
             .width(270.dp)
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(20.dp),
-                ambientColor = themeColors.accentColor.copy(alpha = 0.35f), // 左上角为卡片提取色
-                spotColor = Color.White // 右下角为白色
-            )
             .border(1.dp, cardBorder, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
@@ -854,49 +881,47 @@ private fun LeaderboardCard(
     onToggleFavorite: (Song) -> Unit,
 ) {
     // 新歌背景蓝色渐变，热歌背景红色渐变（浅色系），左下角到右上角渐变
-    val bgGradient = if (selectedTab == 0) {
-        // 新歌榜：浅蓝色渐变 (从左下角到右上角)
-        if (Palette.isDark) {
-            Brush.linearGradient(
-                colors = listOf(Color(0xFF132238), Color(0xFF1A3354)),
-                start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
-                end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
-            )
+    // remember 缓存：进度刷新/滚动重组时不再重复分配 Brush
+    val isDark = Palette.isDark
+    val bgGradient = remember(selectedTab, isDark) {
+        if (selectedTab == 0) {
+            // 新歌榜：浅蓝色渐变 (从左下角到右上角)
+            if (isDark) {
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF132238), Color(0xFF1A3354)),
+                    start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
+                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                )
+            } else {
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFFEBF4FF), Color(0xFFF6FAFF)),
+                    start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
+                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                )
+            }
         } else {
-            Brush.linearGradient(
-                colors = listOf(Color(0xFFEBF4FF), Color(0xFFF6FAFF)),
-                start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
-                end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
-            )
-        }
-    } else {
-        // 热歌榜：浅红色渐变 (从左下角到右上角)
-        if (Palette.isDark) {
-            Brush.linearGradient(
-                colors = listOf(Color(0xFF381920), Color(0xFF52222D)),
-                start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
-                end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
-            )
-        } else {
-            Brush.linearGradient(
-                colors = listOf(Color(0xFFFFEFF2), Color(0xFFFFF7F9)),
-                start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
-                end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
-            )
+            // 热歌榜：浅红色渐变 (从左下角到右上角)
+            if (isDark) {
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF381920), Color(0xFF52222D)),
+                    start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
+                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                )
+            } else {
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFFFFEFF2), Color(0xFFFFF7F9)),
+                    start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
+                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                )
+            }
         }
     }
 
-    val cardBorder = if (Palette.isDark) Color(0xFF33304A) else Color.White.copy(alpha = 0.9f)
+    val cardBorder = if (isDark) Color(0xFF33304A) else Color.White.copy(alpha = 0.9f)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(20.dp),
-                ambientColor = Color.White,
-                spotColor = Color.White
-            )
             .border(1.dp, cardBorder, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(bgGradient)

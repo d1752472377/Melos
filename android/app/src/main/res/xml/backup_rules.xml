@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 及以下云备份规则：登录态含 token，不进入备份 -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="aesthetic_music_user.xml" />
+</full-backup-content>

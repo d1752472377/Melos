@@ -17,8 +17,16 @@ import java.util.concurrent.TimeUnit
  * - 文件命名 "歌名-歌手.ext"，下载到 .tmp 成功后重命名
  * - 播放前查缓存命中（>10KB 才有效），命中直接播本地文件秒开；
  *   未命中播在线 URL，后台异步下载缓存（不阻塞播放）
+ * - 索引常驻内存：首次访问读盘一次，之后所有查询零磁盘 I/O，
+ *   写入同步落盘 + 更新内存，全程单把锁保证一致
+ * - 缓存总量超上限（默认 2GB）时，按最后修改时间从旧到新自动清理
  */
 object AudioCacheService {
+
+    private const val INDEX_FILE_NAME = "_index.json"
+
+    /** 缓存目录总大小上限：超过后自动删除最旧的音频文件 */
+    private const val MAX_CACHE_BYTES = 2L * 1024 * 1024 * 1024 // 2GB
 
     private data class CacheEntry(
         val name: String,
@@ -31,14 +39,19 @@ object AudioCacheService {
 
     private val gson = Gson()
 
+    /** 索引内存缓存（@Volatile 保证跨线程可见，配合 indexLock 使用） */
+    @Volatile
+    private var indexCache: MutableMap<String, CacheEntry>? = null
+    private val indexLock = Any()
+
     private fun cacheDir(context: Context): File =
         File(context.cacheDir, "audio_cache").apply { mkdirs() }
 
-    private fun indexFile(context: Context) = File(cacheDir(context), "_index.json")
+    private fun indexFile(context: Context) = File(cacheDir(context), INDEX_FILE_NAME)
 
     private fun cacheKey(platformCode: String, songId: String) = "${platformCode}_$songId"
 
-    private fun loadIndex(context: Context): MutableMap<String, CacheEntry> {
+    private fun loadIndexFromDisk(context: Context): MutableMap<String, CacheEntry> {
         return try {
             val f = indexFile(context)
             if (!f.exists()) return mutableMapOf()
@@ -49,10 +62,27 @@ object AudioCacheService {
         }
     }
 
-    private fun saveIndex(context: Context, index: Map<String, CacheEntry>) {
-        try {
-            indexFile(context).writeText(gson.toJson(index))
-        } catch (_: Exception) {
+    /** 取索引（优先内存缓存）；必须在持有 indexLock 时调用 */
+    private fun getIndexLocked(context: Context): MutableMap<String, CacheEntry> {
+        indexCache?.let { return it }
+        val loaded = loadIndexFromDisk(context)
+        indexCache = loaded
+        return loaded
+    }
+
+    /** 锁内只读查询：block 中不要做耗时磁盘操作，需要时先把结果拷出去 */
+    private fun <T> queryIndex(context: Context, block: (Map<String, CacheEntry>) -> T): T =
+        synchronized(indexLock) { block(getIndexLocked(context)) }
+
+    /** 锁内修改索引并落盘（落盘失败不影响内存一致性） */
+    private fun mutateIndex(context: Context, block: (MutableMap<String, CacheEntry>) -> Unit) {
+        synchronized(indexLock) {
+            val index = getIndexLocked(context)
+            block(index)
+            try {
+                indexFile(context).writeText(gson.toJson(index))
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -69,10 +99,10 @@ object AudioCacheService {
     private fun sanitize(name: String): String =
         name.replace(Regex("""[\\/:*?"<>|]"""), "_").replace(Regex("""\s+"""), " ").trim()
 
-    /** 检查是否已有缓存，返回本地文件路径（不存在/过小返回 null） */
+    /** 检查是否已有缓存，返回本地文件路径（不存在/过小返回 null）。索引走内存，无重复读盘 */
     fun getCachedPath(context: Context, platformCode: String, songId: String): String? {
         return try {
-            val entry = loadIndex(context)[cacheKey(platformCode, songId)] ?: return null
+            val entry = queryIndex(context) { it[cacheKey(platformCode, songId)] } ?: return null
             val f = File(entry.filePath)
             if (f.exists() && f.length() > 10240) entry.filePath else null
         } catch (_: Exception) {
@@ -117,9 +147,11 @@ object AudioCacheService {
                     var target = File(dir, "$baseName.$ext")
                     if (target.exists()) target = File(dir, "${sanitize(name)}-${sanitize(artist)}_$songId.$ext")
                     tmp.renameTo(target)
-                    val index = loadIndex(context)
-                    index[cacheKey(platformCode, songId)] = CacheEntry(name, artist, platformCode, songId, target.absolutePath, target.length())
-                    saveIndex(context, index)
+                    mutateIndex(context) {
+                        it[cacheKey(platformCode, songId)] =
+                            CacheEntry(name, artist, platformCode, songId, target.absolutePath, target.length())
+                    }
+                    enforceCacheLimitIfNeeded(context)
                     done = target.absolutePath
                 } else {
                     tmp.delete()
@@ -131,20 +163,50 @@ object AudioCacheService {
         }
     }
 
+    /**
+     * 缓存总量超上限时，把音频文件按最后修改时间从旧到新删除，
+     * 直到回到上限以内；被删文件同步从索引中移除。IO 线程调用。
+     */
+    private fun enforceCacheLimitIfNeeded(context: Context) {
+        try {
+            val files = cacheDir(context).listFiles()
+                ?.filter { it.isFile && it.name != INDEX_FILE_NAME }
+                ?: return
+            var total = files.sumOf { it.length() }
+            if (total <= MAX_CACHE_BYTES) return
+            synchronized(indexLock) {
+                val index = getIndexLocked(context)
+                for (f in files.sortedBy { it.lastModified() }) {
+                    if (total <= MAX_CACHE_BYTES) break
+                    val size = f.length()
+                    if (f.delete()) {
+                        total -= size
+                        index.entries.removeAll { it.value.filePath == f.absolutePath }
+                    }
+                }
+                try {
+                    indexFile(context).writeText(gson.toJson(index))
+                } catch (_: Exception) {
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     fun getCacheSize(context: Context): Long =
         try {
-            cacheDir(context).listFiles()?.filter { it.isFile && it.name != "_index.json" }?.sumOf { it.length() } ?: 0
+            cacheDir(context).listFiles()?.filter { it.isFile && it.name != INDEX_FILE_NAME }?.sumOf { it.length() } ?: 0
         } catch (_: Exception) { 0 }
 
     fun getCacheCount(context: Context): Int =
         try {
-            loadIndex(context).values.count { File(it.filePath).exists() }
+            queryIndex(context) { it.values.toList() }.count { File(it.filePath).exists() }
         } catch (_: Exception) { 0 }
 
     /** 缓存列表（用于缓存列表页展示），按大小降序 */
     fun listCached(context: Context): List<CachedSong> =
         try {
-            loadIndex(context).values
+            queryIndex(context) { it.values.toList() }
                 .mapNotNull { e ->
                     val f = File(e.filePath)
                     if (f.exists()) CachedSong(e.name, e.artist, f.length(), e.filePath) else null
@@ -160,10 +222,13 @@ object AudioCacheService {
         val filePath: String,
     )
 
-    /** 删除单个缓存（按路径） */
-    fun removeCacheByPath(path: String) {
+    /** 删除单个缓存（按路径），并同步清掉索引条目避免残留 */
+    fun removeCacheByPath(context: Context, path: String) {
         try {
             File(path).delete()
+            mutateIndex(context) { index ->
+                index.entries.removeAll { it.value.filePath == path }
+            }
         } catch (_: Exception) {
         }
     }
@@ -173,14 +238,14 @@ object AudioCacheService {
             cacheDir(context).listFiles()?.forEach { if (it.isFile) it.delete() }
         } catch (_: Exception) {
         }
+        synchronized(indexLock) { indexCache = mutableMapOf() }
     }
 
     fun removeCache(context: Context, platformCode: String, songId: String) {
         try {
-            val index = loadIndex(context)
-            val entry = index.remove(cacheKey(platformCode, songId))
-            entry?.let { File(it.filePath).delete() }
-            saveIndex(context, index)
+            mutateIndex(context) { index ->
+                index.remove(cacheKey(platformCode, songId))?.let { File(it.filePath).delete() }
+            }
         } catch (_: Exception) {
         }
     }

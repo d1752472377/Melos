@@ -60,6 +60,8 @@ fun LoginSheet(
     onDismiss: () -> Unit,
     onLogin: (String, String) -> Unit,
     onRegister: (String, String, String) -> Unit,
+    /** 切换登录/注册模式时回调（用于清空上一模式的错误提示，避免误导） */
+    onModeSwitched: () -> Unit = {},
 ) {
     var isRegister by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
@@ -209,11 +211,15 @@ fun LoginSheet(
                 Text(
                     text = if (isRegister) "去登录" else "免费注册",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = PrimaryBrown,
+                    color = if (busy) TextSoft else PrimaryBrown,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .clickable { isRegister = !isRegister }
+                        // busy 时禁用切换，避免请求进行中改模式导致状态错乱
+                        .clickable(enabled = !busy) {
+                            isRegister = !isRegister
+                            onModeSwitched()
+                        }
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }

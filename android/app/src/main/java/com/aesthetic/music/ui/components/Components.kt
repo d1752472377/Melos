@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,6 +40,14 @@ import coil.request.ImageRequest
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.Stone200
 
+/** 封面占位渐变（文件级缓存）：避免每次组合新封面时重复分配 Brush 与颜色列表 */
+private val CoverPlaceholderBrushLight =
+    Brush.linearGradient(listOf(Color(0xFFEDE9FE), Color(0xFFE0E7FF)))
+private val CoverPlaceholderBrushDark =
+    Brush.linearGradient(listOf(Color(0xFF26262E), Color(0xFF1B1B22)))
+private val CoverIconTintLight = Color(0xFF818CF8).copy(alpha = 0.65f)
+private val CoverIconTintDark = Color(0xFF64748B)
+
 /** 歌曲封面：带精致渐变占位 + 圆角 + 平滑渐入 */
 @Composable
 fun SongCover(
@@ -47,12 +56,9 @@ fun SongCover(
     corner: Dp = 12.dp,
 ) {
     val context = LocalContext.current
-    val placeholderBrush = if (Palette.isDark) {
-        Brush.linearGradient(listOf(Color(0xFF26262E), Color(0xFF1B1B22)))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEDE9FE), Color(0xFFE0E7FF)))
-    }
-    val iconTint = if (Palette.isDark) Color(0xFF64748B) else Color(0xFF818CF8).copy(alpha = 0.65f)
+    val isDark = Palette.isDark
+    val placeholderBrush = if (isDark) CoverPlaceholderBrushDark else CoverPlaceholderBrushLight
+    val iconTint = if (isDark) CoverIconTintDark else CoverIconTintLight
 
     Box(
         modifier = modifier
@@ -82,7 +88,9 @@ fun SongCover(
     }
 }
 
-/** 音波跳动条（当前播放指示） */
+/** 音波跳动条（当前播放指示）。
+ *  动画值在 graphicsLayer 块内延迟读取：只做绘制相位缩放，
+ *  不再像旧实现那样把动画喂给 .height() 造成每帧 measure/layout。 */
 @Composable
 fun WaveBars(
     color: Color,
@@ -104,7 +112,12 @@ fun WaveBars(
             Box(
                 Modifier
                     .width(barWidth)
-                    .height(h.dp)
+                    .height(14.dp) // 固定最大高度，布局只做一次
+                    .graphicsLayer {
+                        // 绘制相位缩放 + 底部锚点：视觉上仍是"从底部长出"的跳动条
+                        scaleY = h / 14f
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                    }
                     .clip(RoundedCornerShape(barWidth / 2))
                     .background(color)
             )
@@ -184,7 +197,9 @@ fun rememberDominantColors(
         }
         withContext(Dispatchers.IO) {
             try {
-                val loader = coil.ImageLoader(context)
+                // 复用 Coil 进程级单例：此前每次取色 new 一个完整 ImageLoader，
+                // 各自带内存/磁盘缓存与线程池且从不 shutdown，内存翻倍还滞留 Context
+                val loader = coil.Coil.imageLoader(context)
                 val request = ImageRequest.Builder(context)
                     .data(url)
                     .allowHardware(false)
@@ -264,5 +279,18 @@ fun rememberDominantColors(
             val accentColor = Color.hsv(hue, sat, 0.60f)
             ExtractedThemeColors(bgStart, bgEnd, buttonColor, accentColor)
         }
+    }
+}
+
+/**
+ * 播放量/数量格式化（"1.2万"/"3.4亿"），首页/发现/歌单页共用，
+ * 显式 Locale 避免小数逗号地区显示成 "1,2万"
+ */
+fun formatPlayCountText(count: Long?): String {
+    if (count == null || count < 0) return ""
+    return when {
+        count >= 100_000_000 -> String.format(java.util.Locale.US, "%.1f亿", count / 100_000_000.0)
+        count >= 10_000 -> String.format(java.util.Locale.US, "%.1f万", count / 10_000.0)
+        else -> count.toString()
     }
 }

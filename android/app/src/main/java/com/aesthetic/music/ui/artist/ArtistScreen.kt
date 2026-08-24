@@ -60,6 +60,8 @@ fun ArtistScreen(
     avatar: String?,
     songs: List<Song>,
     isLoading: Boolean,
+    errorMessage: String? = null,
+    onRetry: (() -> Unit)? = null,
     favorites: Set<String>,
     onBack: () -> Unit,
     onPlaySong: (Song) -> Unit,
@@ -195,13 +197,33 @@ fun ArtistScreen(
 
             // 热门歌曲列表
             if (!isLoading && songs.isEmpty()) {
+                // 失败与"歌手无作品"必须可区分：失败时显示原因并提供重试
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .padding(top = 60.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("暂无相关歌曲", color = TextSoft, style = MaterialTheme.typography.bodySmall)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = errorMessage ?: "暂无相关歌曲",
+                            color = TextSoft,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (errorMessage != null && onRetry != null) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                text = "重试",
+                                color = PrimaryBrown,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onRetry)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -232,7 +254,6 @@ private fun ArtistSongRow(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-            .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
             .clip(RoundedCornerShape(10.dp))
             .background(Surface)
             .clickable(onClick = onClick)

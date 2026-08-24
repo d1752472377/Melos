@@ -44,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,9 +72,12 @@ fun SettingsScreen(
     onFloatingCapsuleChange: (Boolean) -> Unit,
     onCheckUpdate: (onResult: (String) -> Unit) -> Unit,
 ) {
-    var showQualityDialog by remember { mutableStateOf(false) }
-    var updateStatus by remember { mutableStateOf("点击检查是否有新版本") }
-    var checking by remember { mutableStateOf(false) }
+    // rememberSaveable：旋转后状态不丢，也避免"checking 复位但检查仍在后台飞行"导致的并发重复点击
+    var showQualityDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var updateStatus by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf("点击检查是否有新版本")
+    }
+    var checking by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -337,7 +339,6 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Stone200, RoundedCornerShape(12.dp))
-            .shadow(0.5.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
             .clip(RoundedCornerShape(12.dp))
             .background(Surface)
             .padding(vertical = 12.dp)

@@ -74,6 +74,8 @@ fun MyPlaylistsScreen(
 ) {
     var showCreate by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<MyPlaylist?>(null) }
+    // 删除歌单二次确认（误触即永久删除，含已同步的云端歌单）
+    var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
     // 此处加上了 .background(Background)，防止底层页面不小心透出来
     Box(
@@ -181,7 +183,7 @@ fun MyPlaylistsScreen(
                         onOpen = { onOpenPlaylist(p.id) },
                         onAddCurrent = { onAddCurrent(p.id, it) },
                         onRename = { renameTarget = p },
-                        onDelete = { onDelete(p.id) }
+                        onDelete = { deleteTarget = p }
                     )
                 }
             }
@@ -196,6 +198,33 @@ fun MyPlaylistsScreen(
             onConfirm = {
                 onCreate(it)
                 showCreate = false
+            },
+        )
+    }
+
+    // 删除歌单确认对话框
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            containerColor = Surface,
+            title = { Text("删除歌单") },
+            text = {
+                val syncNote = if (target.cloudId.isNotBlank())
+                    "\n该歌单已同步云端，删除后云端歌单也会一并删除。"
+                else ""
+                Text(
+                    "确认删除《${target.name}》？\n歌单内 ${target.songs.size} 首歌曲记录将一并移除。$syncNote\n此操作不可恢复。",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete(target.id)
+                    deleteTarget = null
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
             },
         )
     }
@@ -226,7 +255,6 @@ private fun PlaylistRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-            .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
             .clip(RoundedCornerShape(10.dp))
             .background(Surface)
             .clickable(onClick = onOpen)

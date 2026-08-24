@@ -32,6 +32,8 @@ object FloatCapsuleManager {
     private var layoutParams: WindowManager.LayoutParams? = null
     private var onPlayPauseTap: (() -> Unit)? = null
     private var onCapsuleTap: (() -> Unit)? = null
+    /** 当前已展示的封面 URL：未变化时不重新下载图片 */
+    private var currentCoverUrl: String? = null
 
     private var initialX = 0f
     private var initialY = 0f
@@ -63,6 +65,7 @@ object FloatCapsuleManager {
         onPlayPause: () -> Unit,
         onTap: () -> Unit,
     ) {
+        currentCoverUrl = coverUrl
         if (capsuleView != null) {
             update(title, artist, coverUrl, isPlaying)
             return
@@ -167,7 +170,8 @@ object FloatCapsuleManager {
             view.findViewById<ImageButton>(R.id.fc_play)?.setImageResource(
                 if (isPlaying) R.drawable.ic_pause_white else R.drawable.ic_play_white
             )
-            if (!coverUrl.isNullOrEmpty()) {
+            // 封面 URL 未变化时不再重新下载（此前每次状态刷新都会重新拉一次网络图片）
+            if (!coverUrl.isNullOrEmpty() && coverUrl != currentCoverUrl) {
                 loadImage(coverUrl, view.findViewById(R.id.fc_cover))
             }
         }
@@ -190,6 +194,7 @@ object FloatCapsuleManager {
         }
         capsuleView = null
         layoutParams = null
+        currentCoverUrl = null
     }
 
     /** 简单网络图片加载（避免额外依赖，失败静默） */

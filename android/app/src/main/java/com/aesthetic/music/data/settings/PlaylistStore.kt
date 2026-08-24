@@ -28,6 +28,9 @@ object PlaylistStore {
     private var prefs: SharedPreferences? = null
     private val gson = Gson()
 
+    /** 单线程后台写入器：整组歌单 JSON 的序列化与落盘移出调用线程 */
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
+
     fun init(context: Context) {
         if (prefs == null) {
             prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -43,9 +46,11 @@ object PlaylistStore {
     }
 
     fun save(playlists: List<MyPlaylist>) {
-        try {
-            prefs?.edit()?.putString(KEY_PLAYLISTS, gson.toJson(playlists))?.apply()
-        } catch (_: Exception) {
+        writer.execute {
+            try {
+                prefs?.edit()?.putString(KEY_PLAYLISTS, gson.toJson(playlists))?.apply()
+            } catch (_: Exception) {
+            }
         }
     }
 

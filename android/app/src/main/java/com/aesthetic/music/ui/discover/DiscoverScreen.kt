@@ -30,7 +30,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
@@ -62,14 +62,43 @@ fun DiscoverScreen(
     ranks: List<PlaylistItem>,
     isLoading: Boolean,
     isHotLoading: Boolean,
+    contentError: String? = null,
+    onRetryContent: (() -> Unit)? = null,
     onOpenPlaylist: (PlaylistItem) -> Unit,
     onOpenRank: (PlaylistItem) -> Unit,
     onPlaySong: (Song) -> Unit,
 ) {
+    // 预先分好行：key 用行号（必然唯一），避免 null-id 兜底成重复 "" 导致 LazyList 崩溃
+    val hotRows = androidx.compose.runtime.remember(hotPlaylists) { hotPlaylists.chunked(2) }
     Box(modifier = Modifier.fillMaxSize()) {
         if (isLoading && dailyPlaylists.isEmpty() && newSongs.isEmpty() && ranks.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("正在探索音乐库…", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
+            }
+            return@Box
+        }
+
+        // 错误态：全部为空且不在加载中时给出失败原因与重试入口（原先失败即永久白屏）
+        if (contentError != null && !isLoading && !isHotLoading &&
+            dailyPlaylists.isEmpty() && newSongs.isEmpty() && ranks.isEmpty()
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(contentError, color = TextSoft, style = MaterialTheme.typography.bodyMedium)
+                    if (onRetryContent != null) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "重试",
+                            color = PrimaryBrown,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = onRetryContent)
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
             }
             return@Box
         }
@@ -153,7 +182,8 @@ fun DiscoverScreen(
             // 热门歌单
             if (hotPlaylists.isNotEmpty()) {
                 item(key = "section_hot") { SectionTitle("热门歌单", "大家都在循环的宝藏", AccentCoral) }
-                items(hotPlaylists.chunked(2), key = { it.firstOrNull()?.id ?: "" }) { rowItems ->
+                items(hotRows.size, key = { "hot_row_$it" }) { rowIdx ->
+                    val rowItems = hotRows[rowIdx]
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -217,7 +247,6 @@ private fun NewSongRow(song: Song, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, Stone200.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-            .shadow(1.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.03f))
             .clip(RoundedCornerShape(12.dp))
             .background(Surface)
             .clickable(onClick = onClick)
@@ -248,12 +277,11 @@ private fun NewSongRow(song: Song, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        // 强化右侧播放按钮视觉重量：更有锚定感的圆形高对比底色与微投影
+        // 强化右侧播放按钮视觉重量：圆形高对比底色（阴影已去除：列表 item 离屏渲染是掉帧源）
         Box(
             modifier = Modifier
                 .padding(end = 4.dp)
                 .size(36.dp)
-                .shadow(1.dp, CircleShape, ambientColor = PrimaryBrown.copy(alpha = 0.2f))
                 .clip(CircleShape)
                 .background(PrimaryBrown.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
@@ -399,8 +427,4 @@ private fun GridPlaylistCard(item: PlaylistItem, modifier: Modifier = Modifier, 
     }
 }
 
-private fun formatCount(count: Long): String = when {
-    count >= 100_000_000 -> String.format("%.1f亿", count / 100_000_000.0)
-    count >= 10_000 -> String.format("%.1f万", count / 10_000.0)
-    else -> count.toString()
-}
+private fun formatCount(count: Long): String = formatPlayCountText(count)

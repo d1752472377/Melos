@@ -26,10 +26,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +59,9 @@ fun CacheListScreen(
     onRemoveOne: (String) -> Unit,
     onClearAll: () -> Unit,
 ) {
+    // 清空全部缓存需二次确认：误触一次即删除所有已缓存音频
+    var showClearConfirm by remember { mutableStateOf(false) }
+    val totalSizeText = AudioCacheService.formatSize(songs.sumOf { it.size })
     Box(
         Modifier
             .fillMaxSize()
@@ -112,7 +118,7 @@ fun CacheListScreen(
                             .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f), RoundedCornerShape(10.dp))
                             .clip(RoundedCornerShape(10.dp))
                             .background(Surface)
-                            .clickable(onClick = onClearAll)
+                            .clickable { showClearConfirm = true }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -153,7 +159,6 @@ fun CacheListScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                                .shadow(0.5.dp, RoundedCornerShape(10.dp), ambientColor = Color.Black.copy(alpha = 0.02f))
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Surface)
                                 .padding(8.dp),
@@ -209,9 +214,34 @@ fun CacheListScreen(
                                 )
                             }
                         }
-                    }
+                     }
+                 }
+             }
+         }
+     }
+
+    // 清空确认对话框：注明将释放的空间大小
+    if (showClearConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("清空全部缓存") },
+            text = {
+                Text(
+                    "将删除已缓存的 ${songs.size} 首歌曲（共 $totalSizeText）。\n下次播放这些歌曲时需要重新联网加载。",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showClearConfirm = false
+                    onClearAll()
+                }) { Text("清空", color = Color(0xFFEF4444)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {
+                    Text("取消")
                 }
-            }
-        }
+            },
+        )
     }
 }

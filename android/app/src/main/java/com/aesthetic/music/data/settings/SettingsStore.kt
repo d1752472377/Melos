@@ -110,16 +110,4 @@ object SettingsStore {
         } catch (_: Exception) {
         }
     }
-
-    // ===== 后端节点（分布式故障转移）=====
-    /** 上次成功连通的后端地址，下次启动优先使用 */
-    fun getPreferredBaseUrl(): String? = try {
-        p()?.getString(KEY_PREFERRED_BASE, null)
-    } catch (_: Exception) {
-        null
-    }
-
-    fun setPreferredBaseUrl(url: String) {
-        try { p()?.edit()?.putString(KEY_PREFERRED_BASE, url)?.apply() } catch (_: Exception) {}
-    }
 }

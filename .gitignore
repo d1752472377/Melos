@@ -16,6 +16,7 @@ deploy/
 android/.gradle/
 android/build/
 android/app/build/
+**/build/
 android/local.properties
 android/.idea/
 *.iml
@@ -36,6 +37,7 @@ backend/data/*.db-shm
 reference/
 research/
 音源/
+test/
 
 # ---- 工具 / 系统 ----
 .dsh-vision-toolkit/

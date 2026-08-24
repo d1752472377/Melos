@@ -3,6 +3,7 @@ package com.aesthetic.music.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -18,7 +19,9 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,7 +54,7 @@ fun NavigationDock(
             .border(1.dp, Stone200.copy(alpha = 0.5f), RoundedCornerShape(0.dp))
             .shadow(4.dp, ambientColor = Color.Black.copy(alpha = 0.03f))
             .background(Surface)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceAround,
     ) {
@@ -64,7 +67,11 @@ fun NavigationDock(
                 .size(46.dp)
                 .shadow(3.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.1f))
                 .clip(CircleShape)
-                .clickable(onClick = onOpenPlayer),
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null, // 去除中央唱片的点击水波纹
+                    onClick = onOpenPlayer
+                ),
             contentAlignment = Alignment.Center,
         ) {
             RotatingDisc(currentArtwork, Modifier.size(46.dp))
@@ -85,7 +92,12 @@ private fun DockIcon(
         modifier = Modifier
             .size(48.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null, // 【方案一】完全禁用点击的灰色水波纹
+                // indication = ripple(color = PrimaryBrown.copy(alpha = 0.2f)), // 【方案二】若想要浅棕色水波纹，取消注释这行并把上面一行删掉/注释掉
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Box(

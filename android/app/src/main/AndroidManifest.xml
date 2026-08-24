@@ -9,8 +9,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!--
+      usesCleartextTraffic 保持 true：部分音源平台的封面/资源直链仍为 http，
+      收紧需先梳理全部域名白名单（network security config），否则会静默裂图。
+      allowBackup 保留，但通过 backup_rules / data_extraction_rules 把含 token 的
+      登录态排除出云备份与设备迁移。
+    -->
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

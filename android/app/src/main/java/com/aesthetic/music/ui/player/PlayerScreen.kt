@@ -1,14 +1,18 @@
 package com.aesthetic.music.ui.player
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -34,6 +39,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
@@ -51,6 +57,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -71,6 +78,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,10 +87,12 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.aesthetic.music.data.settings.PlayerTheme
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.player.LyricLine
 import com.aesthetic.music.player.PlayMode
+import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.PlayerState
 import com.aesthetic.music.player.currentLyricIndex
 import com.aesthetic.music.ui.components.WaveBars
@@ -91,14 +102,18 @@ import com.aesthetic.music.ui.theme.PlayerBg
 import com.aesthetic.music.ui.theme.PlayerBgDark
 import com.aesthetic.music.ui.theme.Rose
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import java.util.Locale
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     state: PlayerState,
+    /** 高频进度流：在播放页内部订阅，避免进度更新向上扩散到 AppShell */
+    progressFlow: StateFlow<PlaybackProgress>,
     isFavorite: Boolean,
     onClose: () -> Unit,
     onToggle: () -> Unit,
@@ -115,7 +130,9 @@ fun PlayerScreen(
     onCancelSleepTimer: () -> Unit,
 ) {
     val song = state.currentSong
-    val lyricIndex = currentLyricIndex(state.lyrics, state.positionMs)
+    // 进度只在播放页内部收集：每 500ms 一次的更新不会离开本页作用域
+    val progress by progressFlow.collectAsState()
+    val lyricIndex = currentLyricIndex(state.lyrics, progress.positionMs)
     var showLyric by remember { mutableStateOf(true) }
     var showQueueSheet by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
@@ -123,10 +140,13 @@ fun PlayerScreen(
     var showThemeSheet by remember { mutableStateOf(false) }
     var playerTheme by remember { mutableStateOf(SettingsStore.getPlayerTheme()) }
 
-    val bgGradient: Brush = when (playerTheme) {
-        PlayerTheme.CLASSIC -> Brush.verticalGradient(listOf(PlayerBg, PlayerBgDark))
-        PlayerTheme.COVER -> Brush.verticalGradient(listOf(Color(0xFF5C2612), Color(0xFF1F0D06)))
-        PlayerTheme.APPLE -> Brush.verticalGradient(listOf(Color(0xFF311B92), Color(0xFF880E4F), Color(0xFF1A237E)))
+    // 主题不变时缓存渐变画刷，避免每次重组（含每 500ms 进度刷新）重新分配
+    val bgGradient: Brush = remember(playerTheme) {
+        when (playerTheme) {
+            PlayerTheme.CLASSIC -> Brush.verticalGradient(listOf(PlayerBg, PlayerBgDark))
+            PlayerTheme.COVER -> Brush.verticalGradient(listOf(Color(0xFF5C2612), Color(0xFF1F0D06)))
+            PlayerTheme.APPLE -> Brush.verticalGradient(listOf(Color(0xFF311B92), Color(0xFF880E4F), Color(0xFF1A237E)))
+        }
     }
 
     Box(
@@ -253,6 +273,8 @@ fun PlayerScreen(
             // 底部控制与进度条
             BottomControls(
                 state = state,
+                positionMs = progress.positionMs,
+                durationMs = progress.durationMs,
                 onToggle = onToggle,
                 onNext = onNext,
                 onPrevious = onPrevious,
@@ -277,7 +299,11 @@ fun PlayerScreen(
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
                 LazyColumn {
-                    itemsIndexed(state.queue) { index, item ->
+                    itemsIndexed(
+                        state.queue,
+                        // index 参与拼 key：既避免同曲重复入队时 key 碰撞崩溃，又能稳定复用
+                        key = { i, item -> "$i:${item.platform}:${item.id}" },
+                    ) { index, item ->
                         val isCurrent = index == state.currentIndex
                         Row(
                             Modifier
@@ -420,9 +446,12 @@ private fun AnimatedCoverBox(
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
     val swipeThreshold = with(LocalDensity.current) { 100.dp.toPx() }
+    // 飞出/飞入距离按容器实际宽度计算，替代硬编码像素（窄屏也能完整飞出视口）
+    var containerWidthPx by remember { mutableFloatStateOf(1000f) }
 
     Box(
         modifier = modifier
+            .onSizeChanged { containerWidthPx = it.width.toFloat().coerceAtLeast(1f) }
             .pointerInput(artworkUrl) {
                 detectTapGestures(
                     onTap = { onToggleLyricMode() } // 单击直接切换至歌词模式
@@ -440,10 +469,11 @@ private fun AnimatedCoverBox(
                         scope.launch {
                             val currentX = offsetX.value
                             if (abs(currentX) >= swipeThreshold) {
-                                val targetX = if (currentX > 0) 1000f else -1000f
-                                offsetX.animateTo(targetX, animationSpec = tween(180))
-                                if (currentX > 0) onPrevious() else onNext()
-                                offsetX.snapTo(if (currentX > 0) -600f else 600f)
+                                val dir = if (currentX > 0) 1f else -1f
+                                val flyOut = containerWidthPx
+                                offsetX.animateTo(dir * flyOut, animationSpec = tween(180))
+                                if (dir > 0) onPrevious() else onNext()
+                                offsetX.snapTo(-dir * flyOut * 0.6f)
                                 offsetX.animateTo(0f, animationSpec = spring(stiffness = 300f))
                             } else {
                                 offsetX.animateTo(0f, animationSpec = spring(stiffness = 400f))
@@ -457,17 +487,15 @@ private fun AnimatedCoverBox(
             },
         contentAlignment = Alignment.Center,
     ) {
-        val currentOffset = offsetX.value
-        val progress = (abs(currentOffset) / swipeThreshold).coerceIn(0f, 1f)
-        val rotation = (currentOffset / 25f).coerceIn(-12f, 12f)
-        val alpha = 1f - (progress * 0.25f)
-
         Box(
             modifier = Modifier
                 .graphicsLayer {
-                    translationX = currentOffset
-                    rotationZ = rotation
-                    this.alpha = alpha
+                    // 延迟读取：在图层块内读 Animatable 值，拖动期间只更新绘制属性、不触发重组
+                    val x = offsetX.value
+                    val progress = (abs(x) / swipeThreshold).coerceIn(0f, 1f)
+                    translationX = x
+                    rotationZ = (x / 25f).coerceIn(-12f, 12f)
+                    alpha = 1f - progress * 0.25f
                 }
         ) {
             if (!artworkUrl.isNullOrBlank()) {
@@ -497,7 +525,12 @@ private fun AnimatedCoverBox(
 }
 
 /**
- * 歌词列表：单击任意区域/歌词可切回封面
+ * 歌词列表（主流播放器交互）：
+ * - 中央虚线指示线常驻；用户拖动时浮现「时间 + 跳转」胶囊，松手淡出；
+ * - 拖动与惯性滑动期间，高亮行实时跟随最接近中线的歌词，
+ *   惯性下滑时呈现「一行行歌词被依次选中」的吸附感；
+ * - 松手停稳后保持选中约 3.5 秒（期间不跟唱），随后平滑回正到当前播放行；
+ * - 自动回正先等待进行中的惯性滚动自然结束，避免动画互相打断造成跳变。
  */
 @Composable
 private fun LyricList(
@@ -518,48 +551,77 @@ private fun LyricList(
     }
 
     val listState = rememberLazyListState()
-    var isUserDragging by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    // ===== 用户手势窗口 =====
+    // holdAutoFollow=true：用户正在接管列表（拖动中 / 惯性滑动 / 停稳后的保持期）
+    var holdAutoFollow by remember { mutableStateOf(false) }
     var userTouchEpoch by remember { mutableStateOf(0L) }
 
+    // 用 InteractionSource 判定"真实用户拖动"：程序化滚动（animateScrollToItem）不会产生
+    // DragInteraction。此前用 isScrollInProgress 会把自动滚动误判为手势，
+    // 形成"自动滚动→置位→3 秒复位→再次自动滚动"的约 3 秒周期自激循环。
     LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress }
-            .distinctUntilChanged()
-            .collect { scrolling ->
-                if (scrolling) {
-                    isUserDragging = true
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> {
+                    holdAutoFollow = true
                     userTouchEpoch = System.currentTimeMillis()
-                } else {
+                }
+                is DragInteraction.Stop, is DragInteraction.Cancel -> {
                     userTouchEpoch = System.currentTimeMillis()
                 }
             }
-    }
-
-    LaunchedEffect(userTouchEpoch, isUserDragging) {
-        if (isUserDragging) {
-            delay(3000)
-            isUserDragging = false
         }
     }
 
-    LaunchedEffect(currentIndex, isUserDragging) {
-        if (!isUserDragging && currentIndex >= 0) {
-            listState.animateScrollToItem(currentIndex.coerceAtLeast(0))
+    // 惯性滚动持续期间顺延保持期：松手后 fling 还在走也算"用户接管"
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling && holdAutoFollow) userTouchEpoch = System.currentTimeMillis()
         }
     }
 
-    val centerLyricLine by remember {
+    // 保持期计时：最后一次手势/滚动活动后 3.5s 归还控制权（Start 会重置 epoch 重启本协程）
+    LaunchedEffect(userTouchEpoch) {
+        if (userTouchEpoch == 0L) return@LaunchedEffect
+        delay(3500)
+        holdAutoFollow = false
+    }
+
+    // 最接近视口中线的可见行索引：拖动/惯性时驱动"逐行选中"
+    val centerLineIndex by remember(lyrics) {
         derivedStateOf {
-            if (!isUserDragging) null
-            else {
-                val layoutInfo = listState.layoutInfo
-                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
-                val nearestItem = layoutInfo.visibleItemsInfo.minByOrNull {
-                    abs((it.offset + it.size / 2) - viewportCenter)
-                }
-                nearestItem?.let { lyrics.getOrNull(it.index) }
+            val layoutInfo = listState.layoutInfo
+            if (layoutInfo.visibleItemsInfo.isEmpty()) -1 else {
+                val viewportCenter =
+                    (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                layoutInfo.visibleItemsInfo
+                    .minByOrNull { abs((it.offset + it.size / 2) - viewportCenter) }
+                    ?.index ?: -1
             }
         }
     }
+
+    // 高亮行：用户接管期间选中"中线行"，否则跟随播放进度
+    val activeIndex = if (holdAutoFollow && centerLineIndex >= 0) centerLineIndex else currentIndex
+
+    // 切歌（歌词更换）后立即回到顶部，不再从旧位置长距离爬升
+    LaunchedEffect(lyrics) {
+        listState.scrollToItem(0)
+    }
+
+    // 自动跟随：key 任一变化即取消上一次动画（天然防重入）；先等惯性自然停止再平滑回正
+    LaunchedEffect(currentIndex, holdAutoFollow, lyrics) {
+        if (currentIndex < 0 || holdAutoFollow) return@LaunchedEffect
+        snapshotFlow { listState.isScrollInProgress }.first { !it }
+        if (!holdAutoFollow) {
+            listState.animateScrollToItemCentered(currentIndex.coerceAtLeast(0))
+        }
+    }
+
+    // 中线指向的歌词（跳转目标）；key 加 lyrics 防止切歌后闭包解析到上一首的行
+    val targetLine = if (centerLineIndex >= 0) lyrics.getOrNull(centerLineIndex) else null
 
     Box(
         modifier = modifier.pointerInput(Unit) {
@@ -573,8 +635,11 @@ private fun LyricList(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            itemsIndexed(lyrics) { index, line ->
-                val isCurrent = index == currentIndex
+            itemsIndexed(
+                lyrics,
+                key = { index, line -> "$index:${line.timeMs}" },
+            ) { index, line ->
+                val isCurrent = index == activeIndex
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -584,7 +649,7 @@ private fun LyricList(
                                 onTap = { onToggleLyricMode() }, // 单击歌词切回封面
                                 onDoubleTap = {
                                     onLyricClick(line)
-                                    isUserDragging = false
+                                    holdAutoFollow = false
                                 }
                             )
                         }
@@ -598,7 +663,7 @@ private fun LyricList(
                         },
                         color = when {
                             isCurrent -> Color.White
-                            index == currentIndex + 1 -> Color.White.copy(alpha = 0.55f)
+                            index == activeIndex + 1 -> Color.White.copy(alpha = 0.55f)
                             else -> Color.White.copy(alpha = 0.3f)
                         },
                         textAlign = TextAlign.Start,
@@ -616,74 +681,83 @@ private fun LyricList(
             }
         }
 
-        centerLyricLine?.let { targetLine ->
-            Row(
+        // 固定中央虚线：始终可见；拖动时中间浮出「时间 + 跳转」胶囊，松手淡出
+        Row(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DottedLine(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .weight(1f)
+                    .height(1.dp)
+            )
+
+            Spacer(Modifier.size(8.dp))
+
+            AnimatedVisibility(
+                visible = holdAutoFollow && targetLine != null,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(300)),
             ) {
-                DottedLine(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                )
-
-                Spacer(Modifier.size(8.dp))
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = formatTime(targetLine.timeMs),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Spacer(Modifier.size(8.dp))
-
-                DottedLine(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                )
-
-                Spacer(Modifier.size(8.dp))
-
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(AmberLight)
-                        .clickable {
-                            onLyricClick(targetLine)
-                            isUserDragging = false
-                        }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.PlayArrow,
-                            contentDescription = "跳转",
-                            tint = Color.Black,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.size(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
                         Text(
-                            "跳转",
+                            text = formatTime(targetLine?.timeMs ?: 0L),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontWeight = FontWeight.SemiBold
                         )
+                    }
+
+                    Spacer(Modifier.size(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(AmberLight)
+                            .clickable {
+                                targetLine?.let { line ->
+                                    onLyricClick(line)
+                                    holdAutoFollow = false
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.PlayArrow,
+                                contentDescription = "跳转",
+                                tint = Color.Black,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.size(2.dp))
+                            Text(
+                                "跳转",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
+
+            Spacer(Modifier.size(8.dp))
+
+            DottedLine(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+            )
         }
     }
 }
@@ -705,6 +779,8 @@ private fun DottedLine(modifier: Modifier = Modifier) {
 @Composable
 private fun BottomControls(
     state: PlayerState,
+    positionMs: Long,
+    durationMs: Long,
     onToggle: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
@@ -715,21 +791,38 @@ private fun BottomControls(
     // 缓冲 Seek：滑动时只改变 UI 临时值，手松开时才真正 Seek
     var isDragging by remember { mutableStateOf(false) }
     var dragPositionMs by remember { mutableFloatStateOf(0f) }
+    // 松手后的目标值：保持显示直到轮询进度追上目标，避免滑块先弹回旧位置再跳回
+    var pendingSeekMs by remember { mutableStateOf<Long?>(null) }
 
-    val currentPos = if (isDragging) dragPositionMs.toLong() else state.positionMs
+    // 轮询值到达目标附近（一个轮询周期 + 余量）后切回实时进度
+    LaunchedEffect(pendingSeekMs, positionMs) {
+        val target = pendingSeekMs ?: return@LaunchedEffect
+        if (abs(positionMs - target) < 900) pendingSeekMs = null
+    }
+    // 切歌后立即丢弃未决的 seek 目标，防止残留到下一首
+    LaunchedEffect(state.currentIndex) {
+        pendingSeekMs = null
+    }
+
+    val currentPos = when {
+        isDragging -> dragPositionMs.toLong()
+        else -> pendingSeekMs ?: positionMs
+    }
 
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 28.dp)) {
         Slider(
-            value = currentPos.coerceAtMost(state.durationMs).toFloat(),
+            value = currentPos.coerceAtMost(durationMs).toFloat(),
             onValueChange = {
                 isDragging = true
                 dragPositionMs = it
             },
             onValueChangeFinished = {
-                onSeek(dragPositionMs.toLong())
+                val target = dragPositionMs.toLong()
+                onSeek(target)
+                pendingSeekMs = target
                 isDragging = false
             },
-            valueRange = 0f..(state.durationMs.takeIf { it > 0 } ?: 1L).toFloat(),
+            valueRange = 0f..(durationMs.takeIf { it > 0 } ?: 1L).toFloat(),
             colors = SliderDefaults.colors(
                 thumbColor = Color.White,
                 activeTrackColor = Color.White,
@@ -762,7 +855,7 @@ private fun BottomControls(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(formatTime(currentPos), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.4f))
-            Text(formatTime(state.durationMs), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.4f))
+            Text(formatTime(durationMs), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.4f))
         }
 
         Spacer(Modifier.height(12.dp))
@@ -774,7 +867,7 @@ private fun BottomControls(
         ) {
             Icon(
                 when (state.playMode) {
-                    PlayMode.SEQUENCE -> Icons.Filled.Shuffle
+                    PlayMode.SEQUENCE -> Icons.Filled.Repeat // 顺序播放用线性图标，Shuffle 留给随机模式
                     PlayMode.REPEAT -> Icons.Filled.RepeatOne
                     PlayMode.SHUFFLE -> Icons.Filled.Shuffle
                 },
@@ -840,15 +933,22 @@ private fun PlayerChip(
 
 private fun formatRemain(ms: Long): String {
     val totalSec = ms / 1000
-    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+    return String.format(Locale.US, "%d:%02d", totalSec / 60, totalSec % 60)
 }
 
 @Composable
 private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme) {
     if (!artworkUrl.isNullOrBlank()) {
+        val context = LocalContext.current
         Box(Modifier.fillMaxSize()) {
             AsyncImage(
-                model = artworkUrl,
+                // 让 Coil 直接解码 ~240px 小图再放大模糊：
+                // 全屏 blur 的 GPU 开销与纹理尺寸成正比，视觉上 240px 放大后经 32dp 模糊无差别，
+                // 低端机上可显著降低每帧渲染成本
+                model = ImageRequest.Builder(context)
+                    .data(artworkUrl)
+                    .size(240)
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
@@ -903,5 +1003,18 @@ private fun formatTime(ms: Long): String {
     val totalSec = ms / 1000
     val min = totalSec / 60
     val sec = totalSec % 60
-    return "%d:%02d".format(min, sec)
+    return String.format(Locale.US, "%d:%02d", min, sec)
+}
+
+/**
+ * 把 index 对应行滚动到视口垂直居中（歌词自动滚动用）。
+ * animateScrollToItem(index) 默认把行贴到视口顶部，与中央指示线"按视口中心找最近行"
+ * 的假设不一致，导致当前行长期偏离中心；这里用 scrollOffset 让目标行中心对齐视口中心。
+ */
+private suspend fun LazyListState.animateScrollToItemCentered(index: Int) {
+    val info = layoutInfo
+    val viewportHeight = (info.viewportEndOffset - info.viewportStartOffset).coerceAtLeast(0)
+    val itemSize = info.visibleItemsInfo.firstOrNull { it.index == index }?.size
+        ?: info.visibleItemsInfo.firstOrNull()?.size ?: 120
+    animateScrollToItem(index, -(viewportHeight / 2 - itemSize / 2))
 }

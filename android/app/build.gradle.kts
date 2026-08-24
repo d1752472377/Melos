@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -27,7 +28,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 开启 R8 + 资源收缩：Compose 运行时体量大，不混淆不裁剪会显著拉长
+            // 冷启动 JIT 预热与滑动首帧耗时（首次安装卡、用一会儿变顺的主因之一）。
+            // Gson 反序列化的数据模型已在 proguard-rules.pro 中保留字段名。
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -73,6 +78,14 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation(libs.androidx.compose.foundation)
+
+    // JankStats：采集真实帧耗时，量化滑动掉帧（logcat tag=JankStats）
+    implementation(libs.androidx.metrics.performance)
+
+    // Baseline Profiles：由 :baselineprofile 模块在真机上生成并打包进 APK，
+    // 消除冷启动/首滑的 JIT 预热抖动。生成命令：
+    //   .\gradlew.bat :app:generateReleaseBaselineProfile
+    baselineProfile(project(":baselineprofile"))
 
     debugImplementation(libs.androidx.ui.tooling)
 }

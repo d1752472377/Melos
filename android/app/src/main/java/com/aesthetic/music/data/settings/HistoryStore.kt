@@ -18,6 +18,9 @@ object HistoryStore {
     private var prefs: SharedPreferences? = null
     private val gson = Gson()
 
+    /** 单线程后台写入器：JSON 序列化与落盘不占用调用线程（此前每次播放都在主线程序列化整组历史） */
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
+
     fun init(context: Context) {
         if (prefs == null) {
             prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -33,9 +36,12 @@ object HistoryStore {
     }
 
     fun save(songs: List<Song>) {
-        try {
-            prefs?.edit()?.putString(KEY_SONGS, gson.toJson(songs.take(100)))?.apply()
-        } catch (_: Exception) {
+        val snapshot = songs.take(100)
+        writer.execute {
+            try {
+                prefs?.edit()?.putString(KEY_SONGS, gson.toJson(snapshot))?.apply()
+            } catch (_: Exception) {
+            }
         }
     }
 }
