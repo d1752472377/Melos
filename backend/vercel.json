@@ -5,8 +5,7 @@
     "api/[...].js": {
       "regions": [
         "hkg1"
-      ],
-      "includeFiles": "{public/**}"
+      ]
     },
     "api/release-proxy.js": {
       "regions": [
