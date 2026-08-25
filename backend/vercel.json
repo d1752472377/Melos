@@ -3,21 +3,46 @@
   "framework": null,
   "functions": {
     "api/[...].js": {
-      "regions": ["hkg1"],
-      "includeFiles": "{public/**,node_modules/@libsql/linux-x64-gnu/**}"
+      "regions": [
+        "hkg1"
+      ],
+      "includeFiles": "{public/**}"
     },
     "api/release-proxy.js": {
-      "regions": ["hkg1"],
+      "regions": [
+        "hkg1"
+      ],
       "maxDuration": 60
     }
   },
   "rewrites": [
-    { "source": "/update.json", "destination": "/api/release-proxy.js" },
-    { "source": "/latest.apk", "destination": "/api/release-proxy.js" },
-    { "source": "/download", "destination": "/api/release-proxy.js" },
-    { "source": "/", "destination": "/api/[...]" },
-    { "source": "/api/(.*)", "destination": "/api/[...]" },
-    { "source": "/admin", "destination": "/api/[...]" },
-    { "source": "/admin/(.*)", "destination": "/api/[...]" }
+    {
+      "source": "/update.json",
+      "destination": "/api/release-proxy.js"
+    },
+    {
+      "source": "/latest.apk",
+      "destination": "/api/release-proxy.js"
+    },
+    {
+      "source": "/download",
+      "destination": "/api/release-proxy.js"
+    },
+    {
+      "source": "/",
+      "destination": "/api/[...]"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...]"
+    },
+    {
+      "source": "/admin",
+      "destination": "/api/[...]"
+    },
+    {
+      "source": "/admin/(.*)",
+      "destination": "/api/[...]"
+    }
   ]
 }
