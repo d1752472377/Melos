@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -19,18 +21,33 @@ android {
 
     // 统一签名（私有签发）：keystore 不入库，每台打包机器需手动放置到
     // android/keystore/aesthetic.jks，保证不同机器打出的 APK 签名一致、OTA
-    // 覆盖安装不互斥。文件缺失时回退本机默认 debug 签名（仅限日常开发调试，
-    // 正式发布必须使用统一签名）。v1+v2 同开：修复部分国产 ROM 安装器报
-    // "解析软件包时出现问题(33)"。
+    // 覆盖安装不互斥。
+    //
+    // 口令来源优先级（均为机密，绝不写入受版本控制的文件）：
+    //   1. 环境变量 AESTHETIC_STORE_PASSWORD / AESTHETIC_KEY_PASSWORD
+    //      —— GitHub Actions Secrets 中的命名（CI 用），本地可用 setx 设置持久化
+    //   2. 环境变量 KEYSTORE_PASSWORD（兼容旧配置）或 local.properties 的
+    //      `keystore.password`（local.properties 已 gitignore）
+    // 以上均缺失时回退本机默认 debug 签名（仅限日常开发调试，正式发布必须配置统一签名）。
+    // v1+v2 同开：修复部分国产 ROM 安装器报 "解析软件包时出现问题(33)"。
     val sharedKeystoreFile = rootProject.file("keystore/aesthetic.jks")
+    val keystoreProps = Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    val storePassword = System.getenv("AESTHETIC_STORE_PASSWORD")
+        ?: System.getenv("KEYSTORE_PASSWORD")
+        ?: keystoreProps.getProperty("keystore.password")
+    val keyPassword = System.getenv("AESTHETIC_KEY_PASSWORD")
+        ?: storePassword
 
     signingConfigs {
-        if (sharedKeystoreFile.exists()) {
+        if (sharedKeystoreFile.exists() && storePassword != null && keyPassword != null) {
             create("shared") {
                 storeFile = sharedKeystoreFile
-                storePassword = "***REMOVED***"
+                storePassword = storePassword
                 keyAlias = "aesthetic"
-                keyPassword = "***REMOVED***"
+                keyPassword = keyPassword
                 enableV1Signing = true
                 enableV2Signing = true
             }

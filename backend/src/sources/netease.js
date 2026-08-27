@@ -1,5 +1,6 @@
 import Meting from '@meting/core';
 import { MusicSource } from './MusicSource.js';
+import { fetchWithTimeout } from '../lib/http.js';
 
 // 统一音质 -> 网易云码率 bitrate
 const QUALITY_MAP = {
@@ -64,13 +65,13 @@ export class NeteaseSource extends MusicSource {
    * 注意：公开接口的热门歌可能含 VIP/无版权曲目，播放失败由上层多源降级兜底。
    */
   async getArtist(artistId, limit = 50) {
-    const res = await fetch(`https://music.163.com/api/artist/${encodeURIComponent(String(artistId))}`, {
+    const res = await fetchWithTimeout(`https://music.163.com/api/artist/${encodeURIComponent(String(artistId))}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0',
         'Referer': 'https://music.163.com',
         ...(this.cookie ? { Cookie: this.cookie } : {}),
       },
-    });
+    }, 10_000);
     if (!res.ok) throw new Error(`[netease] 歌手接口 HTTP ${res.status}`);
     const j = await res.json();
     const info = j?.artist;
@@ -139,9 +140,9 @@ export class NeteaseSource extends MusicSource {
 
   /** 网易云热门歌单列表（公开接口 /personalized/playlist） */
   async getHotPlaylists(limit = 20) {
-    const res = await fetch(`https://music.163.com/api/personalized/playlist?limit=${limit}`, {
+    const res = await fetchWithTimeout(`https://music.163.com/api/personalized/playlist?limit=${limit}`, {
       headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://music.163.com' },
-    });
+    }, 10_000);
     const j = await res.json();
     const list = j.result || [];
     return list.map((p) => ({
@@ -164,13 +165,13 @@ export class NeteaseSource extends MusicSource {
     const url =
       `https://music.163.com/api/search/get/?s=${encodeURIComponent(String(keyword))}` +
       `&type=${type}&limit=${Math.min(limit, 50)}&offset=0`;
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0',
         'Referer': 'https://music.163.com',
         ...(this.cookie ? { Cookie: this.cookie } : {}),
       },
-    });
+    }, 10_000);
     if (!res.ok) throw new Error(`[netease] 搜索接口 HTTP ${res.status}`);
     const j = await res.json();
     if (j?.code && j.code !== 200) throw new Error(`[netease] 搜索接口 code=${j.code}`);
@@ -222,13 +223,13 @@ export class NeteaseSource extends MusicSource {
 
   /** 专辑详情 + 全部曲目（公开 /api/album/{id}） */
   async getAlbum(albumId) {
-    const res = await fetch(`https://music.163.com/api/album/${encodeURIComponent(String(albumId))}`, {
+    const res = await fetchWithTimeout(`https://music.163.com/api/album/${encodeURIComponent(String(albumId))}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0',
         'Referer': 'https://music.163.com',
         ...(this.cookie ? { Cookie: this.cookie } : {}),
       },
-    });
+    }, 10_000);
     if (!res.ok) throw new Error(`[netease] 专辑接口 HTTP ${res.status}`);
     const j = await res.json();
     const info = j?.album;
@@ -256,13 +257,13 @@ export class NeteaseSource extends MusicSource {
 
   /** 热搜词（官方 /api/search/hot/detail） */
   async hotSearchWords(limit = 12) {
-    const res = await fetch('https://music.163.com/api/search/hot/detail', {
+    const res = await fetchWithTimeout('https://music.163.com/api/search/hot/detail', {
       headers: {
         'User-Agent': 'Mozilla/5.0',
         'Referer': 'https://music.163.com',
         ...(this.cookie ? { Cookie: this.cookie } : {}),
       },
-    });
+    }, 10_000);
     if (!res.ok) throw new Error(`[netease] 热搜接口 HTTP ${res.status}`);
     const j = await res.json();
     const arr = Array.isArray(j?.data) ? j.data : [];

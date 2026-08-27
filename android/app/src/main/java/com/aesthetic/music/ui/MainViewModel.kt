@@ -24,6 +24,7 @@ import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.UserStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Mutex
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -97,6 +98,21 @@ class MainViewModel : ViewModel() {
     /** 歌单详情请求令牌：快速连开两个歌单时丢弃慢的旧响应，防止串台 */
     @Volatile
     private var playlistRequestId = 0L
+    /** 专辑详情请求令牌（openAlbum 用，防快速切换专辑时旧响应覆盖新数据） */
+    @Volatile
+    private var albumRequestId = 0L
+    /** 歌手详情请求令牌（openArtist 用，同上） */
+    @Volatile
+    private var artistRequestId = 0L
+
+    /**
+     * 云同步串行互斥锁 + 待发标记：
+     * 收藏/历史是后端"整表替换"语义，多个并发 PUT 乱序到达会让云端被旧快照覆盖。
+     * 所有推送排进同一把锁按序执行；待发标记保证激增的推送合并为"只发最新一次"。
+     */
+    private val syncMutex = Mutex()
+    private var favPushPending = false
+    private var histPushPending = false
 
     // 用户体系
     private val _user = MutableStateFlow(UserStore.user())
@@ -225,17 +241,21 @@ class MainViewModel : ViewModel() {
         _albumDetailSongs.value = emptyList()
         albumError.value = null
         isLoadingAlbum.value = true
+        val req = ++albumRequestId
         viewModelScope.launch {
             repository.getAlbum(album.id).onSuccess { detail ->
+                // 请求在途期间用户已打开别的专辑：丢弃过期响应，防止串台
+                if (req != albumRequestId) return@launch
                 _albumDetailSongs.value = detail.songs
                 // 详情返回的 info 更完整（封面/曲目数），同 id 时替换占位数据
                 if (detail.info != null && showAlbumDetail.value?.id == album.id) {
                     showAlbumDetail.value = detail.info
                 }
             }.onFailure { e ->
+                if (req != albumRequestId) return@launch
                 albumError.value = e.message ?: "获取专辑失败"
             }
-            isLoadingAlbum.value = false
+            if (req == albumRequestId) isLoadingAlbum.value = false
         }
     }
 
@@ -380,17 +400,21 @@ class MainViewModel : ViewModel() {
 
     fun openArtist(ref: ArtistRef) {
         showArtist.value = ref
+        val req = ++artistRequestId
         viewModelScope.launch {
             isLoadingArtist.value = true
             _artistDetail.value = null
             artistError.value = null
             repository.getArtist(ref.platform, ref.id).onSuccess { detail ->
+                // 请求在途期间用户已打开别的歌手：丢弃过期响应
+                if (req != artistRequestId) return@launch
                 _artistDetail.value = detail
             }.onFailure { e ->
+                if (req != artistRequestId) return@launch
                 // 失败要可见：否则页面显示"暂无相关歌曲"，把网络错误伪装成歌手无作品
                 artistError.value = e.message ?: "获取歌手失败"
             }
-            isLoadingArtist.value = false
+            if (req == artistRequestId) isLoadingArtist.value = false
         }
     }
 
@@ -563,8 +587,10 @@ class MainViewModel : ViewModel() {
         }
         saveMyPlaylists()
         viewModelScope.launch {
-            val p = _myPlaylists.value.firstOrNull { it.id == id } ?: return@launch
-            if (p.cloudId.isNotBlank()) repository.renameCloudPlaylist(p.cloudId, n)
+            syncMutex.withLock {
+                val p = _myPlaylists.value.firstOrNull { it.id == id } ?: return@withLock
+                if (p.cloudId.isNotBlank()) repository.renameCloudPlaylist(p.cloudId, n)
+            }
         }
     }
 
@@ -573,7 +599,9 @@ class MainViewModel : ViewModel() {
         _myPlaylists.value = _myPlaylists.value.filterNot { it.id == id }
         saveMyPlaylists()
         viewModelScope.launch {
-            if (target.cloudId.isNotBlank()) repository.deleteCloudPlaylist(target.cloudId)
+            syncMutex.withLock {
+                if (target.cloudId.isNotBlank()) repository.deleteCloudPlaylist(target.cloudId)
+            }
         }
     }
 
@@ -585,7 +613,7 @@ class MainViewModel : ViewModel() {
             if (it.id == id) it.copy(songs = merged) else it
         }
         saveMyPlaylists()
-        pushPlaylistSongsToCloud(id, merged)
+        pushPlaylistSongsToCloud(id) // 锁内读最新快照发送，无需透传本次增量的歌曲列表
     }
 
     fun openMyPlaylist(id: String) {
@@ -620,27 +648,39 @@ class MainViewModel : ViewModel() {
 
     private fun pushPlaylistToCloud(p: MyPlaylist) {
         viewModelScope.launch {
-            if (!UserStore.isLoggedIn()) return@launch
-            val created = repository.createCloudPlaylist(p.name, p.coverUrl).getOrNull() ?: return@launch
-            _myPlaylists.value = _myPlaylists.value.map {
-                if (it.id == p.id) it.copy(cloudId = created.id) else it
-            }
-            saveMyPlaylists()
-            if (p.songs.isNotEmpty()) {
-                repository.pushPlaylistSongs(created.id, p.songs)
+            syncMutex.withLock {
+                if (!UserStore.isLoggedIn()) return@withLock
+                val created = repository.createCloudPlaylist(p.name, p.coverUrl).getOrNull() ?: return@withLock
+                _myPlaylists.value = _myPlaylists.value.map {
+                    if (it.id == p.id) it.copy(cloudId = created.id) else it
+                }
+                saveMyPlaylists()
+                if (p.songs.isNotEmpty()) {
+                    repository.pushPlaylistSongs(created.id, p.songs)
+                }
             }
         }
     }
 
-    private fun pushPlaylistSongsToCloud(id: String, songs: List<Song>) {
+    private fun pushPlaylistSongsToCloud(id: String) {
         viewModelScope.launch {
-            if (!UserStore.isLoggedIn()) return@launch
-            val p = _myPlaylists.value.firstOrNull { it.id == id } ?: return@launch
-            if (p.cloudId.isBlank()) {
-                // 尚未建过云端歌单：补建并同步
-                pushPlaylistToCloud(p)
-            } else {
-                repository.pushPlaylistSongs(p.cloudId, songs)
+            syncMutex.withLock {
+                if (!UserStore.isLoggedIn()) return@withLock
+                val p = _myPlaylists.value.firstOrNull { it.id == id } ?: return@withLock
+                if (p.cloudId.isBlank()) {
+                    // 尚未建过云端歌单：补建并同步（锁内复用逻辑，直接内联）
+                    val created = repository.createCloudPlaylist(p.name, p.coverUrl).getOrNull() ?: return@withLock
+                    val updated = p.copy(cloudId = created.id)
+                    _myPlaylists.value = _myPlaylists.value.map { if (it.id == id) updated else it }
+                    saveMyPlaylists()
+                    repository.pushPlaylistSongs(created.id, updated.songs)
+                } else {
+                    // 发送锁内读到的最新快照，避免旧列表覆盖新变更
+                    val latest = _myPlaylists.value.firstOrNull { it.id == id }
+                    if (latest != null && latest.cloudId == p.cloudId) {
+                        repository.pushPlaylistSongs(p.cloudId, latest.songs)
+                    }
+                }
             }
         }
     }
@@ -727,46 +767,52 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** 登录后：本地数据与云端合并（本地优先），并同步回云端 */
+    /** 登录后：本地数据与云端合并（本地优先），并同步回云端（整段串行执行） */
     private fun syncCloudDown() {
         viewModelScope.launch {
-            // 收藏合并
-            val cloudFav = repository.cloudFavorites().getOrElse { emptyList() }
-            val mergedFav = mergeSongs(_favoriteSongs.value, cloudFav).take(MAX_FAVORITES)
-            _favoriteSongs.value = mergedFav
-            _favoriteKeys.value = mergedFav.map { it.platform + ":" + it.id }.toSet()
-            FavoriteStore.save(mergedFav)
-            repository.pushFavorites(mergedFav)
+            syncMutex.withLock {
+                if (!UserStore.isLoggedIn()) return@withLock
+                // 收藏合并
+                val cloudFav = repository.cloudFavorites().getOrElse { emptyList() }
+                val mergedFav = mergeSongs(_favoriteSongs.value, cloudFav).take(MAX_FAVORITES)
+                _favoriteSongs.value = mergedFav
+                _favoriteKeys.value = mergedFav.map { it.platform + ":" + it.id }.toSet()
+                FavoriteStore.save(mergedFav)
+                // 直接推送合并结果，并复位待发标记（队列里的旧推送任务拿到锁后会发现无待发而跳过）
+                favPushPending = false
+                repository.pushFavorites(mergedFav)
 
-            // 历史合并
-            val cloudHis = repository.cloudHistory().getOrElse { emptyList() }
-            val mergedHis = mergeSongs(_history.value, cloudHis).take(HISTORY_LIMIT)
-            _history.value = mergedHis
-            HistoryStore.save(mergedHis)
-            repository.pushHistory(mergedHis)
+                // 历史合并
+                val cloudHis = repository.cloudHistory().getOrElse { emptyList() }
+                val mergedHis = mergeSongs(_history.value, cloudHis).take(HISTORY_LIMIT)
+                _history.value = mergedHis
+                HistoryStore.save(mergedHis)
+                histPushPending = false
+                repository.pushHistory(mergedHis)
 
-            // 歌单合并
-            val cloudPls = repository.cloudPlaylists().getOrElse { emptyList() }
-            for (cp in cloudPls) {
-                val exist = _myPlaylists.value.firstOrNull { it.id == cp.id || it.cloudId == cp.id }
-                if (exist == null) {
-                    val songs = repository.cloudPlaylistSongs(cp.id).getOrElse { emptyList() }
-                    _myPlaylists.value = _myPlaylists.value + MyPlaylist(
-                        id = cp.id, name = cp.name, songs = songs, cloudId = cp.id,
-                    )
+                // 歌单合并
+                val cloudPls = repository.cloudPlaylists().getOrElse { emptyList() }
+                for (cp in cloudPls) {
+                    val exist = _myPlaylists.value.firstOrNull { it.id == cp.id || it.cloudId == cp.id }
+                    if (exist == null) {
+                        val songs = repository.cloudPlaylistSongs(cp.id).getOrElse { emptyList() }
+                        _myPlaylists.value = _myPlaylists.value + MyPlaylist(
+                            id = cp.id, name = cp.name, songs = songs, cloudId = cp.id,
+                        )
+                    }
                 }
-            }
-            saveMyPlaylists()
-            // 本地歌单推送到云端
-            for (p in _myPlaylists.value.toList()) {
-                if (p.cloudId.isBlank()) {
-                    val created = repository.createCloudPlaylist(p.name, p.coverUrl).getOrNull() ?: continue
-                    val updated = p.copy(cloudId = created.id)
-                    _myPlaylists.value = _myPlaylists.value.map { if (it.id == p.id) updated else it }
-                    saveMyPlaylists()
-                    if (p.songs.isNotEmpty()) repository.pushPlaylistSongs(created.id, p.songs)
-                } else {
-                    repository.pushPlaylistSongs(p.cloudId, p.songs)
+                saveMyPlaylists()
+                // 本地歌单推送到云端
+                for (p in _myPlaylists.value.toList()) {
+                    if (p.cloudId.isBlank()) {
+                        val created = repository.createCloudPlaylist(p.name, p.coverUrl).getOrNull() ?: continue
+                        val updated = p.copy(cloudId = created.id)
+                        _myPlaylists.value = _myPlaylists.value.map { if (it.id == p.id) updated else it }
+                        saveMyPlaylists()
+                        if (p.songs.isNotEmpty()) repository.pushPlaylistSongs(created.id, p.songs)
+                    } else {
+                        repository.pushPlaylistSongs(p.cloudId, p.songs)
+                    }
                 }
             }
         }
@@ -784,12 +830,27 @@ class MainViewModel : ViewModel() {
 
     private fun pushFavoritesToCloud() {
         if (!UserStore.isLoggedIn()) return
-        viewModelScope.launch { repository.pushFavorites(_favoriteSongs.value) }
+        favPushPending = true
+        viewModelScope.launch {
+            syncMutex.withLock {
+                // 队列中可能积压多个推送：只发最新一次（合并），且发送锁内读到的最新快照
+                if (!favPushPending) return@withLock
+                favPushPending = false
+                repository.pushFavorites(_favoriteSongs.value)
+            }
+        }
     }
 
     private fun pushHistoryToCloud() {
         if (!UserStore.isLoggedIn()) return
-        viewModelScope.launch { repository.pushHistory(_history.value) }
+        histPushPending = true
+        viewModelScope.launch {
+            syncMutex.withLock {
+                if (!histPushPending) return@withLock
+                histPushPending = false
+                repository.pushHistory(_history.value)
+            }
+        }
     }
 
     // ==================== 统计 ====================

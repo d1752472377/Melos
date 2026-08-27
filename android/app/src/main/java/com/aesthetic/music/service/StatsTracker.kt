@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 真实听歌统计：
@@ -27,6 +28,8 @@ object StatsTracker {
     private var pendingListenMs = 0L
     @Volatile
     private var lastStatsFlushAt = 0L
+    /** 待上报事件条数上限：失败重试重新入队时防止无限堆积撑爆内存 */
+    private const val MAX_PENDING_KEYS = 300
 
     /** 一首歌真正开始播放时计数一次 */
     fun onPlayStarted(song: Song?) {
@@ -71,7 +74,27 @@ object StatsTracker {
         pending.clear()
         if (!UserStore.isLoggedIn()) return
         scope.launch {
-            repository.reportStats(batch)
+            val result = repository.reportStats(batch)
+            if (result.isFailure) {
+                // 上报失败重新入队，下次 flush 重试；超上限丢弃最旧批次防止无限堆积。
+                // pending 只允许主线程访问，回写必须切回 Main。
+                withContext(Dispatchers.Main) {
+                    if (pending.size < MAX_PENDING_KEYS) {
+                        for (e in batch) {
+                            val key = e.platform + ":" + e.id
+                            val cur = pending[key]
+                            pending[key] = if (cur == null) {
+                                e
+                            } else {
+                                cur.copy(
+                                    listenedMs = cur.listenedMs + e.listenedMs,
+                                    durationMs = maxOf(cur.durationMs, e.durationMs),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

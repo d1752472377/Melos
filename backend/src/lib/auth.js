@@ -56,3 +56,30 @@ export function requireAuth(config) {
     req.admin = payload;
   };
 }
+
+// ==================== 登录失败锁定（防在线爆破） ====================
+// 连续失败 5 次锁定账号 15 分钟（内存态，服务重启即解除；配合 IP 限速使用）。
+
+const LOGIN_FAIL_LIMIT = 5;
+const LOGIN_LOCK_MS = 15 * 60 * 1000;
+const failMap = new Map(); // username -> { count, firstAt }
+
+export function isLoginLocked(username) {
+  const e = failMap.get(username);
+  if (!e) return false;
+  if (Date.now() - e.firstAt >= LOGIN_LOCK_MS) {
+    failMap.delete(username);
+    return false;
+  }
+  return e.count >= LOGIN_FAIL_LIMIT;
+}
+
+export function recordLoginFailure(username) {
+  const e = failMap.get(username) || { count: 0, firstAt: Date.now() };
+  e.count += 1;
+  failMap.set(username, e);
+}
+
+export function clearLoginFailures(username) {
+  failMap.delete(username);
+}

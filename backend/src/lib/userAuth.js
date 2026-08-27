@@ -4,8 +4,14 @@ import { getUserByUsername, getUserById } from './db.js';
 const TOKEN_TTL_SEC = 30 * 24 * 60 * 60; // 30 天
 const USERNAME_RE = /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$/;
 
+/** 异步 scrypt 散列：同步版会阻塞事件循环（单次 50~150ms，高并发时整服务卡顿） */
 export function hashPassword(password, salt) {
-  return crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(String(password), salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey.toString('hex'));
+    });
+  });
 }
 
 export function createUserToken(userId, username, key) {

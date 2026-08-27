@@ -1,0 +1,119 @@
+name: Android Release
+
+on:
+  # 打 tag（v*）自动构建正式包并发布 GitHub Release
+  push:
+    tags: ['v*']
+  # 手动触发：不创建 Release，只产出 APK + update.json 供下载
+  workflow_dispatch:
+    inputs:
+      update_log:
+        description: '更新日志（写入 update.json 与 Release 说明）'
+        required: false
+        default: '例行更新'
+
+permissions:
+  contents: write   # 创建 Release / 上传资产
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      # 签名密钥：由 Secret 现场还原（ANDROID_KEYSTORE_BASE64 = keystore 的 base64）。
+      # 仓库内任何文件都不包含 keystore / 口令。
+      - name: Restore signing keystore
+        run: |
+          mkdir -p android/keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/keystore/aesthetic.jks
+          chmod +x android/gradlew
+          # 校验 keystore 可读（密码走环境变量，日志会被 Actions 自动打码）
+          keytool -list -keystore android/keystore/aesthetic.jks \
+            -storepass "$AESTHETIC_STORE_PASSWORD" -alias aesthetic > /dev/null
+          echo 'keystore OK'
+        env:
+          AESTHETIC_STORE_PASSWORD: ${{ secrets.AESTHETIC_STORE_PASSWORD }}
+
+      - name: Build release APK (signed)
+        run: cd android && ./gradlew assembleRelease
+        env:
+          AESTHETIC_STORE_PASSWORD: ${{ secrets.AESTHETIC_STORE_PASSWORD }}
+          AESTHETIC_KEY_PASSWORD: ${{ secrets.AESTHETIC_KEY_PASSWORD }}
+
+      # 版本号唯一来源是 build.gradle.kts（编译进 APK），这里从产物反读，避免两处维护
+      - name: Collect metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | grep -v 'latest' | head -1)
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt 2>/dev/null | sort -V | tail -1)
+          BADGING=$("$AAPT" dump badging "$APK")
+          VERNAME=$(echo "$BADGING" | grep -oP "versionName='\K[^']+")
+          VERCODE=$(echo "$BADGING" | grep -oP "versionCode='\K[0-9]+")
+          echo "verName=$VERNAME" >> "$GITHUB_OUTPUT"
+          echo "verCode=$VERCODE" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c%s "$APK")" >> "$GITHUB_OUTPUT"
+          echo "md5=$(md5sum "$APK" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          # release-proxy 要求固定资产名 latest.apk；另留版本化副本
+          cp "$APK" android/app/build/outputs/apk/release/latest.apk
+          cp "$APK" "android/app/build/outputs/apk/release/aesthetic_music_v${VERNAME}.apk"
+
+      - name: Generate update.json
+        run: |
+          set -euo pipefail
+          LOG="${{ github.event.inputs.update_log }}"
+          if [ -z "$LOG" ] || [ "$LOG" = "例行更新" ]; then
+            LOG=$(git log -1 --pretty=%s)
+          fi
+          jq -n \
+            --arg v "${{ steps.meta.outputs.verName }}" \
+            --argjson c "${{ steps.meta.outputs.verCode }}" \
+            --argjson s "${{ steps.meta.outputs.size }}" \
+            --arg m "${{ steps.meta.outputs.md5 }}" \
+            --arg t "$(date '+%Y-%m-%d %H:%M')" \
+            --arg l "$LOG" \
+            '{versionName:$v, versionCode:$c,
+              apkUrl:"https://music.dovislab.com/latest.apk",
+              apkSize:$s, md5:$m, forceUpdate:false,
+              publishTime:$t, updateLog:$l}' > update.json
+          cat update.json
+
+      # tag 触发：发布 GitHub Release（资产名必须含 latest.apk / update.json，
+      # Vercel release-proxy 按这两个名字转发给 App 更新通道）
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Aesthetic Music ${{ steps.meta.outputs.verName }}
+          body: |
+            版本 ${{ steps.meta.outputs.verName }}（code ${{ steps.meta.outputs.verCode }}）
+            MD5: ${{ steps.meta.outputs.md5 }}
+            更新日志：
+            ${{ github.event.inputs.update_log != '' && github.event.inputs.update_log || '见提交记录' }}
+          files: |
+            android/app/build/outputs/apk/release/latest.apk
+            android/app/build/outputs/apk/release/aesthetic_music_v${{ steps.meta.outputs.verName }}.apk
+            update.json
+
+      # 手动触发：只上传构建产物（不创建 Release）
+      - name: Upload artifacts (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: |
+            android/app/build/outputs/apk/release/aesthetic_music_v${{ steps.meta.outputs.verName }}.apk
+            android/app/build/outputs/apk/release/latest.apk
+            update.json

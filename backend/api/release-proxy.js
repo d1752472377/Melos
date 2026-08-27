@@ -7,11 +7,20 @@
 //   /download     → 返回下载页 HTML
 
 const REPO = 'd1752472377/Melos';
-const RELEASE_TAG = 'v1.7.0';
+// 发布标签：默认 v1.7.0，发新版时通过环境变量 RELEASE_TAG 覆盖，无需改代码
+const RELEASE_TAG = process.env.RELEASE_TAG || 'v1.7.0';
+
+// 资产 URL 缓存（60s）与 update.json 文本缓存（30s）：
+// 旧实现每次请求都实时打 GitHub API（token 泄露面大 + 配额开销）
+const assetCache = new Map(); // assetName -> { url, at }
+let cachedUpdateText = null;
+let cachedUpdateAt = 0;
 
 async function getAssetUrl(assetName) {
   const token = process.env.GITHUB_TOKEN;
   if (!token) throw new Error('GITHUB_TOKEN 未配置');
+  const hit = assetCache.get(assetName);
+  if (hit && Date.now() - hit.at < 60_000) return hit.url;
   // GitHub API: 列出 Release assets
   const relRes = await fetch(
     `https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}`,
@@ -22,7 +31,24 @@ async function getAssetUrl(assetName) {
   const asset = (rel.assets || []).find((a) => a.name === assetName);
   if (!asset) throw new Error(`资产 ${assetName} 不存在`);
   // 用 API URL + Accept: octet-stream 下载（会 302 到 objects.githubusercontent.com，带 token 自动跟随）
-  return `https://api.github.com/repos/${REPO}/releases/assets/${asset.id}`;
+  const url = `https://api.github.com/repos/${REPO}/releases/assets/${asset.id}`;
+  assetCache.set(assetName, { url, at: Date.now() });
+  return url;
+}
+
+/** 拉取 update.json 文本（带 30s 缓存，避免 /download 下载页每次请求都打 GitHub API） */
+async function getUpdateJsonText(token) {
+  if (cachedUpdateText && Date.now() - cachedUpdateAt < 30_000) return cachedUpdateText;
+  const assetUrl = await getAssetUrl('update.json');
+  const up = await fetch(assetUrl, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream' },
+    redirect: 'follow',
+  });
+  if (!up.ok) throw new Error(`update.json 获取失败: ${up.status}`);
+  const text = await up.text();
+  cachedUpdateText = text;
+  cachedUpdateAt = Date.now();
+  return text;
 }
 
 export default async function handler(req, res) {
@@ -32,12 +58,7 @@ export default async function handler(req, res) {
   try {
     // 下载页 HTML
     if (path.startsWith('/download')) {
-      const assetUrl = await getAssetUrl('update.json');
-      const up = await fetch(assetUrl, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream' },
-        redirect: 'follow',
-      });
-      const info = up.ok ? await up.json() : {};
+      const info = JSON.parse(await getUpdateJsonText(token));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=60');
       res.status(200).send(renderDownloadPage(info));
@@ -46,13 +67,7 @@ export default async function handler(req, res) {
 
     // update.json 转发
     if (path.includes('update.json') || path.includes('update-info')) {
-      const assetUrl = await getAssetUrl('update.json');
-      const up = await fetch(assetUrl, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/octet-stream' },
-        redirect: 'follow',
-      });
-      if (!up.ok) { res.status(up.status).json({ code: up.status, msg: 'update.json 获取失败' }); return; }
-      const text = await up.text();
+      const text = await getUpdateJsonText(token);
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=60');
       res.status(200).send(text);

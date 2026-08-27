@@ -1,4 +1,4 @@
-import { login, requireAuth } from '../lib/auth.js';
+import { login, requireAuth, isLoginLocked, recordLoginFailure, clearLoginFailures } from '../lib/auth.js';
 import { getSource, insertSource, updateSource, deleteSource, listSources } from '../lib/db.js';
 import { encryptConfig, decryptConfig, maskConfig } from '../lib/crypto.js';
 import { createSource, SUPPORTED_TYPES } from '../sources/index.js';
@@ -34,8 +34,16 @@ export function registerAdminRoutes(app, { config, db, registry }) {
 
   app.post('/admin/login', async (req, reply) => {
     const { username, password } = req.body || {};
-    const r = login(username || '', password || '', config);
-    if (r.error) return reply.code(401).send({ code: 401, msg: r.error });
+    const name = String(username || '');
+    if (isLoginLocked(name)) {
+      return reply.code(429).send({ code: 429, msg: '失败次数过多，账号已临时锁定，请 15 分钟后再试' });
+    }
+    const r = login(name, String(password || ''), config);
+    if (r.error) {
+      recordLoginFailure(name);
+      return reply.code(401).send({ code: 401, msg: r.error });
+    }
+    clearLoginFailures(name);
     return { code: 200, data: { token: r.token, expiresIn: 24 * 60 * 60 } };
   });
 

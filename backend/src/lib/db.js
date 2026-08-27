@@ -135,6 +135,11 @@ class LibsqlDb {
       },
     };
   }
+
+  /** 批量执行 SQL（可开事务）。statements: [{ sql, args }]；mode: 'deferred'|'write'|'read' */
+  batch(statements, mode = 'deferred') {
+    return this.client.batch(statements, mode);
+  }
 }
 
 export async function initDb(dbUrl, authToken) {
@@ -227,23 +232,46 @@ export function publicUser(row) {
 
 // ==================== 收藏 / 历史（整表替换同步） ====================
 
+/**
+ * 整表替换（收藏 / 注释：历史走 mergeHistory，见下）。
+ * 用单个 write 事务包裹 DELETE + 全部 INSERT，避免旧实现"先删后插、非原子"：
+ * 中途失败/崩溃/并发时不再清空用户数据。
+ */
 async function insertSongs(db, table, userId, songs, timeCol) {
-  await db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
-  if (!Array.isArray(songs) || songs.length === 0) return;
-  const stmt = db.prepare(
-    `INSERT OR REPLACE INTO ${table} (user_id, platform, song_id, song_json, ${timeCol}) VALUES (?, ?, ?, ?, ?)`
-  );
-  for (const s of songs) {
-    if (!s || !s.platform || !s.id) continue;
-    const json = JSON.stringify(s);
-    await stmt.run(userId, String(s.platform), String(s.id), json, datetimeNow());
+  const stmts = [{ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }];
+  if (Array.isArray(songs)) {
+    // 逆序插入：调用方约定"数组首元素最新"。rowid 单调递增、读取按 rowid DESC，
+    // 因此最后插入的（数组首元素）rowid 最大，读回时即"新在前"，顺序不反转。
+    const list = songs;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i];
+      if (!s || !s.platform || !s.id) continue;
+      stmts.push({
+        sql: `INSERT OR REPLACE INTO ${table} (user_id, platform, song_id, song_json, ${timeCol}) VALUES (?, ?, ?, ?, ?)`,
+        args: [userId, String(s.platform), String(s.id), JSON.stringify(s), datetimeNow()],
+      });
+    }
   }
+  // 只有 DELETE + 至少一条 INSERT 才需要真的执行；空列表时仅清空
+  if (stmts.length > 1) await db.batch(stmts, 'write');
 }
 
+/**
+ * 读取歌曲列表。排序用 rowid DESC：
+ * 替换写入是"整表重插"，rowid 单调递增即代表数组顺序（最新在前），
+ * 比 played_at/created_at 时间戳可靠（整表重插时时间戳相同，排序会退化）。
+ */
 async function listSongs(db, table, userId, limit = 500) {
-  const col = table === 'favorites' ? 'created_at' : 'played_at';
-  const rows = await db.prepare(`SELECT song_json FROM ${table} WHERE user_id = ? ORDER BY ${col} DESC LIMIT ?`).all(userId, limit);
-  return rows.map((r) => JSON.parse(r.song_json));
+  const rows = await db.prepare(`SELECT song_json FROM ${table} WHERE user_id = ? ORDER BY rowid DESC LIMIT ?`).all(userId, limit);
+  const out = [];
+  for (const r of rows) {
+    try {
+      out.push(JSON.parse(r.song_json));
+    } catch {
+      // 单条损坏不应拖垮整组数据（旧实现会 500 且用户无法恢复）
+    }
+  }
+  return out;
 }
 
 function datetimeNow() {
@@ -258,8 +286,24 @@ export function listFavorites(db, userId) {
   return listSongs(db, 'favorites', userId);
 }
 
-export function replaceHistory(db, userId, songs) {
-  return insertSongs(db, 'history', userId, songs, 'played_at');
+/**
+ * 历史合并同步（多设备友好）：新提交的列表置前，与云端已有记录按
+ * (platform, song_id) 去重合并，再整表写回。设备 A、B 互相推送时不再互相清空。
+ * 上限 300 条，超出丢弃最旧。
+ */
+export async function mergeHistory(db, userId, songs) {
+  const existing = await listSongs(db, 'history', userId, 300);
+  const seen = new Set();
+  const merged = [];
+  for (const s of [...(Array.isArray(songs) ? songs : []), ...existing]) {
+    if (!s || !s.platform || !s.id) continue;
+    const key = `${s.platform}:${s.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(s);
+  }
+  await insertSongs(db, 'history', userId, merged.slice(0, 300), 'played_at');
+  return listSongs(db, 'history', userId);
 }
 
 export function listHistory(db, userId) {
@@ -310,21 +354,28 @@ export async function updatePlaylistMeta(db, userId, id, { name, coverUrl }) {
 }
 
 export async function deletePlaylist(db, userId, id) {
-  await db.prepare('DELETE FROM playlist_songs WHERE playlist_id = ?').run(id);
-  return db.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?').run(id, userId);
+  // 歌单与歌曲删除放同一事务，避免删一半留下孤儿歌曲
+  await db.batch([
+    { sql: 'DELETE FROM playlist_songs WHERE playlist_id = ?', args: [id] },
+    { sql: 'DELETE FROM playlists WHERE id = ? AND user_id = ?', args: [id, userId] },
+  ], 'write');
+  return { changes: 1 };
 }
 
 export async function replacePlaylistSongs(db, userId, id, songs) {
   const cur = await db.prepare('SELECT id FROM playlists WHERE id = ? AND user_id = ?').get(id, userId);
   if (!cur) return null;
-  await db.prepare('DELETE FROM playlist_songs WHERE playlist_id = ?').run(id);
-  const ins = db.prepare('INSERT INTO playlist_songs (playlist_id, position, platform, song_id, song_json) VALUES (?, ?, ?, ?, ?)');
+  const stmts = [{ sql: 'DELETE FROM playlist_songs WHERE playlist_id = ?', args: [id] }];
   let i = 0;
   for (const s of (Array.isArray(songs) ? songs : [])) {
     if (!s || !s.platform || !s.id) continue;
-    await ins.run(id, i, String(s.platform), String(s.id), JSON.stringify(s));
+    stmts.push({
+      sql: 'INSERT INTO playlist_songs (playlist_id, position, platform, song_id, song_json) VALUES (?, ?, ?, ?, ?)',
+      args: [id, i, String(s.platform), String(s.id), JSON.stringify(s)],
+    });
     i++;
   }
+  if (stmts.length > 1) await db.batch(stmts, 'write');
   await db.prepare('UPDATE playlists SET updated_at = datetime(\'now\') WHERE id = ?').run(id);
   return getPlaylist(db, userId, id);
 }
@@ -359,7 +410,9 @@ export async function insertPlayEvents(db, userId, events) {
   );
   const day = new Date().toISOString().slice(0, 10);
   let n = 0;
-  for (const e of Array.isArray(events) ? events : []) {
+  // 单批条数上限：防登录用户用超大 events 数组做存储 DoS
+  const capped = (Array.isArray(events) ? events : []).slice(0, 200);
+  for (const e of capped) {
     if (!e) continue;
     const listened = Math.max(0, Math.min(Number(e.listenedMs) || 0, 4 * 60 * 60 * 1000));
     if (listened <= 0) continue;
@@ -376,6 +429,17 @@ export async function insertPlayEvents(db, userId, events) {
     n++;
   }
   return n;
+}
+
+/** 清理 days 天前的听歌统计明细（防表无限膨胀）。返回删除行数。 */
+export async function pruneOldPlayEvents(db, days = 90) {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  try {
+    const r = await db.prepare('DELETE FROM play_events WHERE day < ?').run(cutoff);
+    return r.changes || 0;
+  } catch {
+    return 0;
+  }
 }
 
 export async function getUserStats(db, userId) {

@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from '../lib/http.js';
+
 /**
  * 内容体系 API（App 端调用，无需鉴权）：
  *   GET /api/daily        每日推荐（网易云个性化歌单，带本地内存缓存）
@@ -17,26 +19,47 @@ async function getPlaylistSongs(registry, id) {
   return songs.slice(0, 50);
 }
 
+/**
+ * 内存缓存：容量上限 + TTL 淘汰 + 并发合并（singleflight）。
+ * 旧实现是无上限 Map：TTL 到期条目只跳过命中、从不删除（内存泄漏），
+ * 且 rank:<id> 可被任意 id 撑爆内存；并发 miss 还会重复打上游。
+ */
 const CACHE = new Map();
 const TTL_MS = 10 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 50;
+const inflight = new Map(); // key -> Promise（进行中的加载，后续请求复用）
+
+function trimCache() {
+  if (CACHE.size <= MAX_CACHE_ENTRIES) return;
+  const oldestFirst = [...CACHE.entries()].sort((a, b) => a[1].at - b[1].at);
+  for (let i = 0; i < oldestFirst.length - MAX_CACHE_ENTRIES; i++) {
+    CACHE.delete(oldestFirst[i][0]);
+  }
+}
 
 function cached(key, loader) {
   const hit = CACHE.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return Promise.resolve(hit.value);
-  return loader().then((value) => {
-    CACHE.set(key, { at: Date.now(), value });
-    return value;
-  });
+  if (inflight.has(key)) return inflight.get(key);
+  const p = loader()
+    .then((value) => {
+      CACHE.set(key, { at: Date.now(), value });
+      trimCache();
+      return value;
+    })
+    .finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
 }
 
 async function fetchJson(url, headers = {}) {
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0',
       'Referer': 'https://music.163.com',
       ...headers,
     },
-  });
+  }, 10_000);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

@@ -32,6 +32,18 @@ gradle installDebug         # 安装到已连接的设备/模拟器
 
 要求：JDK 17+（本机 21 可用）、Android SDK 35、Gradle 8.8。
 
+### 统一签名（release / OTA 覆盖安装）
+
+`android/keystore/aesthetic.jks` 不入库，正式发布前需自行放置该文件，并在
+`android/local.properties`（已 gitignore）里配置口令：
+
+```properties
+keystore.password=你的keystore口令
+```
+
+或设置环境变量 `KEYSTORE_PASSWORD`。两者都缺失时回退本机 debug 签名（仅限开发调试，
+此时 release 包签名与线上不一致，无法覆盖安装）。
+
 ## 连接后端
 
 后端默认地址在 `data/api/ApiClient.kt`：

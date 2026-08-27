@@ -12,6 +12,7 @@
  *   - getHotPlaylists              → 网易云热门歌单（个人推荐接口）
  */
 import { MusicSource } from './MusicSource.js';
+import { fetchWithTimeout } from '../lib/http.js';
 
 // App 统一音质 -> ChKSz level（实测 163_music 合法 level）
 //   standard -> 128k(standard)  high -> 320k(exhigh)  lossless -> FLAC(lossless)
@@ -40,14 +41,17 @@ export class ChkszSource extends MusicSource {
     }
     let res, text;
     try {
-      res = await fetch(url, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      res = await fetchWithTimeout(url, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } }, 15_000);
       text = await res.text();
     } catch (e) {
       throw new Error(`[chksz] 网络错误: ${e.message}`);
     }
     let json;
     try { json = JSON.parse(text); } catch { throw new Error(`[chksz] 非 JSON 响应 status=${res.status}`); }
-    if (json.code && json.code !== 200) throw new Error(`[chksz] ${json.code}: ${json.msg || '请求失败'}`);
+    // 显式判断：code=0/undefined 不再被误判为成功（旧写法 `json.code &&` 会把 code=0 放行）
+    if (json.code !== undefined && json.code !== null && Number(json.code) !== 200) {
+      throw new Error(`[chksz] ${json.code}: ${json.msg || '请求失败'}`);
+    }
     return json.data ?? {};
   }
 
@@ -111,9 +115,9 @@ export class ChkszSource extends MusicSource {
    * 接口取列表，封面/歌单 id 可用；与 meting 源同一来源）。
    */
   async getHotPlaylists(limit = 20) {
-    const res = await fetch(`https://music.163.com/api/personalized/playlist?limit=${Math.min(Number(limit) || 20, 50)}`, {
+    const res = await fetchWithTimeout(`https://music.163.com/api/personalized/playlist?limit=${Math.min(Number(limit) || 20, 50)}`, {
       headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://music.163.com' },
-    });
+    }, 10_000);
     const j = await res.json();
     const list = (j.result || []).map((p) => ({
       id: String(p.id),

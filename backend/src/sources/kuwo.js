@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { MusicSource } from './MusicSource.js';
+import { fetchWithTimeout } from '../lib/http.js';
 
 // 统一音质 -> 酷我 size 参数
 const QUALITY_MAP = {
@@ -49,7 +50,7 @@ export class KuwoSource extends MusicSource {
 
       let res;
       try {
-        res = await fetch(url, {
+        res = await fetchWithTimeout(url, {
           headers: {
             'X-Api-Key': this.apiKey,
             'X-Api-Timestamp': String(timestamp),
@@ -57,7 +58,7 @@ export class KuwoSource extends MusicSource {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0',
           },
-        });
+        }, 15_000);
       } catch (e) {
         if (attempt >= retries) throw new Error(`[kuwo] 网络错误: ${e.message}`);
         await this._backoff(attempt);
@@ -97,14 +98,23 @@ export class KuwoSource extends MusicSource {
     }));
   }
 
-  /** 取单曲完整数据（含直链 + 歌词），带内存缓存 */
+  /** 取单曲完整数据（含直链 + 歌词），带 LRU 内存缓存（上限 300 条，防无限增长） */
   async _getFull(song, quality) {
     const q = QUALITY_MAP[quality] || QUALITY_MAP[this.defaultQuality] || 'lossless';
     const cacheKey = `${song.id}:${q}`;
-    if (this._songCache.has(cacheKey)) return this._songCache.get(cacheKey);
+    if (this._songCache.has(cacheKey)) {
+      // LRU 触达：删除再重插，保持最近使用在前
+      const v = this._songCache.get(cacheKey);
+      this._songCache.delete(cacheKey);
+      this._songCache.set(cacheKey, v);
+      return v;
+    }
     const data = await this._call({ msg: song.title, action: 'song', id: song.id, size: q });
     const full = this._normalize(data);
     this._songCache.set(cacheKey, full);
+    if (this._songCache.size > 300) {
+      this._songCache.delete(this._songCache.keys().next().value); // 淘汰最久未用
+    }
     return full;
   }
 

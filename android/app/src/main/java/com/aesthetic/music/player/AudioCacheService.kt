@@ -28,6 +28,9 @@ object AudioCacheService {
     /** 缓存目录总大小上限：超过后自动删除最旧的音频文件 */
     private const val MAX_CACHE_BYTES = 2L * 1024 * 1024 * 1024 // 2GB
 
+    /** 平台 id（管理后台可自定义，可能含下划线），用作 key 分隔符的平台白名单 */
+    private val KNOWN_PLATFORMS = setOf("kuwo", "netease", "chksz", "qq", "kugou")
+
     private data class CacheEntry(
         val name: String,
         val artist: String,
@@ -49,14 +52,34 @@ object AudioCacheService {
 
     private fun indexFile(context: Context) = File(cacheDir(context), INDEX_FILE_NAME)
 
-    private fun cacheKey(platformCode: String, songId: String) = "${platformCode}_$songId"
+    /**
+     * 索引 key：platform 与 songId 用 \u0001 分隔（平台 id / 歌曲 id 中都不会出现该字符），
+     * 避免旧写法 "$platform_$songId" 在平台或歌曲 id 含下划线时的 key 碰撞。
+     */
+    private fun cacheKey(platformCode: String, songId: String) = "$platformCode\u0001$songId"
 
     private fun loadIndexFromDisk(context: Context): MutableMap<String, CacheEntry> {
         return try {
             val f = indexFile(context)
             if (!f.exists()) return mutableMapOf()
             val type = object : TypeToken<Map<String, CacheEntry>>() {}.type
-            gson.fromJson<Map<String, CacheEntry>>(f.readText(), type).toMutableMap()
+            val parsed = gson.fromJson<Map<String, CacheEntry>>(f.readText(), type) ?: emptyMap()
+            // 兼容旧版 "_" 分隔的 key（仅当平台段是已知平台 id 时迁移，否则保留原样）
+            val migrated = mutableMapOf<String, CacheEntry>()
+            for ((k, v) in parsed) {
+                if (k.contains('\u0001')) {
+                    migrated[k] = v
+                } else {
+                    val platform = k.substringBefore('_')
+                    val rest = k.substringAfter('_', "")
+                    if (platform in KNOWN_PLATFORMS && rest.isNotEmpty()) {
+                        migrated["$platform\u0001$rest"] = v
+                    } else {
+                        migrated[k] = v
+                    }
+                }
+            }
+            migrated
         } catch (_: Exception) {
             mutableMapOf()
         }
@@ -96,8 +119,21 @@ object AudioCacheService {
         return "mp3"
     }
 
+    /** 文件名校净化：非法字符 + 控制字符替换、空白折叠、裁剪到 60 字符（防超长歌名撑爆 255 字节路径） */
     private fun sanitize(name: String): String =
-        name.replace(Regex("""[\\/:*?"<>|]"""), "_").replace(Regex("""\s+"""), " ").trim()
+        // 注意：raw string 不做 \uXXXX 转义，控制字符范围必须用普通字符串
+        name.replace(Regex("[\\\\/:*?\"<>|\u0000-\u001f\u007f]"), "_")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .take(60)
+
+    /** 缓存文件基础名：歌名-歌手-songId（songId 参与命名，同名歌曲不同源不互相覆盖） */
+    private fun baseFileName(name: String, artist: String, songId: String): String {
+        val title = sanitize(name.ifBlank { "未知歌曲" })
+        val singer = sanitize(artist.ifBlank { "未知歌手" })
+        val id = songId.replace(Regex("""[^\w-]"""), "_").take(20).ifBlank { "x" }
+        return "$title-$singer-$id"
+    }
 
     /** 检查是否已有缓存，返回本地文件路径（不存在/过小返回 null）。索引走内存，无重复读盘 */
     fun getCachedPath(context: Context, platformCode: String, songId: String): String? {
@@ -125,8 +161,9 @@ object AudioCacheService {
         scope.launch(Dispatchers.IO) {
             val dir = cacheDir(context)
             val ext = extractExt(url)
-            val baseName = "${sanitize(name.ifBlank { "未知歌曲" })}-${sanitize(artist.ifBlank { "未知歌手" })}"
-            val tmp = File(dir, "$baseName.$ext.tmp")
+            val baseName = baseFileName(name, artist, songId)
+            // tmp 文件名带时间戳：同一首歌并发缓存时互不干扰（旧实现共用同名 tmp 会互相覆盖）
+            val tmp = File(dir, "$baseName.$ext.tmp-${System.nanoTime()}")
             var done: String? = null
             try {
                 // 已有缓存直接返回
@@ -144,8 +181,9 @@ object AudioCacheService {
                 }
 
                 if (tmp.length() > 10240) {
-                    var target = File(dir, "$baseName.$ext")
-                    if (target.exists()) target = File(dir, "${sanitize(name)}-${sanitize(artist)}_$songId.$ext")
+                    val target = File(dir, "$baseName.$ext")
+                    // 同名目标已存在（并发缓存同一首歌）：先删除再重命名，保证最终文件完整
+                    if (target.exists()) target.delete()
                     tmp.renameTo(target)
                     mutateIndex(context) {
                         it[cacheKey(platformCode, songId)] =
@@ -176,12 +214,15 @@ object AudioCacheService {
             if (total <= MAX_CACHE_BYTES) return
             synchronized(indexLock) {
                 val index = getIndexLocked(context)
+                // 预建 filePath -> key 映射，删除循环 O(1) 定位（旧写法 removeAll 是 O(n²)）
+                val keyByPath = HashMap<String, String>(index.size)
+                for ((k, v) in index) keyByPath[v.filePath] = k
                 for (f in files.sortedBy { it.lastModified() }) {
                     if (total <= MAX_CACHE_BYTES) break
                     val size = f.length()
                     if (f.delete()) {
                         total -= size
-                        index.entries.removeAll { it.value.filePath == f.absolutePath }
+                        keyByPath.remove(f.absolutePath)?.let { index.remove(it) }
                     }
                 }
                 try {

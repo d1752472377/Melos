@@ -1,4 +1,5 @@
 import { ChkszSource } from './chksz.js';
+import { fetchWithTimeout } from '../lib/http.js';
 
 /**
  * ChKSz 聚合 API 的 QQ 音乐 / 酷狗音乐音源（同一把 apikey，无需 VIP）。
@@ -30,7 +31,7 @@ class ChkszPointSource extends ChkszSource {
     let res;
     let text;
     try {
-      res = await fetch(url, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      res = await fetchWithTimeout(url, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } }, 15_000);
       text = await res.text();
     } catch (e) {
       throw new Error(`[${this.kind}] 网络错误: ${e.message}`);

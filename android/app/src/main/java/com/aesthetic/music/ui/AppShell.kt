@@ -147,6 +147,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     var cachedSongs by remember { mutableStateOf<List<AudioCacheService.CachedSong>>(emptyList()) }
     var showAddToPlaylist by remember { mutableStateOf(false) }
 
+    // 悬浮胶囊开关：状态提升到 AppShell 并用 remember 持有（直接读 SettingsStore 是瞬时快照，
+    // 设置页内开关切换后不会触发重组，Switch 会显示旧值）
+    var capsuleEnabled by remember { mutableStateOf(SettingsStore.isFloatingCapsuleEnabled()) }
+
     // 统一的缓存信息刷新入口：IO 线程读盘，主线程回写状态
     fun refreshCacheInfo() {
         scope.launch(Dispatchers.IO) {
@@ -178,6 +182,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             sessionRestored.value = true
         }
     }
+
+    // 品牌开屏（3 秒）：期间上面的会话恢复与内容加载仍在后台并行进行，
+    // 淡出后进入主页面时内容基本就绪，不再看到"加载中"空态
+    var splashFinished by remember { mutableStateOf(false) }
 
     // 收藏歌曲明细（持久化数据，直接来自 FavoriteStore）
     val favoriteSongs by viewModel.favoriteSongs.collectAsState()
@@ -561,7 +569,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 SettingsScreen(
                     themeMode = themeMode,
                     quality = qualityLevel,
-                    floatingCapsuleEnabled = SettingsStore.isFloatingCapsuleEnabled(),
+                    floatingCapsuleEnabled = capsuleEnabled,
                     onBack = { viewModel.showSettings.value = false },
                     onThemeModeChange = { viewModel.setThemeMode(it, systemDark) },
                     onQualityChange = viewModel::setQuality,
@@ -569,8 +577,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         if (enabled) {
                             if (FloatCapsuleManager.hasPermission(context)) {
                                 SettingsStore.setFloatingCapsuleEnabled(true)
+                                capsuleEnabled = true
                             } else {
                                 SettingsStore.setFloatingCapsuleEnabled(false)
+                                capsuleEnabled = false
                                 FloatCapsuleManager.openPermissionSettings(context)
                                 scope.launch {
                                     snackbarHostState.showSnackbar("请在系统设置中开启「悬浮窗」权限，返回后重新打开开关")
@@ -578,6 +588,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             }
                         } else {
                             SettingsStore.setFloatingCapsuleEnabled(false)
+                            capsuleEnabled = false
                             FloatCapsuleManager.hide()
                         }
                     },
@@ -654,6 +665,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             }
             BackHandler(enabled = showSettings) {
                 viewModel.showSettings.value = false
+            }
+
+            // ===== 品牌开屏：覆盖所有层级之上（最后组合 = 最上层）=====
+            if (!splashFinished) {
+                SplashScreen(onFinished = { splashFinished = true })
             }
         }
     }

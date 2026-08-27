@@ -91,6 +91,12 @@ class PlayerManager private constructor(private val appContext: Context) {
     private var lastSessionSaveAt = 0L
     /** 上次悬浮胶囊展示签名（歌曲+播放状态），用于跳过重复的窗口刷新 */
     private var lastCapsuleSignature: String? = null
+    /**
+     * 播放请求代数：每次 playCurrent 递增。
+     * 快速连点"上一首/下一首"时，旧请求（网络慢）返回后凭代数判断已过期，
+     * 不再 setMediaItem 覆盖新歌，杜绝"UI 显示 B 实际播 A"的串台。
+     */
+    private var playGeneration = 0L
 
     /** 外部监听（系统悬浮胶囊 / MediaSession 等） */
     var onStateChanged: ((PlayerState) -> Unit)? = null
@@ -323,12 +329,15 @@ class PlayerManager private constructor(private val appContext: Context) {
     private fun playCurrent() {
         val s = _state.value
         val song = s.currentSong ?: return
+        val gen = ++playGeneration
         scope.launch {
             // 重置歌词/进度
             _progress.value = PlaybackProgress()
             _state.value = _state.value.copy(lyrics = emptyList(), errorMessage = null)
             val result = repository.getSongUrl(song, SettingsStore.getQuality().value)
             result.onSuccess { data ->
+                // 请求在途期间用户已切歌：丢弃过期响应
+                if (gen != playGeneration) return@launch
                 val url = data.url
                 if (url.isNullOrBlank()) {
                     val msg = "音源获取失败：可能是版权限制或无资源，换一首试试"
@@ -377,16 +386,19 @@ class PlayerManager private constructor(private val appContext: Context) {
                 startPlaybackService()
                 player.play()
             }.onFailure { e ->
+                if (gen != playGeneration) return@launch
                 _state.value = _state.value.copy(isLoading = false, lastError = friendlyError(e))
                 notifyState()
             }
 
-            loadLyrics(song)
+            if (gen != playGeneration) return@launch
+            loadLyrics(song, gen)
         }
     }
 
-    private suspend fun loadLyrics(song: Song) {
+    private suspend fun loadLyrics(song: Song, gen: Long) {
         repository.getLyric(song).onSuccess { d ->
+            if (gen != playGeneration) return@onSuccess
             val original = parseLrc(d.lyric)
             val translated = parseLrc(d.translated)
             val merged = mergeTranslation(original, translated)
@@ -408,7 +420,18 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     private fun onSongComplete() {
         when (_state.value.playMode) {
-            PlayMode.SEQUENCE -> next()
+            PlayMode.SEQUENCE -> {
+                val s = _state.value
+                if (s.currentIndex >= s.queue.lastIndex && s.currentIndex >= 0) {
+                    // 顺序播放播完队列最后一首：停止（回到开头），不再无限循环回第一首
+                    saveSession()
+                    player.pause()
+                    player.seekTo(0)
+                    _progress.value = PlaybackProgress()
+                } else {
+                    next()
+                }
+            }
             PlayMode.REPEAT -> {
                 player.seekTo(0)
                 player.play()
@@ -416,7 +439,9 @@ class PlayerManager private constructor(private val appContext: Context) {
             PlayMode.SHUFFLE -> {
                 val s = _state.value
                 if (s.queue.size > 1) {
-                    _state.value = s.copy(currentIndex = (0 until s.queue.size).random(), isLoading = true)
+                    // 随机下一首：避免随机结果还是当前曲
+                    val nextIndex = (0 until s.queue.size).filterNot { it == s.currentIndex }.random()
+                    _state.value = s.copy(currentIndex = nextIndex, isLoading = true)
                     saveSession()
                     playCurrent()
                 }
@@ -445,7 +470,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         val s = _state.value
         if (s.queue.isEmpty()) return
         val idx = if (s.playMode == PlayMode.SHUFFLE && s.queue.size > 1) {
-            (0 until s.queue.size).random()
+            (0 until s.queue.size).filterNot { it == s.currentIndex }.random()
         } else {
             (s.currentIndex + 1) % s.queue.size
         }

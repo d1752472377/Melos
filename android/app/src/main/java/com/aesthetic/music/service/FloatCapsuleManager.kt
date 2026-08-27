@@ -197,7 +197,9 @@ object FloatCapsuleManager {
         currentCoverUrl = null
     }
 
-    /** 简单网络图片加载（避免额外依赖，失败静默） */
+    /** 简单网络图片加载（避免额外依赖，失败静默）。
+     *  两遍请求：先读尺寸算出采样率，再按采样解码——
+     *  旧实现直接全尺寸解码，大封面在低内存设备上有 OOM 风险。 */
     private fun loadImage(url: String, imageView: ImageView) {
         Thread {
             var conn: HttpURLConnection? = null
@@ -206,9 +208,19 @@ object FloatCapsuleManager {
                 conn.connectTimeout = 6000
                 conn.readTimeout = 8000
                 conn.connect()
-                val stream = conn.inputStream
-                val bitmap = BitmapFactory.decodeStream(stream)
-                stream.close()
+                // 第一遍：只读边界，不加载像素
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                conn.inputStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+                val sample = calcSampleSize(bounds.outWidth, bounds.outHeight, 160)
+                conn.disconnect()
+
+                // 第二遍：按采样率解码
+                conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 6000
+                conn.readTimeout = 8000
+                conn.connect()
+                val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+                val bitmap = conn.inputStream.use { BitmapFactory.decodeStream(it, null, opts) }
                 if (bitmap != null) {
                     Handler(Looper.getMainLooper()).post { imageView.setImageBitmap(bitmap) }
                 }
@@ -220,5 +232,13 @@ object FloatCapsuleManager {
                 }
             }
         }.start()
+    }
+
+    /** 目标边长 160px 内的 2 的幂采样率（悬浮窗封面显示尺寸约 40dp，160px 足够） */
+    private fun calcSampleSize(width: Int, height: Int, target: Int): Int {
+        if (width <= 0 || height <= 0) return 1
+        var sample = 1
+        while (width / (sample * 2) >= target && height / (sample * 2) >= target) sample *= 2
+        return sample
     }
 }

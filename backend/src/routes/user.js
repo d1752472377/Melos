@@ -6,7 +6,7 @@ import {
   publicUser,
   replaceFavorites,
   listFavorites,
-  replaceHistory,
+  mergeHistory,
   listHistory,
   createPlaylist,
   listPlaylists,
@@ -21,6 +21,7 @@ import {
   getUserStats,
 } from '../lib/db.js';
 import { hashPassword, createUserToken, validateRegisterInput, requireUser } from '../lib/userAuth.js';
+import { isLoginLocked, recordLoginFailure, clearLoginFailures } from '../lib/auth.js';
 
 /**
  * 用户体系 API：
@@ -54,7 +55,7 @@ export function registerUserRoutes(app, { config, db }) {
     const salt = crypto.randomBytes(16).toString('hex');
     const user = await insertUser(db, {
       username: String(username),
-      passwordHash: hashPassword(password, salt),
+      passwordHash: await hashPassword(password, salt),
       salt,
       nickname: nickname ? String(nickname) : String(username),
     });
@@ -64,14 +65,24 @@ export function registerUserRoutes(app, { config, db }) {
 
   app.post('/api/user/login', async (req, reply) => {
     const { username, password } = req.body || {};
-    const user = await getUserByUsername(db, String(username || ''));
-    if (!user) return reply.code(401).send({ code: 401, msg: '用户名或密码错误' });
-    const hash = hashPassword(String(password || ''), user.salt);
+    const name = String(username || '');
+    // 防在线爆破：连续失败锁定
+    if (isLoginLocked(name)) {
+      return reply.code(429).send({ code: 429, msg: '失败次数过多，账号已临时锁定，请 15 分钟后再试' });
+    }
+    const user = await getUserByUsername(db, name);
+    if (!user) {
+      recordLoginFailure(name);
+      return reply.code(401).send({ code: 401, msg: '用户名或密码错误' });
+    }
+    const hash = await hashPassword(String(password || ''), user.salt);
     const a = Buffer.from(hash);
     const b = Buffer.from(user.password_hash);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      recordLoginFailure(name);
       return reply.code(401).send({ code: 401, msg: '用户名或密码错误' });
     }
+    clearLoginFailures(name);
     const token = createUserToken(user.id, user.username, config.encryptionKey);
     return { code: 200, data: { token, user: publicUser(user) } };
   });
@@ -111,8 +122,9 @@ export function registerUserRoutes(app, { config, db }) {
   }));
 
   app.put('/api/user/history', { preHandler: auth }, async (req) => {
-    await replaceHistory(db, req.userRow.id, req.body?.songs);
-    return { code: 200, data: await listHistory(db, req.userRow.id) };
+    // 增量合并语义：新记录置前 + 与云端去重合并，多设备互相推送不再互相清空
+    const data = await mergeHistory(db, req.userRow.id, req.body?.songs);
+    return { code: 200, data };
   });
 
   app.get('/api/user/playlists', { preHandler: auth }, async (req) => ({

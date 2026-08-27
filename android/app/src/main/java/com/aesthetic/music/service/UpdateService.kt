@@ -2,6 +2,7 @@ package com.aesthetic.music.service
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -124,7 +125,40 @@ object UpdateService {
                 throw Exception("安装包校验失败，请重新检查更新")
             }
         }
+        // 签名一致性校验：防服务端/更新通道被攻陷后分发伪造 APK
+        // （md5/url 都出自同一 TLS 通道，属于"自证"，签名校验才是独立信任锚点）
+        if (!verifyApkSignature(context, file.absolutePath)) {
+            file.delete()
+            throw Exception("安装包签名与当前应用不一致，已拦截，请通过官方渠道更新")
+        }
         file.absolutePath
+    }
+
+    /**
+     * 校验下载 APK 的签名证书与当前已安装应用一致。
+     * 注意：debug 签名包与 release 签名包互不匹配，用 debug 包测正式更新会在此拦截（属预期行为）。
+     */
+    private fun verifyApkSignature(context: Context, filePath: String): Boolean {
+        return try {
+            val pm = context.packageManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val archive = pm.getPackageArchiveInfo(filePath, PackageManager.GET_SIGNING_CERTIFICATES) ?: return false
+                val current = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES) ?: return false
+                val a = archive.signingInfo?.apkContentsSigners?.firstOrNull() ?: return false
+                val c = current.signingInfo?.apkContentsSigners?.firstOrNull() ?: return false
+                a.toByteArray().contentEquals(c.toByteArray())
+            } else {
+                @Suppress("DEPRECATION")
+                val archive = pm.getPackageArchiveInfo(filePath, PackageManager.GET_SIGNATURES) ?: return false
+                @Suppress("DEPRECATION")
+                val current = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES) ?: return false
+                val a = archive.signatures?.firstOrNull() ?: return false
+                val c = current.signatures?.firstOrNull() ?: return false
+                a.toByteArray().contentEquals(c.toByteArray())
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /** 调系统安装器安装 APK（FileProvider + ACTION_VIEW） */

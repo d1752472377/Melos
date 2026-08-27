@@ -24,6 +24,12 @@ export const config = {
   adminUser: process.env.ADMIN_USER || 'admin',
   adminPassword: process.env.ADMIN_PASSWORD || '',
 
+  // 跨域：'*' = 全放开（默认，学习项目）；逗号分隔白名单（如 'https://a.com,https://b.com'）
+  corsOrigin: process.env.CORS_ORIGIN || '*',
+
+  // 限速总开关（调试用；生产建议保持开启）
+  rateLimitDisabled: process.env.RATE_LIMIT_DISABLED === '1',
+
   // 音源密钥加密主密钥（Buffer，32 字节）
   encryptionKey,
 
