@@ -35,19 +35,19 @@ android {
         val f = rootProject.file("local.properties")
         if (f.exists()) f.inputStream().use { load(it) }
     }
-    val storePassword = System.getenv("AESTHETIC_STORE_PASSWORD")
+    val storePw = System.getenv("AESTHETIC_STORE_PASSWORD")
         ?: System.getenv("KEYSTORE_PASSWORD")
         ?: keystoreProps.getProperty("keystore.password")
-    val keyPassword = System.getenv("AESTHETIC_KEY_PASSWORD")
-        ?: storePassword
+    val keyPw = System.getenv("AESTHETIC_KEY_PASSWORD")
+        ?: storePw
 
     signingConfigs {
-        if (sharedKeystoreFile.exists() && storePassword != null && keyPassword != null) {
+        if (sharedKeystoreFile.exists() && storePw != null && keyPw != null) {
             create("shared") {
                 storeFile = sharedKeystoreFile
-                storePassword = storePassword
+                storePassword = storePw
                 keyAlias = "aesthetic"
-                keyPassword = keyPassword
+                keyPassword = keyPw
                 enableV1Signing = true
                 enableV2Signing = true
             }
