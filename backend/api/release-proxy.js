@@ -21,11 +21,16 @@ async function getAssetUrl(assetName) {
   if (!token) throw new Error('GITHUB_TOKEN 未配置');
   const hit = assetCache.get(assetName);
   if (hit && Date.now() - hit.at < 60_000) return hit.url;
-  // GitHub API: 列出 Release assets
-  const relRes = await fetch(
-    `https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}`,
-    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } },
-  );
+  // GitHub API: 优先取最新正式 Release（发版自动跟随，无需维护 RELEASE_TAG）；
+  // latest 不可用时回退到 RELEASE_TAG 指定的历史版本
+  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' };
+  let relRes = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers });
+  if (!relRes.ok) {
+    relRes = await fetch(
+      `https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}`,
+      { headers },
+    );
+  }
   if (!relRes.ok) throw new Error(`获取 Release 失败: ${relRes.status}`);
   const rel = await relRes.json();
   const asset = (rel.assets || []).find((a) => a.name === assetName);
