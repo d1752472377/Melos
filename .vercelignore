@@ -1,0 +1,8 @@
+# Vercel CLI 从仓库根部署时，只构建 backend/（项目 Root Directory 设置）。
+# 这里排除与后端无关的目录，避免本地文件（含私有 keystore）被上传。
+android/
+docs/
+icon/
+test/
+.github/
+*.bundle
