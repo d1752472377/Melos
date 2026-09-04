@@ -15,8 +15,8 @@ android {
         applicationId = "com.aesthetic.music"
         minSdk = 24
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.9.1"
+        versionCode = 17
+        versionName = "1.10.1"
     }
 
     // 统一签名（私有签发）：keystore 不入库，每台打包机器需手动放置到
