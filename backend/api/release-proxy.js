@@ -7,8 +7,8 @@
 //   /download     → 返回下载页 HTML
 
 const REPO = 'd1752472377/Melos';
-// 发布标签：默认 v1.10.2，发新版时通过环境变量 RELEASE_TAG 覆盖，无需改代码
-const RELEASE_TAG = process.env.RELEASE_TAG || 'v1.10.2';
+// 发布标签：默认 v1.10.3，发新版时通过环境变量 RELEASE_TAG 覆盖，无需改代码
+const RELEASE_TAG = process.env.RELEASE_TAG || 'v1.10.3';
 
 // 资产 URL 缓存（60s）与 update.json 文本缓存（30s）：
 // 旧实现每次请求都实时打 GitHub API（token 泄露面大 + 配额开销）
@@ -64,9 +64,9 @@ export default async function handler(req, res) {
     // 下载页 HTML
     if (path.startsWith('/download')) {
       let info = {
-        versionName: '1.10.2',
+        versionName: '1.10.3',
         publishTime: '2026-09-04',
-        updateLog: '修复自定义音源沙箱 Polyfill 与设置页管理面板状态显示\n支持 QuickJS 运行时状态实时监测与异常一键重载',
+        updateLog: '修复播放进度除零崩溃闪退异常\n重构歌词页面中线与右侧跳转胶囊，解决歌词遮挡问题',
       };
       try {
         const text = await getUpdateJsonText(token);

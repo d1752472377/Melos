@@ -15,7 +15,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -625,17 +628,20 @@ private fun LyricList(
     // 中线指向的歌词（跳转目标）；key 加 lyrics 防止切歌后闭包解析到上一首的行
     val targetLine = if (centerLineIndex >= 0) lyrics.getOrNull(centerLineIndex) else null
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier.pointerInput(Unit) {
             detectTapGestures(
-                onTap = { onToggleLyricMode() } // 点击歌词背景区域切回封面
+                onTap = { onToggleLyricMode() } // 点击歌词空白区域切回封面
             )
         }
     ) {
+        val verticalPadding = (maxHeight / 2 - 28.dp).coerceAtLeast(0.dp)
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(top = verticalPadding, bottom = verticalPadding),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             itemsIndexed(
                 lyrics,
@@ -646,9 +652,18 @@ private fun LyricList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .pointerInput(line) {
+                        .pointerInput(line, holdAutoFollow) {
                             detectTapGestures(
-                                onTap = { onToggleLyricMode() }, // 单击歌词切回封面
+                                onTap = {
+                                    if (holdAutoFollow) {
+                                        // 手势接管状态下：直接点击该句即可立即跳转播放
+                                        onLyricClick(line)
+                                        holdAutoFollow = false
+                                    } else {
+                                        // 正常播放中：单击切回封面
+                                        onToggleLyricMode()
+                                    }
+                                },
                                 onDoubleTap = {
                                     onLyricClick(line)
                                     holdAutoFollow = false
@@ -660,21 +675,28 @@ private fun LyricList(
                     Text(
                         line.text,
                         style = when {
-                            isCurrent -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                            else -> MaterialTheme.typography.bodyLarge
+                            isCurrent -> MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 21.sp
+                            )
+                            index == activeIndex - 1 || index == activeIndex + 1 ->
+                                MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp)
+                            else -> MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
                         },
                         color = when {
                             isCurrent -> Color.White
-                            index == activeIndex + 1 -> Color.White.copy(alpha = 0.55f)
-                            else -> Color.White.copy(alpha = 0.3f)
+                            index == activeIndex - 1 || index == activeIndex + 1 -> Color.White.copy(alpha = 0.55f)
+                            else -> Color.White.copy(alpha = 0.28f)
                         },
                         textAlign = TextAlign.Start,
                     )
                     if (line.translated != null && line.translated != line.text) {
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(3.dp))
                         Text(
                             line.translated,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = if (isCurrent) 14.sp else 13.sp
+                            ),
                             color = if (isCurrent) AmberLight.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.22f),
                             textAlign = TextAlign.Start,
                         )
@@ -683,83 +705,60 @@ private fun LyricList(
             }
         }
 
-        // 固定中央虚线：始终可见；拖动时中间浮出「时间 + 跳转」胶囊，松手淡出
-        Row(
+        // 仅在用户手动滚动/拖动歌词时展示对齐中线与右侧跳转胶囊
+        // 正常播放时完全隐去，绝不遮挡歌词
+        AnimatedVisibility(
+            visible = holdAutoFollow && targetLine != null,
+            enter = fadeIn(animationSpec = tween(180)),
+            exit = fadeOut(animationSpec = tween(250)),
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            DottedLine(
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(1.dp)
-            )
-
-            Spacer(Modifier.size(8.dp))
-
-            AnimatedVisibility(
-                visible = holdAutoFollow && targetLine != null,
-                enter = fadeIn(animationSpec = tween(150)),
-                exit = fadeOut(animationSpec = tween(300)),
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = formatTime(targetLine?.timeMs ?: 0L),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                // 左侧极细虚线：指示所选中行的水平位置
+                DottedLine(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                )
 
-                    Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.width(12.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(AmberLight)
-                            .clickable {
-                                targetLine?.let { line ->
-                                    onLyricClick(line)
-                                    holdAutoFollow = false
-                                }
+                // 右侧跳转胶囊：时间戳 + 播放图标，置于屏幕最右侧，绝不遮挡左侧歌词文字
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1E1E1E).copy(alpha = 0.88f))
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                        .clickable {
+                            targetLine?.let { line ->
+                                onLyricClick(line)
+                                holdAutoFollow = false
                             }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Filled.PlayArrow,
-                                contentDescription = "跳转",
-                                tint = Color.Black,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(Modifier.size(2.dp))
-                            Text(
-                                "跳转",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.Black,
-                                fontWeight = FontWeight.Bold
-                            )
                         }
-                    }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = formatTime(targetLine?.timeMs ?: 0L),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = "跳转至此句",
+                        tint = AmberLight,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
-
-            Spacer(Modifier.size(8.dp))
-
-            DottedLine(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(1.dp)
-            )
         }
     }
 }
@@ -768,12 +767,11 @@ private fun LyricList(
 private fun DottedLine(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         drawLine(
-            color = Color.White.copy(alpha = 0.4f),
-            start = Offset(0f, 0f),
-            end = androidx.compose.ui.geometry.Offset(size.width, 0f),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f),
-            // 2f 是 2 像素：高分屏上细到几乎不可见，转 dp
-            strokeWidth = 2.dp.toPx()
+            color = Color.White.copy(alpha = 0.25f),
+            start = Offset(0f, size.height / 2),
+            end = Offset(size.width, size.height / 2),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+            strokeWidth = 1.5.dp.toPx()
         )
     }
 }
@@ -815,12 +813,21 @@ private fun BottomControls(
         else -> pendingSeekMs ?: positionMs
     }
 
+    val maxDuration = (durationMs.takeIf { it > 0 } ?: 1L).toFloat()
+    val rawPos = when {
+        isDragging -> dragPositionMs
+        else -> (pendingSeekMs ?: positionMs).toFloat()
+    }
+    val safePos = if (rawPos.isNaN() || rawPos.isInfinite()) 0f else rawPos.coerceIn(0f, maxDuration)
+
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 28.dp)) {
         Slider(
-            value = currentPos.coerceAtMost(durationMs).toFloat(),
+            value = safePos,
             onValueChange = {
-                isDragging = true
-                dragPositionMs = it
+                if (!it.isNaN() && !it.isInfinite()) {
+                    isDragging = true
+                    dragPositionMs = it.coerceIn(0f, maxDuration)
+                }
             },
             onValueChangeFinished = {
                 val target = dragPositionMs.toLong()
@@ -828,7 +835,7 @@ private fun BottomControls(
                 pendingSeekMs = target
                 isDragging = false
             },
-            valueRange = 0f..(durationMs.takeIf { it > 0 } ?: 1L).toFloat(),
+            valueRange = 0f..maxDuration,
             colors = SliderDefaults.colors(
                 thumbColor = Color.White,
                 activeTrackColor = Color.White,

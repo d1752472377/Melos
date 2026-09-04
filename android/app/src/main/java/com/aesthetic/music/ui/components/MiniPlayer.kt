@@ -78,7 +78,15 @@ fun MiniPlayer(
         // 顶部进度细条 (2.dp)
         if (progress.durationMs > 0) {
             LinearProgressIndicator(
-                progress = { (progress.positionMs.toFloat() / progress.durationMs.toFloat()).coerceIn(0f, 1f) },
+                progress = {
+                    val duration = progress.durationMs.toFloat()
+                    if (duration > 0f) {
+                        val frac = progress.positionMs.toFloat() / duration
+                        if (frac.isNaN() || frac.isInfinite()) 0f else frac.coerceIn(0f, 1f)
+                    } else {
+                        0f
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.5.dp)

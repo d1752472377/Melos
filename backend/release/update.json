@@ -1,10 +1,10 @@
 {
-  "versionName": "1.10.2",
-  "versionCode": 18,
+  "versionName": "1.10.3",
+  "versionCode": 19,
   "apkUrl": "https://music.dovislab.com/latest.apk",
   "apkSize": 8024609,
   "md5": "",
   "forceUpdate": false,
-  "publishTime": "2026-09-04 20:30",
-  "updateLog": "音源沙箱与脚本管理彻底修复：\n1. 修复自定义音源脚本沙箱初始化异常（补全 QuickJS console.group/table/atob/btoa/window 等关键 Polyfill）\n2. 修复导入脚本后管理面板消失的问题，设置页永久显示音源信息、运行状态（就绪/异常）及重试按钮\n3. 优化音乐直链解析，完美支持各类嵌套格式"
+  "publishTime": "2026-09-04 23:55",
+  "updateLog": "稳定性与体验重大优化：\n1. 修复播放进度计算中极端边界导致 current must not be NaN 闪退问题\n2. 重构歌词页面：跳转时间指示移至屏幕右侧胶囊，去除常驻遮挡虚线，绝不遮挡歌词文字\n3. 优化歌词居中内边距与手动滑动点击跳播体验"
 }

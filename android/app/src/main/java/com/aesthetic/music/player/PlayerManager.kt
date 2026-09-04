@@ -266,7 +266,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                 if (_state.value.queue.isNotEmpty()) return@withContext
                 if (session.queue.isEmpty()) return@withContext
                 pendingSeekMs = session.positionMs
-                _progress.value = PlaybackProgress(positionMs = session.positionMs)
+                _progress.value = PlaybackProgress(positionMs = session.positionMs, durationMs = _progress.value.durationMs)
                 _state.value = _state.value.copy(
                     queue = session.queue,
                     currentIndex = session.currentIndex.coerceIn(0, session.queue.lastIndex),
@@ -435,7 +435,7 @@ class PlayerManager private constructor(private val appContext: Context) {
             player.prepare()
             if (pendingSeekMs > 0) {
                 player.seekTo(pendingSeekMs.coerceAtLeast(0))
-                _progress.value = PlaybackProgress(positionMs = pendingSeekMs)
+                _progress.value = PlaybackProgress(positionMs = pendingSeekMs, durationMs = _progress.value.durationMs)
                 pendingSeekMs = 0
             }
             startPlaybackService()
@@ -591,9 +591,10 @@ class PlayerManager private constructor(private val appContext: Context) {
                 val delta = now - lastTick
                 lastTick = now
                 val pos = player.currentPosition.coerceAtLeast(0)
+                val dur = (player.duration.takeIf { it > 0 } ?: _progress.value.durationMs).coerceAtLeast(0)
                 _progress.value = PlaybackProgress(
                     positionMs = pos,
-                    durationMs = player.duration.takeIf { it > 0 } ?: _progress.value.durationMs,
+                    durationMs = dur,
                 )
                 if (s.currentSong != null && pos > 0) {
                     StatsTracker.tick(s.currentSong!!, delta.coerceAtMost(2000), _progress.value.durationMs)
