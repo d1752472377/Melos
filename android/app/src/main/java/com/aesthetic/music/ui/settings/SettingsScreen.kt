@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Widgets
@@ -89,6 +90,9 @@ fun SettingsScreen(
     quality: QualityLevel,
     floatingCapsuleEnabled: Boolean,
     activeScript: ScriptMetadata? = null,
+    isEngineReady: Boolean = false,
+    engineError: String? = null,
+    onRetryLoadScript: () -> Unit = {},
     isSyncConfigured: Boolean = false,
     syncServerUrl: String = "",
     syncToken: String = "",
@@ -187,17 +191,47 @@ fun SettingsScreen(
                             ),
                             color = TextPrimary
                         )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(AccentMint.copy(alpha = 0.2f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "v${activeScript.version}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                                color = AccentMint
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isEngineReady) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(AccentMint.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "🟢 就绪",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                        color = AccentMint
+                                    )
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "🔴 异常",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(PrimaryBrown.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "v${activeScript.version}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                    color = PrimaryBrown
+                                )
+                            }
                         }
                     }
                     if (activeScript.description.isNotBlank()) {
@@ -209,11 +243,37 @@ fun SettingsScreen(
                             maxLines = 2
                         )
                     }
-                    Spacer(Modifier.height(6.dp))
+                    if (activeScript.author.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "作者: ${activeScript.author}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = TextMuted
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "支持平台: ${activeScript.supportedSources.joinToString(", ")} · QuickJS 沙箱本地解析",
+                        text = "支持平台: ${activeScript.supportedSources.joinToString(", ")} · QuickJS 沙箱解析",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = TextMuted
+                    )
+                    if (!isEngineReady && engineError != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "沙箱报错: $engineError",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                if (!isEngineReady) {
+                    SettingRow(
+                        icon = Icons.Filled.Refresh,
+                        iconTint = PrimaryBrown,
+                        label = "🔄 重新在沙箱中加载脚本",
+                        subtitle = "点击重新初始化并执行已保存的音源脚本",
+                        onClick = onRetryLoadScript
                     )
                 }
 

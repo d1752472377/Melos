@@ -75,16 +75,25 @@ object UserApiEngine {
     private val requestIdCounter = AtomicLong(1000)
 
     // 状态发布
-    private val _activeMetadata = MutableStateFlow<ScriptMetadata?>(null)
+    private val _activeMetadata = MutableStateFlow<ScriptMetadata?>(UserApiStore.getMetadata())
     val activeMetadata: StateFlow<ScriptMetadata?> = _activeMetadata.asStateFlow()
 
     private val _isEngineReady = MutableStateFlow(false)
     val isEngineReady: StateFlow<Boolean> = _isEngineReady.asStateFlow()
 
+    private val _engineError = MutableStateFlow<String?>(null)
+    val engineError: StateFlow<String?> = _engineError.asStateFlow()
+
     fun init(context: Context) {
         if (appContext != null) return
         appContext = context.applicationContext
         UserApiStore.init(context)
+
+        // 立即展示已保存的元数据，避免 UI 呈现"未安装"的假象
+        val savedMeta = UserApiStore.getMetadata()
+        if (savedMeta != null) {
+            _activeMetadata.value = savedMeta
+        }
 
         // 启动专用 QuickJS 线程
         val thread = HandlerThread("MelosUserApiThread").apply { start() }
@@ -97,14 +106,16 @@ object UserApiEngine {
                 Log.i(TAG, "QuickJSLoader initialized successfully")
             } catch (e: Exception) {
                 Log.e(TAG, "QuickJSLoader init failed: ${e.message}", e)
+                _engineError.value = "QuickJS 原生库初始化失败: ${e.message}"
             }
         }
 
         // 尝试加载本地存储的历史脚本
         val savedScript = UserApiStore.getScriptContent()
-        val savedMeta = UserApiStore.getMetadata()
         if (!savedScript.isNullOrBlank()) {
-            loadScript(savedScript, savedMeta)
+            engineScope.launch {
+                loadScript(savedScript, savedMeta)
+            }
         }
     }
 
@@ -113,14 +124,24 @@ object UserApiEngine {
     fun getScriptName(): String = _activeMetadata.value?.name ?: "自定义音源"
 
     /**
-     * 重新加载或安装新脚本
+     * 重新加载或安装新脚本，挂起等待编译与执行结果
      */
-    fun loadScript(scriptContent: String, meta: ScriptMetadata? = null) {
-        val handler = workerHandler ?: return
+    suspend fun loadScript(scriptContent: String, meta: ScriptMetadata? = null): Result<ScriptMetadata> {
+        val actualMeta = meta ?: UserApiStore.parseScriptHeader(scriptContent)
+        _activeMetadata.value = actualMeta
+
+        val handler = workerHandler ?: run {
+            val err = "QuickJS 引擎线程尚未就绪"
+            _engineError.value = err
+            _isEngineReady.value = false
+            return Result.failure(Exception(err))
+        }
+
+        val deferred = CompletableDeferred<Result<ScriptMetadata>>()
+
         handler.post {
             destroyEngineInternal()
 
-            val actualMeta = meta ?: UserApiStore.parseScriptHeader(scriptContent)
             instanceKey = UUID.randomUUID().toString()
             isInited = false
 
@@ -128,40 +149,48 @@ object UserApiEngine {
                 val qjs = QuickJSContext.create()
                 jsContext = qjs
 
+                // 绑定控制台输出到 Logcat
+                qjs.setConsole(object : QuickJSContext.Console {
+                    override fun log(info: String) { Log.d("UserApi-JS", info) }
+                    override fun info(info: String) { Log.i("UserApi-JS", info) }
+                    override fun warn(info: String) { Log.w("UserApi-JS", info) }
+                    override fun error(info: String) { Log.e("UserApi-JS", info) }
+                })
+
                 // 注入宿主通信桥梁与原生工具函数
                 setupNativeBindings(qjs, instanceKey)
+
+                // 注入 instanceKey 和元数据到 JS 全局对象
+                val metaJson = gson.toJson(actualMeta)
+                qjs.evaluate("globalThis.__MELOS_KEY__ = '$instanceKey'; globalThis.__MELOS_META__ = $metaJson;")
 
                 // 加载并执行预加载脚本
                 val preloadCode = readAsset("script/user-api-preload.js")
                 if (preloadCode.isNullOrBlank()) {
-                    Log.e(TAG, "Preload script missing in assets!")
-                    return@post
+                    throw IllegalStateException("Preload script missing in assets!")
                 }
                 qjs.evaluate(preloadCode)
-
-                // 初始化全局 lx 环境
-                qjs.getGlobalObject().getJSFunction("lx_setup")?.call(
-                    instanceKey,
-                    actualMeta.id.ifEmpty { "custom_script" },
-                    actualMeta.name,
-                    actualMeta.description,
-                    actualMeta.version,
-                    actualMeta.author,
-                    actualMeta.homepage,
-                    scriptContent
-                )
 
                 // 执行用户脚本源码
                 qjs.evaluate(scriptContent)
 
                 _activeMetadata.value = actualMeta
                 _isEngineReady.value = true
+                _engineError.value = null
                 Log.i(TAG, "UserApi script loaded successfully: [${actualMeta.name}] v${actualMeta.version}")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load UserApi script: ${e.message}", e)
+                deferred.complete(Result.success(actualMeta))
+            } catch (e: Throwable) {
+                val errMsg = e.message ?: e.toString()
+                Log.e(TAG, "Failed to load UserApi script: $errMsg", e)
                 _isEngineReady.value = false
+                _engineError.value = errMsg
+                // 即使加载执行失败，元数据依旧保留以便用户在设置页查看报错详情、重新加载或卸载
+                _activeMetadata.value = actualMeta
+                deferred.complete(Result.failure(Exception(errMsg)))
             }
         }
+
+        return deferred.await()
     }
 
     /**
@@ -172,6 +201,7 @@ object UserApiEngine {
             destroyEngineInternal()
             _activeMetadata.value = null
             _isEngineReady.value = false
+            _engineError.value = null
             UserApiStore.clearScript()
         }
     }
@@ -442,7 +472,10 @@ object UserApiEngine {
                     resultElem == null || resultElem.isJsonNull -> null
                     resultElem.isJsonPrimitive -> resultElem.asString
                     resultElem.isJsonObject -> {
-                        resultElem.asJsonObject.get("url")?.asString
+                        val obj = resultElem.asJsonObject
+                        obj.get("url")?.asString
+                            ?: obj.getAsJsonObject("data")?.get("url")?.asString
+                            ?: obj.get("musicUrl")?.asString
                     }
                     else -> resultElem.toString()
                 }

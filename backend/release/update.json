@@ -1,10 +1,10 @@
 {
-  "versionName": "1.10.1",
-  "versionCode": 17,
+  "versionName": "1.10.2",
+  "versionCode": 18,
   "apkUrl": "https://music.dovislab.com/latest.apk",
   "apkSize": 8024609,
   "md5": "",
   "forceUpdate": false,
-  "publishTime": "2026-09-04 17:00",
-  "updateLog": "音源沙箱与私有云同步优化：\n1. 洛雪音源请求参数标准化补齐（修复部分脚本 source not match 及 types 读取报错）\n2. 增加沙箱 console.group/debug 等常用方法，提升各类第三方音源脚本兼容性\n3. 设置页自定义音源板块常驻显示「从私有云同步音源」快捷入口，未配置时一键引导配对"
+  "publishTime": "2026-09-04 20:30",
+  "updateLog": "音源沙箱与脚本管理彻底修复：\n1. 修复自定义音源脚本沙箱初始化异常（补全 QuickJS console.group/table/atob/btoa/window 等关键 Polyfill）\n2. 修复导入脚本后管理面板消失的问题，设置页永久显示音源信息、运行状态（就绪/异常）及重试按钮\n3. 优化音乐直链解析，完美支持各类嵌套格式"
 }

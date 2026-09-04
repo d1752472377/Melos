@@ -774,6 +774,7 @@ class MainViewModel : ViewModel() {
 
     val activeScriptInfo: StateFlow<ScriptMetadata?> = UserApiEngine.activeMetadata
     val isEngineReady: StateFlow<Boolean> = UserApiEngine.isEngineReady
+    val engineError: StateFlow<String?> = UserApiEngine.engineError
 
     val syncServerUrl = MutableStateFlow(SyncServerStore.getServerUrl())
     val syncToken = MutableStateFlow(SyncServerStore.getSyncToken())
@@ -936,9 +937,16 @@ class MainViewModel : ViewModel() {
             _appToast.value = "脚本代码不能为空"
             return
         }
-        val meta = UserApiStore.saveScript(content, customName = name)
-        UserApiEngine.loadScript(content, meta)
-        _appToast.value = "已导入并激活音源脚本: [${meta.name}]"
+        viewModelScope.launch {
+            val meta = UserApiStore.saveScript(content, customName = name)
+            val res = UserApiEngine.loadScript(content, meta)
+            if (res.isSuccess) {
+                _appToast.value = "已成功导入并激活音源脚本: [${meta.name}]"
+            } else {
+                val err = res.exceptionOrNull()?.message ?: "执行异常"
+                _appToast.value = "脚本已保存，但沙箱初始化异常: $err"
+            }
+        }
     }
 
     /**
@@ -972,15 +980,43 @@ class MainViewModel : ViewModel() {
                     return@launch
                 }
                 val meta = UserApiStore.saveScript(text)
-                UserApiEngine.loadScript(text, meta)
+                val res = UserApiEngine.loadScript(text, meta)
                 withContext(Dispatchers.Main) {
-                    _appToast.value = "已成功导入音源脚本: [${meta.name}]"
-                    onFinished(true, "导入成功")
+                    if (res.isSuccess) {
+                        _appToast.value = "已成功导入并激活音源脚本: [${meta.name}]"
+                        onFinished(true, "导入成功")
+                    } else {
+                        val err = res.exceptionOrNull()?.message ?: "执行异常"
+                        _appToast.value = "脚本已下载，但沙箱执行异常: $err"
+                        onFinished(false, "脚本执行异常: $err")
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     onFinished(false, "下载失败: ${e.message}")
                 }
+            }
+        }
+    }
+
+    /**
+     * 重新尝试加载当前已保存在本地的音源脚本
+     */
+    fun retryLoadScript() {
+        val script = UserApiStore.getScriptContent()
+        val meta = UserApiStore.getMetadata()
+        if (script.isNullOrBlank() || meta == null) {
+            _appToast.value = "未找到已保存的脚本"
+            return
+        }
+        viewModelScope.launch {
+            _appToast.value = "正在重新在沙箱中加载脚本…"
+            val res = UserApiEngine.loadScript(script, meta)
+            if (res.isSuccess) {
+                _appToast.value = "音源脚本已成功激活: [${meta.name}]"
+            } else {
+                val err = res.exceptionOrNull()?.message ?: "执行异常"
+                _appToast.value = "加载依然异常: $err"
             }
         }
     }

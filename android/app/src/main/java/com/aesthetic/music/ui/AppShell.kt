@@ -142,6 +142,8 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val localStats by viewModel.localStats.collectAsState()
     val activeScriptInfo by viewModel.activeScriptInfo.collectAsState()
+    val isEngineReady by viewModel.isEngineReady.collectAsState()
+    val engineError by viewModel.engineError.collectAsState()
     val isSyncConfigured by viewModel.isSyncConfigured.collectAsState()
     val syncServerUrl by viewModel.syncServerUrl.collectAsState()
     val syncToken by viewModel.syncToken.collectAsState()
@@ -606,6 +608,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     quality = qualityLevel,
                     floatingCapsuleEnabled = capsuleEnabled,
                     activeScript = activeScriptInfo,
+                    isEngineReady = isEngineReady,
+                    engineError = engineError,
+                    onRetryLoadScript = viewModel::retryLoadScript,
                     isSyncConfigured = isSyncConfigured,
                     syncServerUrl = syncServerUrl,
                     syncToken = syncToken,
