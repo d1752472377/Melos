@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
@@ -91,7 +91,7 @@ fun MyPlaylistsScreen(
                 top = 28.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = BottomBarReserved // 保证下滑到底部时不会被底栏播放器遮挡
+                bottom = LocalBottomBarPadding.current // 保证下滑到底部时不会被底栏播放器遮挡
             )
         ) {
             // 顶栏 Header

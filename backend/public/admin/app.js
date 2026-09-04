@@ -76,6 +76,12 @@ $('#tabSourcesBtn').addEventListener('click', () => switchTab('sources'));
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('#loginError').textContent = '';
+  const submitBtn = $('#loginForm button[type="submit"]');
+  const origText = submitBtn ? submitBtn.textContent : '登录';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '登录中...';
+  }
   const username = $('#loginUser').value.trim();
   const password = $('#loginPass').value;
   try {
@@ -83,7 +89,12 @@ $('#loginForm').addEventListener('submit', async (e) => {
     setToken(r.data.token);
     showMain();
   } catch (err) {
-    $('#loginError').textContent = err.message;
+    $('#loginError').textContent = err.message || '登录失败，请检查账号密码或服务器状态';
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = origText;
+    }
   }
 });
 
@@ -246,7 +257,7 @@ $('#sf_fetchBtn').addEventListener('click', async () => {
   btn.textContent = '抓取中...';
   btn.disabled = true;
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     $('#sf_content').value = text;

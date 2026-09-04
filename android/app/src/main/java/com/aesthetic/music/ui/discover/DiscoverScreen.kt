@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
@@ -113,7 +113,7 @@ fun DiscoverScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = BottomBarReserved // 避开底栏 Dock
+                bottom = LocalBottomBarPadding.current // 避开底栏 Dock
             )
         ) {
             // 顶栏标题

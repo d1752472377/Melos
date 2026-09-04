@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -53,32 +54,38 @@ fun NavigationDock(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(62.dp)
-            .border(1.dp, Stone200.copy(alpha = 0.5f), RoundedCornerShape(0.dp))
-            .shadow(4.dp, ambientColor = Color.Black.copy(alpha = 0.03f))
+            .height(64.dp)
+            .shadow(6.dp, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp), ambientColor = Color.Black.copy(alpha = 0.05f))
+            .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(Surface)
-            .padding(horizontal = 15.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceAround,
     ) {
         DockIcon(Icons.Filled.Home, label = "首页", selected = currentTab == AppTab.HOME, onClick = onHome)
         DockIcon(Icons.Filled.Explore, label = "发现", selected = currentTab == AppTab.DISCOVER, onClick = onDiscover)
 
-        // 中央旋转唱片
+        // 中央旋转黑胶唱片
         Box(
             Modifier
-                .size(46.dp)
-                .shadow(3.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.1f))
+                .size(48.dp)
+                .shadow(4.dp, CircleShape, ambientColor = PrimaryBrown.copy(alpha = 0.2f))
+                .border(
+                    width = 2.dp,
+                    color = if (isSpinning) PrimaryBrown.copy(alpha = 0.5f) else Stone200.copy(alpha = 0.8f),
+                    shape = CircleShape
+                )
                 .clip(CircleShape)
                 .semantics { contentDescription = "打开播放器" }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null, // 去除中央唱片的点击水波纹
+                    indication = null,
                     onClick = onOpenPlayer
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            RotatingDisc(currentArtwork, Modifier.size(46.dp), isPlaying = isSpinning, durationMs = 5000)
+            RotatingDisc(currentArtwork, Modifier.size(44.dp), isPlaying = isSpinning, durationMs = 5000)
         }
 
         DockIcon(Icons.AutoMirrored.Filled.QueueMusic, label = "歌单", selected = currentTab == AppTab.PLAYLIST, onClick = onPlaylist)
@@ -99,25 +106,29 @@ private fun DockIcon(
             .clip(RoundedCornerShape(12.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null, // 【方案一】完全禁用点击的灰色水波纹
-                // indication = ripple(color = PrimaryBrown.copy(alpha = 0.2f)), // 【方案二】若想要浅棕色水波纹，取消注释这行并把上面一行删掉/注释掉
+                indication = null,
                 onClick = onClick
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Color.Transparent),
-            contentAlignment = Alignment.Center,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (selected) PrimaryBrown else TextSoft,
-                modifier = Modifier.size(22.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) PrimaryBrown.copy(alpha = 0.14f) else Color.Transparent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = if (selected) PrimaryBrown else TextSoft,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
     }
 }

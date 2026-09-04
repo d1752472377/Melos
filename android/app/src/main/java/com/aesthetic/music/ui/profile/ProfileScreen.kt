@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.player.AudioCacheService
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
@@ -84,7 +84,7 @@ fun ProfileScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = BottomBarReserved
+                bottom = LocalBottomBarPadding.current
             )
         ) {
             // 顶栏

@@ -39,7 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.player.AudioCacheService
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.DangerCapsuleButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.theme.AccentMint
@@ -75,7 +75,7 @@ fun CacheListScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = BottomBarReserved),
+                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

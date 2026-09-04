@@ -38,7 +38,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -915,7 +915,7 @@ private fun BottomControls(
             )
             // 右下角按钮替换为播放队列
             Icon(
-                Icons.Filled.QueueMusic,
+                Icons.AutoMirrored.Filled.QueueMusic,
                 contentDescription = "播放队列",
                 tint = Color.White.copy(alpha = 0.7f),
                 modifier = Modifier.size(22.dp).clickable(onClick = onOpenQueue),

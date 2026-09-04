@@ -27,9 +27,17 @@ import androidx.compose.ui.unit.dp
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.TextSoft
 
-/** 底部 MiniPlayer + Dock 的实际高度约 120dp，统一预留避让值。
- *  此前 150.dp 魔法数散落在多个屏幕，改 Dock 高度需逐处同步；统一收口到这一个常量。 */
-val BottomBarReserved: Dp = 150.dp
+import androidx.compose.runtime.compositionLocalOf
+
+/**
+ * 底部动态避让高度 CompositionLocal：
+ * 当有歌曲在播时（MiniPlayer + Dock）为 ~124dp，无歌曲在播时（仅 Dock）收缩至 ~68dp，
+ * 彻底消除此前硬编码 150dp 导致未播放歌曲时底部留下近 90dp 巨大空白的问题。
+ */
+val LocalBottomBarPadding = compositionLocalOf { 72.dp }
+
+/** 静态默认避让高度兜底 */
+val BottomBarReserved: Dp = 72.dp
 
 /**
  * 加载态（居中 spinner + 文案）。

@@ -26,9 +26,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +69,10 @@ fun MiniPlayer(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 3.dp)
+            .shadow(5.dp, RoundedCornerShape(14.dp), ambientColor = Color.Black.copy(alpha = 0.06f))
+            .border(1.dp, Stone200.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(Surface)
     ) {
         // 顶部进度细条 (2.dp)
@@ -75,7 +81,7 @@ fun MiniPlayer(
                 progress = { (progress.positionMs.toFloat() / progress.durationMs.toFloat()).coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.dp)
+                    .height(2.5.dp)
                     .align(Alignment.TopCenter),
                 color = PrimaryBrown,
                 trackColor = Stone200.copy(alpha = 0.4f),
@@ -86,7 +92,7 @@ fun MiniPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onOpenPlayer)
-                .padding(horizontal = 16.dp, vertical = 7.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 8.dp 唱片封面
@@ -95,26 +101,30 @@ fun MiniPlayer(
             Spacer(Modifier.width(12.dp))
 
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = song.artist.ifBlank { "未知歌手" },
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 11.sp
-                    ),
-                    color = TextSoft,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                AnimatedContent(targetState = song.title, label = "song_title") { title ->
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
+                AnimatedContent(targetState = song.artist.ifBlank { "未知歌手" }, label = "song_artist") { artist ->
+                    Text(
+                        text = artist,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 11.sp
+                        ),
+                        color = TextSoft,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             Spacer(Modifier.width(8.dp))

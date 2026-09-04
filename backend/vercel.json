@@ -5,7 +5,8 @@
     "api/[...].js": {
       "regions": [
         "hkg1"
-      ]
+      ],
+      "includeFiles": "public/**"
     },
     "api/release-proxy.js": {
       "regions": [
@@ -14,7 +15,22 @@
       "maxDuration": 60
     }
   },
+  "redirects": [
+    {
+      "source": "/admin",
+      "destination": "/admin/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/style.css",
+      "destination": "/admin/style.css"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/admin/app.js"
+    },
     {
       "source": "/update.json",
       "destination": "/api/release-proxy.js"

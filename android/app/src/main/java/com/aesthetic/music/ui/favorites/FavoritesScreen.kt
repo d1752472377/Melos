@@ -36,7 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
@@ -70,7 +70,7 @@ fun FavoritesScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = BottomBarReserved),
+                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

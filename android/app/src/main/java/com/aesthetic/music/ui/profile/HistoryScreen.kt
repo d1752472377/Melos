@@ -41,7 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.DangerTextButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
@@ -79,7 +79,7 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = BottomBarReserved),
+                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             // ===== 头部：返回 + 标题 + 播放全部 / 清空 =====
             Row(

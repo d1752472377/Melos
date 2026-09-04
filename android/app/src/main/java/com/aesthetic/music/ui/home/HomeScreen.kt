@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.rememberDominantColors
@@ -127,7 +127,7 @@ fun HomeScreen(
             top = 20.dp,
             start = 20.dp,
             end = 20.dp,
-            bottom = BottomBarReserved // 底部留出足够空间避开 MiniPlayer 与 Dock
+            bottom = LocalBottomBarPadding.current // 底部留出动态空间避开 MiniPlayer 与 Dock
         ),
         verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {

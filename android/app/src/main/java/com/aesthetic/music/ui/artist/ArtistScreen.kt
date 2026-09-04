@@ -37,7 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
@@ -81,7 +81,7 @@ fun ArtistScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = BottomBarReserved) // 避开底栏悬浮 Dock
+                .padding(bottom = LocalBottomBarPadding.current) // 避开底栏悬浮 Dock
         ) {
             // 顶栏：返回 + 标题 + 播放全部
             Row(

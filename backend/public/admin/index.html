@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/admin/">
   <title>Melos 私有管理中枢</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="/admin/style.css">
 </head>
 <body>
   <!-- 登录视图 -->
   <div id="loginView" class="login-wrap">
-    <form class="login-card" id="loginForm">
+    <form class="login-card" id="loginForm" action="javascript:void(0);" onsubmit="return false;">
       <h1>🎵 Melos 管理中枢</h1>
       <p class="sub">音源脚本管理 · 健康测活 · 数据云同步</p>
       <label>用户名</label>
@@ -141,6 +142,6 @@
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="/admin/app.js"></script>
 </body>
 </html>

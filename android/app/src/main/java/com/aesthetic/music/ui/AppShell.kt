@@ -2,6 +2,8 @@ package com.aesthetic.music.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -39,6 +41,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -66,7 +69,7 @@ import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.cache.CacheListScreen
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.MiniPlayer
 import com.aesthetic.music.ui.components.SongCover
@@ -235,11 +238,20 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         playerManager.startProgress()
     }
 
-    Scaffold(
-        containerColor = Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {},
-    ) { padding ->
+    val hasActiveSong = playerState.currentSong != null
+    val targetBottomPadding = if (hasActiveSong) 124.dp else 68.dp
+    val animatedBottomPadding by animateDpAsState(
+        targetValue = targetBottomPadding,
+        animationSpec = spring(stiffness = 380f),
+        label = "bottomPadding"
+    )
+
+    CompositionLocalProvider(LocalBottomBarPadding provides animatedBottomPadding) {
+        Scaffold(
+            containerColor = Background,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            bottomBar = {},
+        ) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -524,22 +536,28 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
             }
 
-            // ===== 迷你播放器 + 底部导航 Dock（通铺连接，无圆角无空隙） =====
+            // ===== 迷你播放器 + 底部导航 Dock =====
             Column(Modifier.align(Alignment.BottomCenter)) {
                 // 进度在 MiniPlayer 内部订阅：播放中每 500ms 的进度跳动只重组 MiniPlayer 自身，
                 // 不再触发 AppShell 顶层（含当前 Tab 整页）重组
-                MiniPlayer(
-                    song = playerState.currentSong,
-                    isPlaying = playerState.isPlaying,
-                    isLoading = playerState.isLoading,
-                    progressFlow = playerManager.progress,
-                    onOpenPlayer = {
-                        playerManager.startProgress()
-                        viewModel.showPlayer.value = true
-                    },
-                    onToggle = playerManager::toggle,
-                    onNext = playerManager::next,
-                )
+                AnimatedVisibility(
+                    visible = hasActiveSong,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                ) {
+                    MiniPlayer(
+                        song = playerState.currentSong,
+                        isPlaying = playerState.isPlaying,
+                        isLoading = playerState.isLoading,
+                        progressFlow = playerManager.progress,
+                        onOpenPlayer = {
+                            playerManager.startProgress()
+                            viewModel.showPlayer.value = true
+                        },
+                        onToggle = playerManager::toggle,
+                        onNext = playerManager::next,
+                    )
+                }
                 NavigationDock(
                     currentTab = tab,
                     currentArtwork = playerState.currentSong?.artwork,
@@ -713,6 +731,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         }
     }
 }
+}
 
 /** 歌单导入弹窗 */
 @Composable
@@ -785,8 +804,7 @@ private fun PlaylistDetailOverlay(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                // 150.dp 魔法数字统一为 BottomBarReserved（MiniPlayer+Dock 的实测保留高度）
-                .padding(bottom = BottomBarReserved),
+                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

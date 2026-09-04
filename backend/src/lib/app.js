@@ -62,6 +62,11 @@ export async function buildApp() {
     prefix: '/',
   });
 
+  // 访问 /admin（无斜杠）自动 302 重定向至 /admin/，保证静态资源相对路径与路由一致
+  app.get('/admin', (req, reply) => {
+    reply.redirect(302, '/admin/');
+  });
+
   registerMusicRoutes(app, registry);
   registerAdminRoutes(app, { config, db, registry });
   registerUserRoutes(app, { config, db });

@@ -13,6 +13,7 @@ import com.aesthetic.music.data.api.CloudSyncPullData
 import com.aesthetic.music.data.api.SyncPingData
 import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.userapi.UserApiEngine
+import com.aesthetic.music.data.api.platform.PlatformMusicService
 import com.aesthetic.music.data.api.DailyData
 import com.aesthetic.music.data.api.LoginBody
 import com.aesthetic.music.data.api.LyricData
@@ -66,53 +67,44 @@ class MusicRepository(
         return if (networkError) Exception("网络连接失败，请检查网络后重试") else e
     }
 
-    // ==================== 音乐 ====================
+    // ==================== 音乐（直连公共平台协议） ====================
 
     suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): Result<List<Song>> = apiCatching {
-        val resp = api.search(keyword, limit, platform)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "搜索失败")
+        PlatformMusicService.search(keyword, limit, platform)
     }
 
-    /** 热搜词（搜索页热门搜索；后端无 netease 源时返回空列表，调用方用本地兜底） */
+    /** 热搜词（搜索页热门搜索：直连官方热搜） */
     suspend fun hotSearchWords(): Result<List<String>> = apiCatching {
-        val resp = api.hotSearchWords()
-        if (resp.code == 200) resp.data.orEmpty().map { it.word }.filter { it.isNotBlank() }
-        else throw Exception(resp.msg ?: "获取热搜失败")
+        PlatformMusicService.hotSearchWords()
     }
 
-    /** 歌单搜索（netease 官方接口） */
+    /** 歌单搜索（直连公共平台官方接口） */
     suspend fun searchPlaylists(keyword: String, limit: Int = 20): Result<List<PlaylistItem>> = apiCatching {
-        val resp = api.searchPlaylists(keyword, limit)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "歌单搜索失败")
+        PlatformMusicService.searchPlaylists(keyword, limit)
     }
 
-    /** 专辑搜索（netease 官方接口） */
+    /** 专辑搜索（直连公共平台官方接口） */
     suspend fun searchAlbums(keyword: String, limit: Int = 20): Result<List<AlbumItem>> = apiCatching {
-        val resp = api.searchAlbums(keyword, limit)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "专辑搜索失败")
+        PlatformMusicService.searchAlbums(keyword, limit)
     }
 
-    /** 歌词关键词搜歌（netease type=1006） */
+    /** 歌词关键词搜歌 */
     suspend fun searchByLyric(keyword: String, limit: Int = 20): Result<List<Song>> = apiCatching {
-        val resp = api.searchByLyric(keyword, limit)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "歌词搜索失败")
+        PlatformMusicService.searchByLyric(keyword, limit)
     }
 
     /** 专辑详情 + 曲目列表 */
     suspend fun getAlbum(id: String): Result<AlbumDetailData> = apiCatching {
-        val resp = api.albumDetail(id)
-        if (resp.code == 200) resp.data ?: throw Exception("获取专辑失败") else throw Exception(resp.msg ?: "获取专辑失败")
+        PlatformMusicService.getAlbum(id)
     }
 
-    /** 歌手搜索（后端无支持音源时返回失败，调用方静默降级即可） */
+    /** 歌手搜索 */
     suspend fun searchArtists(keyword: String, limit: Int = 8, platform: String? = null): Result<List<ArtistItem>> = apiCatching {
-        val resp = api.artistSearch(keyword, limit, platform)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "歌手搜索失败")
+        PlatformMusicService.searchArtists(keyword, limit, platform)
     }
 
     suspend fun getArtist(platform: String?, id: String, limit: Int = 50): Result<ArtistDetailData> = apiCatching {
-        val resp = api.artistDetail(platform, id, limit)
-        if (resp.code == 200) resp.data ?: throw Exception("获取歌手失败") else throw Exception(resp.msg ?: "获取歌手失败")
+        PlatformMusicService.getArtist(platform, id, limit)
     }
 
     suspend fun getSongUrl(song: Song, quality: String = "lossless"): Result<SongUrlData> = apiCatching {
@@ -131,20 +123,26 @@ class MusicRepository(
             }
         }
 
-        // 2. 音源脚本未安装或解析失败时，若配置了私有服务器，回退至服务端传统解析接口
-        if (SyncServerStore.isConfigured()) {
-            val resp = api.songUrl(song.platform, song.id, song.title, quality)
-            if (resp.code == 200) {
-                val d = resp.data
-                if (d?.url.isNullOrBlank()) throw Exception("未获取到播放地址")
-                return@apiCatching d
+        // 2. 音源脚本未安装或未解析成功时，直接使用官方公开外链播放协议直连兜底
+        try {
+            val direct = PlatformMusicService.getDirectSongUrl(song, quality)
+            if (!direct.url.isNullOrBlank()) {
+                return@apiCatching direct
             }
+        } catch (_: Exception) {}
+
+        // 3. 若用户配置了私有服务器，回退至服务端传统解析接口
+        if (SyncServerStore.isConfigured()) {
+            try {
+                val resp = api.songUrl(song.platform, song.id, song.title, quality)
+                if (resp.code == 200) {
+                    val d = resp.data
+                    if (!d?.url.isNullOrBlank()) return@apiCatching d
+                }
+            } catch (_: Exception) {}
         }
 
-        throw Exception(
-            if (UserApiEngine.isAvailable()) "音源脚本未成功解析该歌曲直链"
-            else "未安装音源脚本，请前往「设置」导入音源脚本或连接私有服务器同步"
-        )
+        throw Exception("未获取到播放直链，请在「设置」中导入音源脚本以获得高品质音源")
     }
 
     suspend fun getLyric(song: Song): Result<LyricData> = apiCatching {
@@ -163,10 +161,18 @@ class MusicRepository(
             }
         }
 
-        // 2. 回退至私有服务端
+        // 2. 直连公共平台歌词接口
+        val directLyric = PlatformMusicService.getLyric(song)
+        if (!directLyric.lyric.isNullOrBlank()) {
+            return@apiCatching directLyric
+        }
+
+        // 3. 回退至私有服务端
         if (SyncServerStore.isConfigured()) {
-            val resp = api.lyric(song.platform, song.id, song.title)
-            if (resp.code == 200 && resp.data != null) return@apiCatching resp.data
+            try {
+                val resp = api.lyric(song.platform, song.id, song.title)
+                if (resp.code == 200 && resp.data != null) return@apiCatching resp.data
+            } catch (_: Exception) {}
         }
 
         LyricData()
@@ -205,40 +211,33 @@ class MusicRepository(
     }
 
     suspend fun getPlaylist(id: String): Result<List<Song>> = apiCatching {
-        val resp = api.playlistDetail(id)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "获取歌单失败")
+        PlatformMusicService.getPlaylist(id)
     }
 
     suspend fun getHotPlaylists(limit: Int = 20): Result<List<PlaylistItem>> = apiCatching {
-        val resp = api.hotPlaylists(limit)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "获取热门歌单失败")
+        PlatformMusicService.getHotPlaylists(limit)
     }
 
-    // ==================== 内容 ====================
+    // ==================== 内容（直连公共平台协议） ====================
 
     suspend fun getDaily(limit: Int = 8): Result<DailyData> = apiCatching {
-        val resp = api.daily(limit)
-        if (resp.code == 200) resp.data ?: DailyData() else throw Exception(resp.msg ?: "获取每日推荐失败")
+        PlatformMusicService.getDaily(limit)
     }
 
     suspend fun getNewSongs(limit: Int = 20): Result<NewSongsData> = apiCatching {
-        val resp = api.newSongs(limit)
-        if (resp.code == 200) resp.data ?: NewSongsData() else throw Exception(resp.msg ?: "获取新歌速递失败")
+        PlatformMusicService.getNewSongs(limit)
     }
 
     suspend fun getRanks(): Result<RanksData> = apiCatching {
-        val resp = api.ranks()
-        if (resp.code == 200) resp.data ?: RanksData() else throw Exception(resp.msg ?: "获取排行榜失败")
+        PlatformMusicService.getRanks()
     }
 
     suspend fun getRankSongs(id: String): Result<List<Song>> = apiCatching {
-        val resp = api.rankDetail(id)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "获取榜单歌曲失败")
+        PlatformMusicService.getRankSongs(id)
     }
 
     suspend fun getCategories(): Result<CategoriesData> = apiCatching {
-        val resp = api.categories()
-        if (resp.code == 200) resp.data ?: CategoriesData() else throw Exception(resp.msg ?: "获取分类歌单失败")
+        PlatformMusicService.getCategories()
     }
 
     // ==================== 用户 ====================

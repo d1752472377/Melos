@@ -55,7 +55,7 @@ import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.MainViewModel
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
@@ -116,7 +116,7 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = BottomBarReserved),
+                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             // ===== 顶部：返回 + 搜索框 =====
             Row(
@@ -207,35 +207,13 @@ fun SearchScreen(
                 if (query.isBlank()) focusRequester.requestFocus()
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // ===== 平台切换（全部平台 / 网易云 / 酷狗 / QQ / 酷我），仅单曲 Tab 生效 =====
-            val platformEnabled = searchType == MainViewModel.SearchType.SONG
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            // ===== 1. 类型 Tab 优先置顶：单曲 歌手 歌单 专辑 歌词 =====
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(
-                    "全部平台" to null,
-                    "网易云" to "netease",
-                    "酷狗" to "kugou",
-                    "QQ" to "qq",
-                    "酷我" to "kuwo",
-                ).forEach { (label, value) ->
-                    val selected = platform == value
-                    FilterChipBox(
-                        label = label,
-                        selected = selected,
-                        enabled = platformEnabled,
-                        onClick = { viewModel.setSearchPlatform(value) },
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // ===== 类型 Tab：单曲 歌手 歌单 专辑 歌词 =====
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MainViewModel.SearchType.entries.forEach { type ->
                     val selected = searchType == type
                     FilterChipBox(
@@ -247,16 +225,39 @@ fun SearchScreen(
                 }
             }
 
-            if (searchType != MainViewModel.SearchType.SONG && query.isNotBlank()) {
+            // ===== 2. 仅单曲 Tab 展开平台切换（全网直连） =====
+            if (searchType == MainViewModel.SearchType.SONG) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(
+                        "全部平台" to null,
+                        "网易云" to "netease",
+                        "酷狗" to "kugou",
+                        "QQ" to "qq",
+                        "酷我" to "kuwo",
+                    ).forEach { (label, value) ->
+                        val selected = platform == value
+                        FilterChipBox(
+                            label = label,
+                            selected = selected,
+                            enabled = true,
+                            onClick = { viewModel.setSearchPlatform(value) },
+                        )
+                    }
+                }
+            } else if (query.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "该类型结果来自网易云官方接口",
+                    "该类型结果来自公共平台官方接口",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = TextFaint,
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             // ===== 内容区 =====
             if (query.isBlank()) {

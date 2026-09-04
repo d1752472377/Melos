@@ -54,7 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
@@ -110,7 +110,7 @@ fun PlaylistScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = BottomBarReserved // 避开底栏悬浮 Dock
+                bottom = LocalBottomBarPadding.current // 避开底栏悬浮 Dock
             )
         ) {
             // 1. 顶栏标题与操作按钮

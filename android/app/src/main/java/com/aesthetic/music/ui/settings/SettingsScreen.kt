@@ -60,7 +60,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.userapi.ScriptMetadata
-import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -124,7 +124,7 @@ fun SettingsScreen(
             .background(Background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(bottom = BottomBarReserved),
+            .padding(bottom = LocalBottomBarPadding.current),
     ) {
         // 顶栏
         Row(
