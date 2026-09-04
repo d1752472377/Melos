@@ -2,7 +2,7 @@ package com.aesthetic.music.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.google.gson.Gson
+import com.aesthetic.music.data.AppJson
 import com.google.gson.reflect.TypeToken
 
 /** 本地听歌统计（未登录也记录；登录后与云端合并展示） */
@@ -23,7 +23,7 @@ object StatsStore {
     private const val KEY_STATS = "stats"
 
     private var prefs: SharedPreferences? = null
-    private val gson = Gson()
+    private val gson = AppJson.gson
 
     fun init(context: Context) {
         if (prefs == null) {
@@ -77,7 +77,10 @@ object StatsStore {
 
     fun formatDuration(ms: Long): String {
         val minutes = ms / 60000
-        return if (minutes < 60) "${minutes} 分钟"
-        else "%.1f 小时".format(minutes / 60.0)
+        return when {
+            minutes < 1 -> "${ms / 1000} 秒"
+            minutes < 60 -> "${minutes} 分钟"
+            else -> "%.1f 小时".format(minutes / 60.0)
+        }
     }
 }

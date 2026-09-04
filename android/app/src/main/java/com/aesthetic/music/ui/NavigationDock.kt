@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.ui.components.RotatingDisc
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -46,6 +48,7 @@ fun NavigationDock(
     onPlaylist: () -> Unit,
     onProfile: () -> Unit,
     onOpenPlayer: () -> Unit,
+    isSpinning: Boolean = false,
 ) {
     Row(
         modifier = Modifier
@@ -58,8 +61,8 @@ fun NavigationDock(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceAround,
     ) {
-        DockIcon(Icons.Filled.Home, selected = currentTab == AppTab.HOME, onClick = onHome)
-        DockIcon(Icons.Filled.Explore, selected = currentTab == AppTab.DISCOVER, onClick = onDiscover)
+        DockIcon(Icons.Filled.Home, label = "首页", selected = currentTab == AppTab.HOME, onClick = onHome)
+        DockIcon(Icons.Filled.Explore, label = "发现", selected = currentTab == AppTab.DISCOVER, onClick = onDiscover)
 
         // 中央旋转唱片
         Box(
@@ -67,6 +70,7 @@ fun NavigationDock(
                 .size(46.dp)
                 .shadow(3.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.1f))
                 .clip(CircleShape)
+                .semantics { contentDescription = "打开播放器" }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null, // 去除中央唱片的点击水波纹
@@ -74,17 +78,18 @@ fun NavigationDock(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            RotatingDisc(currentArtwork, Modifier.size(46.dp))
+            RotatingDisc(currentArtwork, Modifier.size(46.dp), isPlaying = isSpinning, durationMs = 5000)
         }
 
-        DockIcon(Icons.AutoMirrored.Filled.QueueMusic, selected = currentTab == AppTab.PLAYLIST, onClick = onPlaylist)
-        DockIcon(Icons.Filled.Person, selected = currentTab == AppTab.PROFILE, onClick = onProfile)
+        DockIcon(Icons.AutoMirrored.Filled.QueueMusic, label = "歌单", selected = currentTab == AppTab.PLAYLIST, onClick = onPlaylist)
+        DockIcon(Icons.Filled.Person, label = "我的", selected = currentTab == AppTab.PROFILE, onClick = onProfile)
     }
 }
 
 @Composable
 private fun DockIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -109,7 +114,7 @@ private fun DockIcon(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = label,
                 tint = if (selected) PrimaryBrown else TextSoft,
                 modifier = Modifier.size(22.dp),
             )

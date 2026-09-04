@@ -41,7 +41,30 @@ object FloatCapsuleManager {
     private var initialTouchY = 0f
     private var isDragging = false
 
-    fun isShowing(): Boolean = capsuleView != null
+    /** 拖拽位置记忆（SharedPreferences）：此前每次重新展示都回到 y=100px 固定位 */
+    private var positionPrefs: android.content.SharedPreferences? = null
+
+    private fun prefsOf(context: Context): android.content.SharedPreferences =
+        positionPrefs ?: context.applicationContext
+            .getSharedPreferences("aesthetic_music_capsule", Context.MODE_PRIVATE)
+            .also { positionPrefs = it }
+
+    private fun loadCapsulePosition(context: Context): Pair<Int, Int>? {
+        val p = prefsOf(context)
+        if (!p.contains("pos_x") || !p.contains("pos_y")) return null
+        return p.getInt("pos_x", 0) to p.getInt("pos_y", 0)
+    }
+
+    private fun saveCapsulePosition(context: Context, x: Int, y: Int) {
+        try {
+            prefsOf(context).edit().putInt("pos_x", x).putInt("pos_y", y).apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    /** 用 isAttachedToWindow 判定：权限被系统收回时窗口已被移除，
+     *  此前 capsuleView 残留导致 isShowing() 失真、状态无法自愈 */
+    fun isShowing(): Boolean = capsuleView?.isAttachedToWindow == true
 
     fun hasPermission(context: Context): Boolean = Settings.canDrawOverlays(context)
 
@@ -92,15 +115,11 @@ object FloatCapsuleManager {
 
         playBtn.setOnClickListener { onPlayPauseTap?.invoke() }
 
-        view.setOnClickListener {
-            onCapsuleTap?.invoke()
-            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                ?.apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-                }
-            if (launch != null) context.startActivity(launch)
-        }
-
+        // 手势判定与"回 App"统一放在 touch listener 里处理。
+        // 此前逻辑颠倒：OnTouchListener 对 DOWN/MOVE/UP 全 return true 消费事件后，
+        // View 的 OnClickListener 永远不会被手势触发 → 轻点胶囊"回 App"完全失效；
+        // 而 ACTION_UP 里 `if (isDragging) performClick()` 恰恰在"拖动松手"时手动触发
+        // 点击 → 一拖动就把用户从其他 App 拽回 Melos。现在：轻点(未拖动)= 回 App，拖动只改位置。
         view.setOnTouchListener { v, event ->
             val params = layoutParams
             if (params == null) return@setOnTouchListener false
@@ -118,15 +137,29 @@ object FloatCapsuleManager {
                     val dy = event.rawY - initialTouchY
                     if (!isDragging && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) isDragging = true
                     if (isDragging) {
-                        params.x = (initialX + dx).toInt()
-                        params.y = (initialY + dy).toInt()
+                        // 屏幕边界 clamp：此前可把胶囊拖出屏外且找不回来
+                        val dm = v.resources.displayMetrics
+                        val maxX = (dm.widthPixels / 2f - v.width / 2f).toInt().coerceAtLeast(0)
+                        val minX = (-dm.widthPixels / 2f + v.width / 2f).toInt().coerceAtMost(0)
+                        val maxY = (dm.heightPixels - v.height).toInt().coerceAtLeast(0)
+                        params.x = (initialX + dx).toInt().coerceIn(minX, maxX)
+                        params.y = (initialY + dy).toInt().coerceIn(0, maxY)
                         windowManager?.updateViewLayout(v, params)
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (isDragging) {
-                        v.performClick()
+                    if (!isDragging) {
+                        // 轻点（未拖动）= 回 App
+                        onCapsuleTap?.invoke()
+                        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                            ?.apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                            }
+                        if (launch != null) context.startActivity(launch)
+                    } else {
+                        // 拖动结束：记住位置，下次展示沿用
+                        saveCapsulePosition(context, params.x, params.y)
                     }
                     isDragging = false
                     true
@@ -150,8 +183,10 @@ object FloatCapsuleManager {
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        params.y = 100
-        params.x = 0
+        // 恢复上次拖拽位置；首次展示默认距顶 100dp（此前 y=100 是像素硬编码，不同密度屏位置差异大且不持久化）
+        val saved = loadCapsulePosition(context)
+        params.x = saved?.first ?: 0
+        params.y = saved?.second ?: (100 * context.resources.displayMetrics.density).toInt()
 
         layoutParams = params
         capsuleView = view
@@ -222,7 +257,10 @@ object FloatCapsuleManager {
                 val opts = BitmapFactory.Options().apply { inSampleSize = sample }
                 val bitmap = conn.inputStream.use { BitmapFactory.decodeStream(it, null, opts) }
                 if (bitmap != null) {
-                    Handler(Looper.getMainLooper()).post { imageView.setImageBitmap(bitmap) }
+                    Handler(Looper.getMainLooper()).post {
+                        // 胶囊已隐藏或已切换到下一首封面时不再贴旧图
+                        if (isShowing() && currentCoverUrl == url) imageView.setImageBitmap(bitmap)
+                    }
                 }
             } catch (_: Exception) {
             } finally {

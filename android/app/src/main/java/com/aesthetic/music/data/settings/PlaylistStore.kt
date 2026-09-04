@@ -2,8 +2,8 @@ package com.aesthetic.music.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.model.Song
-import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 /** 我的歌单（本地数据源，登录后同步到云端） */
@@ -26,7 +26,7 @@ object PlaylistStore {
     private const val KEY_PLAYLISTS = "playlists"
 
     private var prefs: SharedPreferences? = null
-    private val gson = Gson()
+    private val gson = AppJson.gson
 
     /** 单线程后台写入器：整组歌单 JSON 的序列化与落盘移出调用线程 */
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()

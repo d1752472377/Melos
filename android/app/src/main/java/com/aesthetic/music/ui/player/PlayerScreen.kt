@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -176,7 +177,8 @@ fun PlayerScreen(
             ) {
                 PlayerChip(
                     icon = Icons.Filled.Speed,
-                    text = "${state.speed}x",
+                    // 1f 直接插值成 "1.0x"，整数倍率显示成 "1x"/"2x" 更干净
+                    text = if (state.speed % 1f == 0f) "${state.speed.toInt()}x" else "${state.speed}x",
                     active = state.speed != 1f,
                     onClick = { showSpeedDialog = true },
                 )
@@ -770,7 +772,8 @@ private fun DottedLine(modifier: Modifier = Modifier) {
             start = Offset(0f, 0f),
             end = androidx.compose.ui.geometry.Offset(size.width, 0f),
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f),
-            strokeWidth = 2f
+            // 2f 是 2 像素：高分屏上细到几乎不可见，转 dp
+            strokeWidth = 2.dp.toPx()
         )
     }
 }
@@ -799,9 +802,12 @@ private fun BottomControls(
         val target = pendingSeekMs ?: return@LaunchedEffect
         if (abs(positionMs - target) < 900) pendingSeekMs = null
     }
-    // 切歌后立即丢弃未决的 seek 目标，防止残留到下一首
-    LaunchedEffect(state.currentIndex) {
+    // 切歌后立即丢弃未决的 seek 目标，防止残留到下一首。
+    // 按歌曲身份键控而非队列索引：换队列/单曲队列替换时索引可能不变，
+    // 残留的 seek 目标会把新歌直接跳到旧目标位置
+    LaunchedEffect(state.currentSong?.platform, state.currentSong?.id) {
         pendingSeekMs = null
+        isDragging = false
     }
 
     val currentPos = when {
@@ -887,12 +893,21 @@ private fun BottomControls(
                     .clickable(onClick = onToggle),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (state.isPlaying) "暂停" else "播放",
-                    tint = PlayerBg,
-                    modifier = Modifier.size(30.dp),
-                )
+                if (state.isLoading) {
+                    // 歌曲加载中：此前点击后播放键纹丝不动，用户以为没点上而狂点
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 3.dp,
+                        color = PlayerBg,
+                    )
+                } else {
+                    Icon(
+                        if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (state.isPlaying) "暂停" else "播放",
+                        tint = PlayerBg,
+                        modifier = Modifier.size(30.dp),
+                    )
+                }
             }
             Icon(
                 Icons.Filled.SkipNext, contentDescription = "下一首", tint = Color.White,
@@ -1001,9 +1016,12 @@ private fun PlayerCircleButton(
 
 private fun formatTime(ms: Long): String {
     val totalSec = ms / 1000
-    val min = totalSec / 60
+    val hour = totalSec / 3600
+    val min = (totalSec % 3600) / 60
     val sec = totalSec % 60
-    return String.format(Locale.US, "%d:%02d", min, sec)
+    // 超过 1 小时的进度此前显示成 "75:23"，分钟位溢出难读；有小时位时带出来
+    return if (hour > 0) String.format(Locale.US, "%d:%02d:%02d", hour, min, sec)
+    else String.format(Locale.US, "%d:%02d", min, sec)
 }
 
 /**

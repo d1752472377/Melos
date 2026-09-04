@@ -19,9 +19,16 @@ import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.RecentSearchStore
 import com.aesthetic.music.data.settings.SettingsStore
-import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.ThemeMode
+import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.UserStore
+import com.aesthetic.music.data.settings.SyncServerStore
+import com.aesthetic.music.data.userapi.UserApiEngine
+import com.aesthetic.music.data.userapi.UserApiStore
+import com.aesthetic.music.data.userapi.ScriptMetadata
+import com.aesthetic.music.data.api.CloudPlaylistDto
+import com.aesthetic.music.data.api.CloudScriptDto
+import com.aesthetic.music.data.api.CloudSyncPullData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -75,6 +82,8 @@ class MainViewModel : ViewModel() {
     private val _hotPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val hotPlaylists: StateFlow<List<PlaylistItem>> = _hotPlaylists.asStateFlow()
     val isLoadingHot = MutableStateFlow(false)
+    /** 热门歌单加载失败信息（此前失败静默，区块直接消失） */
+    val hotPlaylistsError = MutableStateFlow<String?>(null)
 
     private val _dailyPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val dailyPlaylists: StateFlow<List<PlaylistItem>> = _dailyPlaylists.asStateFlow()
@@ -96,6 +105,8 @@ class MainViewModel : ViewModel() {
     private val _playlistSongs = MutableStateFlow<List<Song>>(emptyList())
     val playlistSongs: StateFlow<List<Song>> = _playlistSongs.asStateFlow()
     val isLoadingPlaylist = MutableStateFlow(false)
+    /** 歌单/榜单详情加载失败信息：此前失败静默成空白列表页，无文案无重试 */
+    val playlistError = MutableStateFlow<String?>(null)
     /** 歌单详情请求令牌：快速连开两个歌单时丢弃慢的旧响应，防止串台 */
     @Volatile
     private var playlistRequestId = 0L
@@ -115,11 +126,27 @@ class MainViewModel : ViewModel() {
     private var favPushPending = false
     private var histPushPending = false
 
+    /**
+     * 本地已删、但云端删除失败/尚未完成的歌单 cloudId 集合。
+     * 修复"离线删歌单 → 下次登录 syncCloudDown 从云端拉回"的已删歌单复活：
+     * 删除时先登记，syncCloudDown 遇到该 cloudId 会重放删除而不是拉回；
+     * 重放成功后从集合移除。
+     */
+    private val pendingDeletedCloudIds = mutableSetOf<String>()
+
     // 用户体系
     private val _user = MutableStateFlow(UserStore.user())
     val user: StateFlow<UserInfo?> = _user.asStateFlow()
     val authBusy = MutableStateFlow(false)
     val authError = MutableStateFlow<String?>(null)
+
+    /** 一次性全局提示（导入歌单失败、改昵称失败、登录态过期等）：
+     *  此前这些场景的错误要么写进没人消费的状态（albumError），要么复用只被登录弹窗读的
+     *  authError，用户"点了没反应"。AppShell 订阅本流弹 Snackbar 后调用 consumeToast() 清空 */
+    private val _appToast = MutableStateFlow<String?>(null)
+    val appToast: StateFlow<String?> = _appToast.asStateFlow()
+
+    fun consumeToast() { _appToast.value = null }
 
     // 我的歌单（本地持久化，登录后同步云端）
     private val _myPlaylists = MutableStateFlow<List<MyPlaylist>>(emptyList())
@@ -171,6 +198,16 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val words = RecentSearchStore.load()
             withContext(Dispatchers.Main) { _recentSearches.value = words }
+        }
+        // 登录态失效（401）：清登录态并提示。此前 token 过期/被吊销后界面仍显示"已登录"，
+        // 收藏/历史/歌单云同步全部静默失败，用户只看到"同步没生效"
+        com.aesthetic.music.data.api.ApiClient.setOnAuthFailed {
+            if (UserStore.isLoggedIn()) {
+                UserStore.logout()
+                _user.value = null
+                _cloudStats.value = null
+                _appToast.value = "登录已过期，请重新登录"
+            }
         }
         // 热门搜索词（netease 官方；失败用本地兜底词）
         viewModelScope.launch(Dispatchers.IO) {
@@ -353,6 +390,16 @@ class MainViewModel : ViewModel() {
         val key = "$kw|${platform ?: "*"}"
         if (!force && executedSearchKeys[type] == key) return
 
+        // 先清空当前类型的旧结果：此前失败时旧平台/旧类型的结果仍留在列表里，
+        // 被静默当作本次搜索结果展示（用户切"酷狗"失败后看到的还是"全部平台"的曲目）
+        when (type) {
+            SearchType.SONG -> _songResults.value = emptyList()
+            SearchType.ARTIST -> _artistResults.value = emptyList()
+            SearchType.PLAYLIST -> _playlistResults.value = emptyList()
+            SearchType.ALBUM -> _albumResults.value = emptyList()
+            SearchType.LYRIC -> _lyricResults.value = emptyList()
+        }
+
         isSearching.value = true
         searchError.value = null
         try {
@@ -471,12 +518,18 @@ class MainViewModel : ViewModel() {
 
     // ==================== 发现页 / 内容 ====================
 
-    fun loadHotPlaylists() {
-        if (_hotPlaylists.value.isNotEmpty()) return
+    fun loadHotPlaylists(force: Boolean = false) {
+        if (!force && _hotPlaylists.value.isNotEmpty()) return
+        // 在途防重：此前首个请求在途时值为空，快速切 Tab 会并发打出多个相同请求
+        if (!force && isLoadingHot.value) return
         viewModelScope.launch {
             isLoadingHot.value = true
             repository.getHotPlaylists(20).onSuccess { list ->
                 _hotPlaylists.value = list
+                hotPlaylistsError.value = null
+            }.onFailure { e ->
+                // 失败要可见：此前静默，"热门歌单"区块直接消失且无法重试
+                hotPlaylistsError.value = e.message ?: "获取热门歌单失败"
             }
             isLoadingHot.value = false
         }
@@ -493,33 +546,40 @@ class MainViewModel : ViewModel() {
             isLoadingContent.value = true
             contentError.value = null
             var failures = 0
-            coroutineScope {
-                val dailyD = async { repository.getDaily(8) }
-                val newsD = async { repository.getNewSongs(20) }
-                val ranksD = async { repository.getRanks() }
-                val catsD = async { repository.getCategories() }
-                dailyD.await().onSuccess { _dailyPlaylists.value = it.playlists }.onFailure { failures++ }
-                newsD.await().onSuccess { _newSongs.value = it.songs }.onFailure { failures++ }
-                catsD.await().onSuccess { _homeCategories.value = it.categories }.onFailure { failures++ }
-                ranksD.await().onSuccess {
-                    _ranks.value = it.ranks
-                    if (it.ranks.isNotEmpty() && _hotSongs.value.isEmpty()) {
-                        val hotRank = it.ranks.firstOrNull { r -> r.kind == "hot" }
-                            ?: it.ranks.firstOrNull { r -> r.name.contains("热歌") }
-                            ?: it.ranks.first()
-                        launch {
-                            repository.getRankSongs(hotRank.id).onSuccess { songs ->
-                                _hotSongs.value = songs
-                            }
+            var failureMsg = ""
+            val dailyD = async { repository.getDaily(8) }
+            val newsD = async { repository.getNewSongs(20) }
+            val ranksD = async { repository.getRanks() }
+            val catsD = async { repository.getCategories() }
+            dailyD.await().onSuccess { _dailyPlaylists.value = it.playlists }
+                .onFailure { failures++; failureMsg = "每日推荐" }
+            newsD.await().onSuccess { _newSongs.value = it.songs }
+                .onFailure { failures++; failureMsg = "新歌速递" }
+            catsD.await().onSuccess { _homeCategories.value = it.categories }
+                .onFailure { failures++; failureMsg = "分类歌单" }
+            ranksD.await().onSuccess {
+                _ranks.value = it.ranks
+                if (it.ranks.isNotEmpty() && _hotSongs.value.isEmpty()) {
+                    val hotRank = it.ranks.firstOrNull { r -> r.kind == "hot" }
+                        ?: it.ranks.firstOrNull { r -> r.name.contains("热歌") }
+                        ?: it.ranks.first()
+                    // 独立协程：此前是 coroutineScope 的子协程，会把 isLoadingContent=false
+                    // 拖到热歌请求结束，拉长整页 loading 窗口
+                    viewModelScope.launch {
+                        repository.getRankSongs(hotRank.id).onSuccess { songs ->
+                            _hotSongs.value = songs
                         }
                     }
-                }.onFailure { failures++ }
-            }
+                }
+            }.onFailure { failures++; failureMsg = "排行榜" }
             if (failures == 4) {
                 contentError.value = "内容加载失败，请检查网络"
-            } else {
-                contentLoaded = true
+            } else if (failures > 0) {
+                // 部分失败也要可见：此前只有全挂才报错，单个区块（如排行榜）失败后
+                // 永久消失且无提示（contentLoaded=true 还拦截了重拉）
+                contentError.value = "部分内容加载失败（$failureMsg），可点重试"
             }
+            contentLoaded = true
             isLoadingContent.value = false
         }
     }
@@ -531,12 +591,17 @@ class MainViewModel : ViewModel() {
 
     fun openPlaylistDetail(item: PlaylistItem) {
         showPlaylistDetail.value = item
+        _playlistSongs.value = emptyList()
+        playlistError.value = null
         val req = ++playlistRequestId
         viewModelScope.launch {
             isLoadingPlaylist.value = true
-            _playlistSongs.value = emptyList()
             repository.getPlaylist(item.id).onSuccess { list ->
                 if (req == playlistRequestId) _playlistSongs.value = list
+            }.onFailure { e ->
+                // 失败要可见：此前只写 onSuccess，失败后列表空 + 无 loading，
+                // Overlay 渲染 0 项 LazyColumn 白页，无文案无重试
+                if (req == playlistRequestId) playlistError.value = e.message ?: "歌单加载失败"
             }
             if (req == playlistRequestId) isLoadingPlaylist.value = false
         }
@@ -544,12 +609,15 @@ class MainViewModel : ViewModel() {
 
     fun openRankDetail(item: PlaylistItem) {
         showPlaylistDetail.value = item
+        _playlistSongs.value = emptyList()
+        playlistError.value = null
         val req = ++playlistRequestId
         viewModelScope.launch {
             isLoadingPlaylist.value = true
-            _playlistSongs.value = emptyList()
             repository.getRankSongs(item.id).onSuccess { list ->
                 if (req == playlistRequestId) _playlistSongs.value = list
+            }.onFailure { e ->
+                if (req == playlistRequestId) playlistError.value = e.message ?: "榜单加载失败"
             }
             if (req == playlistRequestId) isLoadingPlaylist.value = false
         }
@@ -563,6 +631,11 @@ class MainViewModel : ViewModel() {
                 if (req != playlistRequestId) return@launch
                 _playlistSongs.value = list
                 showPlaylistDetail.value = PlaylistItem(id = id, name = "导入的歌单")
+            }.onFailure { e ->
+                // 此前失败静默：弹窗关闭后"什么都没发生"
+                if (req == playlistRequestId) {
+                    _appToast.value = "导入歌单失败：${e.message ?: "网络异常"}"
+                }
             }
             if (req == playlistRequestId) isLoadingPlaylist.value = false
         }
@@ -599,9 +672,16 @@ class MainViewModel : ViewModel() {
         val target = _myPlaylists.value.firstOrNull { it.id == id } ?: return
         _myPlaylists.value = _myPlaylists.value.filterNot { it.id == id }
         saveMyPlaylists()
+        if (target.cloudId.isNotBlank()) {
+            // 先登记待删：云端删除失败/离线时，syncCloudDown 会重放删除而非把歌单拉回（复活）
+            pendingDeletedCloudIds.add(target.cloudId)
+        }
         viewModelScope.launch {
             syncMutex.withLock {
-                if (target.cloudId.isNotBlank()) repository.deleteCloudPlaylist(target.cloudId)
+                if (target.cloudId.isNotBlank()) {
+                    val r = repository.deleteCloudPlaylist(target.cloudId)
+                    if (r.isSuccess) pendingDeletedCloudIds.remove(target.cloudId)
+                }
             }
         }
     }
@@ -619,6 +699,10 @@ class MainViewModel : ViewModel() {
 
     fun openMyPlaylist(id: String) {
         val p = _myPlaylists.value.firstOrNull { it.id == id } ?: return
+        // 递增请求令牌：此前不 bump，打开我的歌单时若有在途的云端歌单请求，
+        // 其慢响应会覆盖 _playlistSongs → "标题是 B、内容是 A"
+        ++playlistRequestId
+        playlistError.value = null
         _playlistSongs.value = p.songs
         showPlaylistDetail.value = PlaylistItem(
             id = p.id,
@@ -686,87 +770,240 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ==================== 用户 / 云同步 ====================
+    // ==================== 音源脚本与私有云同步 ====================
 
-    fun showLoginSheet() {
-        authError.value = null
-        showLogin.value = true
+    val activeScriptInfo: StateFlow<ScriptMetadata?> = UserApiEngine.activeMetadata
+    val isEngineReady: StateFlow<Boolean> = UserApiEngine.isEngineReady
+
+    val syncServerUrl = MutableStateFlow(SyncServerStore.getServerUrl())
+    val syncToken = MutableStateFlow(SyncServerStore.getSyncToken())
+    val isSyncConfigured = MutableStateFlow(SyncServerStore.isConfigured())
+    val lastSyncedAt = MutableStateFlow(SyncServerStore.getLastSyncedAt())
+    val lastSyncStatus = MutableStateFlow(SyncServerStore.getLastSyncStatus())
+    val isSyncing = MutableStateFlow(false)
+    val isTestingSync = MutableStateFlow(false)
+
+    fun saveSyncConfig(serverUrl: String, token: String) {
+        val cleanUrl = serverUrl.trim().trimEnd('/')
+        val cleanToken = token.trim()
+        SyncServerStore.save(cleanUrl, cleanToken)
+        syncServerUrl.value = cleanUrl
+        syncToken.value = cleanToken
+        isSyncConfigured.value = SyncServerStore.isConfigured()
+        _appToast.value = "私有云同步配置已保存"
     }
 
-    /** 仅清除错误提示（登录/注册表单切换模式时用），不关闭弹层 */
-    fun clearAuthError() {
-        authError.value = null
-    }
-
-    fun dismissLogin() {
-        showLogin.value = false
-        authError.value = null
-    }
-
-    fun login(username: String, password: String) {
-        val u = username.trim()
-        if (u.isEmpty() || password.isEmpty()) {
-            authError.value = "请输入用户名和密码"
+    fun testSyncConnection(onResult: ((Boolean, String) -> Unit)? = null) {
+        if (!SyncServerStore.isConfigured()) {
+            val msg = "请先填写完整的服务器地址和同步密钥"
+            _appToast.value = msg
+            onResult?.invoke(false, msg)
             return
         }
         viewModelScope.launch {
-            authBusy.value = true
-            authError.value = null
-            repository.login(u, password).onSuccess { auth ->
-                UserStore.save(auth.token, auth.user)
-                _user.value = auth.user
-                showLogin.value = false
-                syncCloudDown()
-                refreshCloudStats()
+            isTestingSync.value = true
+            repository.syncPing().onSuccess {
+                val msg = "连接正常！服务器同步功能就绪"
+                _appToast.value = msg
+                onResult?.invoke(true, msg)
             }.onFailure { e ->
-                authError.value = e.message ?: "登录失败"
+                val msg = "连接失败：${e.message ?: "网络超时"}"
+                _appToast.value = msg
+                onResult?.invoke(false, msg)
             }
-            authBusy.value = false
+            isTestingSync.value = false
         }
     }
 
-    fun register(username: String, password: String, nickname: String) {
-        val u = username.trim()
-        if (u.isEmpty() || password.length < 6) {
-            authError.value = "用户名不能为空，密码至少 6 位"
+    /**
+     * 一键私有云同步：
+     * 1. 从服务端 pull 最新数据包（包括激活的音源脚本、收藏、历史、歌单）
+     * 2. 如果服务端提供了激活音源脚本，自动更新并热重载本地 QuickJS 引擎
+     * 3. 本地收藏/历史/歌单双向合并
+     * 4. 将合并后的数据 push 回云端归档
+     */
+    fun performCloudSync() {
+        if (!SyncServerStore.isConfigured()) {
+            _appToast.value = "未配置私有同步服务器，请前往「设置」配置"
             return
         }
+        if (isSyncing.value) return
+
         viewModelScope.launch {
-            authBusy.value = true
-            authError.value = null
-            repository.register(u, password, nickname.trim().ifEmpty { u }).onSuccess { auth ->
-                UserStore.save(auth.token, auth.user)
-                _user.value = auth.user
-                showLogin.value = false
-                pushFavoritesToCloud()
-                pushHistoryToCloud()
-                refreshCloudStats()
-            }.onFailure { e ->
-                authError.value = e.message ?: "注册失败"
+            isSyncing.value = true
+            syncMutex.withLock {
+                try {
+                    val pullResult = repository.syncPull()
+                    if (pullResult.isFailure) {
+                        val err = pullResult.exceptionOrNull()?.message ?: "拉取失败"
+                        SyncServerStore.updateSyncStatus("同步失败: $err")
+                        lastSyncStatus.value = "同步失败: $err"
+                        _appToast.value = "云同步失败：$err"
+                        isSyncing.value = false
+                        return@withLock
+                    }
+
+                    val cloudData = pullResult.getOrNull()!!
+
+                    // 1. 同步音源脚本
+                    val cloudScript = cloudData.script
+                    if (cloudScript != null && cloudScript.content.isNotBlank()) {
+                        val meta = UserApiStore.saveScript(
+                            content = cloudScript.content,
+                            customName = cloudScript.name.ifBlank { null },
+                            customVersion = cloudScript.version.ifBlank { null }
+                        )
+                        UserApiEngine.loadScript(cloudScript.content, meta)
+                    }
+
+                    // 2. 合并收藏
+                    val mergedFav = mergeSongs(_favoriteSongs.value, cloudData.favorites).take(MAX_FAVORITES)
+                    _favoriteSongs.value = mergedFav
+                    _favoriteKeys.value = mergedFav.map { it.platform + ":" + it.id }.toSet()
+                    FavoriteStore.save(mergedFav)
+
+                    // 3. 合并播放历史
+                    val mergedHis = mergeSongs(_history.value, cloudData.history).take(HISTORY_LIMIT)
+                    _history.value = mergedHis
+                    HistoryStore.save(mergedHis)
+
+                    // 4. 合并歌单
+                    val localPlaylists = _myPlaylists.value.toMutableList()
+                    val localIdMap = localPlaylists.associateBy { it.id }.toMutableMap()
+
+                    for (cp in cloudData.playlists) {
+                        val existing = localIdMap[cp.id]
+                        if (existing == null) {
+                            localPlaylists.add(
+                                MyPlaylist(
+                                    id = cp.id,
+                                    name = cp.name,
+                                    songs = cp.songs,
+                                    cloudId = cp.id,
+                                )
+                            )
+                        } else {
+                            val mergedSongs = mergeSongs(existing.songs, cp.songs).take(MAX_PLAYLIST_SONGS)
+                            val idx = localPlaylists.indexOfFirst { it.id == cp.id }
+                            if (idx >= 0) {
+                                localPlaylists[idx] = existing.copy(
+                                    name = if (existing.name.isNotBlank()) existing.name else cp.name,
+                                    songs = mergedSongs
+                                )
+                            }
+                        }
+                    }
+                    _myPlaylists.value = localPlaylists
+                    saveMyPlaylists()
+
+                    // 5. 推送最终合并数据回云端
+                    val pushPlaylists = _myPlaylists.value.map {
+                        CloudPlaylistDto(
+                            id = it.id,
+                            name = it.name,
+                            coverUrl = it.coverUrl,
+                            songs = it.songs
+                        )
+                    }
+                    repository.syncPush(
+                        favorites = _favoriteSongs.value,
+                        history = _history.value,
+                        playlists = pushPlaylists
+                    )
+
+                    val now = System.currentTimeMillis()
+                    SyncServerStore.updateSyncStatus("同步成功", now)
+                    lastSyncedAt.value = now
+                    lastSyncStatus.value = "同步成功"
+                    _appToast.value = "云端同步成功！数据与音源脚本已更新"
+                } catch (e: Exception) {
+                    val err = e.message ?: "未知错误"
+                    SyncServerStore.updateSyncStatus("同步失败: $err")
+                    lastSyncStatus.value = "同步失败: $err"
+                    _appToast.value = "同步异常：$err"
+                } finally {
+                    isSyncing.value = false
+                }
             }
-            authBusy.value = false
         }
     }
 
+    /**
+     * 直接导入 JS 脚本源码
+     */
+    fun importScriptFromText(content: String, name: String? = null) {
+        if (content.isBlank()) {
+            _appToast.value = "脚本代码不能为空"
+            return
+        }
+        val meta = UserApiStore.saveScript(content, customName = name)
+        UserApiEngine.loadScript(content, meta)
+        _appToast.value = "已导入并激活音源脚本: [${meta.name}]"
+    }
+
+    /**
+     * 从 URL 抓取并导入音源脚本
+     */
+    fun importScriptFromUrl(url: String, onFinished: (Boolean, String) -> Unit) {
+        val cleanUrl = url.trim()
+        if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+            onFinished(false, "URL 格式不正确")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient()
+                val req = okhttp3.Request.Builder()
+                    .url(cleanUrl)
+                    .header("User-Agent", "Mozilla/5.0")
+                    .build()
+                val resp = client.newCall(req).execute()
+                if (!resp.isSuccessful) {
+                    withContext(Dispatchers.Main) {
+                        onFinished(false, "HTTP ${resp.code}: 下载失败")
+                    }
+                    return@launch
+                }
+                val text = resp.body?.string().orEmpty()
+                if (text.isBlank()) {
+                    withContext(Dispatchers.Main) {
+                        onFinished(false, "下载的脚本内容为空")
+                    }
+                    return@launch
+                }
+                val meta = UserApiStore.saveScript(text)
+                UserApiEngine.loadScript(text, meta)
+                withContext(Dispatchers.Main) {
+                    _appToast.value = "已成功导入音源脚本: [${meta.name}]"
+                    onFinished(true, "导入成功")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onFinished(false, "下载失败: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun unloadScript() {
+        UserApiEngine.unloadScript()
+        _appToast.value = "已卸载自定义音源脚本"
+    }
+
+    // 兼容旧接口的轻量空壳，防止其它尚未修改的视图编译报错
+    fun showLoginSheet() {}
+    fun clearAuthError() {}
+    fun dismissLogin() {}
+    fun login(u: String, p: String) {}
+    fun register(u: String, p: String, n: String) {}
     fun logout() {
-        UserStore.logout()
-        _user.value = null
-        _cloudStats.value = null
-        authError.value = null
+        SyncServerStore.clear()
+        syncServerUrl.value = ""
+        syncToken.value = ""
+        isSyncConfigured.value = false
+        _appToast.value = "已清空私有服务器配置"
     }
-
-    fun updateNickname(nickname: String) {
-        val n = nickname.trim()
-        if (n.isEmpty()) return
-        viewModelScope.launch {
-            repository.updateProfile(n).onSuccess { info ->
-                _user.value = info
-                UserStore.updateUser(info)
-            }.onFailure { e ->
-                authError.value = e.message ?: "修改失败"
-            }
-        }
-    }
+    fun updateNickname(nickname: String) {}
 
     /** 登录后：本地数据与云端合并（本地优先），并同步回云端（整段串行执行） */
     private fun syncCloudDown() {
@@ -793,13 +1030,26 @@ class MainViewModel : ViewModel() {
 
                 // 歌单合并
                 val cloudPls = repository.cloudPlaylists().getOrElse { emptyList() }
+                // 先重放"本地已删、云端删除未成功"的歌单：否则离线删掉的歌单会被重新拉回（复活）
+                if (pendingDeletedCloudIds.isNotEmpty()) {
+                    for (cid in pendingDeletedCloudIds.toList()) {
+                        if (repository.deleteCloudPlaylist(cid).isSuccess) {
+                            pendingDeletedCloudIds.remove(cid)
+                        }
+                    }
+                }
                 for (cp in cloudPls) {
+                    // 已登记删除但云端仍在（重放失败）：跳过，不拉回
+                    if (cp.id in pendingDeletedCloudIds) continue
                     val exist = _myPlaylists.value.firstOrNull { it.id == cp.id || it.cloudId == cp.id }
                     if (exist == null) {
                         val songs = repository.cloudPlaylistSongs(cp.id).getOrElse { emptyList() }
                         _myPlaylists.value = _myPlaylists.value + MyPlaylist(
                             id = cp.id, name = cp.name, songs = songs, cloudId = cp.id,
                         )
+                    } else if (exist.cloudId == cp.id && exist.name != cp.name) {
+                        // 重命名对账：离线改名后云端仍是旧名，这里把本地新名推上去（本地优先）
+                        repository.renameCloudPlaylist(cp.id, exist.name)
                     }
                 }
                 saveMyPlaylists()
@@ -830,26 +1080,31 @@ class MainViewModel : ViewModel() {
     }
 
     private fun pushFavoritesToCloud() {
-        if (!UserStore.isLoggedIn()) return
+        if (!SyncServerStore.isConfigured()) return
         favPushPending = true
         viewModelScope.launch {
             syncMutex.withLock {
-                // 队列中可能积压多个推送：只发最新一次（合并），且发送锁内读到的最新快照
                 if (!favPushPending) return@withLock
                 favPushPending = false
-                repository.pushFavorites(_favoriteSongs.value)
+                val pushPlaylists = _myPlaylists.value.map {
+                    CloudPlaylistDto(id = it.id, name = it.name, coverUrl = it.coverUrl, songs = it.songs)
+                }
+                repository.syncPush(_favoriteSongs.value, _history.value, pushPlaylists)
             }
         }
     }
 
     private fun pushHistoryToCloud() {
-        if (!UserStore.isLoggedIn()) return
+        if (!SyncServerStore.isConfigured()) return
         histPushPending = true
         viewModelScope.launch {
             syncMutex.withLock {
                 if (!histPushPending) return@withLock
                 histPushPending = false
-                repository.pushHistory(_history.value)
+                val pushPlaylists = _myPlaylists.value.map {
+                    CloudPlaylistDto(id = it.id, name = it.name, coverUrl = it.coverUrl, songs = it.songs)
+                }
+                repository.syncPush(_favoriteSongs.value, _history.value, pushPlaylists)
             }
         }
     }

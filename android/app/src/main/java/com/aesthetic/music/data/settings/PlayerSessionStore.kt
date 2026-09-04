@@ -2,8 +2,8 @@ package com.aesthetic.music.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.model.Song
-import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 /**
@@ -24,7 +24,7 @@ object PlayerSessionStore {
     private const val KEY_POSITION = "position"
 
     private var prefs: SharedPreferences? = null
-    private val gson = Gson()
+    private val gson = AppJson.gson
 
     /**
      * 单线程后台写入器：队列 JSON 的序列化移出调用线程。

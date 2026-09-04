@@ -11,6 +11,8 @@ import { registerMusicRoutes } from '../routes/music.js';
 import { registerAdminRoutes } from '../routes/admin.js';
 import { registerUserRoutes } from '../routes/user.js';
 import { registerContentRoutes } from '../routes/content.js';
+import { registerScriptsRoutes } from '../routes/scripts.js';
+import { registerSyncRoutes } from '../routes/sync.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +66,8 @@ export async function buildApp() {
   registerAdminRoutes(app, { config, db, registry });
   registerUserRoutes(app, { config, db });
   registerContentRoutes(app, registry);
+  registerScriptsRoutes(app, { config, db });
+  registerSyncRoutes(app, { config, db });
 
   app.setErrorHandler((err, req, reply) => {
     req.log.error(err);

@@ -7,6 +7,12 @@ import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.AuthData
 import com.aesthetic.music.data.api.CategoriesData
+import com.aesthetic.music.data.api.CloudPlaylistDto
+import com.aesthetic.music.data.api.CloudScriptDto
+import com.aesthetic.music.data.api.CloudSyncPullData
+import com.aesthetic.music.data.api.SyncPingData
+import com.aesthetic.music.data.settings.SyncServerStore
+import com.aesthetic.music.data.userapi.UserApiEngine
 import com.aesthetic.music.data.api.DailyData
 import com.aesthetic.music.data.api.LoginBody
 import com.aesthetic.music.data.api.LyricData
@@ -110,19 +116,92 @@ class MusicRepository(
     }
 
     suspend fun getSongUrl(song: Song, quality: String = "lossless"): Result<SongUrlData> = apiCatching {
-        val resp = api.songUrl(song.platform, song.id, song.title, quality)
-        if (resp.code == 200) {
-            val d = resp.data
-            if (d?.url.isNullOrBlank()) throw Exception("未获取到播放地址")
-            d
-        } else {
-            throw Exception(resp.msg ?: "取直链失败")
+        // 1. 优先使用本地 QuickJS 音源脚本解析直链（零法律风险、官方 CDN 直连、客户端独立运行）
+        if (UserApiEngine.isAvailable()) {
+            val scriptResult = UserApiEngine.resolveMusicUrl(song.platform, song, quality)
+            if (scriptResult.isSuccess) {
+                val resolvedUrl = scriptResult.getOrNull()
+                if (!resolvedUrl.isNullOrBlank()) {
+                    return@apiCatching SongUrlData(
+                        url = resolvedUrl,
+                        platform = song.platform,
+                        sourceName = UserApiEngine.getScriptName()
+                    )
+                }
+            }
         }
+
+        // 2. 音源脚本未安装或解析失败时，若配置了私有服务器，回退至服务端传统解析接口
+        if (SyncServerStore.isConfigured()) {
+            val resp = api.songUrl(song.platform, song.id, song.title, quality)
+            if (resp.code == 200) {
+                val d = resp.data
+                if (d?.url.isNullOrBlank()) throw Exception("未获取到播放地址")
+                return@apiCatching d
+            }
+        }
+
+        throw Exception(
+            if (UserApiEngine.isAvailable()) "音源脚本未成功解析该歌曲直链"
+            else "未安装音源脚本，请前往「设置」导入音源脚本或连接私有服务器同步"
+        )
     }
 
     suspend fun getLyric(song: Song): Result<LyricData> = apiCatching {
-        val resp = api.lyric(song.platform, song.id, song.title)
-        if (resp.code == 200) resp.data ?: LyricData() else throw Exception(resp.msg ?: "取歌词失败")
+        // 1. 优先使用音源脚本解析歌词
+        if (UserApiEngine.isAvailable()) {
+            val scriptResult = UserApiEngine.resolveLyric(song.platform, song)
+            if (scriptResult.isSuccess) {
+                val lrc = scriptResult.getOrNull()
+                if (!lrc.isNullOrBlank()) {
+                    return@apiCatching LyricData(
+                        lyric = lrc,
+                        platform = song.platform,
+                        sourceName = UserApiEngine.getScriptName()
+                    )
+                }
+            }
+        }
+
+        // 2. 回退至私有服务端
+        if (SyncServerStore.isConfigured()) {
+            val resp = api.lyric(song.platform, song.id, song.title)
+            if (resp.code == 200 && resp.data != null) return@apiCatching resp.data
+        }
+
+        LyricData()
+    }
+
+    // ==================== 私有云同步 ====================
+
+    suspend fun syncPing(): Result<SyncPingData> = apiCatching {
+        val resp = api.syncPing()
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "服务器连接失败")
+    }
+
+    suspend fun syncPull(): Result<CloudSyncPullData> = apiCatching {
+        val resp = api.syncPull()
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "数据拉取失败")
+    }
+
+    suspend fun syncPush(
+        favorites: List<Song>,
+        history: List<Song>,
+        playlists: List<CloudPlaylistDto>
+    ): Result<Unit> = apiCatching {
+        val resp = api.syncPush(
+            com.aesthetic.music.data.api.SyncPushBody(
+                favorites = favorites,
+                history = history,
+                playlists = playlists
+            )
+        )
+        if (resp.code == 200) Unit else throw Exception(resp.msg ?: "同步上传失败")
+    }
+
+    suspend fun getActiveScript(): Result<CloudScriptDto> = apiCatching {
+        val resp = api.getActiveScript()
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "获取音源脚本失败")
     }
 
     suspend fun getPlaylist(id: String): Result<List<Song>> = apiCatching {

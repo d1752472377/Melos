@@ -15,8 +15,8 @@ android {
         applicationId = "com.aesthetic.music"
         minSdk = 24
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.8.0"
+        versionCode = 15
+        versionName = "1.9.0"
     }
 
     // 统一签名（私有签发）：keystore 不入库，每台打包机器需手动放置到
@@ -52,6 +52,15 @@ android {
                 enableV2Signing = true
             }
         }
+    }
+
+    // 缺少统一签名时给出构建期可见警告：此前 release 静默产出未签名/异签名 APK，
+    // 用户侧表现为"更新时解析失败"，排查半天才发现是签名配置缺失
+    if (!sharedKeystoreFile.exists() || storePw == null || keyPw == null) {
+        println(
+            "WARNING: 统一签名未配置（android/keystore/aesthetic.jks 或口令缺失），" +
+                "release 构建将回退 debug 签名或产出未签名 APK，不能用于 OTA 覆盖更新"
+        )
     }
 
     buildTypes {
@@ -100,7 +109,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
-    implementation(libs.androidx.navigation.compose)
+    // androidx-navigation-compose 已移除：全 App 用 AppShell 手写导航（StateFlow 覆盖层栈），
+    // 无 NavHost/NavController 引用，留着的传递依赖只增构建体积
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
@@ -111,6 +121,7 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.quickjs.android)
 
     // JankStats：采集真实帧耗时，量化滑动掉帧（logcat tag=JankStats）
     implementation(libs.androidx.metrics.performance)

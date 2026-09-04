@@ -42,6 +42,25 @@ object AudioCacheService {
 
     private val gson = Gson()
 
+    /** 共享 OkHttp 客户端：此前每次下载都 new 一个 client，线程池/连接池全浪费 */
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
+
+    /** 进行中的缓存下载（key=缓存键）：切歌时取消上一首的下载，
+     *  此前每次 cacheAudio 独立 launch 且不可取消，快速切歌会堆积并发整曲下载抢带宽 */
+    private val downloadJobs = HashMap<String, kotlinx.coroutines.Job>()
+
+    /** 当前正在播放的缓存文件路径：容量清理时跳过，
+     *  防止"正在播 A（本地缓存）、同时后台下载 B 触发容量清理"时把 A 删掉导致读失败 */
+    @Volatile
+    private var protectedPath: String? = null
+
+    fun setProtectedPath(path: String?) {
+        protectedPath = path
+    }
+
     /** 索引内存缓存（@Volatile 保证跨线程可见，配合 indexLock 使用） */
     @Volatile
     private var indexCache: MutableMap<String, CacheEntry>? = null
@@ -53,10 +72,12 @@ object AudioCacheService {
     private fun indexFile(context: Context) = File(cacheDir(context), INDEX_FILE_NAME)
 
     /**
-     * 索引 key：platform 与 songId 用 \u0001 分隔（平台 id / 歌曲 id 中都不会出现该字符），
-     * 避免旧写法 "$platform_$songId" 在平台或歌曲 id 含下划线时的 key 碰撞。
+     * 索引 key：platform / songId / quality 用 \u0001 分隔（各字段中都不会出现该字符），
+     * 避免平台或歌曲 id 含下划线时的 key 碰撞；加音质维度后，
+     * 切换音质设置不会误用旧音质缓存文件（直链按音质区分，文件内容不同）。
      */
-    private fun cacheKey(platformCode: String, songId: String) = "$platformCode\u0001$songId"
+    private fun cacheKey(platformCode: String, songId: String, quality: String) =
+        "$platformCode\u0001$songId\u0001$quality"
 
     private fun loadIndexFromDisk(context: Context): MutableMap<String, CacheEntry> {
         return try {
@@ -119,26 +140,46 @@ object AudioCacheService {
         return "mp3"
     }
 
-    /** 文件名校净化：非法字符 + 控制字符替换、空白折叠、裁剪到 60 字符（防超长歌名撑爆 255 字节路径） */
-    private fun sanitize(name: String): String =
-        // 注意：raw string 不做 \uXXXX 转义，控制字符范围必须用普通字符串
-        name.replace(Regex("[\\\\/:*?\"<>|\u0000-\u001f\u007f]"), "_")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-            .take(60)
+    /** 按 UTF-8 字节预算截断（ext4 文件名上限 255 字节；CJK 每字占 3 字节，
+     *  此前按字符 take(60) 裁剪，"60 汉字歌名 + 60 汉字歌手"=360 字节必然超限，
+     *  中文长歌名缓存静默 100% 失败） */
+    private fun truncateBytes(s: String, maxBytes: Int): String {
+        val bytes = s.toByteArray(Charsets.UTF_8)
+        if (bytes.size <= maxBytes) return s
+        val sb = StringBuilder()
+        var used = 0
+        for (ch in s) {
+            val b = ch.toString().toByteArray(Charsets.UTF_8).size
+            if (used + b > maxBytes) break
+            sb.append(ch)
+            used += b
+        }
+        return sb.toString()
+    }
 
-    /** 缓存文件基础名：歌名-歌手-songId（songId 参与命名，同名歌曲不同源不互相覆盖） */
+    /** 文件名校净化：非法字符 + 控制字符替换、空白折叠、按字节预算裁剪 */
+    private fun sanitize(name: String, maxBytes: Int = 60): String =
+        // 注意：raw string 不做 \uXXXX 转义，控制字符范围必须用普通字符串
+        truncateBytes(
+            name.replace(Regex("[\\\\/:*?\"<>|\u0000-\u001f\u007f]"), "_")
+                .replace(Regex("""\s+"""), " ")
+                .trim(),
+            maxBytes,
+        )
+
+    /** 缓存文件基础名：歌名-歌手-songId（songId 参与命名，同名歌曲不同源不互相覆盖）。
+     *  字节预算：标题 60 + '-' + 歌手 40 + '-' + id 20 + 扩展名 5 = 126 字节，远低于 255 上限 */
     private fun baseFileName(name: String, artist: String, songId: String): String {
-        val title = sanitize(name.ifBlank { "未知歌曲" })
-        val singer = sanitize(artist.ifBlank { "未知歌手" })
+        val title = sanitize(name.ifBlank { "未知歌曲" }, 60)
+        val singer = sanitize(artist.ifBlank { "未知歌手" }, 40)
         val id = songId.replace(Regex("""[^\w-]"""), "_").take(20).ifBlank { "x" }
         return "$title-$singer-$id"
     }
 
     /** 检查是否已有缓存，返回本地文件路径（不存在/过小返回 null）。索引走内存，无重复读盘 */
-    fun getCachedPath(context: Context, platformCode: String, songId: String): String? {
+    fun getCachedPath(context: Context, platformCode: String, songId: String, quality: String): String? {
         return try {
-            val entry = queryIndex(context) { it[cacheKey(platformCode, songId)] } ?: return null
+            val entry = queryIndex(context) { it[cacheKey(platformCode, songId, quality)] } ?: return null
             val f = File(entry.filePath)
             if (f.exists() && f.length() > 10240) entry.filePath else null
         } catch (_: Exception) {
@@ -146,7 +187,8 @@ object AudioCacheService {
         }
     }
 
-    /** 后台异步下载缓存（不阻塞调用方），完成后回调本地路径（失败回调 null） */
+    /** 后台异步下载缓存（不阻塞调用方），完成后回调本地路径（失败回调 null）。
+     *  同一 key 再次缓存时先取消上一次未完成的下载 */
     fun cacheAudio(
         context: Context,
         platformCode: String,
@@ -154,49 +196,59 @@ object AudioCacheService {
         url: String,
         name: String,
         artist: String,
+        quality: String,
         scope: CoroutineScope,
         onDone: (String?) -> Unit,
     ) {
         if (url.isBlank()) { onDone(null); return }
-        scope.launch(Dispatchers.IO) {
+        val key = cacheKey(platformCode, songId, quality)
+        synchronized(indexLock) {
+            downloadJobs[key]?.cancel()
+        }
+        val job = scope.launch(Dispatchers.IO) {
             val dir = cacheDir(context)
             val ext = extractExt(url)
             val baseName = baseFileName(name, artist, songId)
             // tmp 文件名带时间戳：同一首歌并发缓存时互不干扰（旧实现共用同名 tmp 会互相覆盖）
             val tmp = File(dir, "$baseName.$ext.tmp-${System.nanoTime()}")
             var done: String? = null
+            // 记录本协程 Job：不能引用尚未初始化完成的外层 val（编译器拒绝自引用）；
+            // try 外的清理逻辑也用到它，声明必须提到 try 之前
+            val selfJob = coroutineContext[kotlinx.coroutines.Job]
             try {
                 // 已有缓存直接返回
-                getCachedPath(context, platformCode, songId)?.let { onDone(it); return@launch }
+                getCachedPath(context, platformCode, songId, quality)?.let { onDone(it); return@launch }
+                synchronized(indexLock) { if (selfJob != null) downloadJobs[key] = selfJob }
 
                 tmp.delete()
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .build()
-                val resp = client.newCall(Request.Builder().url(url).build()).execute()
-                if (!resp.isSuccessful) { tmp.delete(); onDone(null); return@launch }
-                resp.body?.byteStream()?.use { input ->
-                    tmp.outputStream().use { output -> input.copyTo(output) }
-                }
-
-                if (tmp.length() > 10240) {
-                    val target = File(dir, "$baseName.$ext")
-                    // 同名目标已存在（并发缓存同一首歌）：先删除再重命名，保证最终文件完整
-                    if (target.exists()) target.delete()
-                    tmp.renameTo(target)
-                    mutateIndex(context) {
-                        it[cacheKey(platformCode, songId)] =
-                            CacheEntry(name, artist, platformCode, songId, target.absolutePath, target.length())
+                client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+                    if (!resp.isSuccessful) { tmp.delete(); onDone(null); return@launch }
+                    resp.body?.byteStream()?.use { input ->
+                        tmp.outputStream().use { output -> input.copyTo(output) }
                     }
-                    enforceCacheLimitIfNeeded(context)
-                    done = target.absolutePath
-                } else {
-                    tmp.delete()
+                    if (tmp.length() > 10240) {
+                        val target = File(dir, "$baseName.$ext")
+                        // 同名目标已存在（并发缓存同一首歌）：先删除再重命名，保证最终文件完整
+                        if (target.exists()) target.delete()
+                        tmp.renameTo(target)
+                        mutateIndex(context) {
+                            it[key] =
+                                CacheEntry(name, artist, platformCode, songId, target.absolutePath, target.length())
+                        }
+                        // 容量清理时保护"正在播放"的文件（调用方传入当前播放路径）
+                        enforceCacheLimitIfNeeded(context)
+                        done = target.absolutePath
+                    } else {
+                        tmp.delete()
+                    }
                 }
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                tmp.delete()
+                throw ce
             } catch (_: Exception) {
                 tmp.delete()
             }
+            synchronized(indexLock) { if (downloadJobs[key] === selfJob) downloadJobs.remove(key) }
             onDone(done)
         }
     }
@@ -219,6 +271,8 @@ object AudioCacheService {
                 for ((k, v) in index) keyByPath[v.filePath] = k
                 for (f in files.sortedBy { it.lastModified() }) {
                     if (total <= MAX_CACHE_BYTES) break
+                    // 跳过正在播放的文件（它同时是"最旧"的可能：整首播完前 lastModified 不更新）
+                    if (f.absolutePath == protectedPath) continue
                     val size = f.length()
                     if (f.delete()) {
                         total -= size
@@ -279,13 +333,21 @@ object AudioCacheService {
             cacheDir(context).listFiles()?.forEach { if (it.isFile) it.delete() }
         } catch (_: Exception) {
         }
-        synchronized(indexLock) { indexCache = mutableMapOf() }
+        // 同步清空内存索引并回写磁盘 _index.json：此前只清内存，冷启动后旧索引被重新加载
+        //（虽然每条都会经 exists() 校验自愈，但 count/list 在自愈前短暂漂移）
+        synchronized(indexLock) {
+            indexCache = mutableMapOf()
+            try {
+                indexFile(context).writeText(gson.toJson(emptyMap<String, CacheEntry>()))
+            } catch (_: Exception) {
+            }
+        }
     }
 
-    fun removeCache(context: Context, platformCode: String, songId: String) {
+    fun removeCache(context: Context, platformCode: String, songId: String, quality: String) {
         try {
             mutateIndex(context) { index ->
-                index.remove(cacheKey(platformCode, songId))?.let { File(it.filePath).delete() }
+                index.remove(cacheKey(platformCode, songId, quality))?.let { File(it.filePath).delete() }
             }
         } catch (_: Exception) {
         }

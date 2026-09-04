@@ -41,6 +41,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.DangerTextButton
+import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -76,7 +79,7 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = 150.dp),
+                .padding(bottom = BottomBarReserved),
         ) {
             // ===== 头部：返回 + 标题 + 播放全部 / 清空 =====
             Row(
@@ -115,15 +118,7 @@ fun HistoryScreen(
                     )
                 }
                 if (songs.isNotEmpty()) {
-                    Text(
-                        text = "清空",
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                        color = TextSoft,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { showClearConfirm = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
+                    DangerTextButton(text = "清空", onClick = { showClearConfirm = true })
                     Spacer(Modifier.width(8.dp))
                     Row(
                         modifier = Modifier
@@ -154,18 +149,14 @@ fun HistoryScreen(
             Spacer(Modifier.height(16.dp))
 
             if (songs.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("还没有播放记录", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                        Spacer(Modifier.height(6.dp))
-                        Text("播过的歌会自动出现在这里", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
+                EmptyBox("还没有播放记录\n播过的歌会自动出现在这里")
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     itemsIndexed(
                         songs,
-                        key = { i, s -> "$i:${s.platform}:${s.id}" },
+                        // 历史列表本身按 platform+id 去重（VM 保证唯一），直接用业务键：
+                        // 删除中间项时其后 item 不再因 index 前缀整体变化而重组/动画异常
+                        key = { _, s -> s.platform + ":" + s.id },
                         contentType = { _, _ -> "history_song" },
                     ) { index, song ->
                         val playingNow = currentSong != null &&
@@ -192,7 +183,7 @@ fun HistoryScreen(
                 TextButton(onClick = {
                     showClearConfirm = false
                     onClearAll()
-                }) { Text("清空", color = Color(0xFFF43F5E)) }
+                }) { Text("清空", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) { Text("取消") }

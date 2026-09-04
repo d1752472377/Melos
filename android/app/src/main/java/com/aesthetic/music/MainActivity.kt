@@ -50,6 +50,8 @@ class MainActivity : ComponentActivity() {
         FavoriteStore.init(this)
         HistoryStore.init(this)
         UserStore.init(this)
+        com.aesthetic.music.data.settings.SyncServerStore.init(this)
+        com.aesthetic.music.data.userapi.UserApiEngine.init(this)
         PlaylistStore.init(this)
         StatsStore.init(this)
         PlayerSessionStore.init(this)

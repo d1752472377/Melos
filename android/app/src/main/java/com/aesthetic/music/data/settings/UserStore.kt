@@ -2,8 +2,8 @@ package com.aesthetic.music.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.api.UserInfo
-import com.google.gson.Gson
 
 /**
  * 用户登录态持久化：token + 用户信息。
@@ -16,7 +16,7 @@ object UserStore {
     private const val KEY_USER = "user"
 
     private var prefs: SharedPreferences? = null
-    private val gson = Gson()
+    private val gson = AppJson.gson
 
     fun init(context: Context) {
         if (prefs == null) {

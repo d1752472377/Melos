@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -108,7 +110,7 @@ fun PlaylistScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = 150.dp // 避开底栏悬浮 Dock
+                bottom = BottomBarReserved // 避开底栏悬浮 Dock
             )
         ) {
             // 1. 顶栏标题与操作按钮
@@ -130,7 +132,7 @@ fun PlaylistScreen(
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = "${collectedPlaylists.size} 个收藏歌单 · ${myPlaylists.size} 个自建",
+                            text = "${collectedPlaylists.size} 个热门歌单 · ${myPlaylists.size} 个自建",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSoft
                         )
@@ -193,7 +195,7 @@ fun PlaylistScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         PlaylistTabItem(
-                            title = "收藏歌单",
+                            title = "热门歌单",
                             count = collectedPlaylists.size,
                             selected = playlistTab == 0,
                             onClick = { playlistTab = 0 }
@@ -212,14 +214,7 @@ fun PlaylistScreen(
                     // 收藏的歌单列表
                     if (collectedPlaylists.isEmpty()) {
                         item(key = "collected_empty") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 40.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("暂无收藏歌单，可在首页或发现页添加", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                            }
+                            EmptyBox("暂无热门歌单，稍后再来看看")
                         }
                     } else {
                         // 行号作 key（必然唯一）：null-id 歌单兜底 "" 会在两行都为空 id 时碰撞崩溃
@@ -247,14 +242,7 @@ fun PlaylistScreen(
                     // 自建歌单列表
                     if (myPlaylists.isEmpty()) {
                         item(key = "my_playlists_empty") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 40.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("暂无自建歌单，点击右上角「新建」创建", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                            }
+                            EmptyBox("暂无自建歌单，点击右上角「新建」创建")
                         }
                     } else {
                         items(myPlaylists, key = { it.id }) { playlist ->
@@ -279,8 +267,12 @@ fun PlaylistScreen(
             onDismissRequest = { deleteTarget = null },
             title = { Text("删除歌单") },
             text = {
+                // 已同步云端的歌单：删除会连同云端一并删除，必须明示
+                val syncNote = if (target.cloudId.isNotBlank())
+                    "\n该歌单已同步云端，删除后云端也将删除"
+                else ""
                 Text(
-                    "确认删除《${target.name}》？\n歌单内 ${target.songs.size} 首歌曲记录将一并移除，此操作不可恢复。",
+                    "确认删除《${target.name}》？\n歌单内 ${target.songs.size} 首歌曲记录将一并移除，此操作不可恢复。$syncNote",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
@@ -307,7 +299,7 @@ fun PlaylistScreen(
             text = {
                 BasicTextField(
                     value = newPlaylistName,
-                    onValueChange = { newPlaylistName = it },
+                    onValueChange = { if (it.length <= 30) newPlaylistName = it },
                     singleLine = true,
                     textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
                     modifier = Modifier
@@ -319,6 +311,7 @@ fun PlaylistScreen(
             },
             confirmButton = {
                 TextButton(
+                    enabled = newPlaylistName.trim().isNotEmpty(),
                     onClick = {
                         if (newPlaylistName.isNotBlank()) {
                             onCreatePlaylist(newPlaylistName.trim())
@@ -326,7 +319,12 @@ fun PlaylistScreen(
                             newPlaylistName = ""
                         }
                     }
-                ) { Text("创建", color = PrimaryBrown) }
+                ) {
+                    Text(
+                        "创建",
+                        color = if (newPlaylistName.isNotBlank()) PrimaryBrown else TextMuted
+                    )
+                }
             },
             dismissButton = {
                 TextButton(

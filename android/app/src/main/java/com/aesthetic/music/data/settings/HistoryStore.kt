@@ -2,8 +2,8 @@ package com.aesthetic.music.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.model.Song
-import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 /**
@@ -16,7 +16,7 @@ object HistoryStore {
     private const val KEY_SONGS = "history_songs"
 
     private var prefs: SharedPreferences? = null
-    private val gson = Gson()
+    private val gson = AppJson.gson
 
     /** 单线程后台写入器：JSON 序列化与落盘不占用调用线程（此前每次播放都在主线程序列化整组历史） */
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()

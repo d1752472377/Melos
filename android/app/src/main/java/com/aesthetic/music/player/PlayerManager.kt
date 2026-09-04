@@ -1,8 +1,12 @@
 package com.aesthetic.music.player
 
 import android.content.Context
+import android.net.Uri
 import android.os.SystemClock
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -12,6 +16,7 @@ import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.StatsTracker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -68,9 +73,22 @@ class PlayerManager private constructor(private val appContext: Context) {
     private val repository = MusicRepository()
 
     val player: ExoPlayer by lazy {
-        ExoPlayer.Builder(appContext).build().apply {
-            setPlaybackSpeed(SettingsStore.getPlaybackSpeed())
-        }
+        // handleAudioFocus=true：来电/导航/其他 App 播放时自动让出焦点（暂停或降音量）；
+        // setHandleAudioBecomingNoisy(true)：拔耳机（AUDIO_BECOMING_NOISY）自动暂停。
+        // 此前两者均未启用：通话中/拔耳机后音乐会继续外放
+        ExoPlayer.Builder(appContext)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                true,
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .build()
+            .apply {
+                setPlaybackSpeed(SettingsStore.getPlaybackSpeed())
+            }
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -97,20 +115,33 @@ class PlayerManager private constructor(private val appContext: Context) {
      * 不再 setMediaItem 覆盖新歌，杜绝"UI 显示 B 实际播 A"的串台。
      */
     private var playGeneration = 0L
+    /** 在途的取直链/播放任务：切歌时取消，避免过期请求继续耗流量 */
+    private var playJob: Job? = null
 
     /** 外部监听（系统悬浮胶囊 / MediaSession 等） */
     var onStateChanged: ((PlayerState) -> Unit)? = null
+
+    /** 歌曲真正开始播放后回调（写"最近播放"等用）。
+     *  此前"点击即写历史"：取直链失败的歌也会入历史，统计口径被污染 */
+    var onPlaybackStarted: ((Song) -> Unit)? = null
 
     init {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
                 if (isPlaying) {
-                    val key = _state.value.currentSong?.let { it.platform + ":" + it.id }
+                    val s = _state.value
+                    val song = s.currentSong
+                    val key = song?.let { it.platform + ":" + it.id }
                     if (key != null && key != statsSongKey) {
                         statsSongKey = key
-                        StatsTracker.onPlayStarted(_state.value.currentSong)
+                        StatsTracker.onPlayStarted(song)
+                        // 真正起播才写"最近播放"（此前"点击即写历史"，取直链失败的歌也入历史）
+                        if (song != null) onPlaybackStarted?.invoke(song)
                     }
+                } else {
+                    // 暂停瞬间立即落一次断点：轮询循环暂停时降频不再保存，这里保证暂停位置不丢
+                    saveSession()
                 }
                 notifyState()
             }
@@ -245,14 +276,18 @@ class PlayerManager private constructor(private val appContext: Context) {
         }
     }
 
-    private fun saveSession() {
+    /** 保存断点。positionOverride 供切歌路径显式传 0：
+     *  此前 next/previous/playQueue 都是"先 saveSession 再 playCurrent"，存下的是
+     *  "新歌 index + 旧歌进度"，进程在其后 ≤5s 被杀则新歌恢复到旧歌位置（常近曲尾），
+     *  进 READY 即触发 STATE_ENDED 的暂停逻辑 */
+    private fun saveSession(positionOverride: Long? = null) {
         val s = _state.value
         if (s.queue.isEmpty()) return
         PlayerSessionStore.save(
             com.aesthetic.music.data.settings.PlayerSession(
                 queue = s.queue,
                 currentIndex = s.currentIndex,
-                positionMs = player.currentPosition.takeIf { it > 0 } ?: _progress.value.positionMs,
+                positionMs = positionOverride ?: player.currentPosition.takeIf { it > 0 } ?: _progress.value.positionMs,
             )
         )
     }
@@ -265,7 +300,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         val idx = index.coerceIn(0, songs.lastIndex)
         pendingSeekMs = 0
         _state.value = _state.value.copy(queue = songs, currentIndex = idx, isLoading = true)
-        saveSession()
+        saveSession(positionOverride = 0L) // 新歌从头播，不能存下旧歌进度
         playCurrent()
     }
 
@@ -285,7 +320,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         if (index !in s.queue.indices) return
         pendingSeekMs = 0
         _state.value = s.copy(currentIndex = index, isLoading = true)
-        saveSession()
+        saveSession(positionOverride = 0L)
         playCurrent()
     }
 
@@ -301,7 +336,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                 if (newIndex >= newQueue.size) newIndex = newQueue.size - 1
                 if (newIndex >= 0) {
                     _state.value = s.copy(queue = newQueue, currentIndex = newIndex, isLoading = true)
-                    saveSession()
+                    saveSession(positionOverride = 0L) // 切到新歌，从头播
                     playCurrent()
                     return
                 } else {
@@ -322,6 +357,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     fun clearQueue() {
         player.stop()
         PlayerSessionStore.clear()
+        AudioCacheService.setProtectedPath(null)
         _state.value = PlayerState(playMode = _state.value.playMode, speed = _state.value.speed)
         notifyState()
     }
@@ -330,66 +366,80 @@ class PlayerManager private constructor(private val appContext: Context) {
         val s = _state.value
         val song = s.currentSong ?: return
         val gen = ++playGeneration
-        scope.launch {
-            // 重置歌词/进度
-            _progress.value = PlaybackProgress()
-            _state.value = _state.value.copy(lyrics = emptyList(), errorMessage = null)
-            val result = repository.getSongUrl(song, SettingsStore.getQuality().value)
-            result.onSuccess { data ->
-                // 请求在途期间用户已切歌：丢弃过期响应
-                if (gen != playGeneration) return@launch
-                val url = data.url
-                if (url.isNullOrBlank()) {
-                    val msg = "音源获取失败：可能是版权限制或无资源，换一首试试"
-                    _state.value = _state.value.copy(isLoading = false, lastError = msg)
-                    notifyState()
-                    return@launch
-                }
+        // 重置歌词/进度
+        _progress.value = PlaybackProgress()
+        _state.value = _state.value.copy(lyrics = emptyList(), errorMessage = null, isLoading = true)
+        // 取消上一首的在途取链请求（此前只靠代数丢弃结果，旧请求继续跑完白白耗流量）
+        playJob?.cancel()
+        playJob = scope.launch {
+            val quality = SettingsStore.getQuality().value
 
-                // 缓存命中播本地秒开，未命中播在线 + 后台缓存
-                val cached = withContext(Dispatchers.IO) {
-                    AudioCacheService.getCachedPath(appContext, song.platform, song.id)
-                }
-                var playPath = url
-                if (cached != null) {
-                    playPath = cached
-                } else {
-                    AudioCacheService.cacheAudio(
-                        context = appContext,
-                        platformCode = song.platform,
-                        songId = song.id,
-                        url = url,
-                        name = song.title,
-                        artist = song.artist,
-                        scope = scope,
-                    ) { localPath ->
-                        if (localPath != null) {
-                            android.util.Log.d("PlayerManager", "后台缓存完成: $localPath")
-                        }
+            // 先查本地缓存：命中直接播本地，不碰网络。
+            // 此前是"先联网取直链、成功后才查缓存"——飞行模式/直链接口故障时
+            // 已完整缓存的歌照样播不了，离线缓存价值为零
+            val cached = withContext(Dispatchers.IO) {
+                AudioCacheService.getCachedPath(appContext, song.platform, song.id, quality)
+            }
+            if (gen != playGeneration) return@launch
+            val onlineUrl: String? = if (cached != null) null else {
+                val r = repository.getSongUrl(song, quality)
+                if (r.isFailure) {
+                    if (gen == playGeneration) {
+                        _state.value = _state.value.copy(isLoading = false, lastError = friendlyError(r.exceptionOrNull()!!))
+                        notifyState()
                     }
                 }
-
-                val mediaItem = MediaItem.Builder()
-                    .setUri(playPath)
-                    .setMediaId(song.id)
-                    .setTag(song)
-                    .build()
-                player.setMediaItem(mediaItem)
-                player.setPlaybackSpeed(_state.value.speed)
-                player.setVolume(1f)
-                player.prepare()
-                if (pendingSeekMs > 0) {
-                    player.seekTo(pendingSeekMs.coerceAtLeast(0))
-                    _progress.value = PlaybackProgress(positionMs = pendingSeekMs)
-                    pendingSeekMs = 0
-                }
-                startPlaybackService()
-                player.play()
-            }.onFailure { e ->
-                if (gen != playGeneration) return@launch
-                _state.value = _state.value.copy(isLoading = false, lastError = friendlyError(e))
-                notifyState()
+                r.getOrNull()?.url
             }
+            if (gen != playGeneration) return@launch
+            if (cached == null && onlineUrl.isNullOrBlank()) return@launch // 错误已提示
+
+            val playPath = cached ?: onlineUrl!!
+            // 受保护路径 = 正在播放的本地缓存文件；在线播放时上一首的缓存文件不再受保护
+            AudioCacheService.setProtectedPath(cached)
+            if (cached == null) {
+                // 未命中：后台缓存（不阻塞播放）。上方 395 行已保证 onlineUrl 非空，这里再兜一层
+                val downloadUrl = onlineUrl ?: return@launch
+                AudioCacheService.cacheAudio(
+                    context = appContext,
+                    platformCode = song.platform,
+                    songId = song.id,
+                    quality = quality,
+                    url = downloadUrl,
+                    name = song.title,
+                    artist = song.artist,
+                    scope = scope,
+                ) { localPath ->
+                    if (localPath != null) {
+                        android.util.Log.d("PlayerManager", "后台缓存完成: $localPath")
+                    }
+                }
+            }
+
+            // MediaMetadata：通知栏/锁屏/蓝牙 AVRCP 的歌名歌手封面（此前为空，媒体通知全是空壳）
+            val mediaItem = MediaItem.Builder()
+                .setUri(playPath)
+                .setMediaId(song.id)
+                .setTag(song)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(song.title)
+                        .setArtist(song.artist)
+                        .setArtworkUri(song.artwork?.let { runCatching { Uri.parse(it) }.getOrNull() })
+                        .build()
+                )
+                .build()
+            player.setMediaItem(mediaItem)
+            player.setPlaybackSpeed(_state.value.speed)
+            player.setVolume(1f)
+            player.prepare()
+            if (pendingSeekMs > 0) {
+                player.seekTo(pendingSeekMs.coerceAtLeast(0))
+                _progress.value = PlaybackProgress(positionMs = pendingSeekMs)
+                pendingSeekMs = 0
+            }
+            startPlaybackService()
+            player.play()
 
             if (gen != playGeneration) return@launch
             loadLyrics(song, gen)
@@ -424,15 +474,19 @@ class PlayerManager private constructor(private val appContext: Context) {
                 val s = _state.value
                 if (s.currentIndex >= s.queue.lastIndex && s.currentIndex >= 0) {
                     // 顺序播放播完队列最后一首：停止（回到开头），不再无限循环回第一首
-                    saveSession()
+                    // 先 seek 回 0 再存断点：此前先存"整曲时长"，下次恢复 seek 到曲尾立刻 ENDED
                     player.pause()
                     player.seekTo(0)
                     _progress.value = PlaybackProgress()
+                    saveSession(positionOverride = 0L)
                 } else {
                     next()
                 }
             }
             PlayMode.REPEAT -> {
+                // 单曲循环重播：重置计数键，让本次重播被统计为一次新播放
+                // （此前 isPlaying 变化 + 同键拦截导致单曲循环用户的播放次数系统性漏计）
+                statsSongKey = null
                 player.seekTo(0)
                 player.play()
             }
@@ -442,8 +496,13 @@ class PlayerManager private constructor(private val appContext: Context) {
                     // 随机下一首：避免随机结果还是当前曲
                     val nextIndex = (0 until s.queue.size).filterNot { it == s.currentIndex }.random()
                     _state.value = s.copy(currentIndex = nextIndex, isLoading = true)
-                    saveSession()
+                    saveSession(positionOverride = 0L)
                     playCurrent()
+                } else {
+                    // 单曲队列 + 随机：按循环处理（此前什么都不做，播完直接卡死）
+                    statsSongKey = null
+                    player.seekTo(0)
+                    player.play()
                 }
             }
         }
@@ -455,13 +514,23 @@ class PlayerManager private constructor(private val appContext: Context) {
         if (player.isPlaying) {
             player.pause()
         } else {
-            if (player.playbackState == Player.STATE_IDLE && player.mediaItemCount == 0) {
-                _state.value.currentSong?.let {
+            when (player.playbackState) {
+                // 从未起播：正常走取链播放
+                Player.STATE_IDLE -> if (player.mediaItemCount == 0) {
+                    _state.value.currentSong?.let {
+                        _state.value = _state.value.copy(isLoading = true)
+                        playCurrent()
+                    }
+                } else {
+                    // 播放出错后 stop() 会留在 IDLE 但 mediaItemCount=1：
+                    // 只 play() 不带 prepare() 永远不出声（此前出错后播放键/通知栏/蓝牙全失灵），
+                    // 且同曲重试需要重置计数键以计入一次新播放
+                    statsSongKey = null
                     _state.value = _state.value.copy(isLoading = true)
-                    playCurrent()
+                    player.prepare()
+                    player.play()
                 }
-            } else {
-                player.play()
+                else -> player.play()
             }
         }
     }
@@ -476,7 +545,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         }
         pendingSeekMs = 0
         _state.value = s.copy(currentIndex = idx, isLoading = true)
-        saveSession()
+        saveSession(positionOverride = 0L)
         playCurrent()
     }
 
@@ -486,7 +555,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         val idx = (s.currentIndex - 1 + s.queue.size) % s.queue.size
         pendingSeekMs = 0
         _state.value = s.copy(currentIndex = idx, isLoading = true)
-        saveSession()
+        saveSession(positionOverride = 0L)
         playCurrent()
     }
 
@@ -503,22 +572,30 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     /** 开始轮询播放进度（同时做统计与断点保存）。
      *  进度只写 [progress] 流，不再 copy 整个 PlayerState：
-     *  播放期间 AppShell 与各内容页不会每 500ms 被拖着重组一次。 */
+     *  播放期间 AppShell 与各内容页不会每 500ms 被拖着重组一次。
+     *  暂停/无歌时降频空转：此前轮询一旦启动永不停止，暂停下也每 500ms 读位置、
+     *  每 5s 整队列 Gson 序列化落盘，大队列下持续空耗 CPU/IO/电。
+     *  暂停瞬间的断点由 onIsPlayingChanged 负责保存，这里暂停时不再周期写。 */
     fun startProgress() {
         if (progressJob?.isActive == true) return
         progressJob = scope.launch {
             var lastTick = SystemClock.elapsedRealtime()
             while (isActive) {
+                val s = _state.value
+                if (!s.isPlaying) {
+                    // 暂停/未起播：低频空转即可，不做任何 IO
+                    delay(1000)
+                    continue
+                }
                 val now = SystemClock.elapsedRealtime()
                 val delta = now - lastTick
                 lastTick = now
-                val s = _state.value
                 val pos = player.currentPosition.coerceAtLeast(0)
                 _progress.value = PlaybackProgress(
                     positionMs = pos,
                     durationMs = player.duration.takeIf { it > 0 } ?: _progress.value.durationMs,
                 )
-                if (s.isPlaying && s.currentSong != null && pos > 0) {
+                if (s.currentSong != null && pos > 0) {
                     StatsTracker.tick(s.currentSong!!, delta.coerceAtMost(2000), _progress.value.durationMs)
                 }
                 if (now - lastSessionSaveAt > 5000) {
@@ -552,22 +629,25 @@ class PlayerManager private constructor(private val appContext: Context) {
         val total = minutes * 60_000L
         _state.value = _state.value.copy(sleepRemainingMs = total)
         notifyState()
+        // 按 elapsedRealtime 截止时间计算剩余：此前 delay(1000) 逐秒自减，
+        // delay 抖动会累积、息屏 doze 挂起会让"30 分钟"实际显著拉长
         sleepJob = scope.launch {
-            var remain = total
-            while (isActive && remain > 0) {
-                delay(1000)
-                remain -= 1000
-                _state.value = _state.value.copy(sleepRemainingMs = remain.coerceAtLeast(0))
-                // 最后 10 秒线性淡出
-                if (remain in 1..10_000) {
-                    player.setVolume((remain / 10_000f).coerceIn(0f, 1f))
-                }
+            val deadline = SystemClock.elapsedRealtime() + total
+            while (isActive) {
+                val remain = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0)
                 if (remain <= 0) {
                     player.setVolume(1f)
                     player.pause()
                     _state.value = _state.value.copy(sleepRemainingMs = 0)
                     notifyState()
+                    return@launch
                 }
+                _state.value = _state.value.copy(sleepRemainingMs = remain)
+                // 最后 10 秒线性淡出
+                if (remain <= 10_000) {
+                    player.setVolume((remain / 10_000f).coerceIn(0f, 1f))
+                }
+                delay(200)
             }
         }
     }

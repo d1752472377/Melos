@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.theme.AccentAmber
@@ -62,6 +64,8 @@ fun DiscoverScreen(
     ranks: List<PlaylistItem>,
     isLoading: Boolean,
     isHotLoading: Boolean,
+    hotError: String? = null,
+    onRetryHot: () -> Unit = {},
     contentError: String? = null,
     onRetryContent: (() -> Unit)? = null,
     onOpenPlaylist: (PlaylistItem) -> Unit,
@@ -72,9 +76,8 @@ fun DiscoverScreen(
     val hotRows = androidx.compose.runtime.remember(hotPlaylists) { hotPlaylists.chunked(2) }
     Box(modifier = Modifier.fillMaxSize()) {
         if (isLoading && dailyPlaylists.isEmpty() && newSongs.isEmpty() && ranks.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("正在探索音乐库…", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-            }
+            // 页面整体加载态：统一走 LoadingBox（居中 spinner + 文案），contentError 错误分支保持不变
+            LoadingBox(message = "探索内容中…")
             return@Box
         }
 
@@ -110,7 +113,7 @@ fun DiscoverScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = 150.dp // 避开底栏 Dock
+                bottom = BottomBarReserved // 避开底栏 Dock
             )
         ) {
             // 顶栏标题
@@ -142,7 +145,8 @@ fun DiscoverScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
-                        items(dailyPlaylists, key = { it.id }) { item ->
+                        // 行号参与 key：同 id/空 id 兜底时避免 LazyList key 碰撞崩溃
+                        itemsIndexed(dailyPlaylists, key = { i, it -> "d$i:${it.id}" }) { _, item ->
                             PlaylistCard(item = item, width = 124.dp, onClick = { onOpenPlaylist(item) })
                         }
                     }
@@ -172,7 +176,8 @@ fun DiscoverScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
-                        items(ranks.take(12), key = { it.id }) { item ->
+                        // 行号参与 key：同 id/空 id 兜底时避免 LazyList key 碰撞崩溃
+                        itemsIndexed(ranks.take(12), key = { i, it -> "r$i:${it.id}" }) { _, item ->
                             PlaylistCard(item = item, width = 124.dp, onClick = { onOpenRank(item) })
                         }
                     }
@@ -202,6 +207,30 @@ fun DiscoverScreen(
 
             if (isHotLoading && hotPlaylists.isEmpty()) {
                 item(key = "hot_loading") { Text("热门歌单加载中…", color = TextSoft, style = MaterialTheme.typography.bodySmall) }
+            }
+
+            // 热门歌单加载失败：此前失败静默、区块直接消失，无任何重试入口
+            if (!isHotLoading && hotPlaylists.isEmpty() && !hotError.isNullOrEmpty()) {
+                item(key = "hot_error") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "热门歌单加载失败：$hotError",
+                            color = TextSoft,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "重试",
+                            color = PrimaryBrown,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = onRetryHot)
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                }
             }
         }
     }

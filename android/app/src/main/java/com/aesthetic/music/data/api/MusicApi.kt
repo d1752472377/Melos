@@ -340,7 +340,57 @@ interface MusicApi {
 
     @GET("api/user/stats")
     suspend fun userStats(): ApiResponse<UserStatsDto>
+
+    // ==================== 私有云同步 & 音源脚本 ====================
+
+    @GET("api/sync/ping")
+    suspend fun syncPing(): ApiResponse<SyncPingData>
+
+    @GET("api/sync/pull")
+    suspend fun syncPull(): ApiResponse<CloudSyncPullData>
+
+    @POST("api/sync/push")
+    suspend fun syncPush(@Body body: SyncPushBody): ApiResponse<Any>
+
+    @GET("api/scripts/active")
+    suspend fun getActiveScript(): ApiResponse<CloudScriptDto>
 }
+
+/** 私有云同步数据包 */
+data class CloudSyncPullData(
+    val script: CloudScriptDto? = null,
+    val favorites: List<Song> = emptyList(),
+    val history: List<Song> = emptyList(),
+    val playlists: List<CloudPlaylistDto> = emptyList(),
+    val syncedAt: String? = null,
+)
+
+data class CloudScriptDto(
+    val id: String = "",
+    val name: String = "",
+    val version: String = "",
+    val content: String = "",
+    val status: String? = null,
+    val statusMessage: String? = null,
+)
+
+data class CloudPlaylistDto(
+    val id: String = "",
+    val name: String = "",
+    val coverUrl: String? = null,
+    val songs: List<Song> = emptyList(),
+)
+
+data class SyncPushBody(
+    val favorites: List<Song>? = null,
+    val history: List<Song>? = null,
+    val playlists: List<CloudPlaylistDto>? = null,
+)
+
+data class SyncPingData(
+    val serverTime: Long = 0L,
+    val syncEnabled: Boolean = false,
+)
 
 /** 每日推荐 */
 data class DailyData(

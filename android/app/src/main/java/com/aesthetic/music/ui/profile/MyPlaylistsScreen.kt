@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -48,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -90,7 +91,7 @@ fun MyPlaylistsScreen(
                 top = 28.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = 150.dp // 保证下滑到底部时不会被底栏播放器遮挡
+                bottom = BottomBarReserved // 保证下滑到底部时不会被底栏播放器遮挡
             )
         ) {
             // 顶栏 Header
@@ -160,20 +161,7 @@ fun MyPlaylistsScreen(
             // 空状态
             if (playlists.isEmpty()) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 80.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                                contentDescription = null,
-                                tint = TextSoft,
-                                modifier = Modifier.size(56.dp),
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text("还没有自建歌单", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(4.dp))
-                            Text("点击右上角「新建歌单」开始整理你的音乐", color = TextSoft, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
+                    EmptyBox("还没有自建歌单\n点击右上角「新建歌单」开始整理你的音乐")
                 }
             } else {
                 items(playlists, key = { it.id }) { p ->
@@ -346,7 +334,6 @@ private fun NameDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Surface, // 强制指定为应用统一的卡片背景，覆盖默认紫光
-        shape = RoundedCornerShape(20.dp),
         title = {
             Text(
                 text = title,

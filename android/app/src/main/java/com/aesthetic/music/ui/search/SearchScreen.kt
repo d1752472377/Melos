@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,6 +55,9 @@ import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.EmptyBox
+import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.theme.Background
@@ -114,7 +116,7 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = 150.dp),
+                .padding(bottom = BottomBarReserved),
         ) {
             // ===== 顶部：返回 + 搜索框 =====
             Row(
@@ -200,8 +202,9 @@ fun SearchScreen(
             }
 
             // 自动聚焦搜索框
+            // 仅在无关键词时自动聚焦：从歌手页等返回且已有搜索结果时不再顶起键盘
             LaunchedEffect(Unit) {
-                focusRequester.requestFocus()
+                if (query.isBlank()) focusRequester.requestFocus()
             }
 
             Spacer(Modifier.height(14.dp))
@@ -321,9 +324,7 @@ fun SearchScreen(
                 Column(Modifier.fillMaxSize()) {
                     when {
                         isSearching && allResultsEmpty(searchType, songResults, lyricResults, artistResults, playlistResults, albumResults) -> {
-                            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = PrimaryBrown, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
-                            }
+                            LoadingBox(message = "搜索中…", modifier = Modifier.weight(1f).fillMaxWidth())
                         }
 
                         else -> when (searchType) {
@@ -679,9 +680,8 @@ private fun PlatformBadge(platform: String?) {
 
 @Composable
 private fun EmptyHint(text: String) {
-    Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
-        Text(text, color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-    }
+    // 统一空态组件（各结果类型文案不变；emptyHint/searchError 仍只在列表为空时传入）
+    EmptyBox(message = text)
 }
 
 private fun allResultsEmpty(

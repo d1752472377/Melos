@@ -1,5 +1,6 @@
 package com.aesthetic.music.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,7 +73,6 @@ fun SongCover(
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(url)
-                    .crossfade(true)
                     .crossfade(200)
                     .build(),
                 contentDescription = null,
@@ -125,23 +127,25 @@ fun WaveBars(
     }
 }
 
-/** 旋转唱片（底部 Dock 中央的小 CD） */
+/** 旋转唱片（底部 Dock 中央的小 CD）：仅 [isPlaying] 时匀速旋转，暂停时停在当前角度不跳变 */
 @Composable
 fun RotatingDisc(
     url: String?,
     modifier: Modifier = Modifier,
+    isPlaying: Boolean = false,
     durationMs: Int = 20_000,
 ) {
-    val transition = rememberInfiniteTransition()
-    val angle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMs, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "discSpin",
-    )
+    val rotation = remember { Animatable(0f) }
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            var last = rotation.value
+            while (true) {
+                val target = ((last / 360f).toInt() + 1) * 360f
+                rotation.animateTo(target, tween(durationMs, easing = LinearEasing))
+                last = target
+            }
+        }
+    }
     Box(modifier.clip(CircleShape).background(Stone200)) {
         if (!url.isNullOrBlank()) {
             AsyncImage(
@@ -149,14 +153,14 @@ fun RotatingDisc(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { rotationZ = angle },
+                    .graphicsLayer { rotationZ = rotation.value },
                 contentScale = ContentScale.Crop,
             )
         } else {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { rotationZ = angle }
+                    .graphicsLayer { rotationZ = rotation.value }
                 .background(Stone200)
             )
         }

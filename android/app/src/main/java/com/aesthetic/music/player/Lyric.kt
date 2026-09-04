@@ -9,13 +9,18 @@ data class LyricLine(
 
 /**
  * 解析 LRC 歌词为带时间戳的歌词行。
- * 支持 "[mm:ss.xx]文本" 或 "[mm:ss]文本"，支持一行多个时间标签。
+ * 支持 "[mm:ss.xx]文本" 或 "[mm:ss]文本"，支持一行多个时间标签，
+ * 以及 LRC 元标签 [offset:±ms]（整体平移；此前被忽略，带 offset 的歌词会整体偏移）。
  */
 fun parseLrc(lrc: String?): List<LyricLine> {
     if (lrc.isNullOrBlank()) return emptyList()
+    // 先提取 [offset:±ms] 整体偏移（可正可负，单位毫秒），并剔除元标签行
+    val offsetMatch = Regex("""\[offset:\s*(-?\d+)\s*\]""").find(lrc)
+    val offsetMs = offsetMatch?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
+    val body = if (offsetMatch != null) lrc.replace(offsetMatch.value, "") else lrc
     val regex = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?]""")
     val lines = mutableListOf<LyricLine>()
-    for (raw in lrc.lineSequence()) {
+    for (raw in body.lineSequence()) {
         val matches = regex.findAll(raw).toList()
         if (matches.isEmpty()) continue
         val text = raw.replace(regex, "").trim()
@@ -32,7 +37,7 @@ fun parseLrc(lrc: String?): List<LyricLine> {
                 2 -> fracStr.toLongOrNull()?.times(10) ?: 0L
                 else -> fracStr.take(3).toLongOrNull() ?: 0L
             }
-            lines.add(LyricLine(min * 60_000 + sec * 1000 + frac, text))
+            lines.add(LyricLine((min * 60_000 + sec * 1000 + frac + offsetMs).coerceAtLeast(0), text))
         }
     }
     return lines.sortedBy { it.timeMs }

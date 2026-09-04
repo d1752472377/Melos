@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -68,7 +70,7 @@ fun FavoritesScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = 150.dp),
+                .padding(bottom = BottomBarReserved),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -140,19 +142,7 @@ fun FavoritesScreen(
             Spacer(Modifier.height(16.dp))
 
             if (songs.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 80.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Filled.Favorite,
-                            contentDescription = null,
-                            tint = TextSoft,
-                            modifier = Modifier.size(44.dp),
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Text("还没有收藏的歌曲", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                        Text("在歌曲列表点击 ♡ 即可收藏", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
+                EmptyBox("还没有收藏的歌曲\n在歌曲列表点击 ♡ 即可收藏")
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp)

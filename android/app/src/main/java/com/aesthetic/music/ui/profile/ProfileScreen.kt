@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.ChevronRight
@@ -27,16 +26,10 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,14 +37,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aesthetic.music.data.api.UserInfo
-import com.aesthetic.music.data.api.UserStatsDto
 import com.aesthetic.music.data.settings.LocalStats
-import com.aesthetic.music.data.settings.StatsStore
+import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.player.AudioCacheService
+import com.aesthetic.music.ui.components.BottomBarReserved
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
@@ -66,29 +57,25 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 个人中心：精致仪表盘质感 + 多维度活泼色彩。
+ * 个人中心：本地优先仪表盘 + 私有云同步状态
  */
 @Composable
 fun ProfileScreen(
-    user: UserInfo?,
     localStats: LocalStats,
-    cloudStats: UserStatsDto?,
-    cloudStatsLoading: Boolean = false,
     historyCount: Int,
     favoritesCount: Int,
     cacheCount: Int,
     cacheSize: Long,
+    isSyncConfigured: Boolean,
+    isSyncing: Boolean,
+    activeScript: ScriptMetadata?,
     onOpenSettings: () -> Unit,
     onOpenRecent: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenCacheList: () -> Unit,
     onOpenMyPlaylists: () -> Unit,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit,
-    onUpdateNickname: (String) -> Unit,
+    onSyncClick: () -> Unit,
 ) {
-    var showNicknameDialog by remember { mutableStateOf(false) }
-
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -97,7 +84,7 @@ fun ProfileScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = 150.dp // 留足底栏避让高度
+                bottom = BottomBarReserved
             )
         ) {
             // 顶栏
@@ -119,8 +106,8 @@ fun ProfileScreen(
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = "我的音乐资产与听歌足迹",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "本地优先 · 私有云同步 · 自由音源",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = TextSoft
                         )
                     }
@@ -144,29 +131,25 @@ fun ProfileScreen(
                 }
             }
 
-            // 用户信息卡片 (Level 1 Hero Card: 14dp)
+            // 用户中心信息卡片
             item(key = "profile_user_card") {
                 UserCard(
-                    user = user,
+                    isSyncConfigured = isSyncConfigured,
+                    isSyncing = isSyncing,
+                    activeScript = activeScript,
                     historyCount = historyCount,
                     favoritesCount = favoritesCount,
-                    onLogin = onLogin,
-                    onEditNickname = { showNicknameDialog = true },
-                    onLogout = onLogout,
+                    onSyncClick = onSyncClick,
+                    onOpenSettings = onOpenSettings,
                 )
             }
 
-            // 听歌统计卡片 (仪表盘质感: 12dp)
+            // 听歌统计卡片
             item(key = "profile_stats_card") {
-                StatsCard(
-                    localStats = localStats,
-                    cloudStats = cloudStats,
-                    isLoggedIn = user != null,
-                    cloudLoading = cloudStatsLoading,
-                )
+                StatsCard(localStats = localStats)
             }
 
-            // 资料库卡片 (列表容器: 12dp)
+            // 资料库卡片
             item(key = "profile_library_card") {
                 LibraryCard(
                     historyCount = historyCount,
@@ -182,27 +165,17 @@ fun ProfileScreen(
             }
         }
     }
-
-    if (showNicknameDialog) {
-        NicknameDialog(
-            current = user?.nickname ?: "",
-            onDismiss = { showNicknameDialog = false },
-            onConfirm = { nickname ->
-                onUpdateNickname(nickname)
-                showNicknameDialog = false
-            },
-        )
-    }
 }
 
 @Composable
 private fun UserCard(
-    user: UserInfo?,
+    isSyncConfigured: Boolean,
+    isSyncing: Boolean,
+    activeScript: ScriptMetadata?,
     historyCount: Int,
     favoritesCount: Int,
-    onLogin: () -> Unit,
-    onEditNickname: () -> Unit,
-    onLogout: () -> Unit,
+    onSyncClick: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val bgGradient = if (Palette.isDark) {
         Brush.linearGradient(listOf(Color(0xFF3730A3), Color(0xFF1E1B4B)))
@@ -232,7 +205,7 @@ private fun UserCard(
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = if (user != null) user.nickname.ifBlank { user.username } else "Melos 音乐人",
+                    text = "Melos 个人音乐",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
@@ -241,90 +214,46 @@ private fun UserCard(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = if (user != null) "最近播放 $historyCount 首 · 收藏 $favoritesCount 首"
-                    else "登录后享受云端收藏与播放同步",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 11.sp
-                    ),
-                    color = Color.White.copy(alpha = 0.8f),
+                    text = if (activeScript != null) "音源: [${activeScript.name} v${activeScript.version}]" else "暂未安装音源脚本",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = Color.White.copy(alpha = 0.85f),
+                    maxLines = 1
+                )
+                Text(
+                    text = "最近播放 $historyCount 首 · 收藏 $favoritesCount 首",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                    color = Color.White.copy(alpha = 0.7f),
                 )
             }
-            if (user == null) {
-                // Level 1 主操作白底胶囊
-                Box(
-                    modifier = Modifier
-                        .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.1f))
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
-                        .clickable(onClick = onLogin)
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
-                ) {
-                    Text(
-                        text = "登录 / 注册",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = PrimaryBrown
-                    )
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .clickable(onClick = onEditNickname)
-                            .padding(horizontal = 9.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = "昵称",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = Color.White,
-                        )
+            // 操作按钮
+            Box(
+                modifier = Modifier
+                    .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.1f))
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .clickable {
+                        if (isSyncConfigured) onSyncClick() else onOpenSettings()
                     }
-                    Box(
-                        modifier = Modifier
-                            .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .clickable(onClick = onLogout)
-                            .padding(horizontal = 9.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = "退出",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = Color.White,
-                        )
-                    }
-                }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Text(
+                    text = if (isSyncConfigured) (if (isSyncing) "同步中…" else "⟳ 一键同步") else "☁️ 配置同步",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = PrimaryBrown
+                )
             }
         }
     }
 }
 
 @Composable
-private fun StatsCard(
-    localStats: LocalStats,
-    cloudStats: UserStatsDto?,
-    isLoggedIn: Boolean,
-    cloudLoading: Boolean = false,
-) {
-    val totalPlayMs = if (isLoggedIn && cloudStats != null) cloudStats.totalPlayMs else localStats.totalPlayMs
-    val totalPlays = if (isLoggedIn && cloudStats != null) cloudStats.totalPlays else localStats.totalPlays
-    val todayPlayMs = if (isLoggedIn && cloudStats != null) cloudStats.todayPlayMs else localStats.dayPlayMs
-    val topArtist = cloudStats?.topArtists?.firstOrNull()?.artist
-
-    // 徽标三态：已登录但云端数据未就绪时数值其实是本机的，
-    // 不能标"云端实时"造成自相矛盾（原先正是这个 bug）
-    val badgeText: String
-    val badgeColor: Color
-    when {
-        isLoggedIn && cloudStats != null -> { badgeText = "云端实时"; badgeColor = AccentAmber }
-        isLoggedIn && cloudLoading -> { badgeText = "云端同步中…"; badgeColor = AccentCyan }
-        else -> { badgeText = "本机统计"; badgeColor = TextSoft }
-    }
+private fun StatsCard(localStats: LocalStats) {
+    val totalPlayMs = localStats.totalPlayMs
+    val totalPlays = localStats.totalPlays
+    val todayPlayMs = localStats.dayPlayMs
 
     Column(
         modifier = Modifier
@@ -358,76 +287,44 @@ private fun StatsCard(
             }
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(badgeColor.copy(alpha = 0.12f))
-                    .padding(horizontal = 6.dp, vertical = 2.5.dp)
+                    .border(0.5.dp, Stone200, RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Stone100)
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = badgeText,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    color = badgeColor
+                    text = "本机本地",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = TextSoft
                 )
             }
         }
 
         Spacer(Modifier.height(14.dp))
 
-        Row(Modifier.fillMaxWidth()) {
-            StatItem("累计时长", StatsStore.formatDuration(totalPlayMs), AccentMint, Modifier.weight(1f))
-            StatItem("累计播放", "$totalPlays 次", AccentCyan, Modifier.weight(1f))
-            StatItem("今日专注", StatsStore.formatDuration(todayPlayMs), AccentCoral, Modifier.weight(1f))
-        }
-
-        if (!topArtist.isNullOrBlank()) {
-            Spacer(Modifier.height(12.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Stone100.copy(alpha = 0.5f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "最常听歌手：$topArtist",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 11.sp
-                    ),
-                    color = TextSoft,
-                )
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            StatItem(label = "累计听歌", value = formatDuration(totalPlayMs), accent = AccentAmber, modifier = Modifier.weight(1f))
+            StatItem(label = "播放次数", value = "${totalPlays}次", accent = AccentCoral, modifier = Modifier.weight(1f))
+            StatItem(label = "今日收听", value = formatDuration(todayPlayMs), accent = AccentCyan, modifier = Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun StatItem(label: String, value: String, barColor: Color, modifier: Modifier = Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+private fun StatItem(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            ),
-            color = TextPrimary,
-            textAlign = TextAlign.Center
+            style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+            color = accent
         )
-        Spacer(Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .width(18.dp)
-                .height(2.dp)
-                .clip(RoundedCornerShape(1.dp))
-                .background(barColor)
-        )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 11.sp
-            ),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
             color = TextSoft
         )
     }
@@ -450,148 +347,85 @@ private fun LibraryCard(
             .fillMaxWidth()
             .border(1.dp, Stone200, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(Surface),
+            .background(Surface)
+            .padding(vertical = 4.dp),
     ) {
-        LibraryRow(
-            icon = Icons.Filled.Favorite,
-            iconTint = AccentCoral,
-            iconBg = if (Palette.isDark) Color(0xFF33171D) else Color(0xFFFFEEF1),
-            label = "我的收藏",
-            subtitle = "$favoritesCount 首心动歌曲",
-            onClick = onOpenFavorites
-        )
-        Divider()
-        LibraryRow(
+        LibraryItem(
             icon = Icons.Filled.History,
             iconTint = AccentCyan,
-            iconBg = if (Palette.isDark) Color(0xFF142436) else Color(0xFFEEF5FF),
-            label = "最近播放",
-            subtitle = "$historyCount 首足迹",
+            title = "最近播放",
+            badge = "${historyCount}首",
             onClick = onOpenRecent
         )
-        Divider()
-        LibraryRow(
+        LibraryItem(
+            icon = Icons.Filled.Favorite,
+            iconTint = AccentCoral,
+            title = "我的收藏",
+            badge = "${favoritesCount}首",
+            onClick = onOpenFavorites
+        )
+        LibraryItem(
             icon = Icons.AutoMirrored.Filled.QueueMusic,
             iconTint = AccentAmber,
-            iconBg = if (Palette.isDark) Color(0xFF332512) else Color(0xFFFFF7EB),
-            label = "我的歌单",
-            subtitle = "自建歌单 · 支持多端同步",
-            onClick = onOpenMyPlaylists,
+            title = "我的歌单",
+            badge = "自建歌单",
+            onClick = onOpenMyPlaylists
         )
-        Divider()
-        LibraryRow(
+        LibraryItem(
             icon = Icons.Filled.DownloadDone,
             iconTint = AccentMint,
-            iconBg = if (Palette.isDark) Color(0xFF142E25) else Color(0xFFEBFBF5),
-            label = "本地缓存",
-            subtitle = "$cacheCount 首 · ${AudioCacheService.formatSize(cacheSize)}",
-            onClick = onOpenCacheList,
-        )
-        Divider()
-        LibraryRow(
-            icon = Icons.Filled.Settings,
-            iconTint = PrimaryBrown,
-            iconBg = if (Palette.isDark) Color(0xFF28233C) else Color(0xFFF1F0FE),
-            label = "应用设置",
-            subtitle = "音质输出、外观主题与悬浮胶囊",
-            onClick = onOpenSettings,
+            title = "本地缓存",
+            badge = if (cacheCount > 0) "${cacheCount}首 · ${AudioCacheService.formatSize(cacheSize)}" else "暂无",
+            onClick = onOpenCacheList
         )
     }
 }
 
 @Composable
-private fun LibraryRow(
+private fun LibraryItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconTint: Color,
-    iconBg: Color,
-    label: String,
-    subtitle: String,
-    onClick: () -> Unit,
+    title: String,
+    badge: String,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(iconBg),
-            contentAlignment = Alignment.Center,
+                .background(iconTint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(17.dp))
         }
         Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = TextPrimary
-            )
-            Spacer(Modifier.height(1.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 11.sp
-                ),
-                color = TextSoft,
-                maxLines = 1
-            )
-        }
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSoft, modifier = Modifier.size(16.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            color = TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = badge,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+            color = TextSoft
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
     }
 }
 
-@Composable
-private fun NicknameDialog(
-    current: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var input by remember { mutableStateOf(current) }
-    val canSave = input.trim().isNotEmpty()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("修改昵称", fontWeight = FontWeight.Bold) },
-        text = {
-            BasicTextField(
-                value = input,
-                onValueChange = { if (it.length <= 24) input = it },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Stone100)
-                    .padding(12.dp),
-            )
-        },
-        confirmButton = {
-            // 空白昵称会被 VM 静默丢弃，直接禁用保存避免"点了没反应"的困惑
-            TextButton(
-                onClick = { onConfirm(input.trim()) },
-                enabled = canSave,
-            ) { Text("保存", color = PrimaryBrown, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = TextSoft) }
-        },
-    )
-}
-
-@Composable
-private fun Divider() {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp)
-            .height(1.dp)
-            .background(Stone200.copy(alpha = 0.5f))
-    )
+private fun formatDuration(ms: Long): String {
+    if (ms <= 0) return "0分"
+    val s = ms / 1000
+    val m = s / 60
+    val h = m / 60
+    return if (h > 0) "${h}小时${m % 60}分" else "${m}分"
 }

@@ -19,10 +19,13 @@ object CrashHandler {
 
     fun init(context: Context) {
         pruneOldLogs(context)
+        val appContext = context.applicationContext
         val default = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
-                val dir = File(context.getExternalFilesDir(null), "crash").apply { mkdirs() }
+                // 外部存储挂载不可用时（部分 ROM 存储紧张/权限异常）退回内部存储，
+                // 此前 getExternalFilesDir 返回 null 直接 NPE 被吞，崩溃日志静默丢失
+                val dir = File(appContext.getExternalFilesDir(null) ?: appContext.filesDir, "crash").apply { mkdirs() }
                 val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
                 val sw = StringWriter()
                 throwable.printStackTrace(PrintWriter(sw))
@@ -44,7 +47,7 @@ object CrashHandler {
 
     private fun pruneOldLogs(context: Context) {
         try {
-            val dir = File(context.getExternalFilesDir(null), "crash")
+            val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "crash")
             val logs = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: return
             logs.drop(MAX_LOG_FILES).forEach { it.delete() }
         } catch (_: Exception) {

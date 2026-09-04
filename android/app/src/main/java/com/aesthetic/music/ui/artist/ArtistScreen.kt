@@ -37,6 +37,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.ErrorBox
+import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.Background
@@ -78,7 +81,7 @@ fun ArtistScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = 150.dp) // 避开底栏悬浮 Dock
+                .padding(bottom = BottomBarReserved) // 避开底栏悬浮 Dock
         ) {
             // 顶栏：返回 + 标题 + 播放全部
             Row(
@@ -196,38 +199,19 @@ fun ArtistScreen(
             Spacer(Modifier.height(16.dp))
 
             // 热门歌曲列表
-            if (!isLoading && songs.isEmpty()) {
-                // 失败与"歌手无作品"必须可区分：失败时显示原因并提供重试
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 60.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = errorMessage ?: "暂无相关歌曲",
-                            color = TextSoft,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        if (errorMessage != null && onRetry != null) {
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                text = "重试",
-                                color = PrimaryBrown,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(onClick = onRetry)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                            )
-                        }
-                    }
-                }
+            if (isLoading && songs.isEmpty()) {
+                // 首次加载：列表区统一 LoadingBox（居中 spinner + 文案），原先只有副标题文字、列表区纯空白
+                LoadingBox(message = "探索音乐库中…")
+            } else if (!isLoading && songs.isEmpty()) {
+                // 失败与"歌手无作品"必须可区分：失败时显示原因并提供重试（行为不变，统一走 ErrorBox）
+                ErrorBox(
+                    message = errorMessage ?: "暂无相关歌曲",
+                    onRetry = if (errorMessage != null) onRetry else null,
+                )
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    itemsIndexed(songs, key = { _, s -> s.platform + ":" + s.id }) { position, song ->
+                    // 行号参与 key：同曲重复入列时避免 LazyList key 碰撞崩溃
+                    itemsIndexed(songs, key = { i, s -> "a$i:${s.platform}:${s.id}" }) { position, song ->
                         ArtistSongRow(
                             index = position + 1,
                             song = song,

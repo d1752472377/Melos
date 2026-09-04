@@ -21,6 +21,20 @@ import { dirname } from 'node:path';
  */
 
 const SCHEMA = `
+    CREATE TABLE IF NOT EXISTS scripts (
+      id              TEXT PRIMARY KEY,
+      name            TEXT NOT NULL,
+      version         TEXT NOT NULL DEFAULT '',
+      description     TEXT NOT NULL DEFAULT '',
+      content         TEXT NOT NULL,
+      is_active       INTEGER NOT NULL DEFAULT 0,
+      status          TEXT NOT NULL DEFAULT 'untested',
+      status_message  TEXT NOT NULL DEFAULT '',
+      last_checked_at TEXT DEFAULT NULL,
+      created_at      TEXT DEFAULT (datetime('now')),
+      updated_at      TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS sources (
       id         TEXT PRIMARY KEY,
       name       TEXT NOT NULL,
@@ -479,3 +493,65 @@ export async function getUserStats(db, userId) {
     weekChart,
   };
 }
+
+// ==================== 音源脚本管理 ====================
+
+export async function listScripts(db) {
+  return db.prepare(
+    'SELECT id, name, version, description, is_active, status, status_message, last_checked_at, created_at, updated_at FROM scripts ORDER BY is_active DESC, updated_at DESC'
+  ).all();
+}
+
+export async function getActiveScript(db) {
+  return db.prepare(
+    'SELECT * FROM scripts WHERE is_active = 1 LIMIT 1'
+  ).get();
+}
+
+export async function getScript(db, id) {
+  return db.prepare(
+    'SELECT * FROM scripts WHERE id = ?'
+  ).get(id);
+}
+
+export async function insertScript(db, { id, name, version = '', description = '', content, isActive = 0 }) {
+  if (isActive) {
+    await db.prepare('UPDATE scripts SET is_active = 0').run();
+  }
+  await db.prepare(
+    'INSERT INTO scripts (id, name, version, description, content, is_active, status, status_message, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
+  ).run(id, name, version, description, content, isActive ? 1 : 0, 'untested', '');
+  return getScript(db, id);
+}
+
+export async function updateScript(db, id, fields) {
+  const cur = await getScript(db, id);
+  if (!cur) return null;
+  const name = fields.name ?? cur.name;
+  const version = fields.version ?? cur.version;
+  const description = fields.description ?? cur.description;
+  const content = fields.content ?? cur.content;
+
+  await db.prepare(
+    'UPDATE scripts SET name = ?, version = ?, description = ?, content = ?, updated_at = datetime(\'now\') WHERE id = ?'
+  ).run(name, version, description, content, id);
+  return getScript(db, id);
+}
+
+export async function setActiveScript(db, id) {
+  await db.prepare('UPDATE scripts SET is_active = 0').run();
+  await db.prepare('UPDATE scripts SET is_active = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id);
+  return getScript(db, id);
+}
+
+export async function updateScriptStatus(db, id, { status, statusMessage = '' }) {
+  await db.prepare(
+    'UPDATE scripts SET status = ?, status_message = ?, last_checked_at = datetime(\'now\'), updated_at = datetime(\'now\') WHERE id = ?'
+  ).run(status, statusMessage, id);
+  return getScript(db, id);
+}
+
+export async function deleteScript(db, id) {
+  return db.prepare('DELETE FROM scripts WHERE id = ?').run(id);
+}
+

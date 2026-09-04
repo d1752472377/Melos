@@ -20,9 +20,10 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   host: process.env.HOST || '127.0.0.1',
 
-  // 管理端登录账号
+  // 管理端登录账号与同步密钥
   adminUser: process.env.ADMIN_USER || 'admin',
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  syncToken: process.env.SYNC_TOKEN || process.env.ADMIN_PASSWORD || 'melos_sync_secret',
 
   // 跨域：'*' = 全放开（默认，学习项目）；逗号分隔白名单（如 'https://a.com,https://b.com'）
   corsOrigin: process.env.CORS_ORIGIN || '*',

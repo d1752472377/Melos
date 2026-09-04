@@ -6,18 +6,21 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 
 private val LightAmber = Color(0xFFFEF3C7)
 private val DarkAmber = Color(0xFF3E2F14)
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF534332),
+    primary = Color(0xFF5352ED),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFEFEAD8),
     onPrimaryContainer = Color(0xFF786244),
-    secondary = Color(0xFFF59E0B),
+    secondary = Color(0xFF7B61FF),
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = LightAmber,
     onSecondaryContainer = Color(0xFFB45309),
@@ -32,7 +35,7 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF8A7354),
+    primary = Color(0xFF7052FF),
     onPrimary = Color(0xFF1E1E22),
     primaryContainer = Color(0xFF2E2A22),
     onPrimaryContainer = Color(0xFFD8C9A8),
@@ -50,19 +53,30 @@ private val DarkColors = darkColorScheme(
     error = Color(0xFFF43F5E),
 )
 
-// 全局少圆角：普通组件（卡片/弹窗/按钮）全部矩形，层次靠颜色与间距区分
+// 全局圆角体系：小圆角（8/10/14/18/22dp），层次靠颜色与间距区分
 private val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(0.dp),
-    small = RoundedCornerShape(0.dp),
-    medium = RoundedCornerShape(0.dp),
-    large = RoundedCornerShape(0.dp),
-    extraLarge = RoundedCornerShape(0.dp),
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(18.dp),
+    extraLarge = RoundedCornerShape(22.dp),
 )
 
 @Composable
 fun AestheticMusicTheme(content: @Composable () -> Unit) {
+    val isDark = Palette.isDark
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? android.app.Activity)?.window
+            if (window != null) {
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDark
+                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !isDark
+            }
+        }
+    }
     MaterialTheme(
-        colorScheme = if (Palette.isDark) DarkColors else LightColors,
+        colorScheme = if (isDark) DarkColors else LightColors,
         typography = AppTypography,
         shapes = AppShapes,
         content = content,

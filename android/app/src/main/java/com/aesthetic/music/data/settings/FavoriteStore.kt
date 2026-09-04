@@ -2,8 +2,8 @@ package com.aesthetic.music.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.model.Song
-import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 /**
@@ -16,7 +16,7 @@ object FavoriteStore {
     private const val KEY_SONGS = "favorite_songs"
 
     private var prefs: SharedPreferences? = null
-    private val gson = Gson()
+    private val gson = AppJson.gson
 
     /** 单线程后台写入器：序列化与落盘移出调用线程 */
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()

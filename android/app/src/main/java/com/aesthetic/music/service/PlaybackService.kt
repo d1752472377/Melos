@@ -38,6 +38,11 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         SettingsStore.init(this)
         val player = PlayerManager.get(this).player
+        // media3 1.4.1 的 MediaSession.Builder 没有 (context, player, callback) 三参构造，
+        // MediaSession.Callback 也没有可覆写的 onSeekToNext/PreviousMediaItem（切歌命令
+        // 由 player 的 timeline 可用性决定，session 不提供拦截点）——此前那次"修复"编不过。
+        // 蓝牙 AVRCP/线控的上一首/下一首依赖 player.hasNextMediaItem()：单曲 setMediaItem
+        // 模式下为 no-op，属已知限制，正确修法是把整个队列放进 timeline（后续版本再做）。
         mediaSession = MediaSession.Builder(this, player).build()
     }
 
@@ -97,7 +102,14 @@ class PlaybackService : MediaSessionService() {
     companion object {
         private const val CHANNEL_ID = "media_session"
         private const val CHANNEL_NAME = "媒体播放"
-        private const val NOTIFICATION_ID = 1001
+
+        /**
+         * 兜底通知 id = 1001，与 Media3 默认媒体通知 id 保持一致是设计意图：
+         * Media3 接管后会用完整媒体通知原地覆盖这个兜底通知。
+         * 注：media3 1.4.1 的 MediaSessionService.NOTIFICATION_ID 非 Kotlin 可见常量，
+         * 只能手写字面量（升级 media3 后应换回公开常量引用）。
+         */
+        private const val NOTIFICATION_ID: Int = 1001
 
         /** 幂等地创建媒体通知渠道，避免与时序竞态导致 startForeground 失败 */
         @JvmStatic

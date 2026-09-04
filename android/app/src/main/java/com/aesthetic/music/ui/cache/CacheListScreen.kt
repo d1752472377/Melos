@@ -39,6 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.player.AudioCacheService
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.DangerCapsuleButton
+import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.Palette
@@ -72,7 +75,7 @@ fun CacheListScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = 150.dp),
+                .padding(bottom = BottomBarReserved),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -112,44 +115,15 @@ fun CacheListScreen(
                     )
                 }
                 if (songs.isNotEmpty()) {
-                    // Level 2 危险操作细边框胶囊
-                    Row(
-                        modifier = Modifier
-                            .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Surface)
-                            .clickable { showClearConfirm = true }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "全部清除",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = Color(0xFFEF4444)
-                        )
-                    }
+                    // Level 2 危险操作描边胶囊：统一走 components.DangerCapsuleButton（error 色收敛）
+                    DangerCapsuleButton(text = "清空全部", onClick = { showClearConfirm = true })
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
             if (songs.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 80.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Filled.MusicNote,
-                            contentDescription = null,
-                            tint = TextSoft,
-                            modifier = Modifier.size(44.dp),
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Text("暂无缓存歌曲", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                        Text("播放过的歌曲会自动缓存，下次秒开", color = TextMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
+                EmptyBox("暂无缓存歌曲\n播放过的歌曲会自动缓存，下次秒开")
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -235,7 +209,7 @@ fun CacheListScreen(
                 androidx.compose.material3.TextButton(onClick = {
                     showClearConfirm = false
                     onClearAll()
-                }) { Text("清空", color = Color(0xFFEF4444)) }
+                }) { Text("清空", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {

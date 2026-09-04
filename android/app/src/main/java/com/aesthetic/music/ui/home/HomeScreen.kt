@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +50,8 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomBarReserved
+import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.rememberDominantColors
 import com.aesthetic.music.ui.theme.AccentAmber
@@ -88,6 +91,7 @@ fun HomeScreen(
     ranks: List<PlaylistItem>,
     homeCategories: List<HomeCategoryDto> = emptyList(),
     favorites: Set<String>,
+    isLoading: Boolean = false,
     contentError: String? = null,
     onRetryContent: (() -> Unit)? = null,
     onPlaySong: (Song, List<Song>) -> Unit,
@@ -98,9 +102,9 @@ fun HomeScreen(
     onToggleFavorite: (Song) -> Unit,
 ) {
     // 随便听听的随机批次种子
-    var randomSeed by remember { mutableIntStateOf(0) }
+    var randomSeed by rememberSaveable { mutableIntStateOf(0) }
     // 排行榜 Tab 切换：0 = 新歌, 1 = 热歌
-    var rankTab by remember { mutableIntStateOf(0) }
+    var rankTab by rememberSaveable { mutableIntStateOf(0) }
 
     // 候选歌曲池（优先新歌、热歌与备选歌曲）
     val poolSongs = remember(newSongs, hotSongs) {
@@ -123,7 +127,7 @@ fun HomeScreen(
             top = 20.dp,
             start = 20.dp,
             end = 20.dp,
-            bottom = 150.dp // 底部留出足够空间避开 MiniPlayer 与 Dock
+            bottom = BottomBarReserved // 底部留出足够空间避开 MiniPlayer 与 Dock
         ),
         verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
@@ -145,6 +149,13 @@ fun HomeScreen(
         }
 
         // 内容加载失败横幅：全部区块为空时给出原因与重试入口（原先失败即各区块静默消失）
+        // 首次加载：全部数据区块为空时显示加载态（LazyColumn item 内用固定高度适配，而非 fillMaxSize）
+        if (isLoading && featuredPlaylist == null && poolSongs.isEmpty() && hotPlaylists.isEmpty() && ranks.isEmpty()) {
+            item(key = "home_loading") {
+                LoadingBox(message = "正在为你准备内容…", modifier = Modifier.height(300.dp))
+            }
+        }
+
         if (contentError != null && featuredPlaylist == null && poolSongs.isEmpty()) {
             item(key = "home_error_banner") {
                 Column(

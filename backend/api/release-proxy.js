@@ -7,8 +7,8 @@
 //   /download     → 返回下载页 HTML
 
 const REPO = 'd1752472377/Melos';
-// 发布标签：默认 v1.7.0，发新版时通过环境变量 RELEASE_TAG 覆盖，无需改代码
-const RELEASE_TAG = process.env.RELEASE_TAG || 'v1.7.0';
+// 发布标签：默认 v1.9.0，发新版时通过环境变量 RELEASE_TAG 覆盖，无需改代码
+const RELEASE_TAG = process.env.RELEASE_TAG || 'v1.9.0';
 
 // 资产 URL 缓存（60s）与 update.json 文本缓存（30s）：
 // 旧实现每次请求都实时打 GitHub API（token 泄露面大 + 配额开销）
@@ -133,7 +133,7 @@ function renderDownloadPage(info) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121214">
-<title>Aesthetic Music · 下载</title>
+<title>Melos · 下载</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html{-webkit-text-size-adjust:100%}
@@ -197,7 +197,7 @@ function renderDownloadPage(info) {
 <body>
 <div class="card">
   <div class="icon">&#9834;</div>
-  <div class="brand">AESTHETIC</div>
+  <div class="brand">MELOS</div>
   <div class="sub">MUSIC PLAYER</div>
   <div class="version">v${v}${time ? ' &middot; ' + time : ''}</div>
   ${rows ? `<ul class="log">${rows}</ul>` : ''}
