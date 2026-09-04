@@ -101,7 +101,7 @@ function createLxEnvironment({ onInited, onRequestRegistered, scriptInfo = {} })
             headers: Object.fromEntries(res.headers.entries()),
             body: parsedBody,
             rawText,
-          });
+          }, parsedBody);
         })
         .catch((err) => {
           clearTimeout(timeoutId);
@@ -112,6 +112,11 @@ function createLxEnvironment({ onInited, onRequestRegistered, scriptInfo = {} })
             rawText: '',
           }, null);
         });
+
+      return () => {
+        clearTimeout(timeoutId);
+        controller.abort();
+      };
     },
     utils: {
       buffer: {
@@ -151,13 +156,118 @@ function createLxEnvironment({ onInited, onRequestRegistered, scriptInfo = {} })
   return { lx, listeners };
 }
 
+// 标准 LX Music 音质类型列表
+const DEFAULT_TYPES = [
+  { type: '128k', size: '3.5M' },
+  { type: '320k', size: '8.5M' },
+  { type: 'flac', size: '25M' },
+  { type: 'flac24bit', size: '40M' },
+];
+
 // 常用测活歌曲用例（周杰伦 - 晴天，标准化 LX Music info 结构）
 const TEST_CASES = [
-  { source: 'kw', action: 'musicUrl', info: { type: 'music', quality: '128k', musicInfo: { songmid: '2689227' } } },
-  { source: 'tx', action: 'musicUrl', info: { type: 'music', quality: '128k', musicInfo: { songmid: '0039MnYb0qxYig' } } },
-  { source: 'wy', action: 'musicUrl', info: { type: 'music', quality: '128k', musicInfo: { songmid: '186016' } } },
-  { source: 'kg', action: 'musicUrl', info: { type: 'music', quality: '128k', musicInfo: { hash: 'F16B95079144D9F80B91C8D409FF64D8' } } },
-  { source: 'mg', action: 'musicUrl', info: { type: 'music', quality: '128k', musicInfo: { copyrightId: '60054701923' } } },
+  {
+    source: 'kw',
+    action: 'musicUrl',
+    info: {
+      type: 'music',
+      quality: '128k',
+      source: 'kw',
+      musicInfo: {
+        id: '2689227',
+        songmid: '2689227',
+        source: 'kw',
+        name: '晴天',
+        title: '晴天',
+        singer: '周杰伦',
+        artist: '周杰伦',
+        types: DEFAULT_TYPES,
+        interval: '04:29',
+      },
+    },
+  },
+  {
+    source: 'tx',
+    action: 'musicUrl',
+    info: {
+      type: 'music',
+      quality: '128k',
+      source: 'tx',
+      musicInfo: {
+        id: '0039MnYb0qxYig',
+        songmid: '0039MnYb0qxYig',
+        source: 'tx',
+        name: '晴天',
+        title: '晴天',
+        singer: '周杰伦',
+        artist: '周杰伦',
+        types: DEFAULT_TYPES,
+        interval: '04:29',
+      },
+    },
+  },
+  {
+    source: 'wy',
+    action: 'musicUrl',
+    info: {
+      type: 'music',
+      quality: '128k',
+      source: 'wy',
+      musicInfo: {
+        id: '186016',
+        songmid: '186016',
+        source: 'wy',
+        name: '晴天',
+        title: '晴天',
+        singer: '周杰伦',
+        artist: '周杰伦',
+        types: DEFAULT_TYPES,
+        interval: '04:29',
+      },
+    },
+  },
+  {
+    source: 'kg',
+    action: 'musicUrl',
+    info: {
+      type: 'music',
+      quality: '128k',
+      source: 'kg',
+      musicInfo: {
+        id: 'F16B95079144D9F80B91C8D409FF64D8',
+        songmid: 'F16B95079144D9F80B91C8D409FF64D8',
+        hash: 'F16B95079144D9F80B91C8D409FF64D8',
+        source: 'kg',
+        name: '晴天',
+        title: '晴天',
+        singer: '周杰伦',
+        artist: '周杰伦',
+        types: DEFAULT_TYPES,
+        interval: '04:29',
+      },
+    },
+  },
+  {
+    source: 'mg',
+    action: 'musicUrl',
+    info: {
+      type: 'music',
+      quality: '128k',
+      source: 'mg',
+      musicInfo: {
+        id: '60054701923',
+        songmid: '60054701923',
+        copyrightId: '60054701923',
+        source: 'mg',
+        name: '晴天',
+        title: '晴天',
+        singer: '周杰伦',
+        artist: '周杰伦',
+        types: DEFAULT_TYPES,
+        interval: '04:29',
+      },
+    },
+  },
 ];
 
 /**
@@ -188,7 +298,17 @@ export async function testScriptExecution(scriptContent) {
       warn: () => {},
       error: () => {},
       info: () => {},
+      debug: () => {},
+      trace: () => {},
+      group: () => {},
+      groupEnd: () => {},
+      groupCollapsed: () => {},
+      time: () => {},
+      timeEnd: () => {},
+      table: () => {},
     },
+    atob: (s) => Buffer.from(s, 'base64').toString('binary'),
+    btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
     setTimeout,
     clearTimeout,
     setInterval,
@@ -243,11 +363,16 @@ export async function testScriptExecution(scriptContent) {
     };
   }
 
-  // 2. 依次测活支持的平台
+  // 2. 依次测活支持的平台（只测试脚本实际声明支持的源）
   const testResults = [];
   let atLeastOneSuccess = false;
 
-  for (const tc of TEST_CASES) {
+  const supportedSourceKeys = initData?.sources ? Object.keys(initData.sources) : null;
+  const casesToTest = (supportedSourceKeys && supportedSourceKeys.length > 0)
+    ? TEST_CASES.filter((tc) => supportedSourceKeys.includes(tc.source))
+    : TEST_CASES;
+
+  for (const tc of casesToTest) {
     const start = Date.now();
     try {
       const result = await Promise.race([

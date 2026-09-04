@@ -500,6 +500,7 @@ object UserApiEngine {
                 "info" to mapOf(
                     "type" to "music",
                     "quality" to lxQuality,
+                    "source" to lxSource,
                     "musicInfo" to mapOf(
                         "id" to song.id,
                         "songmid" to song.id,
@@ -510,7 +511,14 @@ object UserApiEngine {
                         "artist" to song.artist,
                         "singer" to song.artist,
                         "album" to song.album,
-                        "platform" to lxSource
+                        "platform" to lxSource,
+                        "source" to lxSource,
+                        "types" to listOf(
+                            mapOf("type" to "128k"),
+                            mapOf("type" to "320k"),
+                            mapOf("type" to "flac"),
+                            mapOf("type" to "flac24bit")
+                        )
                     )
                 )
             )
@@ -548,6 +556,7 @@ object UserApiEngine {
                 "action" to "lyric",
                 "info" to mapOf(
                     "type" to "music",
+                    "source" to lxSource,
                     "musicInfo" to mapOf(
                         "id" to song.id,
                         "songmid" to song.id,
@@ -557,7 +566,8 @@ object UserApiEngine {
                         "name" to song.title,
                         "artist" to song.artist,
                         "album" to song.album,
-                        "platform" to lxSource
+                        "platform" to lxSource,
+                        "source" to lxSource
                     )
                 )
             )

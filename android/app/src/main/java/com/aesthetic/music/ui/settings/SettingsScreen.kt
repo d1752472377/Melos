@@ -224,15 +224,15 @@ fun SettingsScreen(
                     subtitle = "可粘贴 JS 完整代码或输入订阅直链",
                     onClick = { showScriptImportDialog = true }
                 )
-                if (isSyncConfigured) {
-                    SettingRow(
-                        icon = Icons.Filled.Sync,
-                        iconTint = PrimaryBrown,
-                        label = "从私有服务器同步音源脚本",
-                        subtitle = "拉取服务端后台当前激活测试通过的音源",
-                        onClick = onPerformSync
-                    )
-                }
+                SettingRow(
+                    icon = Icons.Filled.Sync,
+                    iconTint = PrimaryBrown,
+                    label = "☁️ 从私有云同步音源脚本",
+                    subtitle = if (isSyncConfigured) "拉取服务端启用的最新音源并双向同步" else "未连接私有服务（点击配置服务器地址与密钥）",
+                    onClick = {
+                        if (isSyncConfigured) onPerformSync() else showSyncConfigDialog = true
+                    }
+                )
                 SettingRow(
                     icon = Icons.Filled.Delete,
                     iconTint = MaterialTheme.colorScheme.error,
@@ -268,15 +268,15 @@ fun SettingsScreen(
                     subtitle = "粘贴 JS 源码或输入订阅下载直链",
                     onClick = { showScriptImportDialog = true }
                 )
-                if (isSyncConfigured) {
-                    SettingRow(
-                        icon = Icons.Filled.Sync,
-                        iconTint = PrimaryBrown,
-                        label = "☁️ 从私有云同步脚本与歌单",
-                        subtitle = "一键获取私有服务器托管的健康音源",
-                        onClick = onPerformSync
-                    )
-                }
+                SettingRow(
+                    icon = Icons.Filled.Sync,
+                    iconTint = PrimaryBrown,
+                    label = "☁️ 从私有云同步音源脚本与歌单",
+                    subtitle = if (isSyncConfigured) "一键获取私有服务器托管的健康音源" else "未连接私有服务（点击配置服务器地址与密钥）",
+                    onClick = {
+                        if (isSyncConfigured) onPerformSync() else showSyncConfigDialog = true
+                    }
+                )
             }
         }
 

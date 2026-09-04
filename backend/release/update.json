@@ -1,10 +1,10 @@
 {
-  "versionName": "1.9.0",
-  "versionCode": 15,
+  "versionName": "1.9.1",
+  "versionCode": 16,
   "apkUrl": "https://music.dovislab.com/latest.apk",
-  "apkSize": 2893095,
+  "apkSize": 8024609,
   "md5": "",
   "forceUpdate": false,
-  "publishTime": "2026-09-04 15:30",
-  "updateLog": "全新架构重构：去中心化音源解析与私有云同步\n内置 QuickJS 沙箱引擎，完美兼容洛雪（LX Music）自定义音源脚本规范\n支持脚本多平台（酷我/网易/QQ/酷狗/咪咕）音频流与歌词设备本地直连 CDN 解析\n新增私有云双向同步（歌单/收藏/播放历史）与电脑端后台音源脚本管理及自动化测活\n移除旧版中心化登录体系，纯净轻量个人专属播放器"
+  "publishTime": "2026-09-04 17:00",
+  "updateLog": "音源沙箱与私有云同步优化：\n1. 洛雪音源请求参数标准化补齐（修复部分脚本 source not match 及 types 读取报错）\n2. 增加沙箱 console.group/debug 等常用方法，提升各类第三方音源脚本兼容性\n3. 设置页自定义音源板块常驻显示「从私有云同步音源」快捷入口，未配置时一键引导配对"
 }
