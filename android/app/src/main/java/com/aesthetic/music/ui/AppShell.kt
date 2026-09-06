@@ -248,470 +248,471 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {},
         ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(Background),
-        ) {
-            // ===== 内容页 =====
-            // SaveableStateHolder：切 Tab 离开组合时保存滚动位置/输入等 rememberSaveable 状态，
-            // 回来时恢复（此前每次切 Tab 滚动位置直接丢失回到顶部）
-            val pageStateHolder = rememberSaveableStateHolder()
-            when (tab) {
-                AppTab.HOME -> pageStateHolder.SaveableStateProvider("home") {
-                    HomeScreen(
-                        dailyPlaylists = dailyPlaylists,
-                        newSongs = newSongs,
-                        hotSongs = hotSongs,
-                        hotPlaylists = hotPlaylists,
-                        ranks = ranks,
-                        homeCategories = homeCategories,
-                        favorites = favorites,
-                        contentError = contentError,
-                        isLoading = isLoadingContent,
-                        onRetryContent = { viewModel.refreshContent() },
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(Background),
+            ) {
+                // ===== 内容页 =====
+                // SaveableStateHolder：切 Tab 离开组合时保存滚动位置/输入等 rememberSaveable 状态，
+                // 回来时恢复（此前每次切 Tab 滚动位置直接丢失回到顶部）
+                val pageStateHolder = rememberSaveableStateHolder()
+                when (tab) {
+                    AppTab.HOME -> pageStateHolder.SaveableStateProvider("home") {
+                        HomeScreen(
+                            dailyPlaylists = dailyPlaylists,
+                            newSongs = newSongs,
+                            hotSongs = hotSongs,
+                            hotPlaylists = hotPlaylists,
+                            ranks = ranks,
+                            homeCategories = homeCategories,
+                            favorites = favorites,
+                            contentError = contentError,
+                            isLoading = isLoadingContent,
+                            onRetryContent = { viewModel.refreshContent() },
+                            onPlaySong = { song, list -> playSong(song, list) },
+                            onSearchBarClick = { viewModel.openSearch() },
+                            onOpenPlaylistDetail = viewModel::openPlaylistDetail,
+                            onOpenRank = viewModel::openRankDetail,
+                            onOpenDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
+                            onToggleFavorite = viewModel::toggleFavorite,
+                        )
+                    }
+
+                    AppTab.DISCOVER -> pageStateHolder.SaveableStateProvider("discover") {
+                        DiscoverScreen(
+                            hotPlaylists = hotPlaylists,
+                            dailyPlaylists = dailyPlaylists,
+                            newSongs = newSongs,
+                            ranks = ranks,
+                            isLoading = isLoadingContent,
+                            isHotLoading = isLoadingHot,
+                            hotError = hotPlaylistsError,
+                            onRetryHot = { viewModel.loadHotPlaylists(force = true) },
+                            contentError = contentError,
+                            onRetryContent = { viewModel.refreshContent() },
+                            onOpenPlaylist = viewModel::openPlaylistDetail,
+                            onOpenRank = viewModel::openRankDetail,
+                            onPlaySong = { playSong(it, newSongs) },
+                        )
+                    }
+
+                    AppTab.PLAYLIST -> pageStateHolder.SaveableStateProvider("playlist") {
+                        PlaylistScreen(
+                            myPlaylists = myPlaylists,
+                            onOpenMyPlaylist = { id -> viewModel.openMyPlaylist(id) },
+                            onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
+                            onRenamePlaylist = viewModel::renamePlaylist,
+                            onDeletePlaylist = viewModel::deletePlaylist,
+                            onOpenImport = { viewModel.showImportDialog.value = true },
+                            onPlayPlaylist = { songs ->
+                                if (songs.isNotEmpty()) {
+                                    playSong(songs.first(), songs)
+                                }
+                            },
+                        )
+                    }
+
+                    AppTab.PROFILE -> pageStateHolder.SaveableStateProvider("profile") {
+                        ProfileScreen(
+                            localStats = localStats,
+                            historyCount = history.size,
+                            favoritesCount = favorites.size,
+                            cacheCount = cacheCount,
+                            cacheSize = cacheSize,
+                            isSyncConfigured = isSyncConfigured,
+                            isSyncing = isSyncing,
+                            activeScript = activeScriptInfo,
+                            onOpenSettings = { viewModel.showSettings.value = true },
+                            onOpenRecent = { viewModel.openHistory() },
+                            onOpenFavorites = { viewModel.showFavorites.value = true },
+                            onOpenCacheList = {
+                                refreshCacheInfo()
+                                viewModel.showCacheList.value = true
+                            },
+                            onOpenMyPlaylists = { viewModel.showMyPlaylists.value = true },
+                            onSyncClick = { viewModel.performCloudSync() },
+                        )
+                    }
+                }
+
+                // ===== 全局搜索页（平台聚合 + 多类型结果） =====
+                // 视觉层级：搜索在歌单/专辑/歌手详情之下 —— 从搜索打开详情后返回键回到搜索结果
+                if (showSearch) {
+                    SearchScreen(
+                        viewModel = viewModel,
+                        currentSong = playerState.currentSong,
+                        onClose = { viewModel.closeSearch() },
                         onPlaySong = { song, list -> playSong(song, list) },
-                        onSearchBarClick = { viewModel.openSearch() },
-                        onOpenPlaylistDetail = viewModel::openPlaylistDetail,
-                        onOpenRank = viewModel::openRankDetail,
-                        onOpenDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
+                        // 打开详情不再强制关闭搜索：详情盖在搜索上层，返回时搜索结果还在
+                        onOpenArtist = viewModel::openArtist,
+                        onOpenPlaylist = viewModel::openPlaylistDetail,
+                        onOpenAlbum = viewModel::openAlbum,
+                    )
+                }
+
+                // ===== 歌单详情 =====
+                val playlistDetail = showPlaylistDetail
+                if (playlistDetail != null) {
+                    PlaylistDetailOverlay(
+                        title = playlistDetail.name,
+                        songs = playlistSongs,
+                        isLoading = isLoadingPlaylist,
+                        isLocal = playlistDetail.platform == "local",
+                        error = playlistError,
+                        onRetry = { viewModel.openPlaylistDetail(playlistDetail) },
+                        onBack = { viewModel.showPlaylistDetail.value = null },
+                        onPlaySong = { playSong(it, playlistSongs) },
+                        onPlayAll = { if (playlistSongs.isNotEmpty()) playSong(playlistSongs.first(), playlistSongs) },
+                        onAddCurrent = {
+                            if (playerState.currentSong != null) {
+                                showAddToPlaylist = true
+                            }
+                        },
+                    )
+                }
+
+                // ===== 专辑详情页（搜索页专辑 Tab 进入） =====
+                val albumDetail = showAlbumDetail
+                if (albumDetail != null) {
+                    PlaylistDetailOverlay(
+                        title = albumDetail.name,
+                        songs = albumDetailSongs,
+                        isLoading = isLoadingAlbum,
+                        isLocal = false,
+                        error = albumError,
+                        onRetry = { viewModel.openAlbum(albumDetail) },
+                        onBack = { viewModel.closeAlbum() },
+                        onPlaySong = { playSong(it, albumDetailSongs) },
+                        onPlayAll = { if (albumDetailSongs.isNotEmpty()) playSong(albumDetailSongs.first(), albumDetailSongs) },
+                        onAddCurrent = {
+                            if (playerState.currentSong != null) {
+                                showAddToPlaylist = true
+                            }
+                        },
+                    )
+                }
+
+                // ===== 歌手页（视觉最上层的详情覆盖层） =====
+                val artistRef = showArtist
+                if (artistRef != null) {
+                    val info = artistDetail?.info
+                    val artistSongs = artistDetail?.songs.orEmpty()
+                    ArtistScreen(
+                        name = info?.name?.takeIf { it.isNotBlank() } ?: artistRef.name,
+                        alias = info?.alias,
+                        avatar = info?.avatar,
+                        songs = artistSongs,
+                        isLoading = isLoadingArtist,
+                        errorMessage = artistError,
+                        onRetry = { viewModel.openArtist(artistRef) },
+                        favorites = favorites,
+                        onBack = viewModel::closeArtist,
+                        onPlaySong = { playSong(it, artistSongs) },
+                        onPlayAll = {
+                            if (artistSongs.isNotEmpty()) playSong(artistSongs.first(), artistSongs)
+                        },
                         onToggleFavorite = viewModel::toggleFavorite,
                     )
                 }
 
-                AppTab.DISCOVER -> pageStateHolder.SaveableStateProvider("discover") {
-                    DiscoverScreen(
-                        hotPlaylists = hotPlaylists,
-                        dailyPlaylists = dailyPlaylists,
-                        newSongs = newSongs,
-                        ranks = ranks,
-                        isLoading = isLoadingContent,
-                        isHotLoading = isLoadingHot,
-                        hotError = hotPlaylistsError,
-                        onRetryHot = { viewModel.loadHotPlaylists(force = true) },
-                        contentError = contentError,
-                        onRetryContent = { viewModel.refreshContent() },
-                        onOpenPlaylist = viewModel::openPlaylistDetail,
-                        onOpenRank = viewModel::openRankDetail,
-                        onPlaySong = { playSong(it, newSongs) },
+                // ===== 我的收藏页 =====
+                if (showFavorites) {
+                    FavoritesScreen(
+                        songs = favoriteSongs,
+                        currentSong = playerState.currentSong,
+                        onBack = { viewModel.showFavorites.value = false },
+                        onPlaySong = { playSong(it, favoriteSongs) },
+                        onPlayAll = { if (favoriteSongs.isNotEmpty()) playSong(favoriteSongs.first(), favoriteSongs) },
+                        onRemoveFavorite = viewModel::toggleFavorite,
                     )
                 }
 
-                AppTab.PLAYLIST -> pageStateHolder.SaveableStateProvider("playlist") {
-                    PlaylistScreen(
-                        myPlaylists = myPlaylists,
-                        collectedPlaylists = hotPlaylists,
-                        onOpenSearch = { viewModel.openSearch() },
-                        onPlaySong = { song, list -> playSong(song, list) },
-                        onOpenPlaylistDetail = viewModel::openPlaylistDetail,
-                        onOpenMyPlaylist = { id -> viewModel.openMyPlaylist(id) },
-                        onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
-                        onRenamePlaylist = viewModel::renamePlaylist,
-                        onDeletePlaylist = viewModel::deletePlaylist,
-                        onOpenImport = { viewModel.showImportDialog.value = true },
-                    )
-                }
-
-                AppTab.PROFILE -> pageStateHolder.SaveableStateProvider("profile") {
-                    ProfileScreen(
-                        localStats = localStats,
-                        historyCount = history.size,
-                        favoritesCount = favorites.size,
-                        cacheCount = cacheCount,
-                        cacheSize = cacheSize,
-                        isSyncConfigured = isSyncConfigured,
-                        isSyncing = isSyncing,
-                        activeScript = activeScriptInfo,
-                        onOpenSettings = { viewModel.showSettings.value = true },
-                        onOpenRecent = { viewModel.openHistory() },
-                        onOpenFavorites = { viewModel.showFavorites.value = true },
-                        onOpenCacheList = {
-                            refreshCacheInfo()
-                            viewModel.showCacheList.value = true
+                // ===== 我的歌单页 =====
+                if (showMyPlaylists) {
+                    MyPlaylistsScreen(
+                        playlists = myPlaylists,
+                        currentSong = playerState.currentSong,
+                        onBack = { viewModel.showMyPlaylists.value = false },
+                        onOpenPlaylist = { id ->
+                            viewModel.openMyPlaylist(id)
+                            viewModel.showMyPlaylists.value = false
                         },
-                        onOpenMyPlaylists = { viewModel.showMyPlaylists.value = true },
-                        onSyncClick = { viewModel.performCloudSync() },
+                        onCreate = { name -> viewModel.createPlaylist(name) },
+                        onRename = viewModel::renamePlaylist,
+                        onDelete = viewModel::deletePlaylist,
+                        onAddCurrent = { id, song ->
+                            viewModel.addSongsToPlaylist(id, listOf(song))
+                            scope.launch { snackbarHostState.showSnackbar("已加入歌单") }
+                        },
                     )
                 }
-            }
 
-            // ===== 全局搜索页（平台聚合 + 多类型结果） =====
-            // 视觉层级：搜索在歌单/专辑/歌手详情之下 —— 从搜索打开详情后返回键回到搜索结果
-            if (showSearch) {
-                SearchScreen(
-                    viewModel = viewModel,
-                    currentSong = playerState.currentSong,
-                    onClose = { viewModel.closeSearch() },
-                    onPlaySong = { song, list -> playSong(song, list) },
-                    // 打开详情不再强制关闭搜索：详情盖在搜索上层，返回时搜索结果还在
-                    onOpenArtist = viewModel::openArtist,
-                    onOpenPlaylist = viewModel::openPlaylistDetail,
-                    onOpenAlbum = viewModel::openAlbum,
-                )
-            }
+                // ===== 缓存列表页 =====
+                if (showCacheList) {
+                    CacheListScreen(
+                        songs = cachedSongs,
+                        onBack = { viewModel.showCacheList.value = false },
+                        // 文件删除与索引写入走 IO 线程：缓存多时主线程批量 File.delete() 会卡顿甚至 ANR
+                        onRemoveOne = { path ->
+                            scope.launch(Dispatchers.IO) {
+                                AudioCacheService.removeCacheByPath(context, path)
+                                withContext(Dispatchers.Main) { refreshCacheInfo() }
+                            }
+                        },
+                        onClearAll = {
+                            scope.launch(Dispatchers.IO) {
+                                AudioCacheService.clearCache(context)
+                                withContext(Dispatchers.Main) { refreshCacheInfo() }
+                            }
+                        },
+                    )
+                }
 
-            // ===== 歌单详情 =====
-            val playlistDetail = showPlaylistDetail
-            if (playlistDetail != null) {
-                PlaylistDetailOverlay(
-                    title = playlistDetail.name,
-                    songs = playlistSongs,
-                    isLoading = isLoadingPlaylist,
-                    isLocal = playlistDetail.platform == "local",
-                    error = playlistError,
-                    onRetry = { viewModel.openPlaylistDetail(playlistDetail) },
-                    onBack = { viewModel.showPlaylistDetail.value = null },
-                    onPlaySong = { playSong(it, playlistSongs) },
-                    onPlayAll = { if (playlistSongs.isNotEmpty()) playSong(playlistSongs.first(), playlistSongs) },
-                    onAddCurrent = {
-                        if (playerState.currentSong != null) {
-                            showAddToPlaylist = true
-                        }
-                    },
-                )
-            }
+                // ===== 最近播放页（独立页面，不再跳转歌单 Tab） =====
+                if (showHistory) {
+                    HistoryScreen(
+                        songs = history,
+                        currentSong = playerState.currentSong,
+                        onBack = { viewModel.closeHistory() },
+                        onPlaySong = { playSong(it, history) },
+                        onPlayAll = { if (history.isNotEmpty()) playSong(history.first(), history) },
+                        onRemoveOne = viewModel::removeFromHistory,
+                        onClearAll = viewModel::clearHistory,
+                    )
+                }
 
-            // ===== 专辑详情页（搜索页专辑 Tab 进入） =====
-            val albumDetail = showAlbumDetail
-            if (albumDetail != null) {
-                PlaylistDetailOverlay(
-                    title = albumDetail.name,
-                    songs = albumDetailSongs,
-                    isLoading = isLoadingAlbum,
-                    isLocal = false,
-                    error = albumError,
-                    onRetry = { viewModel.openAlbum(albumDetail) },
-                    onBack = { viewModel.closeAlbum() },
-                    onPlaySong = { playSong(it, albumDetailSongs) },
-                    onPlayAll = { if (albumDetailSongs.isNotEmpty()) playSong(albumDetailSongs.first(), albumDetailSongs) },
-                    onAddCurrent = {
-                        if (playerState.currentSong != null) {
-                            showAddToPlaylist = true
-                        }
-                    },
-                )
-            }
-
-            // ===== 歌手页（视觉最上层的详情覆盖层） =====
-            val artistRef = showArtist
-            if (artistRef != null) {
-                val info = artistDetail?.info
-                val artistSongs = artistDetail?.songs.orEmpty()
-                ArtistScreen(
-                    name = info?.name?.takeIf { it.isNotBlank() } ?: artistRef.name,
-                    alias = info?.alias,
-                    avatar = info?.avatar,
-                    songs = artistSongs,
-                    isLoading = isLoadingArtist,
-                    errorMessage = artistError,
-                    onRetry = { viewModel.openArtist(artistRef) },
-                    favorites = favorites,
-                    onBack = viewModel::closeArtist,
-                    onPlaySong = { playSong(it, artistSongs) },
-                    onPlayAll = {
-                        if (artistSongs.isNotEmpty()) playSong(artistSongs.first(), artistSongs)
-                    },
-                    onToggleFavorite = viewModel::toggleFavorite,
-                )
-            }
-
-            // ===== 我的收藏页 =====
-            if (showFavorites) {
-                FavoritesScreen(
-                    songs = favoriteSongs,
-                    currentSong = playerState.currentSong,
-                    onBack = { viewModel.showFavorites.value = false },
-                    onPlaySong = { playSong(it, favoriteSongs) },
-                    onPlayAll = { if (favoriteSongs.isNotEmpty()) playSong(favoriteSongs.first(), favoriteSongs) },
-                    onRemoveFavorite = viewModel::toggleFavorite,
-                )
-            }
-
-            // ===== 我的歌单页 =====
-            if (showMyPlaylists) {
-                MyPlaylistsScreen(
-                    playlists = myPlaylists,
-                    currentSong = playerState.currentSong,
-                    onBack = { viewModel.showMyPlaylists.value = false },
-                    onOpenPlaylist = { id ->
-                        viewModel.openMyPlaylist(id)
-                        viewModel.showMyPlaylists.value = false
-                    },
-                    onCreate = { name -> viewModel.createPlaylist(name) },
-                    onRename = viewModel::renamePlaylist,
-                    onDelete = viewModel::deletePlaylist,
-                    onAddCurrent = { id, song ->
-                        viewModel.addSongsToPlaylist(id, listOf(song))
-                        scope.launch { snackbarHostState.showSnackbar("已加入歌单") }
-                    },
-                )
-            }
-
-            // ===== 缓存列表页 =====
-            if (showCacheList) {
-                CacheListScreen(
-                    songs = cachedSongs,
-                    onBack = { viewModel.showCacheList.value = false },
-                    // 文件删除与索引写入走 IO 线程：缓存多时主线程批量 File.delete() 会卡顿甚至 ANR
-                    onRemoveOne = { path ->
-                        scope.launch(Dispatchers.IO) {
-                            AudioCacheService.removeCacheByPath(context, path)
-                            withContext(Dispatchers.Main) { refreshCacheInfo() }
-                        }
-                    },
-                    onClearAll = {
-                        scope.launch(Dispatchers.IO) {
-                            AudioCacheService.clearCache(context)
-                            withContext(Dispatchers.Main) { refreshCacheInfo() }
-                        }
-                    },
-                )
-            }
-
-            // ===== 最近播放页（独立页面，不再跳转歌单 Tab） =====
-            if (showHistory) {
-                HistoryScreen(
-                    songs = history,
-                    currentSong = playerState.currentSong,
-                    onBack = { viewModel.closeHistory() },
-                    onPlaySong = { playSong(it, history) },
-                    onPlayAll = { if (history.isNotEmpty()) playSong(history.first(), history) },
-                    onRemoveOne = viewModel::removeFromHistory,
-                    onClearAll = viewModel::clearHistory,
-                )
-            }
-
-            // ===== 把当前播放加入我的歌单 =====
-            if (showAddToPlaylist) {
-                val current = playerState.currentSong
-                if (current != null) {
-                    AlertDialog(
-                        onDismissRequest = { showAddToPlaylist = false },
-                        title = { Text("加入歌单") },
-                        text = {
-                            Column {
-                                Text(
-                                    "把「${current.title}」加入：",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSoft,
-                                )
-                                Spacer(Modifier.size(10.dp))
-                                if (myPlaylists.isEmpty()) {
-                                    Text("还没有歌单，先去「个人中心 - 我的歌单」新建一个吧", color = TextSoft)
-                                } else {
-                                    LazyColumn {
-                                        myPlaylists.forEach { p ->
-                                            item {
-                                                Row(
-                                                    Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            viewModel.addSongsToPlaylist(p.id, listOf(current))
-                                                            showAddToPlaylist = false
-                                                            scope.launch { snackbarHostState.showSnackbar("已加入「${p.name}」") }
-                                                        }
-                                                        .padding(vertical = 10.dp, horizontal = 6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                ) {
-                                                    SongCover(p.coverUrl, Modifier.size(36.dp), corner = 0.dp)
-                                                    Spacer(Modifier.size(10.dp))
-                                                    Text(p.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                // ===== 把当前播放加入我的歌单 =====
+                if (showAddToPlaylist) {
+                    val current = playerState.currentSong
+                    if (current != null) {
+                        AlertDialog(
+                            onDismissRequest = { showAddToPlaylist = false },
+                            title = { Text("加入歌单") },
+                            text = {
+                                Column {
+                                    Text(
+                                        "把「${current.title}」加入：",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = TextSoft,
+                                    )
+                                    Spacer(Modifier.size(10.dp))
+                                    if (myPlaylists.isEmpty()) {
+                                        Text("还没有歌单，先去「个人中心 - 我的歌单」新建一个吧", color = TextSoft)
+                                    } else {
+                                        LazyColumn {
+                                            myPlaylists.forEach { p ->
+                                                item {
+                                                    Row(
+                                                        Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable {
+                                                                viewModel.addSongsToPlaylist(p.id, listOf(current))
+                                                                showAddToPlaylist = false
+                                                                scope.launch { snackbarHostState.showSnackbar("已加入「${p.name}」") }
+                                                            }
+                                                            .padding(vertical = 10.dp, horizontal = 6.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                    ) {
+                                                        SongCover(p.coverUrl, Modifier.size(36.dp), corner = 0.dp)
+                                                        Spacer(Modifier.size(10.dp))
+                                                        Text(p.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        },
-                        confirmButton = {},
-                        dismissButton = {
-                            TextButton(onClick = { showAddToPlaylist = false }) { Text("取消") }
-                        },
+                            },
+                            confirmButton = {},
+                            dismissButton = {
+                                TextButton(onClick = { showAddToPlaylist = false }) { Text("取消") }
+                            },
+                        )
+                    }
+                }
+
+                // ===== 底部导航 Dock =====
+                NavigationDock(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    currentTab = tab,
+                    currentArtwork = playerState.currentSong?.artwork,
+                    isSpinning = playerState.isPlaying,
+                    progressFlow = playerManager.progress,
+                    onHome = { viewModel.switchTab(AppTab.HOME) },
+                    onDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
+                    onPlaylist = { viewModel.switchTab(AppTab.PLAYLIST) },
+                    onProfile = { viewModel.switchTab(AppTab.PROFILE) },
+                    onOpenPlayer = {
+                        playerManager.startProgress()
+                        viewModel.showPlayer.value = true
+                    },
+                )
+
+                // ===== 全屏播放器 Drawer =====
+                AnimatedVisibility(
+                    visible = showPlayer,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                ) {
+                    PlayerScreen(
+                        state = playerState,
+                        progressFlow = playerManager.progress,
+                        isFavorite = playerState.currentSong?.let { viewModel.isFavorite(it) } == true,
+                        onClose = { viewModel.showPlayer.value = false },
+                        onToggle = playerManager::toggle,
+                        onNext = playerManager::next,
+                        onPrevious = playerManager::previous,
+                        onSeek = playerManager::seekTo,
+                        onSeekToLyric = playerManager::seekToLyric,
+                        onTogglePlayMode = playerManager::togglePlayMode,
+                        onToggleFavorite = { playerState.currentSong?.let { viewModel.toggleFavorite(it) } },
+                        onPlayQueueItem = playerManager::playQueueItem,
+                        onRemoveFromQueue = playerManager::removeFromQueue,
+                        onSpeedChange = playerManager::setSpeed,
+                        onSleepTimer = playerManager::startSleepTimer,
+                        onCancelSleepTimer = playerManager::cancelSleepTimer,
                     )
                 }
-            }
 
-            // ===== 底部导航 Dock =====
-            NavigationDock(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                currentTab = tab,
-                currentArtwork = playerState.currentSong?.artwork,
-                isSpinning = playerState.isPlaying,
-                progressFlow = playerManager.progress,
-                onHome = { viewModel.switchTab(AppTab.HOME) },
-                onDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
-                onPlaylist = { viewModel.switchTab(AppTab.PLAYLIST) },
-                onProfile = { viewModel.switchTab(AppTab.PROFILE) },
-                onOpenPlayer = {
-                    playerManager.startProgress()
-                    viewModel.showPlayer.value = true
-                },
-            )
-
-            // ===== 全屏播放器 Drawer =====
-            AnimatedVisibility(
-                visible = showPlayer,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-            ) {
-                PlayerScreen(
-                    state = playerState,
-                    progressFlow = playerManager.progress,
-                    isFavorite = playerState.currentSong?.let { viewModel.isFavorite(it) } == true,
-                    onClose = { viewModel.showPlayer.value = false },
-                    onToggle = playerManager::toggle,
-                    onNext = playerManager::next,
-                    onPrevious = playerManager::previous,
-                    onSeek = playerManager::seekTo,
-                    onSeekToLyric = playerManager::seekToLyric,
-                    onTogglePlayMode = playerManager::togglePlayMode,
-                    onToggleFavorite = { playerState.currentSong?.let { viewModel.toggleFavorite(it) } },
-                    onPlayQueueItem = playerManager::playQueueItem,
-                    onRemoveFromQueue = playerManager::removeFromQueue,
-                    onSpeedChange = playerManager::setSpeed,
-                    onSleepTimer = playerManager::startSleepTimer,
-                    onCancelSleepTimer = playerManager::cancelSleepTimer,
-                )
-            }
-
-            // ===== 设置页 =====
-            if (showSettings) {
-                SettingsScreen(
-                    themeMode = themeMode,
-                    quality = qualityLevel,
-                    floatingCapsuleEnabled = capsuleEnabled,
-                    activeScript = activeScriptInfo,
-                    scriptCatalog = scriptCatalog,
-                    isEngineReady = isEngineReady,
-                    engineError = engineError,
-                    onRetryLoadScript = viewModel::retryLoadScript,
-                    onSwitchScript = viewModel::switchScript,
-                    isSyncConfigured = isSyncConfigured,
-                    syncServerUrl = syncServerUrl,
-                    syncToken = syncToken,
-                    lastSyncedAt = lastSyncedAt,
-                    lastSyncStatus = lastSyncStatus,
-                    isSyncing = isSyncing,
-                    onBack = { viewModel.showSettings.value = false },
-                    onThemeModeChange = { viewModel.setThemeMode(it, systemDark) },
-                    onQualityChange = viewModel::setQuality,
-                    onFloatingCapsuleChange = { enabled ->
-                        if (enabled) {
-                            if (FloatCapsuleManager.hasPermission(context)) {
-                                SettingsStore.setFloatingCapsuleEnabled(true)
-                                capsuleEnabled = true
+                // ===== 设置页 =====
+                if (showSettings) {
+                    SettingsScreen(
+                        themeMode = themeMode,
+                        quality = qualityLevel,
+                        floatingCapsuleEnabled = capsuleEnabled,
+                        activeScript = activeScriptInfo,
+                        scriptCatalog = scriptCatalog,
+                        isEngineReady = isEngineReady,
+                        engineError = engineError,
+                        onRetryLoadScript = viewModel::retryLoadScript,
+                        onSwitchScript = viewModel::switchScript,
+                        isSyncConfigured = isSyncConfigured,
+                        syncServerUrl = syncServerUrl,
+                        syncToken = syncToken,
+                        lastSyncedAt = lastSyncedAt,
+                        lastSyncStatus = lastSyncStatus,
+                        isSyncing = isSyncing,
+                        onBack = { viewModel.showSettings.value = false },
+                        onThemeModeChange = { viewModel.setThemeMode(it, systemDark) },
+                        onQualityChange = viewModel::setQuality,
+                        onFloatingCapsuleChange = { enabled ->
+                            if (enabled) {
+                                if (FloatCapsuleManager.hasPermission(context)) {
+                                    SettingsStore.setFloatingCapsuleEnabled(true)
+                                    capsuleEnabled = true
+                                } else {
+                                    SettingsStore.setFloatingCapsuleEnabled(false)
+                                    capsuleEnabled = false
+                                    FloatCapsuleManager.openPermissionSettings(context)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("请在系统设置中开启「悬浮窗」权限，返回后重新打开开关")
+                                    }
+                                }
                             } else {
                                 SettingsStore.setFloatingCapsuleEnabled(false)
                                 capsuleEnabled = false
-                                FloatCapsuleManager.openPermissionSettings(context)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("请在系统设置中开启「悬浮窗」权限，返回后重新打开开关")
-                                }
+                                FloatCapsuleManager.hide()
                             }
-                        } else {
-                            SettingsStore.setFloatingCapsuleEnabled(false)
-                            capsuleEnabled = false
-                            FloatCapsuleManager.hide()
-                        }
-                    },
-                    onCheckUpdate = { onResult ->
-                        scope.launch {
-                            // 三态结果：网络失败必须显式提示，不能再静默当成"已是最新版本"
-                            when (val result = UpdateService.checkUpdate()) {
-                                is UpdateService.CheckResult.Available -> {
-                                    val info = result.info
-                                    onResult("发现新版本 ${info.versionName}，开始下载…")
-                                    try {
-                                        val path = UpdateService.downloadApk(context, info) { received, total ->
-                                            // 进度按百分比回写（相同字符串不会触发多余重组）
-                                            if (total > 0) onResult("下载中 ${received * 100 / total}%")
+                        },
+                        onCheckUpdate = { onResult ->
+                            scope.launch {
+                                // 三态结果：网络失败必须显式提示，不能再静默当成"已是最新版本"
+                                when (val result = UpdateService.checkUpdate()) {
+                                    is UpdateService.CheckResult.Available -> {
+                                        val info = result.info
+                                        onResult("发现新版本 ${info.versionName}，开始下载…")
+                                        try {
+                                            val path = UpdateService.downloadApk(context, info) { received, total ->
+                                                // 进度按百分比回写（相同字符串不会触发多余重组）
+                                                if (total > 0) onResult("下载中 ${received * 100 / total}%")
+                                            }
+                                            onResult("下载完成，正在打开安装程序…")
+                                            // 无"安装未知应用"权限时已自动引导去设置页，返回 false
+                                            if (UpdateService.installApk(context, path)) {
+                                                onResult("已打开安装程序")
+                                            } else {
+                                                onResult("请允许「安装未知应用」后重新下载安装")
+                                            }
+                                        } catch (e: Exception) {
+                                            // 失败必须复位状态文案，否则永远停在"开始下载…"
+                                            onResult("更新失败：${e.message ?: "未知错误"}")
+                                            snackbarHostState.showSnackbar("更新失败: ${e.message}")
                                         }
-                                        onResult("下载完成，正在打开安装程序…")
-                                        // 无"安装未知应用"权限时已自动引导去设置页，返回 false
-                                        if (UpdateService.installApk(context, path)) {
-                                            onResult("已打开安装程序")
-                                        } else {
-                                            onResult("请允许「安装未知应用」后重新下载安装")
-                                        }
-                                    } catch (e: Exception) {
-                                        // 失败必须复位状态文案，否则永远停在"开始下载…"
-                                        onResult("更新失败：${e.message ?: "未知错误"}")
-                                        snackbarHostState.showSnackbar("更新失败: ${e.message}")
+                                    }
+                                    is UpdateService.CheckResult.UpToDate -> {
+                                        onResult("当前已是最新版本")
+                                    }
+                                    is UpdateService.CheckResult.Failed -> {
+                                        onResult("检查更新失败: ${result.reason ?: "网络错误"}")
                                     }
                                 }
-                                is UpdateService.CheckResult.UpToDate -> {
-                                    onResult("当前已是最新版本")
-                                }
-                                is UpdateService.CheckResult.Failed -> {
-                                    onResult("检查更新失败: ${result.reason ?: "网络错误"}")
-                                }
                             }
-                        }
-                    },
-                    onSaveSyncConfig = viewModel::saveSyncConfig,
-                    onTestSyncConnection = viewModel::testSyncConnection,
-                    onPerformSync = viewModel::performCloudSync,
-                    onImportScriptText = viewModel::importScriptFromText,
-                    onImportScriptUrl = viewModel::importScriptFromUrl,
-                    onUnloadScript = viewModel::unloadScript,
-                )
-            }
+                        },
+                        onSaveSyncConfig = viewModel::saveSyncConfig,
+                        onTestSyncConnection = viewModel::testSyncConnection,
+                        onPerformSync = viewModel::performCloudSync,
+                        onImportScriptText = viewModel::importScriptFromText,
+                        onImportScriptUrl = viewModel::importScriptFromUrl,
+                        onUnloadScript = viewModel::unloadScript,
+                    )
+                }
 
-            // ===== 歌单导入弹窗 =====
-            if (showImportDialog) {
-                ImportPlaylistDialog(
-                    onDismiss = { viewModel.showImportDialog.value = false },
-                    onImport = { id ->
-                        viewModel.showImportDialog.value = false
-                        viewModel.importPlaylist(id)
-                    },
-                )
-            }
+                // ===== 歌单导入弹窗 =====
+                if (showImportDialog) {
+                    ImportPlaylistDialog(
+                        onDismiss = { viewModel.showImportDialog.value = false },
+                        onImport = { id ->
+                            viewModel.showImportDialog.value = false
+                            viewModel.importPlaylist(id)
+                        },
+                    )
+                }
 
-            // ===== 系统返回键处理 =====
-            // 顺序必须与视觉堆栈一致（后组合的 BackHandler 优先）：
-            // 底层页 < 搜索 < 歌单详情 < 专辑详情 < 歌手页 < 登录 < 播放器 < 设置。
-            // 此前歌手页 BackHandler 排在搜索之前：从搜索进歌手页按返回会先关搜索，
-            // 歌手页还挂在屏上，返回行为与视觉层级相反
-            BackHandler(enabled = showFavorites) {
-                viewModel.showFavorites.value = false
-            }
-            BackHandler(enabled = showMyPlaylists) {
-                viewModel.showMyPlaylists.value = false
-            }
-            BackHandler(enabled = showCacheList) {
-                viewModel.showCacheList.value = false
-            }
-            BackHandler(enabled = showHistory) {
-                viewModel.closeHistory()
-            }
-            BackHandler(enabled = showSearch) {
-                viewModel.closeSearch()
-            }
-            BackHandler(enabled = showPlaylistDetail != null) {
-                viewModel.showPlaylistDetail.value = null
-            }
-            BackHandler(enabled = showAlbumDetail != null) {
-                viewModel.closeAlbum()
-            }
-            BackHandler(enabled = showArtist != null) {
-                viewModel.closeArtist()
-            }
-            BackHandler(enabled = showPlayer) {
-                viewModel.showPlayer.value = false
-            }
-            BackHandler(enabled = showSettings) {
-                viewModel.showSettings.value = false
-            }
+                // ===== 系统返回键处理 =====
+                // 顺序必须与视觉堆栈一致（后组合的 BackHandler 优先）：
+                // 底层页 < 搜索 < 歌单详情 < 专辑详情 < 歌手页 < 登录 < 播放器 < 设置。
+                // 此前歌手页 BackHandler 排在搜索之前：从搜索进歌手页按返回会先关搜索，
+                // 歌手页还挂在屏上，返回行为与视觉层级相反
+                BackHandler(enabled = showFavorites) {
+                    viewModel.showFavorites.value = false
+                }
+                BackHandler(enabled = showMyPlaylists) {
+                    viewModel.showMyPlaylists.value = false
+                }
+                BackHandler(enabled = showCacheList) {
+                    viewModel.showCacheList.value = false
+                }
+                BackHandler(enabled = showHistory) {
+                    viewModel.closeHistory()
+                }
+                BackHandler(enabled = showSearch) {
+                    viewModel.closeSearch()
+                }
+                BackHandler(enabled = showPlaylistDetail != null) {
+                    viewModel.showPlaylistDetail.value = null
+                }
+                BackHandler(enabled = showAlbumDetail != null) {
+                    viewModel.closeAlbum()
+                }
+                BackHandler(enabled = showArtist != null) {
+                    viewModel.closeArtist()
+                }
+                BackHandler(enabled = showPlayer) {
+                    viewModel.showPlayer.value = false
+                }
+                BackHandler(enabled = showSettings) {
+                    viewModel.showSettings.value = false
+                }
 
-            // ===== 品牌开屏：覆盖所有层级之上（最后组合 = 最上层）=====
-            if (!splashFinished) {
-                SplashScreen(onFinished = { splashFinished = true })
+                // ===== 品牌开屏：覆盖所有层级之上（最后组合 = 最上层）=====
+                if (!splashFinished) {
+                    SplashScreen(onFinished = { splashFinished = true })
+                }
             }
         }
     }
-}
 }
 
 /** 歌单导入弹窗 */
@@ -941,5 +942,3 @@ private fun PlaylistDetailOverlay(
         }
     }
 }
-
-

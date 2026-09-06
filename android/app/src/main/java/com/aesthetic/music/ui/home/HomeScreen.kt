@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -202,6 +203,7 @@ fun HomeScreen(
         }
 
         // 3. 随便听听（横向列表 + Level 2 换一批按钮）
+        // 3. 随便听听（横向列表 + Level 2 换一批按钮）
         if (randomDisplaySongs.isNotEmpty()) {
             item(key = "random_section") {
                 Column {
@@ -222,7 +224,11 @@ fun HomeScreen(
                         // 次级微圆角按钮
                         Row(
                             modifier = Modifier
-                                .border(1.dp, Stone200, RoundedCornerShape(16.dp))
+                                .border(
+                                    width = 1.dp,
+                                    color = Color.White.copy(alpha = 0.9f),  // 改成白色边框
+                                    shape = RoundedCornerShape(16.dp)
+                                )
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Surface)
                                 .clickable { randomSeed++ }
@@ -391,7 +397,11 @@ private fun SearchEntry(onClick: () -> Unit) {
                 ambientColor = Color.White.copy(alpha = 0.8f),
                 spotColor = Color.White.copy(alpha = 0.8f)
             )
-            .border(1.dp, Stone200.copy(alpha = 0.8f), RoundedCornerShape(18.dp))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.9f),  // 改成白色边框
+                shape = RoundedCornerShape(18.dp)
+            )
             .clip(RoundedCornerShape(18.dp))
             .background(Surface)
             .clickable(onClick = onClick)
@@ -446,7 +456,11 @@ private fun TodayFeaturedCard(
                 ambientColor = Color.White,
                 spotColor = Color.White
             )
-            .border(1.dp, cardBorder, RoundedCornerShape(20.dp))
+            .border(
+                width = 0.5.dp,  // 改为 0.5dp，更细的边框
+                color = cardBorder,
+                shape = RoundedCornerShape(20.dp)
+            )
             .clip(RoundedCornerShape(20.dp))
             .background(bgGradient)
             .clickable(onClick = onClick)
@@ -553,14 +567,24 @@ private fun RandomSongCard(
     Column(
         modifier = Modifier
             .width(118.dp)
-            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
     ) {
         SongCover(
             url = song.artwork,
             modifier = Modifier
                 .size(118.dp)
-                .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(14.dp)),
+                .clip(RoundedCornerShape(14.dp))
+                .border(
+                    width = 1.dp,
+                    color = Stone200.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(14.dp)  // 确保 border 和 clip 圆角完全一致
+                )
+                .shadow(
+                    elevation = 2.dp,
+                    shape = RoundedCornerShape(14.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.05f),
+                    spotColor = Color.Black.copy(alpha = 0.05f)
+                ),
             corner = 14.dp
         )
         Spacer(Modifier.height(8.dp))
@@ -587,7 +611,6 @@ private fun RandomSongCard(
         )
     }
 }
-
 // ==================== 为你推荐 ====================
 
 @Composable
@@ -599,70 +622,87 @@ private fun RecommendPlaylistCard(
     val bgGradient = Brush.horizontalGradient(listOf(themeColors.bgStart, themeColors.bgEnd))
     val cardBorder = if (Palette.isDark) Color(0xFF33304A) else Color.White.copy(alpha = 0.9f)
 
-    Row(
+    // 外层 Box：渐变边框
+    Box(
         modifier = Modifier
             .width(250.dp)
-            .border(1.dp, cardBorder, RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
-            .background(bgGradient)
-            .clickable(onClick = onClick)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        themeColors.bgStart,  // 左上角：背景色
+                        Color.White.copy(alpha = 0.9f)  // 右下角：白色
+                    ),
+                    start = Offset.Zero,  // 左上角
+                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)  // 右下角
+                )
+            )
+            .padding(1.dp)  // 边框宽度
     ) {
-        SongCover(
-            url = playlist.coverUrl,
-            modifier = Modifier.size(64.dp),
-            corner = 14.dp
-        )
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = playlist.name,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = TextPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 18.sp
-            )
-            Spacer(Modifier.height(5.dp))
-            Text(
-                text = "${playlist.trackCount ?: 20} 首歌曲",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Normal
-                ),
-                color = TextSoft,
-                maxLines = 1
-            )
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        // 播放按钮：同色系深色大圆角
-        Box(
+        // 内层 Row：实际内容
+        Row(
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(themeColors.buttonColor),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(17.dp))  // 比外层小 1dp
+                .background(bgGradient)
+                .clickable(onClick = onClick)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = "播放",
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
+            SongCover(
+                url = playlist.coverUrl,
+                modifier = Modifier.size(64.dp),
+                corner = 14.dp
             )
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 18.sp
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    text = "${playlist.trackCount ?: 20} 首歌曲",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    color = TextSoft,
+                    maxLines = 1
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // 播放按钮：同色系深色大圆角
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(themeColors.buttonColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = "播放",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
-
 // ==================== 分类歌单 ====================
 
 private data class CategoryItem(
