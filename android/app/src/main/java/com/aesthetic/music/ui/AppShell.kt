@@ -49,7 +49,6 @@ import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.cache.CacheListScreen
-import com.aesthetic.music.ui.category.CategoryPage
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.artist.ArtistScreen
@@ -115,17 +114,13 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val isLoadingContent by viewModel.isLoadingContent.collectAsState()
     val contentError by viewModel.contentError.collectAsState()
 
-    // 歌单广场 + 分类页 + 排行榜页
+    // 歌单广场（覆盖层） + 排行榜页
     val sheetPlaylists by viewModel.sheetPlaylists.collectAsState()
     val sheetCat by viewModel.sheetCat.collectAsState()
     val sheetOrder by viewModel.sheetOrder.collectAsState()
     val isLoadingSheets by viewModel.isLoadingSheets.collectAsState()
     val sheetError by viewModel.sheetError.collectAsState()
-    val showCategories by viewModel.showCategories.collectAsState()
-    val categoryPlaylists by viewModel.categoryPlaylists.collectAsState()
-    val isLoadingCategoryPlaylists by viewModel.isLoadingCategoryPlaylists.collectAsState()
-    val categoryPlaylistsError by viewModel.categoryPlaylistsError.collectAsState()
-    val selectedCategoryName by viewModel.selectedCategoryName.collectAsState()
+    val showSheet by viewModel.showSheet.collectAsState()
     val showRanks by viewModel.showRanks.collectAsState()
 
     // 用户与同步体系
@@ -270,25 +265,24 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onPlaySong = { song, list -> playSong(song, list) },
                             onSearchBarClick = { viewModel.openSearch() },
                             onOpenPlaylistDetail = viewModel::openPlaylistDetail,
-                            onOpenCategories = { viewModel.openCategories() },
+                            onOpenSheet = { viewModel.openSheet() },
                             onOpenRanksPage = { viewModel.openRanks() },
                             onToggleFavorite = viewModel::toggleFavorite,
                         )
                     }
 
                     AppTab.SHEET -> pageStateHolder.SaveableStateProvider("sheet") {
-                        PlaylistPage(
-                            sheetTags = viewModel.sheetTags,
-                            sheetCat = sheetCat,
-                            sheetOrder = sheetOrder,
-                            playlists = sheetPlaylists,
-                            isLoading = isLoadingSheets,
-                            error = sheetError,
-                            onSelectCat = viewModel::setSheetCat,
-                            onSelectOrder = viewModel::setSheetOrder,
-                            onRetry = { viewModel.loadSheetPlaylists(force = true) },
-                            onOpenPlaylist = viewModel::openPlaylistDetail,
-                        )
+                        // 歌单广场已移至覆盖层（首页分类歌单进入），此 Tab 暂为空白占位页
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "建设中 · 敬请期待",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSoft,
+                            )
+                        }
                     }
 
                     AppTab.PLAYLIST -> pageStateHolder.SaveableStateProvider("playlist") {
@@ -347,31 +341,29 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     )
                 }
 
-                // ===== 分类页（分类 -> 分类歌单） =====
-                if (showCategories) {
-                    CategoryPage(
-                        categories = homeCategories,
-                        selectedName = selectedCategoryName,
-                        playlists = categoryPlaylists,
-                        isLoadingPlaylists = isLoadingCategoryPlaylists,
-                        error = categoryPlaylistsError,
-                        onBack = { viewModel.closeCategories() },
-                        onOpenCategory = viewModel::openCategory,
-                        onBackToList = { viewModel.backToCategoryList() },
-                        onOpenPlaylist = viewModel::openPlaylistDetail,
-                        onRetryCategory = {
-                            homeCategories.firstOrNull { it.title == selectedCategoryName }
-                                ?.let(viewModel::openCategory)
-                        },
-                    )
-                }
-
                 // ===== 排行榜页（榜单列表） =====
                 if (showRanks) {
                     RankPage(
                         ranks = ranks,
                         onBack = { viewModel.closeRanks() },
                         onOpenRank = viewModel::openRankDetail,
+                    )
+                }
+
+                // ===== 歌单广场（覆盖层，首页分类歌单进入） =====
+                if (showSheet) {
+                    PlaylistPage(
+                        sheetTags = viewModel.sheetTags,
+                        sheetCat = sheetCat,
+                        sheetOrder = sheetOrder,
+                        playlists = sheetPlaylists,
+                        isLoading = isLoadingSheets,
+                        error = sheetError,
+                        onSelectCat = viewModel::setSheetCat,
+                        onSelectOrder = viewModel::setSheetOrder,
+                        onRetry = { viewModel.loadSheetPlaylists(force = true) },
+                        onOpenPlaylist = viewModel::openPlaylistDetail,
+                        onBack = { viewModel.closeSheet() },
                     )
                 }
 
@@ -806,11 +798,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 BackHandler(enabled = showSearch) {
                     viewModel.closeSearch()
                 }
-                BackHandler(enabled = showCategories) {
-                    if (selectedCategoryName != null) viewModel.backToCategoryList() else viewModel.closeCategories()
-                }
                 BackHandler(enabled = showRanks) {
                     viewModel.closeRanks()
+                }
+                BackHandler(enabled = showSheet) {
+                    viewModel.closeSheet()
                 }
                 BackHandler(enabled = showPlaylistDetail != null) {
                     viewModel.showPlaylistDetail.value = null

@@ -285,9 +285,6 @@ interface MusicApi {
     @GET("api/rank/{id}")
     suspend fun rankDetail(@Path("id") id: String): ApiResponse<List<Song>>
 
-    @GET("api/categories")
-    suspend fun categories(): ApiResponse<CategoriesData>
-
     // ==================== 用户 ====================
 
     @POST("api/user/register")

@@ -98,7 +98,7 @@ fun HomeScreen(
     onPlaySong: (Song, List<Song>) -> Unit,
     onSearchBarClick: () -> Unit,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
-    onOpenCategories: () -> Unit,
+    onOpenSheet: () -> Unit,
     onOpenRanksPage: () -> Unit,
     onToggleFavorite: (Song) -> Unit,
 ) {
@@ -304,12 +304,12 @@ fun HomeScreen(
             }
         }
 
-        // 5. 分类歌单（带 3 首预览与金句文案）
+        // 5. 分类歌单（带 3 首预览与金句文案，点“更多”进歌单广场）
         item(key = "category_section") {
             Column {
                 SectionHeader(
                     title = "分类歌单",
-                    onClickMore = onOpenCategories
+                    onClickMore = onOpenSheet
                 )
 
                 Spacer(Modifier.height(14.dp))
@@ -329,7 +329,7 @@ fun HomeScreen(
                                 if (category.playlistItem != null) {
                                     onOpenPlaylistDetail(category.playlistItem)
                                 } else {
-                                    onOpenCategories()
+                                    onOpenSheet()
                                 }
                             }
                         )
@@ -696,6 +696,7 @@ private fun RecommendPlaylistCard(
         }
     }
 }
+
 // ==================== 分类歌单 ====================
 
 private data class CategoryItem(

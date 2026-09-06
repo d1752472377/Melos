@@ -111,7 +111,7 @@ class MainViewModel : ViewModel() {
     @Volatile
     private var contentLoaded = false
 
-    // 歌单广场（歌单页 Tab）：标签 + 最新/最热 + 方块歌单
+    // 歌单广场（覆盖层，从首页分类歌单进入）：标签 + 最新/最热 + 方块歌单
     val sheetTags: List<String> = repository.sheetTags()
     val sheetCat = MutableStateFlow("全部")
     val sheetOrder = MutableStateFlow("hot") // "hot"=最热 / "new"=最新
@@ -119,14 +119,8 @@ class MainViewModel : ViewModel() {
     val sheetPlaylists: StateFlow<List<PlaylistItem>> = _sheetPlaylists.asStateFlow()
     val isLoadingSheets = MutableStateFlow(false)
     val sheetError = MutableStateFlow<String?>(null)
-
-    // 分类页（覆盖层）：分类列表 -> 分类歌单
-    val showCategories = MutableStateFlow(false)
-    private val _categoryPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
-    val categoryPlaylists: StateFlow<List<PlaylistItem>> = _categoryPlaylists.asStateFlow()
-    val isLoadingCategoryPlaylists = MutableStateFlow(false)
-    val categoryPlaylistsError = MutableStateFlow<String?>(null)
-    val selectedCategoryName = MutableStateFlow<String?>(null)
+    private val _showSheet = MutableStateFlow(false)
+    val showSheet: StateFlow<Boolean> = _showSheet.asStateFlow()
 
     // 排行榜页（覆盖层）
     val showRanks = MutableStateFlow(false)
@@ -146,11 +140,9 @@ class MainViewModel : ViewModel() {
     /** 歌手详情请求令牌（openArtist 用，同上） */
     @Volatile
     private var artistRequestId = 0L
-    /** 歌单广场/分类歌单请求令牌（快速切标签或顺序时丢弃旧响应） */
+    /** 歌单广场请求令牌（快速切标签或顺序时丢弃旧响应） */
     @Volatile
     private var sheetRequestId = 0L
-    @Volatile
-    private var categoryRequestId = 0L
 
     /**
      * 云同步串行互斥锁 + 待发标记：
@@ -715,34 +707,12 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ==================== 分类页 ====================
-
-    fun openCategories() { showCategories.value = true }
-
-    fun closeCategories() {
-        showCategories.value = false
-        selectedCategoryName.value = null
+    fun openSheet() {
+        _showSheet.value = true
+        loadSheetPlaylists()
     }
 
-    /** 从分类列表进入某个分类的歌单列表 */
-    fun openCategory(category: HomeCategoryDto) {
-        selectedCategoryName.value = category.title
-        _categoryPlaylists.value = emptyList()
-        categoryPlaylistsError.value = null
-        val req = ++categoryRequestId
-        viewModelScope.launch {
-            isLoadingCategoryPlaylists.value = true
-            repository.categoryPlaylists(category.id)
-                .onSuccess { list -> if (req == categoryRequestId) _categoryPlaylists.value = list }
-                .onFailure { e ->
-                    if (req == categoryRequestId) categoryPlaylistsError.value = e.message ?: "获取分类歌单失败"
-                }
-            if (req == categoryRequestId) isLoadingCategoryPlaylists.value = false
-        }
-    }
-
-    /** 从分类歌单列表返回分类列表 */
-    fun backToCategoryList() { selectedCategoryName.value = null }
+    fun closeSheet() { _showSheet.value = false }
 
     // ==================== 排行榜页 ====================
 
@@ -1402,9 +1372,8 @@ class MainViewModel : ViewModel() {
         showHistory.value = false
         showSearch.value = false
         showAlbumDetail.value = null
-        closeCategories()
         showRanks.value = false
-        if (tab == AppTab.SHEET) loadSheetPlaylists()
+        showSheet.value = false
         if (tab == AppTab.PROFILE) refreshStats()
     }
 

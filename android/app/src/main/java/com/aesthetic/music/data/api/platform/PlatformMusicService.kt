@@ -369,7 +369,7 @@ object PlatformMusicService {
 
     /**
      * 歌单广场标签（左侧抽屉用）。硬编码一套常用分类避免登录依赖，
-     * 与网易云 top/playlist 的 cat 参数直接对应。
+     * 与网易云 highquality/list 的 cat 参数直接对应。
      */
     val defaultSheetTags = listOf(
         "全部", "华语", "欧美", "日语", "韩语", "粤语", "流行",
@@ -377,20 +377,20 @@ object PlatformMusicService {
     )
 
     /**
-     * 歌单广场列表：按标签 + 最新/最热 拉取歌单。
-     * order = "new"（最新）或 "hot"（最热），cat 为标签名（"全部" 表示不限）。
-     * 走网易云公开 /api/top/playlist，无需登录。
+     * 歌单广场列表：按标签 + 最新/最热拉取歌单。
+     * order = "new"（最新，维持接口按 updateTime 降序）或 "hot"（最热，按播放量降序，客户端排序）。
+     * 数据源改为网易云公开 /api/playlist/highquality/list（无需登录、稳定可用）；
+     * 旧用的 /api/top/playlist 已下线返回 404，导致歌单广场空数据。
      */
     suspend fun sheetPlaylists(cat: String, order: String, limit: Int = 40): List<PlaylistItem> {
         val safeLimit = limit.coerceIn(1, 50)
         val encodedCat = URLEncoder.encode(cat, "UTF-8")
-        val orderParam = if (order == "new") "new" else "hot"
-        val url = "https://music.163.com/api/top/playlist" +
-            "?cat=$encodedCat&order=$orderParam&limit=$safeLimit&offset=0&total=true"
+        val url = "https://music.163.com/api/playlist/highquality/list" +
+            "?cat=$encodedCat&limit=$safeLimit"
         val root = getJson(url)
         val arr = root.getAsJsonArray("playlists") ?: return emptyList()
 
-        return arr.mapNotNull { elem ->
+        val items = arr.mapNotNull { elem ->
             val obj = elem.asJsonObject ?: return@mapNotNull null
             val id = obj.get("id")?.asString ?: return@mapNotNull null
             val cover = obj.get("coverImgUrl")?.asString ?: obj.get("picUrl")?.asString
@@ -403,8 +403,14 @@ object PlatformMusicService {
                 platform = "netease"
             )
         }
+        // 最热：按播放量降序；最新：维持接口原始顺序（updateTime 降序）
+        return if (order == "new") items else items.sortedByDescending { it.playCount ?: 0L }
     }
 
+    /**
+     * 首页分类歌单：内置四个分类，各拉一个精品歌单 + 前 3 首预览文案。
+     * 数据源用网易云公开 /api/playlist/highquality/list（无需登录）。
+     */
     suspend fun getCategories(): CategoriesData {
         val catDefs = listOf(
             Triple("pop", "流行", "人生走在路上，愿你心花路放"),

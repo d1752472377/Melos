@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
@@ -71,6 +72,7 @@ fun PlaylistPage(
     onSelectOrder: (String) -> Unit,
     onRetry: () -> Unit,
     onOpenPlaylist: (PlaylistItem) -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -111,6 +113,18 @@ fun PlaylistPage(
                     .padding(start = 20.dp, end = 12.dp, top = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (onBack != null) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = TextPrimary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(onClick = onBack)
+                            .size(24.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                }
                 Text(
                     text = "歌单广场",
                     style = MaterialTheme.typography.headlineSmall.copy(

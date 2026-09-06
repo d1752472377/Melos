@@ -13,7 +13,7 @@
 # 参与 Gson 序列化的数据模型：
 # data.model.Song —— 历史/收藏/队列/歌单全部经 JSON 落盘或网络传输
 -keep class com.aesthetic.music.data.model.Song { <init>(); <fields>; }
-# data.api.** —— Retrofit + Gson 解析的网络 DTO（PlaylistItem/UserInfo/HomeCategoryDto 等）
+# data.api.** —— Retrofit + Gson 解析的网络 DTO（PlaylistItem/UserInfo/RanksData 等）
 -keep class com.aesthetic.music.data.api.** { <init>(); <fields>; }
 # data.settings 中直接经 Gson 落盘的持久化模型
 -keep class com.aesthetic.music.data.settings.PlayerSession { <init>(); <fields>; }

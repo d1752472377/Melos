@@ -44,14 +44,10 @@ import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.flow.StateFlow
 
 /**
-<<<<<<< HEAD
- * 底部导航 Dock：主页 / 歌单（方块歌单广场） / 中央旋转唱片（带进度环） / 我的歌单 / 个人
-=======
- * 底部导航 Dock：主页 / 发现 / 中央旋转唱片（带进度环） / 歌单 / 个人
+ * 底部导航 Dock：主页 / 歌单（空白占位，后续补充） / 中央旋转唱片（带进度环） / 我的歌单 / 个人
  *
  * @param containerColor 容器背景色，根据页面背景动态传入
  * @param isDarkBackground 是否为深色背景，决定文字和图标的颜色
->>>>>>> 49a46b3 (优化导航条在不同页面的颜色，调整歌单背景色偏好)
  */
 @Composable
 fun NavigationDock(
@@ -144,7 +140,7 @@ fun NavigationDock(
 
         DockIcon(
             icon = Icons.AutoMirrored.Filled.QueueMusic,
-            label = "歌单",
+            label = "我的歌单",
             selected = currentTab == AppTab.PLAYLIST,
             onClick = onPlaylist,
             selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,

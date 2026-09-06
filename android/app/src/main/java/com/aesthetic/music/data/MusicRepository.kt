@@ -240,7 +240,7 @@ class MusicRepository(
         PlatformMusicService.getCategories()
     }
 
-    // ==================== 歌单广场 / 分类 ====================
+    // ==================== 歌单广场 ====================
 
     /** 歌单广场标签（左侧抽屉） */
     fun sheetTags(): List<String> = PlatformMusicService.defaultSheetTags
@@ -250,23 +250,6 @@ class MusicRepository(
         apiCatching {
             PlatformMusicService.sheetPlaylists(cat, order, limit)
         }
-
-    /** 分类歌单：把内置分类 id 映射到网易云 cat 后拉取对应歌单列表 */
-    suspend fun categoryPlaylists(categoryId: String, limit: Int = 40): Result<List<PlaylistItem>> =
-        apiCatching {
-            val cat = categoryCats[categoryId] ?: categoryId
-            PlatformMusicService.sheetPlaylists(cat, "hot", limit)
-        }
-
-    companion object {
-        /** 内置分类 id -> 网易云 cat（backend HOME_CATEGORIES 的一致性映射） */
-        private val categoryCats = mapOf(
-            "pop" to "流行",
-            "edm" to "电子",
-            "folk" to "民谣",
-            "rock" to "摇滚",
-        )
-    }
 
     // ==================== 用户 ====================
 
