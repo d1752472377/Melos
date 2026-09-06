@@ -118,6 +118,7 @@ class MainViewModel : ViewModel() {
     private val _sheetPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val sheetPlaylists: StateFlow<List<PlaylistItem>> = _sheetPlaylists.asStateFlow()
     val isLoadingSheets = MutableStateFlow(false)
+    val sheetError = MutableStateFlow<String?>(null)
     val showSheet = MutableStateFlow(false)
 
     // FM 电台（免登录会话级推荐）：SHEET Tab 全屏刷歌

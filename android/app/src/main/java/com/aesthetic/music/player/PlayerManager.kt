@@ -485,7 +485,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     }
 
     private fun onSongComplete() {
-        val completedSong = currentSong
+        val completedSong = _state.value.currentSong
         if (completedSong != null) {
             onSongCompleted?.invoke(completedSong)
         }

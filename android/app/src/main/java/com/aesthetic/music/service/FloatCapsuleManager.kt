@@ -2,7 +2,6 @@ package com.aesthetic.music.service
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
@@ -17,9 +16,15 @@ import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
+import coil.imageLoader
+import coil.request.ImageRequest
 import com.aesthetic.music.R
-import java.net.HttpURLConnection
-import java.net.URL
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 系统悬浮窗胶囊（类灵动岛）——移植自参考 App 的 FloatCapsuleManager。
@@ -27,6 +32,9 @@ import java.net.URL
  * 支持拖动、点击回 App、播放/暂停控制。
  */
 object FloatCapsuleManager {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var imageJob: Job? = null
+
     private var windowManager: WindowManager? = null
     private var capsuleView: View? = null
     private var layoutParams: WindowManager.LayoutParams? = null
@@ -110,7 +118,7 @@ object FloatCapsuleManager {
         artistView.text = artist
         playBtn.setImageResource(if (isPlaying) R.drawable.ic_pause_white else R.drawable.ic_play_white)
         if (!coverUrl.isNullOrEmpty()) {
-            loadImage(coverUrl, coverView)
+            loadImage(context, coverUrl, coverView)
         }
 
         playBtn.setOnClickListener { onPlayPauseTap?.invoke() }
@@ -205,9 +213,9 @@ object FloatCapsuleManager {
             view.findViewById<ImageButton>(R.id.fc_play)?.setImageResource(
                 if (isPlaying) R.drawable.ic_pause_white else R.drawable.ic_play_white
             )
-            // 封面 URL 未变化时不再重新下载（此前每次状态刷新都会重新拉一次网络图片）
+            // 封面 URL 未变化时不再重新下载
             if (!coverUrl.isNullOrEmpty() && coverUrl != currentCoverUrl) {
-                loadImage(coverUrl, view.findViewById(R.id.fc_cover))
+                loadImage(view.context, coverUrl, view.findViewById(R.id.fc_cover))
             }
         }
     }
@@ -223,6 +231,8 @@ object FloatCapsuleManager {
 
     fun hide() {
         val view = capsuleView ?: return
+        imageJob?.cancel()
+        imageJob = null
         try {
             windowManager?.removeView(view)
         } catch (_: Exception) {
@@ -232,51 +242,28 @@ object FloatCapsuleManager {
         currentCoverUrl = null
     }
 
-    /** 简单网络图片加载（避免额外依赖，失败静默）。
-     *  两遍请求：先读尺寸算出采样率，再按采样解码——
-     *  旧实现直接全尺寸解码，大封面在低内存设备上有 OOM 风险。 */
-    private fun loadImage(url: String, imageView: ImageView) {
-        Thread {
-            var conn: HttpURLConnection? = null
+    /**
+     * 使用 Coil 异步加载封面图片：
+     * 享受内存/磁盘双级缓存，避免手写原始网络请求与两次连接采样。
+     */
+    private fun loadImage(context: Context, url: String, imageView: ImageView) {
+        imageJob?.cancel()
+        imageJob = scope.launch {
             try {
-                conn = URL(url).openConnection() as HttpURLConnection
-                conn.connectTimeout = 6000
-                conn.readTimeout = 8000
-                conn.connect()
-                // 第一遍：只读边界，不加载像素
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                conn.inputStream.use { BitmapFactory.decodeStream(it, null, bounds) }
-                val sample = calcSampleSize(bounds.outWidth, bounds.outHeight, 160)
-                conn.disconnect()
-
-                // 第二遍：按采样率解码
-                conn = URL(url).openConnection() as HttpURLConnection
-                conn.connectTimeout = 6000
-                conn.readTimeout = 8000
-                conn.connect()
-                val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-                val bitmap = conn.inputStream.use { BitmapFactory.decodeStream(it, null, opts) }
-                if (bitmap != null) {
-                    Handler(Looper.getMainLooper()).post {
-                        // 胶囊已隐藏或已切换到下一首封面时不再贴旧图
-                        if (isShowing() && currentCoverUrl == url) imageView.setImageBitmap(bitmap)
-                    }
+                val request = ImageRequest.Builder(context.applicationContext)
+                    .data(url)
+                    .size(160, 160)
+                    .allowHardware(false)
+                    .build()
+                val result = withContext(Dispatchers.IO) {
+                    context.applicationContext.imageLoader.execute(request)
+                }
+                val drawable = result.drawable
+                if (drawable != null && isShowing() && currentCoverUrl == url) {
+                    imageView.setImageDrawable(drawable)
                 }
             } catch (_: Exception) {
-            } finally {
-                try {
-                    conn?.disconnect()
-                } catch (_: Exception) {
-                }
             }
-        }.start()
-    }
-
-    /** 目标边长 160px 内的 2 的幂采样率（悬浮窗封面显示尺寸约 40dp，160px 足够） */
-    private fun calcSampleSize(width: Int, height: Int, target: Int): Int {
-        if (width <= 0 || height <= 0) return 1
-        var sample = 1
-        while (width / (sample * 2) >= target && height / (sample * 2) >= target) sample *= 2
-        return sample
+        }
     }
 }

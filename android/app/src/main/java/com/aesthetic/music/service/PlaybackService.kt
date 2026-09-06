@@ -36,7 +36,6 @@ class PlaybackService : MediaSessionService() {
         // 先保证通知渠道存在，再走 Media3 前台逻辑，避免超时崩溃
         ensureChannelExists(this)
         super.onCreate()
-        SettingsStore.init(this)
         val player = PlayerManager.get(this).player
         // media3 1.4.1 的 MediaSession.Builder 没有 (context, player, callback) 三参构造，
         // MediaSession.Callback 也没有可覆写的 onSeekToNext/PreviousMediaItem（切歌命令

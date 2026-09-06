@@ -16,16 +16,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.metrics.performance.FrameData
 import androidx.metrics.performance.JankStats
-import com.aesthetic.music.data.settings.FavoritePlaylistStore
-import com.aesthetic.music.data.settings.FavoriteStore
-import com.aesthetic.music.data.settings.HistoryStore
-import com.aesthetic.music.data.settings.PlayerSessionStore
-import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.SettingsStore
-import com.aesthetic.music.data.settings.StatsStore
-import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.service.CrashHandler
 import com.aesthetic.music.ui.AppShell
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.theme.AestheticMusicTheme
@@ -46,19 +38,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setHighRefreshRate()
-
-        SettingsStore.init(this)
-        FavoriteStore.init(this)
-        FavoritePlaylistStore.init(this)
-        HistoryStore.init(this)
-        UserStore.init(this)
-        com.aesthetic.music.data.settings.SyncServerStore.init(this)
-        com.aesthetic.music.data.settings.ScriptCatalogStore.init(this)
-        com.aesthetic.music.data.userapi.UserApiEngine.init(this)
-        PlaylistStore.init(this)
-        StatsStore.init(this)
-        PlayerSessionStore.init(this)
-        CrashHandler.init(this)
         requestNotificationPermissionIfNeeded()
         enableEdgeToEdge()
         installJankMonitor()

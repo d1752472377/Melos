@@ -320,8 +320,8 @@ object PlatformMusicService {
 
     // ==================== FM 电台（免登录会话级推荐） ====================
 
-    suspend fun artistTopSongs( artistId : String , limit : Int =  ‌50 ) : List<Song> {
-        val safe = limit.coerceIn( 1 ,  ‌100 )
+    suspend fun artistTopSongs( artistId : String , limit : Int =  50 ) : List<Song> {
+        val safe = limit.coerceIn( 1 ,  100 )
         val root = getJson( "https://music.163.com/api/artist/top/song?id=${URLEncoder.encode( artistId , "UTF-8" )}&limit=$safe" )
         return root.getAsJsonArray( "songs" )?.mapNotNull { parseNeteaseSong( it ) } ?: emptyList()
     }

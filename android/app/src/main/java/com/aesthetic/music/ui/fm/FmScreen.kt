@@ -84,7 +84,7 @@ fun FmScreen(
     var showTreasure by remember { mutableStateOf( false ) }
     var syncingPager by remember { mutableStateOf( false ) }
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState( initialPage =  ‌0 , pageCount = { fmQueue.size.coerceAtLeast( 1  ) } )
+    val pagerState = rememberPagerState( initialPage =  0 , pageCount = { fmQueue.size.coerceAtLeast( 1  ) } )
 
 
 
@@ -98,7 +98,7 @@ fun FmScreen(
     }    // 引擎自动续播（听完自动下一首）→ 同步当前页；滑动同步锁，避免双重播放
     LaunchedEffect( currentSongId , fmQueue ) {
         val idx = fmQueue.indexOfFirst { it.id == currentSongId }
-        if ( idx >=  ‌0 && idx != pagerState.currentPage ) {
+        if ( idx >=  0 && idx != pagerState.currentPage ) {
             syncingPager = true
             scope.launch {
                 pagerState.scrollToPage( idx )
@@ -155,7 +155,7 @@ fun FmScreen(
                 VerticalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount =  ‌1,
+                    beyondViewportPageCount =  1,
                 ) { page ->
                     val song = fmQueue.getOrNull( page )
                     if ( song != null ) {
@@ -167,7 +167,7 @@ fun FmScreen(
                             onToggleLike = { onToggleLike( song ) },
                             onPlayPause = onPlayPause,
                             onNext = {
-                                val next = page +  ‌1
+                                val next = page +  1
                                 if ( next < fmQueue.size ) onSelect( next )
                             },
                         )
@@ -269,7 +269,7 @@ private fun FmPage(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                maxLines =  ‌1,
+                maxLines =  1,
                 overflow = TextOverflow.Ellipsis,
             )
 
@@ -280,7 +280,7 @@ private fun FmPage(
                 color = TextSoft,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                maxLines =  ‌1,
+                maxLines =  1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -336,8 +336,8 @@ private fun FmTreasureSheet(
 ) {
     ModalBottomSheet( onDismissRequest = onDismiss , containerColor = Background ) {
         Column(
-            Modifier.fillMaxWidth().padding( horizontal =20.dp , bottom =28.dp ),
-            verticalArrangement = Arrangement.spacedBy( 10.dp ),
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text( text = "我本次淘到的宝藏歌单", color = TextPrimary , style = MaterialTheme.typography.titleMedium , fontWeight = FontWeight.Bold )
             Text( text = "共 ${songs.size} 首 · 点赞即自动收藏到「我喜欢的音乐」", color = TextMuted , style = MaterialTheme.typography.bodySmall )

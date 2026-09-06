@@ -16,6 +16,7 @@
       登录态排除出云备份与设备迁移。
     -->
     <application
+        android:name=".MelosApplication"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
