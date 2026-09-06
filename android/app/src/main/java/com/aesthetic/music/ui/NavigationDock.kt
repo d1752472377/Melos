@@ -31,8 +31,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -64,21 +66,31 @@ fun NavigationDock(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .padding(bottom = 12.dp)
-            .height(60.dp)
-            .shadow(6.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(alpha = 0.08f))
-            .border(1.dp, Stone200.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
-            .clip(RoundedCornerShape(22.dp))
-            .background(Surface.copy(alpha = 0.88f))
-            .padding(horizontal = 6.dp),
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 18.dp)
+            .height(54.dp)
+            .shadow(
+                elevation = 10.dp,
+                shape = RoundedCornerShape(27.dp),
+                ambientColor = Color.White.copy(alpha = 0.4f),
+                spotColor = Color.White.copy(alpha = 0.5f)
+            )
+            .clip(RoundedCornerShape(27.dp))
+            .background(
+                Color.White.copy(alpha = 0.97f)  // 直接使用高不透明度
+            )
+            .border(
+                width = 1.5.dp,
+                color = Color.White.copy(alpha = 0.85f),
+                shape = RoundedCornerShape(27.dp)
+            )
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceAround,
-    ) {
+    ){
         DockIcon(Icons.Filled.Home, label = "首页", selected = currentTab == AppTab.HOME, onClick = onHome)
         DockIcon(Icons.Filled.Explore, label = "发现", selected = currentTab == AppTab.DISCOVER, onClick = onDiscover)
 
-        // 中央旋转黑胶唱片（外圈带播放进度环）
         CenterDisc(
             currentArtwork = currentArtwork,
             isSpinning = isSpinning,
@@ -90,7 +102,6 @@ fun NavigationDock(
         DockIcon(Icons.Filled.Person, label = "我的", selected = currentTab == AppTab.PROFILE, onClick = onProfile)
     }
 }
-
 /**
  * 中央唱片与环形进度条组件：独立订阅 progressFlow，防止 500ms 进度跳动引起父组件整行重组
  */
@@ -107,13 +118,19 @@ private fun CenterDisc(
         (progress.positionMs.toFloat() / progress.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
-    val trackColor = Stone200.copy(alpha = 0.55f)
+    // 判断是否显示进度条：播放中或暂停时都显示
+    val shouldShowProgress = progress != null && progress.durationMs > 0
+
+    // 进度条颜色
     val progressColor = PrimaryBrown
+    // 底色：变淡、模糊、加灰度的效果
+    val trackColor = PrimaryBrown.copy(alpha = 0.15f)  // 很淡的棕色
+    // 或者使用灰色调
+    // val trackColor = Color.Gray.copy(alpha = 0.2f)
 
     Box(
         Modifier
             .size(48.dp)
-            .shadow(4.dp, CircleShape, ambientColor = PrimaryBrown.copy(alpha = 0.2f))
             .clip(CircleShape)
             .semantics { contentDescription = "打开播放器" }
             .clickable(
@@ -123,41 +140,54 @@ private fun CenterDisc(
             ),
         contentAlignment = Alignment.Center,
     ) {
+        // 背景层
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Surface)
+        )
+
+        // Canvas 画环
         Canvas(modifier = Modifier.fillMaxSize()) {
             val strokeWidth = 2.5.dp.toPx()
             val halfStroke = strokeWidth / 2f
             val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
             val topLeft = Offset(halfStroke, halfStroke)
 
-            // 底层静态环形轨道
-            drawArc(
-                color = trackColor,
-                startAngle = 0f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidth)
-            )
-
-            // 播放进度圆环（顺时针从 12 点钟方向展开）
-            if (fraction > 0f) {
+            // 只有在有播放进度信息时才绘制环形轨道
+            if (shouldShowProgress) {
+                // 静态底色轨道：变淡的棕色，作为进度条的背景
                 drawArc(
-                    color = progressColor,
-                    startAngle = -90f,
-                    sweepAngle = 360f * fraction,
+                    color = trackColor,
+                    startAngle = 0f,
+                    sweepAngle = 360f,
                     useCenter = false,
                     topLeft = topLeft,
                     size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    style = Stroke(width = strokeWidth)
                 )
+
+                // 进度条：播放中或暂停时都显示
+                if (fraction > 0f) {
+                    drawArc(
+                        color = progressColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f * fraction,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    )
+                }
             }
         }
 
         // 内层黑胶旋转唱片
         RotatingDisc(
             url = currentArtwork,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape),
             isPlaying = isSpinning,
             durationMs = 5000
         )
