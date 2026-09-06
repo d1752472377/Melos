@@ -119,9 +119,7 @@ class MainViewModel : ViewModel() {
     val sheetPlaylists: StateFlow<List<PlaylistItem>> = _sheetPlaylists.asStateFlow()
     val isLoadingSheets = MutableStateFlow(false)
     val sheetError = MutableStateFlow<String?>(null)
-    private val _showSheet = MutableStateFlow(false)
-    val showSheet: StateFlow<Boolean> = _showSheet.asStateFlow()
-
+    val showSheet = MutableStateFlow(false)
     // 排行榜页（覆盖层）
     val showRanks = MutableStateFlow(false)
 
@@ -708,11 +706,11 @@ class MainViewModel : ViewModel() {
     }
 
     fun openSheet() {
-        _showSheet.value = true
+        showSheet.value = true
         loadSheetPlaylists()
     }
 
-    fun closeSheet() { _showSheet.value = false }
+    fun closeSheet() { showSheet.value = true }
 
     // ==================== 排行榜页 ====================
 
