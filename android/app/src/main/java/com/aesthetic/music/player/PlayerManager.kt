@@ -124,6 +124,8 @@ class PlayerManager private constructor(private val appContext: Context) {
     /** 歌曲真正开始播放后回调（写"最近播放"等用）。
      *  此前"点击即写历史"：取直链失败的歌也会入历史，统计口径被污染 */
     var onPlaybackStarted: ((Song) -> Unit)? = null
+    /** 一首歌完整播完（FM 漂移信号；不区分模式，单曲循环/切歌也各计一次） */
+    var onSongCompleted: ((Song) -> Unit)? = null
 
     init {
         player.addListener(object : Player.Listener {
@@ -483,6 +485,10 @@ class PlayerManager private constructor(private val appContext: Context) {
     }
 
     private fun onSongComplete() {
+        val completedSong = currentSong
+        if (completedSong != null) {
+            onSongCompleted?.invoke(completedSong)
+        }
         when (_state.value.playMode) {
             PlayMode.SEQUENCE -> {
                 val s = _state.value

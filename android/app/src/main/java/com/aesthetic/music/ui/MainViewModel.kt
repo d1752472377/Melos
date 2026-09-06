@@ -118,8 +118,29 @@ class MainViewModel : ViewModel() {
     private val _sheetPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val sheetPlaylists: StateFlow<List<PlaylistItem>> = _sheetPlaylists.asStateFlow()
     val isLoadingSheets = MutableStateFlow(false)
-    val sheetError = MutableStateFlow<String?>(null)
     val showSheet = MutableStateFlow(false)
+
+    // FM 电台（免登录会话级推荐）：SHEET Tab 全屏刷歌
+    private val _fmActive = MutableStateFlow(false)
+    val fmActive: StateFlow<Boolean> = _fmActive.asStateFlow()
+    /** FM 可选风格：推荐新歌 + 歌单广场全部标签 */
+    val fmStyles: List<String> = listOf("推荐新歌") + repository.sheetTags()
+    private val _fmStyle = MutableStateFlow<String?>(null)
+    val fmStyle: StateFlow<String?> = _fmStyle.asStateFlow()
+    private val _fmQueue = MutableStateFlow<List<Song>>(emptyList())
+    val fmQueue: StateFlow<List<Song>> = _fmQueue.asStateFlow()
+    private val _fmIndex = MutableStateFlow(0)
+    val fmIndex: StateFlow<Int> = _fmIndex.asStateFlow()
+    private val _fmLoading = MutableStateFlow(false)
+    val fmLoading: StateFlow<Boolean> = _fmLoading.asStateFlow()
+    private val _fmError = MutableStateFlow<String?>(null)
+    val fmError: StateFlow<String?> = _fmError.asStateFlow()
+    private val _fmTreasure = MutableStateFlow<List<Song>>(emptyList())
+    val fmTreasure: StateFlow<List<Song>> = _fmTreasure.asStateFlow()
+    /** FM 漂移歌手池（点赞/听完收集；「歌手ID to 歌手名」） */
+    private val fmDriftArtists = ArrayDeque<Pair<String,String>>()
+    /** FM 已入队曲目 id（去重补充） */
+    private val fmQueuedIds = hashSetOf<String>()
     // 排行榜页（覆盖层）
     val showRanks = MutableStateFlow(false)
 
@@ -710,7 +731,101 @@ class MainViewModel : ViewModel() {
         loadSheetPlaylists()
     }
 
-    fun closeSheet() { showSheet.value = true }
+    fun closeSheet() { showSheet.value = false }
+
+    // ==================== FM 电台（会话级推荐逻辑） ====================
+
+    /** 进入 FM（选风格后开拉种子池；推荐新歌 or 标签精品歌单） */
+    fun fmStart( style : String ) {
+        _fmStyle.value = style
+        fmDriftArtists.clear()
+        fmQueuedIds.clear()
+        _fmQueue.value = emptyList()
+        _fmIndex.value = 0
+        _fmTreasure.value = emptyList()
+        _fmError.value = null
+        _fmActive.value = true
+        _fmLoading.value = true
+        viewModelScope.launch {
+            repository.fmSeedSongs(style,  120).onSuccess { songs ->
+                fmQueuedIds.addAll(songs.map { it.id })
+                _fmQueue.value = songs
+                _fmLoading.value = false
+            }.onFailure { e ->
+                _fmError.value = e.message ?: "加载失败"
+                _fmLoading.value = false
+            }
+        }
+    }
+
+    /** FM 切歌（拖动/自动续播同步索引；近队尾触发补池） */
+    fun fmSelect( index : Int ) {
+        val q = _fmQueue.value
+        if (index < 0 || index >= q.size) return
+        _fmIndex.value = index
+        maybeFmFill( index )
+    }
+
+    /** FM 点赞/取消：点赞 → 收藏（我喜欢的音乐）+ 本次宝藏歌单；取消 → 一并移除 */
+    fun fmToggleLike( song : Song ) {
+        toggleFavorite( song )
+        val trea = _fmTreasure.value.toMutableList()
+        if (_favoriteKeys.value.contains(song.id)) {
+            if (trea.none { it.id == song.id }) {
+                trea.add( song )
+                _fmTreasure.value = trea
+                fmOnSignal( song )
+            }
+        } else {
+            _fmTreasure.value = trea.filterNot { it.id == song.id }
+        }
+    }
+
+    /** FM 漂移信号：点赞/听完某曲 → 收集其歌手 → 补池优先拉该歌手（无需登录，本次会话越刷越准） */
+    fun fmOnSignal( song : Song ) {
+        if (!_fmActive.value) return
+        val artistId = song.artistId ?: return
+        val artistName = song.artist.substringBefore("/").trim()
+        if (artistId.isBlank() || artistName.isBlank()) return
+        if (fmDriftArtists.none { it.first == artistId }) {
+            fmDriftArtists.addLast( artistId to artistName )
+        }
+        maybeFmFill( _fmIndex.value )
+    }
+
+    /** 接近队尾或收到信号时补充：优先漂移歌手，否则同风格再补池 */
+    private fun maybeFmFill( index : Int ) {
+        val q = _fmQueue.value
+        if (q.size - index >= 5) return
+        if (_fmLoading.value) return
+        val style = _fmStyle.value ?: return
+        _fmLoading.value = true
+        viewModelScope.launch {
+            val added = mutableListOf<Song>()
+            val drift = fmDriftArtists.removeFirstOrNull()
+            if ( drift != null ) {
+                repository.artistTopSongs(drift.first,  50).onSuccess { songs ->
+                    added += songs.filter { it.id.isNotBlank() && fmQueuedIds.add( it.id ) }
+                }
+                repository.searchSongs( drift.second ,  20 ).onSuccess { songs ->
+                    added += songs.filter { it.id.isNotBlank() && fmQueuedIds.add( it.id ) }
+                }
+            }
+            if (added.isEmpty()) {
+                repository.fmSeedSongs(style,  80).onSuccess { songs ->
+                    added += songs.filter { it.id.isNotBlank() && fmQueuedIds.add( it.id ) }
+                }
+            }
+            if (added.isNotEmpty()) {
+                val curr = _fmQueue.value
+                _fmQueue.value = curr + added
+            }
+            _fmLoading.value = false
+        }
+    }
+
+    /** FM 暂停漂移（切走 Tab 时；队列与宝藏歌单保留，本次 Session 仍可导出） */
+    fun fmStopDrift() { _fmActive.value = false }
 
     // ==================== 排行榜页 ====================
 
@@ -1372,6 +1487,7 @@ class MainViewModel : ViewModel() {
         showAlbumDetail.value = null
         showRanks.value = false
         showSheet.value = false
+        _fmActive.value = (tab == AppTab.SHEET)
         if (tab == AppTab.PROFILE) refreshStats()
     }
 

@@ -318,6 +318,47 @@ object PlatformMusicService {
         return NewSongsData(title = "新歌速递", songs = songs)
     }
 
+    // ==================== FM 电台（免登录会话级推荐） ====================
+
+    suspend fun artistTopSongs( artistId : String , limit : Int =  ‌50 ) : List<Song> {
+        val safe = limit.coerceIn( 1 ,  ‌100 )
+        val root = getJson( "https://music.163.com/api/artist/top/song?id=${URLEncoder.encode( artistId , "UTF-8" )}&limit=$safe" )
+        return root.getAsJsonArray( "songs" )?.mapNotNull { parseNeteaseSong( it ) } ?: emptyList()
+    }
+
+    suspend fun searchSongs( query : String , limit : Int =  20 ) : List<Song> {
+        val safe = limit.coerceIn( 1 ,  50 )
+        val root = getJson( "https://music.163.com/api/search/get?s=${URLEncoder.encode( query , "UTF-8" )}&type=1&offset=0&limit=$safe" )
+        return root.getAsJsonObject( "result" )?.getAsJsonArray( "songs" )?.mapNotNull { parseNeteaseSong( it ) } ?: emptyList()
+    }
+
+    suspend fun fmRecommendSongs( limit : Int =  100 ) : List<Song> {
+        val root = getJson( "https://music.163.com/api/personalized/newsong?limit=$limit" )
+        return root.getAsJsonArray( "result" )?.mapNotNull { elem ->
+            val songObj = elem.asJsonObject?.getAsJsonObject( "song" ) ?: return@mapNotNull null
+            parseNeteaseSong( songObj )
+        } ?: emptyList()
+    }
+
+    suspend fun fmSeedSongs( tag : String , limit : Int =  120 ) : List<Song> {
+        if ( tag == "推荐新歌" ) return fmRecommendSongs( limit.coerceAtMost( 100 ) )
+        val encodedCat = URLEncoder.encode( tag , "UTF-8" )
+        val root = getJson( "https://music.163.com/api/playlist/highquality/list?cat=$encodedCat&limit=3" )
+        val playlistIds = root.getAsJsonArray( "playlists" )?.mapNotNull { it.asJsonObject?.get( "id" )?.asString } ?: emptyList()
+        val seen = hashSetOf<String>()
+        val out = mutableListOf<Song>()
+        playlistIds.take( 3 ).forEach { id ->
+            if ( out.size >= limit ) return out
+            val songs = try { getPlaylist( id ) } catch ( _ : Exception ) { emptyList() }
+            songs.forEach { s ->
+                if ( s.id.isNotBlank() && seen.add( s.id ) ) {
+                    out += s
+                }
+            }
+        }
+        return out
+    }
+
     suspend fun getRanks(): RanksData {
         val url = "https://music.163.com/api/toplist/detail"
         val root = getJson(url)

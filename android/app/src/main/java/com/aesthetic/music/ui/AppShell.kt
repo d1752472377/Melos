@@ -64,6 +64,7 @@ import com.aesthetic.music.ui.profile.ProfileScreen
 import com.aesthetic.music.ui.rank.RankPage
 import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
+import com.aesthetic.music.ui.fm.FmScreen
 import com.aesthetic.music.ui.sheet.PlaylistPage
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.Stone100
@@ -122,6 +123,13 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val sheetError by viewModel.sheetError.collectAsState()
     val showSheet by viewModel.showSheet.collectAsState()
     val showRanks by viewModel.showRanks.collectAsState()
+    val fmStyles = viewModel.fmStyles
+    val fmStyle by viewModel.fmStyle.collectAsState()
+    val fmQueue by viewModel.fmQueue.collectAsState()
+    val fmIndex by viewModel.fmIndex.collectAsState()
+    val fmLoading by viewModel.fmLoading.collectAsState()
+    val fmError by viewModel.fmError.collectAsState()
+    val fmTreasure by viewModel.fmTreasure.collectAsState()
 
     // 用户与同步体系
     val user by viewModel.user.collectAsState()
@@ -223,6 +231,19 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     // 点了但加载失败/立即切走的一次性点击也会污染最近播放
     LaunchedEffect(Unit) {
         playerManager.onPlaybackStarted = { song -> viewModel.addToHistory(song) }
+        playerManager.onSongCompleted = { song -> viewModel.fmOnSignal( song ) }
+    }
+
+    /** 导出本次宝藏歌单歌名列表（系统分享） */
+    fun shareSongs( songs : List<Song> ) {
+        if ( songs.isEmpty() ) return
+        val text = songs.mapIndexed { i , s -> "${i + 1}. ${s.title} - ${s.artist}" }.joinToString( "\n" )
+        val intent = android.content.Intent( android.content.Intent.ACTION_SEND ).apply {
+            type = "text/plain"
+            putExtra( android.content.Intent.EXTRA_SUBJECT , "我本次淘到的宝藏歌单" )
+            putExtra( android.content.Intent.EXTRA_TEXT , text )
+        }
+        context.startActivity( android.content.Intent.createChooser( intent , "导出歌名列表" ) )
     }
 
     fun playSong(song: Song, list: List<Song>) {
@@ -272,17 +293,29 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     }
 
                     AppTab.SHEET -> pageStateHolder.SaveableStateProvider("sheet") {
-                        // 歌单广场已移至覆盖层（首页分类歌单进入），此 Tab 暂为空白占位页
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = "建设中 · 敬请期待",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSoft,
-                            )
-                        }
+                        FmScreen(
+                            styles = fmStyles,
+                            fmStyle = fmStyle,
+                            fmQueue = fmQueue,
+                            fmIndex = fmIndex,
+                            fmLoading = fmLoading,
+                            fmError = fmError,
+                            fmTreasure = fmTreasure,
+                            favorites = favorites,
+                            currentSongId = playerState.currentSong?.id,
+                            isPlaying = playerState.isPlaying,
+                            onStart = { style -> viewModel.fmStart( style ) },
+                            onSelect = { index ->
+                                viewModel.fmSelect( index )
+                                val q = viewModel.fmQueue.value
+                                val target = q.getOrNull( index )
+                                val alreadySame = ( target?.id != null && playerState.currentSong?.id == target.id )
+                                if ( target != null && !alreadySame ) playSong( target , q )
+                            },
+                            onToggleLike = { song -> viewModel.fmToggleLike( song ) },
+                            onPlayPause = { playerManager.toggle() },
+                            onExport = { songs -> shareSongs( songs ) },
+                        )
                     }
 
                     AppTab.PLAYLIST -> pageStateHolder.SaveableStateProvider("playlist") {

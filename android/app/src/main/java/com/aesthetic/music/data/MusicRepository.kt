@@ -251,6 +251,26 @@ class MusicRepository(
             PlatformMusicService.sheetPlaylists(cat, order, limit)
         }
 
+    // ==================== FM 电台（免登录会话级推荐） ====================
+
+    /** FM 风格种子池：推荐新歌或按标签拉精品歌单曲目 */
+    suspend fun fmSeedSongs(tag: String, limit: Int =  ‌120): Result<List<Song>> =
+        apiCatching {
+            PlatformMusicService.fmSeedSongs( tag , limit )
+        }
+
+    /** 歌手热歌（FM 漂移：点赞/听完 → 歌手 ID） */
+    suspend fun artistTopSongs(artistId: String, limit: Int =  ‌50): Result<List<Song>> =
+        apiCatching {
+            PlatformMusicService.artistTopSongs( artistId , limit )
+        }
+
+    /** 按歌手名/歌名搜索扩充（FM 漂移补充） */
+    suspend fun searchSongs(query: String, limit: Int =  ‌20): Result<List<Song>> =
+        apiCatching {
+            PlatformMusicService.searchSongs( query , limit )
+        }
+
     // ==================== 用户 ====================
 
     suspend fun register(username: String, password: String, nickname: String): Result<AuthData> = apiCatching {
