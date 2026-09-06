@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,10 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -42,13 +39,19 @@ import androidx.compose.ui.unit.dp
 import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.ui.components.RotatingDisc
 import com.aesthetic.music.ui.theme.PrimaryBrown
-import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.flow.StateFlow
 
 /**
+<<<<<<< HEAD
  * 底部导航 Dock：主页 / 歌单（方块歌单广场） / 中央旋转唱片（带进度环） / 我的歌单 / 个人
+=======
+ * 底部导航 Dock：主页 / 发现 / 中央旋转唱片（带进度环） / 歌单 / 个人
+ *
+ * @param containerColor 容器背景色，根据页面背景动态传入
+ * @param isDarkBackground 是否为深色背景，决定文字和图标的颜色
+>>>>>>> 49a46b3 (优化导航条在不同页面的颜色，调整歌单背景色偏好)
  */
 @Composable
 fun NavigationDock(
@@ -62,7 +65,34 @@ fun NavigationDock(
     isSpinning: Boolean = false,
     progressFlow: StateFlow<PlaybackProgress>? = null,
     modifier: Modifier = Modifier,
+    containerColor: Color = Color.White,  // 这行的 Color 是 android.graphics.Color
+    isDarkBackground: Boolean = false,
 ) {
+    // 根据背景色自动调整 Dock 的颜色
+    val dockBackground = if (isDarkBackground) {
+        // 深色背景下，使用传入的颜色
+        containerColor.copy(alpha = 0.85f)  // 使用传入的颜色，不是黑色
+    } else {
+        // 浅色背景下，使用白色背景
+        Color.White.copy(alpha = 0.97f)
+    }
+
+    val dockBorderColor = if (isDarkBackground) {
+        // 深色背景下，边框使用白色半透明
+        Color.White.copy(alpha = 0.15f)
+    } else {
+        // 浅色背景下，边框使用白色
+        Color.White.copy(alpha = 0.85f)
+    }
+
+    val iconColor = if (isDarkBackground) {
+        // 深色背景下，未选中的图标使用白色半透明
+        Color.White.copy(alpha = 0.6f)
+    } else {
+        // 浅色背景下，未选中的图标使用灰色
+        TextSoft
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -72,36 +102,66 @@ fun NavigationDock(
             .shadow(
                 elevation = 10.dp,
                 shape = RoundedCornerShape(27.dp),
-                ambientColor = Color.White.copy(alpha = 0.4f),
-                spotColor = Color.White.copy(alpha = 0.5f)
+                ambientColor = if (isDarkBackground) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.4f),
+                spotColor = if (isDarkBackground) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.5f)
             )
             .clip(RoundedCornerShape(27.dp))
-            .background(
-                Color.White.copy(alpha = 0.97f)  // 直接使用高不透明度
-            )
+            .background(dockBackground)
             .border(
                 width = 1.5.dp,
-                color = Color.White.copy(alpha = 0.85f),
+                color = dockBorderColor,
                 shape = RoundedCornerShape(27.dp)
             )
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceAround,
     ){
-        DockIcon(Icons.Filled.Home, label = "首页", selected = currentTab == AppTab.HOME, onClick = onHome)
-        DockIcon(Icons.Filled.GridOn, label = "歌单", selected = currentTab == AppTab.SHEET, onClick = onSheet)
+        DockIcon(
+            icon = Icons.Filled.Home,
+            label = "首页",
+            selected = currentTab == AppTab.HOME,
+            onClick = onHome,
+            selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,
+            unselectedColor = iconColor
+        )
+
+        DockIcon(
+            icon = Icons.Filled.GridOn,
+            label = "歌单",
+            selected = currentTab == AppTab.SHEET,
+            onClick = onSheet,
+            selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,
+            unselectedColor = iconColor
+        )
 
         CenterDisc(
             currentArtwork = currentArtwork,
             isSpinning = isSpinning,
             progressFlow = progressFlow,
             onOpenPlayer = onOpenPlayer,
+            isDarkBackground = isDarkBackground,
         )
 
-        DockIcon(Icons.AutoMirrored.Filled.QueueMusic, label = "歌单", selected = currentTab == AppTab.PLAYLIST, onClick = onPlaylist)
-        DockIcon(Icons.Filled.Person, label = "我的", selected = currentTab == AppTab.PROFILE, onClick = onProfile)
+        DockIcon(
+            icon = Icons.AutoMirrored.Filled.QueueMusic,
+            label = "歌单",
+            selected = currentTab == AppTab.PLAYLIST,
+            onClick = onPlaylist,
+            selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,
+            unselectedColor = iconColor
+        )
+
+        DockIcon(
+            icon = Icons.Filled.Person,
+            label = "我的",
+            selected = currentTab == AppTab.PROFILE,
+            onClick = onProfile,
+            selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,
+            unselectedColor = iconColor
+        )
     }
 }
+
 /**
  * 中央唱片与环形进度条组件：独立订阅 progressFlow，防止 500ms 进度跳动引起父组件整行重组
  */
@@ -111,6 +171,7 @@ private fun CenterDisc(
     isSpinning: Boolean,
     progressFlow: StateFlow<PlaybackProgress>?,
     onOpenPlayer: () -> Unit,
+    isDarkBackground: Boolean = false,
 ) {
     val progressState = progressFlow?.collectAsState()
     val progress = progressState?.value
@@ -122,11 +183,13 @@ private fun CenterDisc(
     val shouldShowProgress = progress != null && progress.durationMs > 0
 
     // 进度条颜色
-    val progressColor = PrimaryBrown
+    val progressColor = if (isDarkBackground) Color.White else PrimaryBrown
     // 底色：变淡、模糊、加灰度的效果
-    val trackColor = PrimaryBrown.copy(alpha = 0.15f)  // 很淡的棕色
-    // 或者使用灰色调
-    // val trackColor = Color.Gray.copy(alpha = 0.2f)
+    val trackColor = if (isDarkBackground) {
+        Color.White.copy(alpha = 0.15f)
+    } else {
+        PrimaryBrown.copy(alpha = 0.15f)
+    }
 
     Box(
         Modifier
@@ -144,7 +207,7 @@ private fun CenterDisc(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Surface)
+                .background(if (isDarkBackground) Color.Black.copy(alpha = 0.3f) else Surface)
         )
 
         // Canvas 画环
@@ -200,6 +263,8 @@ private fun DockIcon(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    selectedColor: Color = PrimaryBrown,
+    unselectedColor: Color = TextSoft,
 ) {
     Box(
         modifier = Modifier
@@ -215,7 +280,7 @@ private fun DockIcon(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (selected) PrimaryBrown else TextSoft,
+            tint = if (selected) selectedColor else unselectedColor,
             modifier = Modifier.size(24.dp),
         )
     }

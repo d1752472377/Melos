@@ -2,38 +2,25 @@ package com.aesthetic.music.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -53,16 +40,9 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.player.PlayerManager
@@ -71,7 +51,6 @@ import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.cache.CacheListScreen
 import com.aesthetic.music.ui.category.CategoryPage
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
-import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.artist.ArtistScreen
 import com.aesthetic.music.ui.favorites.FavoritesScreen
@@ -88,17 +67,14 @@ import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
 import com.aesthetic.music.ui.sheet.PlaylistPage
 import com.aesthetic.music.ui.theme.Background
-import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
-import com.aesthetic.music.ui.theme.Stone200
-import com.aesthetic.music.ui.theme.Surface
-import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.applyThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.graphics.Color
 
 
 @Composable
@@ -167,6 +143,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val lastSyncStatus by viewModel.lastSyncStatus.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val artistError by viewModel.artistError.collectAsState()
+
+    // 动态背景色
+    val pageBackground by viewModel.currentPageBackground.collectAsState()
+    val isDarkPage by viewModel.isDarkPage.collectAsState()
 
     // ===== 缓存信息（异步加载：避免启动组合时在主线程做磁盘 I/O + JSON 解析）=====
     var cacheSize by remember { mutableStateOf(0L) }
@@ -407,7 +387,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         isFavorite = isFav,
                         myPlaylists = myPlaylists,
                         currentSong = playerState.currentSong,
-                        onBack = { viewModel.showPlaylistDetail.value = null },
+                        onBack = {
+                            viewModel.showPlaylistDetail.value = null
+                            viewModel.updatePageBackground(null, false)
+                        },
                         onRetry = { viewModel.openPlaylistDetail(playlistDetail) },
                         onPlaySong = { song, list -> playSong(song, list) },
                         onPlayAll = { songs -> if (songs.isNotEmpty()) playSong(songs.first(), songs) },
@@ -434,6 +417,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             viewModel.createPlaylist(name, listOfNotNull(song))
                             viewModel.showToast("已创建并加入「$name」")
                         },
+                        onBackgroundColorChange = viewModel::updatePageBackground
                     )
                 }
 
@@ -458,7 +442,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         isFavorite = isFav,
                         myPlaylists = myPlaylists,
                         currentSong = playerState.currentSong,
-                        onBack = { viewModel.closeAlbum() },
+                        onBack = {
+                            viewModel.closeAlbum()
+                            viewModel.updatePageBackground(null, false)
+                        },
                         onRetry = { viewModel.openAlbum(albumDetail) },
                         onPlaySong = { song, list -> playSong(song, list) },
                         onPlayAll = { songs -> if (songs.isNotEmpty()) playSong(songs.first(), songs) },
@@ -485,6 +472,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             viewModel.createPlaylist(name, listOfNotNull(song))
                             viewModel.showToast("已创建并加入「$name」")
                         },
+                        onBackgroundColorChange = viewModel::updatePageBackground
                     )
                 }
 
@@ -502,7 +490,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         errorMessage = artistError,
                         onRetry = { viewModel.openArtist(artistRef) },
                         favorites = favorites,
-                        onBack = viewModel::closeArtist,
+                        onBack = {
+                            viewModel.closeArtist()
+                            viewModel.updatePageBackground(null, false)
+                        },
                         onPlaySong = { playSong(it, artistSongs) },
                         onPlayAll = {
                             if (artistSongs.isNotEmpty()) playSong(artistSongs.first(), artistSongs)
@@ -516,7 +507,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     FavoritesScreen(
                         songs = favoriteSongs,
                         currentSong = playerState.currentSong,
-                        onBack = { viewModel.showFavorites.value = false },
+                        onBack = {
+                            viewModel.showFavorites.value = false
+                            viewModel.updatePageBackground(null, false)
+                        },
                         onPlaySong = { playSong(it, favoriteSongs) },
                         onPlayAll = { if (favoriteSongs.isNotEmpty()) playSong(favoriteSongs.first(), favoriteSongs) },
                         onRemoveFavorite = viewModel::toggleFavorite,
@@ -528,7 +522,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     MyPlaylistsScreen(
                         playlists = myPlaylists,
                         currentSong = playerState.currentSong,
-                        onBack = { viewModel.showMyPlaylists.value = false },
+                        onBack = {
+                            viewModel.showMyPlaylists.value = false
+                            viewModel.updatePageBackground(null, false)
+                        },
                         onOpenPlaylist = { id ->
                             viewModel.openMyPlaylist(id)
                             viewModel.showMyPlaylists.value = false
@@ -547,7 +544,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 if (showCacheList) {
                     CacheListScreen(
                         songs = cachedSongs,
-                        onBack = { viewModel.showCacheList.value = false },
+                        onBack = {
+                            viewModel.showCacheList.value = false
+                            viewModel.updatePageBackground(null, false)
+                        },
                         // 文件删除与索引写入走 IO 线程：缓存多时主线程批量 File.delete() 会卡顿甚至 ANR
                         onRemoveOne = { path ->
                             scope.launch(Dispatchers.IO) {
@@ -569,7 +569,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     HistoryScreen(
                         songs = history,
                         currentSong = playerState.currentSong,
-                        onBack = { viewModel.closeHistory() },
+                        onBack = {
+                            viewModel.closeHistory()
+                            viewModel.updatePageBackground(null, false)
+                        },
                         onPlaySong = { playSong(it, history) },
                         onPlayAll = { if (history.isNotEmpty()) playSong(history.first(), history) },
                         onRemoveOne = viewModel::removeFromHistory,
@@ -634,14 +637,29 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     currentArtwork = playerState.currentSong?.artwork,
                     isSpinning = playerState.isPlaying,
                     progressFlow = playerManager.progress,
-                    onHome = { viewModel.switchTab(AppTab.HOME) },
-                    onSheet = { viewModel.switchTab(AppTab.SHEET) },
-                    onPlaylist = { viewModel.switchTab(AppTab.PLAYLIST) },
-                    onProfile = { viewModel.switchTab(AppTab.PROFILE) },
+                    onHome = {
+                        viewModel.switchTab(AppTab.HOME)
+                        viewModel.updatePageBackground(null, false)
+                    },
+                    onSheet = {
+                        viewModel.switchTab(AppTab.SHEET)
+                        viewModel.updatePageBackground(null, false)
+                    },
+                    onPlaylist = {
+                        viewModel.switchTab(AppTab.PLAYLIST)
+                        viewModel.updatePageBackground(null, false)
+                    },
+                    onProfile = {
+                        viewModel.switchTab(AppTab.PROFILE)
+                        viewModel.updatePageBackground(null, false)
+                    },
                     onOpenPlayer = {
                         playerManager.startProgress()
                         viewModel.showPlayer.value = true
                     },
+                    // 使用动态背景色
+                    isDarkBackground = isDarkPage,
+                    containerColor = pageBackground as? Color ?: Color.White
                 )
 
                 // ===== 全屏播放器 Drawer =====
@@ -771,15 +789,19 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 // 歌手页还挂在屏上，返回行为与视觉层级相反
                 BackHandler(enabled = showFavorites) {
                     viewModel.showFavorites.value = false
+                    viewModel.updatePageBackground(null, false)
                 }
                 BackHandler(enabled = showMyPlaylists) {
                     viewModel.showMyPlaylists.value = false
+                    viewModel.updatePageBackground(null, false)
                 }
                 BackHandler(enabled = showCacheList) {
                     viewModel.showCacheList.value = false
+                    viewModel.updatePageBackground(null, false)
                 }
                 BackHandler(enabled = showHistory) {
                     viewModel.closeHistory()
+                    viewModel.updatePageBackground(null, false)
                 }
                 BackHandler(enabled = showSearch) {
                     viewModel.closeSearch()
@@ -792,12 +814,15 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
                 BackHandler(enabled = showPlaylistDetail != null) {
                     viewModel.showPlaylistDetail.value = null
+                    viewModel.updatePageBackground(null, false)
                 }
                 BackHandler(enabled = showAlbumDetail != null) {
                     viewModel.closeAlbum()
+                    viewModel.updatePageBackground(null, false)
                 }
                 BackHandler(enabled = showArtist != null) {
                     viewModel.closeArtist()
+                    viewModel.updatePageBackground(null, false)
                 }
                 BackHandler(enabled = showPlayer) {
                     viewModel.showPlayer.value = false

@@ -1,5 +1,6 @@
 package com.aesthetic.music.ui
 
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aesthetic.music.data.MusicRepository
@@ -1405,6 +1406,18 @@ class MainViewModel : ViewModel() {
         showRanks.value = false
         if (tab == AppTab.SHEET) loadSheetPlaylists()
         if (tab == AppTab.PROFILE) refreshStats()
+    }
+
+    // 在 MainViewModel 类中添加
+    // 在 MainViewModel 中添加
+    private val _currentPageBackground = MutableStateFlow<Color?>(null)
+    val currentPageBackground: StateFlow<Color?> = _currentPageBackground.asStateFlow()
+    private val _isDarkPage = MutableStateFlow(false)
+    val isDarkPage: StateFlow<Boolean> = _isDarkPage.asStateFlow()
+
+    fun updatePageBackground(color: Color?, isDark: Boolean) {
+        _currentPageBackground.value = color
+        _isDarkPage.value = isDark
     }
 
     companion object {

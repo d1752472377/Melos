@@ -52,6 +52,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -96,6 +99,69 @@ enum class PlaylistSortOrder(val label: String) {
 }
 
 /**
+ * 将颜色强制压暗到指定亮度
+ * 提取色相和饱和度，但将亮度强制降低
+ */
+private fun forceDarkColor(color: Color, targetLightness: Float = 0.12f): Color {
+    val r = color.red.coerceIn(0f, 1f)
+    val g = color.green.coerceIn(0f, 1f)
+    val b = color.blue.coerceIn(0f, 1f)
+
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+
+    // 如果是灰色（r=g=b），直接返回深灰色
+    if (max - min < 0.01f) {
+        val l = targetLightness
+        return Color(l, l, l, 1f)
+    }
+
+    val d = max - min
+
+    // 计算色相 (0-1)
+    val h = when (max) {
+        r -> ((g - b) / d + if (g < b) 6f else 0f) / 6f
+        g -> ((b - r) / d + 2f) / 6f
+        else -> ((r - g) / d + 4f) / 6f
+    }
+
+    // 计算原始饱和度
+    val l_original = (max + min) / 2f
+    val s_original = if (l_original > 0.5f) {
+        d / (2f - max - min)
+    } else if (l_original > 0f) {
+        d / (max + min)
+    } else {
+        0f
+    }
+
+    // 使用原始饱和度但降低亮度
+    val s = s_original.coerceIn(0f, 0.6f) // 限制饱和度不要过高
+    val l = targetLightness
+
+    // HSL 转 RGB
+    fun hue2rgb(p: Float, q: Float, t: Float): Float {
+        var tt = t
+        if (tt < 0) tt += 1
+        if (tt > 1) tt -= 1
+        if (tt < 1f/6f) return p + (q - p) * 6f * tt
+        if (tt < 1f/2f) return q
+        if (tt < 2f/3f) return p + (q - p) * (2f/3f - tt) * 6f
+        return p
+    }
+
+    val q = if (l < 0.5f) l * (1 + s) else l + s - l * s
+    val p = 2 * l - q
+
+    return Color(
+        red = hue2rgb(p, q, h + 1f/3f).coerceIn(0f, 1f),
+        green = hue2rgb(p, q, h).coerceIn(0f, 1f),
+        blue = hue2rgb(p, q, h - 1f/3f).coerceIn(0f, 1f),
+        alpha = 1f
+    )
+}
+
+/**
  * 现代沉浸式歌单详情页：
  * 1. 顶部大图展示歌单封面，底部背景色提取自歌单图片色系并平滑过渡；
  * 2. 歌单级操作：播放全部、歌单收藏、歌单排序、歌单内实时搜索；
@@ -124,7 +190,10 @@ fun PlaylistDetailScreen(
     onDownloadSong: (Song) -> Unit,
     onAddToPlaylist: (String, Song) -> Unit,
     onCreatePlaylist: (String, Song?) -> Unit,
+    onBackgroundColorChange: (Color?, Boolean) -> Unit = { _, _ -> },
 ) {
+
+
     val context = LocalContext.current
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -133,10 +202,40 @@ fun PlaylistDetailScreen(
         url = playlist.coverUrl ?: songs.firstOrNull()?.artwork,
         defaultAccent = PrimaryBrown
     )
-    // 根据提取色计算深沉沉浸背景色与主色
-    val baseDarkBg = remember(dominantColors.bgEnd) {
-        dominantColors.bgEnd.copy(alpha = 1f)
+
+    // 添加调试日志
+    LaunchedEffect(dominantColors) {
+        android.util.Log.d("PlaylistDetail", "bgStart original: ${dominantColors.bgStart}")
+        android.util.Log.d("PlaylistDetail", "bgEnd original: ${dominantColors.bgEnd}")
+        android.util.Log.d("PlaylistDetail", "buttonColor original: ${dominantColors.buttonColor}")
     }
+
+    // 在计算 baseDarkBg 后添加
+    val baseDarkBg = remember(dominantColors.bgEnd) {
+        forceDarkColor(dominantColors.bgEnd, targetLightness = 0.12f)
+    }
+
+    // 通知外部背景色变化
+    LaunchedEffect(baseDarkBg) {
+        onBackgroundColorChange(baseDarkBg, true)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onBackgroundColorChange(null, false)
+        }
+    }
+
+    // 压暗按钮强调色
+    val accentColor = remember(dominantColors.buttonColor) {
+        forceDarkColor(dominantColors.buttonColor, targetLightness = 0.3f)
+    }
+
+    // 调试日志
+    LaunchedEffect(baseDarkBg) {
+        android.util.Log.d("PlaylistDetail", "baseDarkBg after darken: $baseDarkBg")
+    }
+
 
     // ===== 歌单内搜索与排序状态 =====
     var isSearchExpanded by remember { mutableStateOf(false) }
@@ -151,8 +250,8 @@ fun PlaylistDetailScreen(
             val q = searchQuery.trim().lowercase()
             list = list.filter {
                 it.title.lowercase().contains(q) ||
-                    it.artist.lowercase().contains(q) ||
-                    it.album.lowercase().contains(q)
+                        it.artist.lowercase().contains(q) ||
+                        it.album.lowercase().contains(q)
             }
         }
         when (sortOrder) {
@@ -194,7 +293,7 @@ fun PlaylistDetailScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(dominantColors.bgStart)
+                        .background(baseDarkBg)
                 )
             }
 
@@ -368,7 +467,7 @@ fun PlaylistDetailScreen(
                                 .size(38.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (sortOrder != PlaylistSortOrder.DEFAULT) dominantColors.buttonColor.copy(alpha = 0.5f)
+                                    if (sortOrder != PlaylistSortOrder.DEFAULT) accentColor.copy(alpha = 0.6f)
                                     else Color.White.copy(alpha = 0.18f)
                                 )
                                 .clickable { showSortDialog = true },
@@ -1025,5 +1124,7 @@ private fun AddToPlaylistBottomSheet(
                 }
             }
         )
+
     }
+
 }
