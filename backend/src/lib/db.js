@@ -502,6 +502,13 @@ export async function listScripts(db) {
   ).all();
 }
 
+/** 全字段列表（含 content，供 /api/sync/pull 把全部脚本下发到客户端本地切换） */
+export async function listScriptsFull(db) {
+  return db.prepare(
+    'SELECT * FROM scripts ORDER BY is_active DESC, updated_at DESC'
+  ).all();
+}
+
 export async function getActiveScript(db) {
   return db.prepare(
     'SELECT * FROM scripts WHERE is_active = 1 LIMIT 1'

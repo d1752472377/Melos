@@ -120,7 +120,7 @@ async function loadScripts() {
 function renderScripts(list) {
   const wrap = $('#scriptsList');
   const activeCount = list.filter((s) => s.isActive).length;
-  const healthyCount = list.filter((s) => s.status === 'success').length;
+  const healthyCount = list.filter((s) => s.status === 'success' || s.status === 'healthy').length;
 
   $('#healthBadge').textContent = `已激活 ${activeCount} / 正常 ${healthyCount}`;
   $('#healthBadge').className = 'badge ' + (healthyCount > 0 ? 'live' : 'dead');
@@ -131,10 +131,12 @@ function renderScripts(list) {
   }
 
   wrap.innerHTML = list.map((s) => {
+    const okStatus = s.status === 'success' || s.status === 'healthy';
+    const badStatus = s.status === 'failed' || s.status === 'error';
     let statusBadge = '<span class="badge">❓ 未测活</span>';
-    if (s.status === 'success') {
+    if (okStatus) {
       statusBadge = '<span class="badge live">✅ 测活正常</span>';
-    } else if (s.status === 'failed') {
+    } else if (badStatus) {
       statusBadge = '<span class="badge dead">❌ 解析异常</span>';
     }
 
@@ -146,6 +148,8 @@ function renderScripts(list) {
       ? new Date(s.lastCheckedAt).toLocaleString()
       : '从未测试';
 
+    const statusMsg = s.statusMessage ? escapeHtml(s.statusMessage) : '无';
+
     return `
       <div class="source-card ${s.isActive ? '' : 'disabled'}">
         <div class="source-main">
@@ -155,11 +159,13 @@ function renderScripts(list) {
             ${activeBadge}
             ${statusBadge}
           </div>
-          <div class="source-meta" style="margin-top: 6px;">
+          <div class="source-meta">
             <span>ID: <code>${escapeHtml(s.id)}</code></span>
             <span>大小: <b>${Math.round(s.contentLength / 1024)} KB</b></span>
-            <span>测活状态: <em>${escapeHtml(s.statusMessage || '无')}</em></span>
             <span>最近测活: ${escapeHtml(lastChecked)}</span>
+          </div>
+          <div class="source-meta status-line" title="${statusMsg}">
+            <span>测活: <em>${statusMsg}</em></span>
           </div>
         </div>
         <div class="source-ops">
@@ -187,8 +193,12 @@ window.checkScript = async (id) => {
   try {
     const r = await api(`/api/scripts/${id}/check`, { method: 'POST' });
     const res = r.data || {};
-    const icon = res.status === 'success' ? '✅' : '❌';
-    alert(`测活结果：${icon} ${res.message}\n详情：${JSON.stringify(res.details || {}, null, 2)}`);
+    const icon = (res.status === 'success' || res.ok) ? '✅' : '❌';
+    const perSource = (res.testResults || []).map((t) =>
+      `  · ${t.source}: ${t.success ? '✅ ' + t.costMs + 'ms' : '❌ ' + (t.error || '失败')}`
+    ).join('\n');
+    const detailBlock = perSource ? `\n\n逐源结果:\n${perSource}` : '';
+    alert(`测活结果：${icon} ${res.message || ''}${detailBlock}`);
     loadScripts();
   } catch (e) {
     alert('测活执行失败: ' + e.message);

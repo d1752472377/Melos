@@ -23,6 +23,8 @@ import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.settings.SyncServerStore
+import com.aesthetic.music.data.settings.ScriptCatalogStore
+import com.aesthetic.music.data.settings.ScriptCatalogEntry
 import com.aesthetic.music.data.userapi.UserApiEngine
 import com.aesthetic.music.data.userapi.UserApiStore
 import com.aesthetic.music.data.userapi.ScriptMetadata
@@ -784,6 +786,9 @@ class MainViewModel : ViewModel() {
     val isSyncing = MutableStateFlow(false)
     val isTestingSync = MutableStateFlow(false)
 
+    /** 云端下发的全部音源脚本目录（本地可切换，无需回服务端修改激活项） */
+    val scriptCatalog = MutableStateFlow<List<ScriptCatalogEntry>>(ScriptCatalogStore.list())
+
     fun saveSyncConfig(serverUrl: String, token: String) {
         val cleanUrl = serverUrl.trim().trimEnd('/')
         val cleanToken = token.trim()
@@ -846,13 +851,32 @@ class MainViewModel : ViewModel() {
 
                     val cloudData = pullResult.getOrNull()!!
 
-                    // 1. 同步音源脚本
+                    // 0. 缓存云端全部音源脚本目录（含源码），供本地「设置音源」切换
+                    val catalogEntries = cloudData.scripts.map { s ->
+                        ScriptCatalogEntry(
+                            id = s.id,
+                            name = s.name,
+                            version = s.version,
+                            description = s.description,
+                            isActive = s.isActive,
+                            status = s.status ?: "",
+                            statusMessage = s.statusMessage ?: "",
+                            content = s.content,
+                        )
+                    }
+                    if (catalogEntries.isNotEmpty()) {
+                        ScriptCatalogStore.saveAll(catalogEntries)
+                        scriptCatalog.value = ScriptCatalogStore.list()
+                    }
+
+                    // 1. 同步音源脚本（服务端标记的激活脚本作为默认使用项）
                     val cloudScript = cloudData.script
                     if (cloudScript != null && cloudScript.content.isNotBlank()) {
                         val meta = UserApiStore.saveScript(
                             content = cloudScript.content,
                             customName = cloudScript.name.ifBlank { null },
-                            customVersion = cloudScript.version.ifBlank { null }
+                            customVersion = cloudScript.version.ifBlank { null },
+                            customId = cloudScript.id.ifBlank { null }
                         )
                         UserApiEngine.loadScript(cloudScript.content, meta)
                     }
@@ -1024,6 +1048,36 @@ class MainViewModel : ViewModel() {
     fun unloadScript() {
         UserApiEngine.unloadScript()
         _appToast.value = "已卸载自定义音源脚本"
+    }
+
+    /**
+     * 从已同步的脚本目录中本地切换音源（不回服务端修改激活项）。
+     */
+    fun switchScript(id: String) {
+        val entry = scriptCatalog.value.firstOrNull { it.id == id }
+        if (entry == null) {
+            _appToast.value = "未找到该音源脚本，请先执行一次云同步"
+            return
+        }
+        val content = ScriptCatalogStore.getContent(id)
+        if (content.isNullOrBlank()) {
+            _appToast.value = "脚本源码缺失，请重新同步"
+            return
+        }
+        viewModelScope.launch {
+            val meta = UserApiStore.saveScript(
+                content = content,
+                customName = entry.name,
+                customVersion = entry.version,
+                customId = entry.id
+            )
+            val res = UserApiEngine.loadScript(content, meta)
+            if (res.isSuccess) {
+                _appToast.value = "已本地切换到音源: [${entry.name}]"
+            } else {
+                _appToast.value = "切换失败: ${res.exceptionOrNull()?.message ?: "沙箱执行异常"}"
+            }
+        }
     }
 
     // 兼容旧接口的轻量空壳，防止其它尚未修改的视图编译报错

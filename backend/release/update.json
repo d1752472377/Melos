@@ -1,10 +1,10 @@
 {
-  "versionName": "1.10.3",
-  "versionCode": 19,
+  "versionName": "1.10.4",
+  "versionCode": 20,
   "apkUrl": "https://music.dovislab.com/latest.apk",
   "apkSize": 8024609,
   "md5": "",
   "forceUpdate": false,
-  "publishTime": "2026-09-04 23:55",
-  "updateLog": "稳定性与体验重大优化：\n1. 修复播放进度计算中极端边界导致 current must not be NaN 闪退问题\n2. 重构歌词页面：跳转时间指示移至屏幕右侧胶囊，去除常驻遮挡虚线，绝不遮挡歌词文字\n3. 优化歌词居中内边距与手动滑动点击跳播体验"
+  "publishTime": "2026-09-06 18:08",
+  "updateLog": "1. 音源目录与本地切换：私有云同步拉取全部音源脚本，设置页支持一键本地切换使用\n2. 测活沙箱环境升级：支持二进制请求、crypto 与 TextEncoder/Decoder，提升脚本兼容性\n3. 后台管理面板优化：测活明细逐源展示与移动端响应式布局优化"
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.QualityLevel
+import com.aesthetic.music.data.settings.ScriptCatalogEntry
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
@@ -90,9 +92,11 @@ fun SettingsScreen(
     quality: QualityLevel,
     floatingCapsuleEnabled: Boolean,
     activeScript: ScriptMetadata? = null,
+    scriptCatalog: List<ScriptCatalogEntry> = emptyList(),
     isEngineReady: Boolean = false,
     engineError: String? = null,
     onRetryLoadScript: () -> Unit = {},
+    onSwitchScript: (String) -> Unit = {},
     isSyncConfigured: Boolean = false,
     syncServerUrl: String = "",
     syncToken: String = "",
@@ -115,6 +119,7 @@ fun SettingsScreen(
     var showScriptImportDialog by remember { mutableStateOf(false) }
     var showSyncConfigDialog by remember { mutableStateOf(false) }
     var showUnloadConfirm by remember { mutableStateOf(false) }
+    var showCatalogDialog by remember { mutableStateOf(false) }
 
     var syncTestResult by remember { mutableStateOf<String?>(null) }
     var testingSync by remember { mutableStateOf(false) }
@@ -293,6 +298,15 @@ fun SettingsScreen(
                         if (isSyncConfigured) onPerformSync() else showSyncConfigDialog = true
                     }
                 )
+                if (scriptCatalog.isNotEmpty()) {
+                    SettingRow(
+                        icon = Icons.Filled.Widgets,
+                        iconTint = PrimaryBrown,
+                        label = "🗂 音源脚本目录（${scriptCatalog.size} 个）",
+                        subtitle = "本地一键切换已同步的音源，无需回服务端修改",
+                        onClick = { showCatalogDialog = true }
+                    )
+                }
                 SettingRow(
                     icon = Icons.Filled.Delete,
                     iconTint = MaterialTheme.colorScheme.error,
@@ -337,6 +351,15 @@ fun SettingsScreen(
                         if (isSyncConfigured) onPerformSync() else showSyncConfigDialog = true
                     }
                 )
+                if (scriptCatalog.isNotEmpty()) {
+                    SettingRow(
+                        icon = Icons.Filled.Widgets,
+                        iconTint = PrimaryBrown,
+                        label = "🗂 音源脚本目录（${scriptCatalog.size} 个）",
+                        subtitle = "本地一键切换已同步的音源，无需回服务端修改",
+                        onClick = { showCatalogDialog = true }
+                    )
+                }
             }
         }
 
@@ -636,6 +659,19 @@ fun SettingsScreen(
             }
         )
     }
+
+    // ===== 音源脚本目录弹窗（本地切换） =====
+    if (showCatalogDialog) {
+        ScriptCatalogDialog(
+            entries = scriptCatalog,
+            activeId = activeScript?.id.orEmpty(),
+            onDismiss = { showCatalogDialog = false },
+            onSwitch = { id ->
+                showCatalogDialog = false
+                onSwitchScript(id)
+            }
+        )
+    }
 }
 
 @Composable
@@ -928,4 +964,103 @@ private fun formatTime(ms: Long): String {
     } catch (_: Exception) {
         "刚刚"
     }
+}
+
+@Composable
+private fun ScriptCatalogDialog(
+    entries: List<ScriptCatalogEntry>,
+    activeId: String,
+    onDismiss: () -> Unit,
+    onSwitch: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        shape = RoundedCornerShape(16.dp),
+        title = {
+            Text(
+                text = "音源脚本目录",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (entries.isEmpty()) {
+                    Text(
+                        text = "暂无已同步的音源脚本，请先执行一次私有云同步。",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = TextSoft
+                    )
+                } else {
+                    entries.forEach { entry ->
+                        val isActive = entry.id.isNotBlank() && entry.id == activeId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isActive) Stone100 else Color.Transparent)
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = entry.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = TextPrimary,
+                                        maxLines = 1
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("v${entry.version}", fontSize = 11.sp, color = TextMuted)
+                                }
+                                if (entry.description.isNotBlank()) {
+                                    Text(
+                                        text = entry.description,
+                                        fontSize = 11.sp,
+                                        color = TextSoft,
+                                        maxLines = 1
+                                    )
+                                }
+                                val statusText = when (entry.status.lowercase()) {
+                                    "success", "healthy" -> "✅ 测活正常"
+                                    "failed", "error" -> "❌ 解析异常"
+                                    else -> "未测活"
+                                }
+                                Text(statusText, fontSize = 11.sp, color = TextMuted)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            if (isActive) {
+                                Text(
+                                    text = "正在使用",
+                                    fontSize = 11.sp,
+                                    color = PrimaryBrown,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                TextButton(onClick = { onSwitch(entry.id) }) {
+                                    Text("切换使用", fontSize = 12.sp, color = PrimaryBrown)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = TextMuted)
+            }
+        },
+    )
 }

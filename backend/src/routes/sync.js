@@ -1,6 +1,7 @@
 import { verifyToken } from '../lib/auth.js';
 import {
   getActiveScript,
+  listScriptsFull,
   listFavorites,
   replaceFavorites,
   listHistory,
@@ -58,6 +59,8 @@ export function registerSyncRoutes(app, { config, db }) {
 
     // 音源脚本
     const activeScript = await getActiveScript(db);
+    // 全部脚本（含 content）：客户端下载后可在本地「设置音源」里直接切换，无需回服务端改激活
+    const allScripts = await listScriptsFull(db);
 
     // 收藏
     const favorites = await listFavorites(db, SINGLE_TENANT_USER_ID);
@@ -93,6 +96,17 @@ export function registerSyncRoutes(app, { config, db }) {
               updatedAt: activeScript.updated_at,
             }
           : null,
+        scripts: (allScripts || []).map((s) => ({
+          id: s.id,
+          name: s.name,
+          version: s.version,
+          description: s.description || '',
+          content: s.content || '',
+          isActive: s.is_active === 1,
+          status: s.status,
+          statusMessage: s.status_message,
+          updatedAt: s.updated_at,
+        })),
         favorites: favorites || [],
         history: history || [],
         playlists: fullPlaylists || [],

@@ -7,8 +7,8 @@
 //   /download     → 返回下载页 HTML
 
 const REPO = 'd1752472377/Melos';
-// 发布标签：默认 v1.10.3，发新版时通过环境变量 RELEASE_TAG 覆盖，无需改代码
-const RELEASE_TAG = process.env.RELEASE_TAG || 'v1.10.3';
+// 发布标签：默认 v1.10.4，发新版时通过环境变量 RELEASE_TAG 覆盖，无需改代码
+const RELEASE_TAG = process.env.RELEASE_TAG || 'v1.10.4';
 
 // 资产 URL 缓存（60s）与 update.json 文本缓存（30s）：
 // 旧实现每次请求都实时打 GitHub API（token 泄露面大 + 配额开销）
@@ -64,9 +64,9 @@ export default async function handler(req, res) {
     // 下载页 HTML
     if (path.startsWith('/download')) {
       let info = {
-        versionName: '1.10.3',
-        publishTime: '2026-09-04',
-        updateLog: '修复播放进度除零崩溃闪退异常\n重构歌词页面中线与右侧跳转胶囊，解决歌词遮挡问题',
+        versionName: '1.10.4',
+        publishTime: '2026-09-06',
+        updateLog: '1. 音源目录与本地切换：私有云同步拉取全部音源脚本，设置页支持一键本地切换使用\n2. 测活沙箱环境升级：支持二进制请求、crypto 与 TextEncoder/Decoder，提升脚本兼容性\n3. 后台管理面板优化：测活明细逐源展示与移动端响应式布局优化',
       };
       try {
         const text = await getUpdateJsonText(token);

@@ -359,6 +359,7 @@ interface MusicApi {
 /** 私有云同步数据包 */
 data class CloudSyncPullData(
     val script: CloudScriptDto? = null,
+    val scripts: List<CloudScriptDto> = emptyList(),
     val favorites: List<Song> = emptyList(),
     val history: List<Song> = emptyList(),
     val playlists: List<CloudPlaylistDto> = emptyList(),
@@ -369,9 +370,12 @@ data class CloudScriptDto(
     val id: String = "",
     val name: String = "",
     val version: String = "",
+    val description: String = "",
     val content: String = "",
+    val isActive: Boolean = false,
     val status: String? = null,
     val statusMessage: String? = null,
+    val updatedAt: String? = null,
 )
 
 data class CloudPlaylistDto(

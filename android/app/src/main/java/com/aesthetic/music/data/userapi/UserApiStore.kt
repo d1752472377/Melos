@@ -44,9 +44,10 @@ object UserApiStore {
     /**
      * 保存音源脚本源码与元数据
      */
-    fun saveScript(content: String, customName: String? = null, customVersion: String? = null): ScriptMetadata {
+    fun saveScript(content: String, customName: String? = null, customVersion: String? = null, customId: String? = null): ScriptMetadata {
         val parsed = parseScriptHeader(content)
         val meta = parsed.copy(
+            id = customId?.takeIf { it.isNotBlank() } ?: parsed.id,
             name = customName?.takeIf { it.isNotBlank() } ?: parsed.name,
             version = customVersion?.takeIf { it.isNotBlank() } ?: parsed.version,
             updatedAt = System.currentTimeMillis()

@@ -61,6 +61,11 @@ function createLxEnvironment({ onInited, onRequestRegistered, scriptInfo = {} })
     send(event, data) {
       if (event === 'inited' && onInited) {
         onInited(data);
+      } else if (event === 'updateAlert') {
+        // 脚本升级提示：测活环境忽略，仅记录
+        if (data && typeof data === 'object') {
+          console.warn(`[scriptExecutor] 脚本请求更新提示: ${data.updateUrl || data.log || ''}`);
+        }
       }
     },
     request(url, options, callback) {
@@ -68,12 +73,15 @@ function createLxEnvironment({ onInited, onRequestRegistered, scriptInfo = {} })
         callback = options;
         options = {};
       }
-      const method = options.method || 'GET';
-      const headers = options.headers || {};
-      const body = options.body || (options.form ? new URLSearchParams(options.form).toString() : undefined);
-
-      if (options.form && !headers['Content-Type'] && !headers['content-type']) {
-        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      const method = (options.method || 'GET').toUpperCase();
+      const headers = { ...(options.headers || {}) };
+      const binary = options.binary === true;
+      let body = options.body;
+      if (options.form) {
+        body = new URLSearchParams(options.form).toString();
+        if (!headers['Content-Type'] && !headers['content-type']) {
+          headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
       }
 
       const controller = new AbortController();
@@ -90,14 +98,21 @@ function createLxEnvironment({ onInited, onRequestRegistered, scriptInfo = {} })
       })
         .then(async (res) => {
           clearTimeout(timeoutId);
-          const rawText = await res.text();
-          let parsedBody = rawText;
-          try {
-            parsedBody = JSON.parse(rawText);
-          } catch (_) {}
+          let parsedBody;
+          let rawText = '';
+          if (binary) {
+            parsedBody = Buffer.from(await res.arrayBuffer());
+          } else {
+            rawText = await res.text();
+            parsedBody = rawText;
+            try {
+              parsedBody = JSON.parse(rawText);
+            } catch (_) {}
+          }
 
           callback?.(null, {
             statusCode: res.status,
+            statusMessage: res.statusText,
             headers: Object.fromEntries(res.headers.entries()),
             body: parsedBody,
             rawText,
@@ -107,6 +122,7 @@ function createLxEnvironment({ onInited, onRequestRegistered, scriptInfo = {} })
           clearTimeout(timeoutId);
           callback?.(err, {
             statusCode: 0,
+            statusMessage: '',
             headers: {},
             body: null,
             rawText: '',
@@ -323,13 +339,22 @@ export async function testScriptExecution(scriptContent) {
     Number,
     Boolean,
     Promise,
+    Map,
+    Set,
     Buffer,
     Uint8Array,
     URL,
     URLSearchParams,
+    crypto: globalThis.crypto,
+    TextEncoder,
+    TextDecoder,
   };
   sandbox.globalThis = sandbox;
-  sandbox.globalThis.lx = lx;
+  sandbox.lx = lx;
+  // 兼容第三方脚本对 window / global / self 的引用（与客户端 preload 保持一致）
+  sandbox.window = sandbox;
+  sandbox.self = sandbox;
+  sandbox.global = sandbox;
 
   const context = vm.createContext(sandbox);
 
@@ -340,7 +365,7 @@ export async function testScriptExecution(scriptContent) {
   } catch (err) {
     return {
       ok: false,
-      status: 'error',
+      status: 'failed',
       message: `脚本语法或初始化执行错误: ${err.message}`,
       meta: null,
       testResults: [],
@@ -356,7 +381,7 @@ export async function testScriptExecution(scriptContent) {
   if (!requestHandler) {
     return {
       ok: false,
-      status: 'error',
+      status: 'failed',
       message: '脚本未注册 EVENT_NAMES.request 监听器，非有效音源脚本',
       meta: initData,
       testResults: [],
@@ -374,6 +399,7 @@ export async function testScriptExecution(scriptContent) {
 
   for (const tc of casesToTest) {
     const start = Date.now();
+    let timeoutId = null;
     try {
       const result = await Promise.race([
         requestHandler({
@@ -381,26 +407,38 @@ export async function testScriptExecution(scriptContent) {
           action: tc.action,
           info: tc.info,
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('请求超时 (10s)')), 10000)),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('请求超时 (10s)')), 10_000);
+        }),
       ]);
 
       const costMs = Date.now() - start;
-      const url = typeof result === 'string' ? result : result?.url;
+      // 兼容三种返回形态：字符串直链 / { url } / { musicUrl }；并透出脚本自带错误信息
+      let url = null;
+      let scriptError = null;
+      if (typeof result === 'string') {
+        url = result;
+      } else if (result && typeof result === 'object') {
+        url = result.url || result.musicUrl || null;
+        scriptError = result.errorMessage || result.error || result.msg || null;
+      }
 
-      if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+      if (url && /^https?:\/\//i.test(String(url))) {
         atLeastOneSuccess = true;
         testResults.push({
           source: tc.source,
           success: true,
           costMs,
-          urlSample: url.slice(0, 80) + '...',
+          urlSample: String(url).slice(0, 80) + '...',
         });
       } else {
         testResults.push({
           source: tc.source,
           success: false,
           costMs,
-          error: `返回的 URL 无效: ${JSON.stringify(result)}`,
+          error: scriptError
+            ? String(scriptError)
+            : `未返回可用直链（该测试歌曲可能无版权/VIP）: ${JSON.stringify(result).slice(0, 120)}`,
         });
       }
     } catch (e) {
@@ -410,10 +448,12 @@ export async function testScriptExecution(scriptContent) {
         costMs: Date.now() - start,
         error: e.message || String(e),
       });
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
-  const status = atLeastOneSuccess ? 'healthy' : 'error';
+  const status = atLeastOneSuccess ? 'success' : 'failed';
   const successfulSources = testResults.filter((r) => r.success).map((r) => r.source).join(', ');
   const message = atLeastOneSuccess
     ? `测活成功！可用源: [${successfulSources}]`
@@ -424,6 +464,7 @@ export async function testScriptExecution(scriptContent) {
     status,
     message,
     meta: initData,
+    supportedSources: supportedSourceKeys,
     testResults,
   };
 }
