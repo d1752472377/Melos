@@ -71,7 +71,6 @@ import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.cache.CacheListScreen
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.ErrorBox
-import com.aesthetic.music.ui.components.MiniPlayer
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.artist.ArtistScreen
 import com.aesthetic.music.ui.discover.DiscoverScreen
@@ -241,15 +240,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         playerManager.startProgress()
     }
 
-    val hasActiveSong = playerState.currentSong != null
-    val targetBottomPadding = if (hasActiveSong) 124.dp else 68.dp
-    val animatedBottomPadding by animateDpAsState(
-        targetValue = targetBottomPadding,
-        animationSpec = spring(stiffness = 380f),
-        label = "bottomPadding"
-    )
+    val bottomBarPadding = 78.dp
 
-    CompositionLocalProvider(LocalBottomBarPadding provides animatedBottomPadding) {
+    CompositionLocalProvider(LocalBottomBarPadding provides bottomBarPadding) {
         Scaffold(
             containerColor = Background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -539,42 +532,22 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
             }
 
-            // ===== 迷你播放器 + 底部导航 Dock =====
-            Column(Modifier.align(Alignment.BottomCenter)) {
-                // 进度在 MiniPlayer 内部订阅：播放中每 500ms 的进度跳动只重组 MiniPlayer 自身，
-                // 不再触发 AppShell 顶层（含当前 Tab 整页）重组
-                AnimatedVisibility(
-                    visible = hasActiveSong,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                ) {
-                    MiniPlayer(
-                        song = playerState.currentSong,
-                        isPlaying = playerState.isPlaying,
-                        isLoading = playerState.isLoading,
-                        progressFlow = playerManager.progress,
-                        onOpenPlayer = {
-                            playerManager.startProgress()
-                            viewModel.showPlayer.value = true
-                        },
-                        onToggle = playerManager::toggle,
-                        onNext = playerManager::next,
-                    )
-                }
-                NavigationDock(
-                    currentTab = tab,
-                    currentArtwork = playerState.currentSong?.artwork,
-                    isSpinning = playerState.isPlaying,
-                    onHome = { viewModel.switchTab(AppTab.HOME) },
-                    onDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
-                    onPlaylist = { viewModel.switchTab(AppTab.PLAYLIST) },
-                    onProfile = { viewModel.switchTab(AppTab.PROFILE) },
-                    onOpenPlayer = {
-                        playerManager.startProgress()
-                        viewModel.showPlayer.value = true
-                    },
-                )
-            }
+            // ===== 底部导航 Dock =====
+            NavigationDock(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                currentTab = tab,
+                currentArtwork = playerState.currentSong?.artwork,
+                isSpinning = playerState.isPlaying,
+                progressFlow = playerManager.progress,
+                onHome = { viewModel.switchTab(AppTab.HOME) },
+                onDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
+                onPlaylist = { viewModel.switchTab(AppTab.PLAYLIST) },
+                onProfile = { viewModel.switchTab(AppTab.PROFILE) },
+                onOpenPlayer = {
+                    playerManager.startProgress()
+                    viewModel.showPlayer.value = true
+                },
+            )
 
             // ===== 全屏播放器 Drawer =====
             AnimatedVisibility(
