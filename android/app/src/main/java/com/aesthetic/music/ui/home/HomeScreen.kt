@@ -98,8 +98,8 @@ fun HomeScreen(
     onPlaySong: (Song, List<Song>) -> Unit,
     onSearchBarClick: () -> Unit,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
-    onOpenRank: (PlaylistItem) -> Unit,
-    onOpenDiscover: () -> Unit,
+    onOpenCategories: () -> Unit,
+    onOpenRanksPage: () -> Unit,
     onToggleFavorite: (Song) -> Unit,
 ) {
     // 随便听听的随机批次种子
@@ -128,7 +128,7 @@ fun HomeScreen(
             top = 20.dp,
             start = 20.dp,
             end = 20.dp,
-            bottom = LocalBottomBarPadding.current // 底部留出动态空间避开 MiniPlayer 与 Dock
+            bottom = LocalBottomBarPadding.current // 底部预留空间避开底部导航 Dock
         ),
         verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
@@ -309,7 +309,7 @@ fun HomeScreen(
             Column {
                 SectionHeader(
                     title = "分类歌单",
-                    onClickMore = onOpenDiscover
+                    onClickMore = onOpenCategories
                 )
 
                 Spacer(Modifier.height(14.dp))
@@ -329,7 +329,7 @@ fun HomeScreen(
                                 if (category.playlistItem != null) {
                                     onOpenPlaylistDetail(category.playlistItem)
                                 } else {
-                                    onOpenDiscover()
+                                    onOpenCategories()
                                 }
                             }
                         )
@@ -350,14 +350,7 @@ fun HomeScreen(
                 Column {
                     SectionHeader(
                         title = "排行榜",
-                        onClickMore = {
-                            val target = if (rankTab == 0) {
-                                ranks.findRank("new", "新歌")
-                            } else {
-                                ranks.findRank("hot", "热歌")
-                            }
-                            if (target != null) onOpenRank(target) else onOpenDiscover()
-                        }
+                        onClickMore = onOpenRanksPage
                     )
 
                     Spacer(Modifier.height(14.dp))
@@ -916,9 +909,6 @@ private fun CategoryCard(
         }
     }
 }
-
-private fun List<PlaylistItem>.findRank(kind: String, nameHint: String): PlaylistItem? =
-    firstOrNull { it.kind == kind } ?: firstOrNull { it.name.contains(nameHint) }
 
 // ==================== 排行榜卡片容器 ====================
 

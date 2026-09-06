@@ -240,6 +240,34 @@ class MusicRepository(
         PlatformMusicService.getCategories()
     }
 
+    // ==================== 歌单广场 / 分类 ====================
+
+    /** 歌单广场标签（左侧抽屉） */
+    fun sheetTags(): List<String> = PlatformMusicService.defaultSheetTags
+
+    /** 歌单广场列表：最新/最热 + 标签过滤 */
+    suspend fun sheetPlaylists(cat: String, order: String, limit: Int = 40): Result<List<PlaylistItem>> =
+        apiCatching {
+            PlatformMusicService.sheetPlaylists(cat, order, limit)
+        }
+
+    /** 分类歌单：把内置分类 id 映射到网易云 cat 后拉取对应歌单列表 */
+    suspend fun categoryPlaylists(categoryId: String, limit: Int = 40): Result<List<PlaylistItem>> =
+        apiCatching {
+            val cat = categoryCats[categoryId] ?: categoryId
+            PlatformMusicService.sheetPlaylists(cat, "hot", limit)
+        }
+
+    companion object {
+        /** 内置分类 id -> 网易云 cat（backend HOME_CATEGORIES 的一致性映射） */
+        private val categoryCats = mapOf(
+            "pop" to "流行",
+            "edm" to "电子",
+            "folk" to "民谣",
+            "rock" to "摇滚",
+        )
+    }
+
     // ==================== 用户 ====================
 
     suspend fun register(username: String, password: String, nickname: String): Result<AuthData> = apiCatching {

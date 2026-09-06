@@ -45,7 +45,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-enum class AppTab { HOME, DISCOVER, PLAYLIST, PROFILE }
+enum class AppTab { HOME, SHEET, PLAYLIST, PROFILE }
 
 class MainViewModel : ViewModel() {
 
@@ -87,7 +87,7 @@ class MainViewModel : ViewModel() {
 
     // （全局搜索相关状态见下方「==================== 全局搜索 ====================」区块）
 
-    // 发现页：热门歌单 + 内容体系
+    // 内容体系（首页 / 分类页 / 排行榜页共用）：热门歌单、每日、新歌、榜单、分类
     private val _hotPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val hotPlaylists: StateFlow<List<PlaylistItem>> = _hotPlaylists.asStateFlow()
     val isLoadingHot = MutableStateFlow(false)
@@ -110,6 +110,26 @@ class MainViewModel : ViewModel() {
     @Volatile
     private var contentLoaded = false
 
+    // 歌单广场（歌单页 Tab）：标签 + 最新/最热 + 方块歌单
+    val sheetTags: List<String> = repository.sheetTags()
+    val sheetCat = MutableStateFlow("全部")
+    val sheetOrder = MutableStateFlow("hot") // "hot"=最热 / "new"=最新
+    private val _sheetPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
+    val sheetPlaylists: StateFlow<List<PlaylistItem>> = _sheetPlaylists.asStateFlow()
+    val isLoadingSheets = MutableStateFlow(false)
+    val sheetError = MutableStateFlow<String?>(null)
+
+    // 分类页（覆盖层）：分类列表 -> 分类歌单
+    val showCategories = MutableStateFlow(false)
+    private val _categoryPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
+    val categoryPlaylists: StateFlow<List<PlaylistItem>> = _categoryPlaylists.asStateFlow()
+    val isLoadingCategoryPlaylists = MutableStateFlow(false)
+    val categoryPlaylistsError = MutableStateFlow<String?>(null)
+    val selectedCategoryName = MutableStateFlow<String?>(null)
+
+    // 排行榜页（覆盖层）
+    val showRanks = MutableStateFlow(false)
+
     // 歌单详情
     private val _playlistSongs = MutableStateFlow<List<Song>>(emptyList())
     val playlistSongs: StateFlow<List<Song>> = _playlistSongs.asStateFlow()
@@ -125,6 +145,11 @@ class MainViewModel : ViewModel() {
     /** 歌手详情请求令牌（openArtist 用，同上） */
     @Volatile
     private var artistRequestId = 0L
+    /** 歌单广场/分类歌单请求令牌（快速切标签或顺序时丢弃旧响应） */
+    @Volatile
+    private var sheetRequestId = 0L
+    @Volatile
+    private var categoryRequestId = 0L
 
     /**
      * 云同步串行互斥锁 + 待发标记：
@@ -590,7 +615,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ==================== 发现页 / 内容 ====================
+    // ==================== 内容加载（首页 / 分类页 / 排行榜页） ====================
 
     fun loadHotPlaylists(force: Boolean = false) {
         if (!force && _hotPlaylists.value.isNotEmpty()) return
@@ -610,7 +635,7 @@ class MainViewModel : ViewModel() {
     }
 
     /**
-     * 加载首页/发现页内容。四个请求并行发出（原先串行 await，延迟是四段网络往返之和）；
+     * 加载首页内容。四个请求并行发出（原先串行 await，延迟是四段网络往返之和）；
      * 已成功加载过则跳过（切 Tab 重入不再全量重拉），需要强制刷新用 [refreshContent]。
      */
     fun loadContent(force: Boolean = false) {
@@ -660,6 +685,68 @@ class MainViewModel : ViewModel() {
 
     /** 用户点"重试"时强制重新拉取内容 */
     fun refreshContent() = loadContent(force = true)
+
+    // ==================== 歌单广场 ====================
+
+    fun setSheetCat(cat: String) {
+        if (sheetCat.value == cat) return
+        sheetCat.value = cat
+        loadSheetPlaylists(force = true)
+    }
+
+    fun setSheetOrder(order: String) {
+        if (sheetOrder.value == order) return
+        sheetOrder.value = order
+        loadSheetPlaylists(force = true)
+    }
+
+    fun loadSheetPlaylists(force: Boolean = false) {
+        if (!force && _sheetPlaylists.value.isNotEmpty()) return
+        if (!force && isLoadingSheets.value) return
+        val req = ++sheetRequestId
+        viewModelScope.launch {
+            isLoadingSheets.value = true
+            sheetError.value = null
+            repository.sheetPlaylists(sheetCat.value, sheetOrder.value)
+                .onSuccess { list -> if (req == sheetRequestId) _sheetPlaylists.value = list }
+                .onFailure { e -> if (req == sheetRequestId) sheetError.value = e.message ?: "获取歌单失败" }
+            if (req == sheetRequestId) isLoadingSheets.value = false
+        }
+    }
+
+    // ==================== 分类页 ====================
+
+    fun openCategories() { showCategories.value = true }
+
+    fun closeCategories() {
+        showCategories.value = false
+        selectedCategoryName.value = null
+    }
+
+    /** 从分类列表进入某个分类的歌单列表 */
+    fun openCategory(category: HomeCategoryDto) {
+        selectedCategoryName.value = category.title
+        _categoryPlaylists.value = emptyList()
+        categoryPlaylistsError.value = null
+        val req = ++categoryRequestId
+        viewModelScope.launch {
+            isLoadingCategoryPlaylists.value = true
+            repository.categoryPlaylists(category.id)
+                .onSuccess { list -> if (req == categoryRequestId) _categoryPlaylists.value = list }
+                .onFailure { e ->
+                    if (req == categoryRequestId) categoryPlaylistsError.value = e.message ?: "获取分类歌单失败"
+                }
+            if (req == categoryRequestId) isLoadingCategoryPlaylists.value = false
+        }
+    }
+
+    /** 从分类歌单列表返回分类列表 */
+    fun backToCategoryList() { selectedCategoryName.value = null }
+
+    // ==================== 排行榜页 ====================
+
+    fun openRanks() { showRanks.value = true }
+    fun closeRanks() { showRanks.value = false }
 
     // ==================== 歌单 ====================
 
@@ -1314,10 +1401,9 @@ class MainViewModel : ViewModel() {
         showHistory.value = false
         showSearch.value = false
         showAlbumDetail.value = null
-        if (tab == AppTab.DISCOVER) {
-            loadHotPlaylists()
-            loadContent()
-        }
+        closeCategories()
+        showRanks.value = false
+        if (tab == AppTab.SHEET) loadSheetPlaylists()
         if (tab == AppTab.PROFILE) refreshStats()
     }
 

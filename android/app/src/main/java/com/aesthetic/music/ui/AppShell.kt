@@ -69,11 +69,11 @@ import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.cache.CacheListScreen
+import com.aesthetic.music.ui.category.CategoryPage
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.artist.ArtistScreen
-import com.aesthetic.music.ui.discover.DiscoverScreen
 import com.aesthetic.music.ui.favorites.FavoritesScreen
 import com.aesthetic.music.ui.home.HomeScreen
 import com.aesthetic.music.ui.player.PlayerScreen
@@ -83,8 +83,10 @@ import com.aesthetic.music.ui.playlist.PlaylistScreen
 import com.aesthetic.music.ui.profile.HistoryScreen
 import com.aesthetic.music.ui.profile.MyPlaylistsScreen
 import com.aesthetic.music.ui.profile.ProfileScreen
+import com.aesthetic.music.ui.rank.RankPage
 import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
+import com.aesthetic.music.ui.sheet.PlaylistPage
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
@@ -121,8 +123,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val artistDetail by viewModel.artistDetail.collectAsState()
     val isLoadingArtist by viewModel.isLoadingArtist.collectAsState()
     val hotPlaylists by viewModel.hotPlaylists.collectAsState()
-    val isLoadingHot by viewModel.isLoadingHot.collectAsState()
-    val hotPlaylistsError by viewModel.hotPlaylistsError.collectAsState()
     val playlistSongs by viewModel.playlistSongs.collectAsState()
     val isLoadingPlaylist by viewModel.isLoadingPlaylist.collectAsState()
     val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
@@ -138,6 +138,19 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val ranks by viewModel.ranks.collectAsState()
     val isLoadingContent by viewModel.isLoadingContent.collectAsState()
     val contentError by viewModel.contentError.collectAsState()
+
+    // 歌单广场 + 分类页 + 排行榜页
+    val sheetPlaylists by viewModel.sheetPlaylists.collectAsState()
+    val sheetCat by viewModel.sheetCat.collectAsState()
+    val sheetOrder by viewModel.sheetOrder.collectAsState()
+    val isLoadingSheets by viewModel.isLoadingSheets.collectAsState()
+    val sheetError by viewModel.sheetError.collectAsState()
+    val showCategories by viewModel.showCategories.collectAsState()
+    val categoryPlaylists by viewModel.categoryPlaylists.collectAsState()
+    val isLoadingCategoryPlaylists by viewModel.isLoadingCategoryPlaylists.collectAsState()
+    val categoryPlaylistsError by viewModel.categoryPlaylistsError.collectAsState()
+    val selectedCategoryName by viewModel.selectedCategoryName.collectAsState()
+    val showRanks by viewModel.showRanks.collectAsState()
 
     // 用户与同步体系
     val user by viewModel.user.collectAsState()
@@ -277,27 +290,24 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onPlaySong = { song, list -> playSong(song, list) },
                             onSearchBarClick = { viewModel.openSearch() },
                             onOpenPlaylistDetail = viewModel::openPlaylistDetail,
-                            onOpenRank = viewModel::openRankDetail,
-                            onOpenDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
+                            onOpenCategories = { viewModel.openCategories() },
+                            onOpenRanksPage = { viewModel.openRanks() },
                             onToggleFavorite = viewModel::toggleFavorite,
                         )
                     }
 
-                    AppTab.DISCOVER -> pageStateHolder.SaveableStateProvider("discover") {
-                        DiscoverScreen(
-                            hotPlaylists = hotPlaylists,
-                            dailyPlaylists = dailyPlaylists,
-                            newSongs = newSongs,
-                            ranks = ranks,
-                            isLoading = isLoadingContent,
-                            isHotLoading = isLoadingHot,
-                            hotError = hotPlaylistsError,
-                            onRetryHot = { viewModel.loadHotPlaylists(force = true) },
-                            contentError = contentError,
-                            onRetryContent = { viewModel.refreshContent() },
+                    AppTab.SHEET -> pageStateHolder.SaveableStateProvider("sheet") {
+                        PlaylistPage(
+                            sheetTags = viewModel.sheetTags,
+                            sheetCat = sheetCat,
+                            sheetOrder = sheetOrder,
+                            playlists = sheetPlaylists,
+                            isLoading = isLoadingSheets,
+                            error = sheetError,
+                            onSelectCat = viewModel::setSheetCat,
+                            onSelectOrder = viewModel::setSheetOrder,
+                            onRetry = { viewModel.loadSheetPlaylists(force = true) },
                             onOpenPlaylist = viewModel::openPlaylistDetail,
-                            onOpenRank = viewModel::openRankDetail,
-                            onPlaySong = { playSong(it, newSongs) },
                         )
                     }
 
@@ -354,6 +364,34 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         onOpenArtist = viewModel::openArtist,
                         onOpenPlaylist = viewModel::openPlaylistDetail,
                         onOpenAlbum = viewModel::openAlbum,
+                    )
+                }
+
+                // ===== 分类页（分类 -> 分类歌单） =====
+                if (showCategories) {
+                    CategoryPage(
+                        categories = homeCategories,
+                        selectedName = selectedCategoryName,
+                        playlists = categoryPlaylists,
+                        isLoadingPlaylists = isLoadingCategoryPlaylists,
+                        error = categoryPlaylistsError,
+                        onBack = { viewModel.closeCategories() },
+                        onOpenCategory = viewModel::openCategory,
+                        onBackToList = { viewModel.backToCategoryList() },
+                        onOpenPlaylist = viewModel::openPlaylistDetail,
+                        onRetryCategory = {
+                            homeCategories.firstOrNull { it.title == selectedCategoryName }
+                                ?.let(viewModel::openCategory)
+                        },
+                    )
+                }
+
+                // ===== 排行榜页（榜单列表） =====
+                if (showRanks) {
+                    RankPage(
+                        ranks = ranks,
+                        onBack = { viewModel.closeRanks() },
+                        onOpenRank = viewModel::openRankDetail,
                     )
                 }
 
@@ -597,7 +635,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     isSpinning = playerState.isPlaying,
                     progressFlow = playerManager.progress,
                     onHome = { viewModel.switchTab(AppTab.HOME) },
-                    onDiscover = { viewModel.switchTab(AppTab.DISCOVER) },
+                    onSheet = { viewModel.switchTab(AppTab.SHEET) },
                     onPlaylist = { viewModel.switchTab(AppTab.PLAYLIST) },
                     onProfile = { viewModel.switchTab(AppTab.PROFILE) },
                     onOpenPlayer = {
@@ -745,6 +783,12 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
                 BackHandler(enabled = showSearch) {
                     viewModel.closeSearch()
+                }
+                BackHandler(enabled = showCategories) {
+                    if (selectedCategoryName != null) viewModel.backToCategoryList() else viewModel.closeCategories()
+                }
+                BackHandler(enabled = showRanks) {
+                    viewModel.closeRanks()
                 }
                 BackHandler(enabled = showPlaylistDetail != null) {
                     viewModel.showPlaylistDetail.value = null

@@ -10,6 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.DragInteraction
@@ -1033,13 +1034,29 @@ private fun formatTime(ms: Long): String {
 
 /**
  * 把 index 对应行滚动到视口垂直居中（歌词自动滚动用）。
- * animateScrollToItem(index) 默认把行贴到视口顶部，与中央指示线"按视口中心找最近行"
- * 的假设不一致，导致当前行长期偏离中心；这里用 scrollOffset 让目标行中心对齐视口中心。
+ *
+ * 旧实现用 animateScrollToItem(index, -offset) 求滚动偏移，但该 API 已把
+ * LazyColumn 的 beforeContentPadding（top 半屏留白）计入目标位置，再手动减半屏
+ * 相当于把留白计了两次，当前行被推到视口底部——即"指示线在中、实际歌词在底部"。
+ * 这里改成按"行中心相对视口顶部的实测距离"直接算差值 animateScrollBy，彻底摆脱
+ * 偏移符号与 contentPadding 的耦合。
  */
 private suspend fun LazyListState.animateScrollToItemCentered(index: Int) {
     val info = layoutInfo
-    val viewportHeight = (info.viewportEndOffset - info.viewportStartOffset).coerceAtLeast(0)
-    val itemSize = info.visibleItemsInfo.firstOrNull { it.index == index }?.size
-        ?: info.visibleItemsInfo.firstOrNull()?.size ?: 120
-    animateScrollToItem(index, -(viewportHeight / 2 - itemSize / 2))
+    val viewportSize = info.viewportEndOffset - info.viewportStartOffset
+    if (viewportSize <= 0) return
+    val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+    if (item != null) {
+        // item.offset 是相对视口顶部的距离；目标 = 行中心对齐视口中心
+        val delta = (item.offset + item.size / 2 - viewportSize / 2).toFloat()
+        animateScrollBy(delta)
+    } else {
+        // 目标行不在可见区（seek 跨度大 / 歌词极长）：先落到顶部附近再测距微调居中
+        animateScrollToItem(index)
+        val after = layoutInfo
+        val target = after.visibleItemsInfo.firstOrNull { it.index == index } ?: return
+        val vs = after.viewportEndOffset - after.viewportStartOffset
+        if (vs <= 0) return
+        animateScrollBy((target.offset + target.size / 2 - vs / 2).toFloat())
+    }
 }

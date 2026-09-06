@@ -367,6 +367,44 @@ object PlatformMusicService {
         return getPlaylist(id)
     }
 
+    /**
+     * 歌单广场标签（左侧抽屉用）。硬编码一套常用分类避免登录依赖，
+     * 与网易云 top/playlist 的 cat 参数直接对应。
+     */
+    val defaultSheetTags = listOf(
+        "全部", "华语", "欧美", "日语", "韩语", "粤语", "流行",
+        "电子", "民谣", "摇滚", "说唱", "轻音乐", "影视原声", "古风", "治愈"
+    )
+
+    /**
+     * 歌单广场列表：按标签 + 最新/最热 拉取歌单。
+     * order = "new"（最新）或 "hot"（最热），cat 为标签名（"全部" 表示不限）。
+     * 走网易云公开 /api/top/playlist，无需登录。
+     */
+    suspend fun sheetPlaylists(cat: String, order: String, limit: Int = 40): List<PlaylistItem> {
+        val safeLimit = limit.coerceIn(1, 50)
+        val encodedCat = URLEncoder.encode(cat, "UTF-8")
+        val orderParam = if (order == "new") "new" else "hot"
+        val url = "https://music.163.com/api/top/playlist" +
+            "?cat=$encodedCat&order=$orderParam&limit=$safeLimit&offset=0&total=true"
+        val root = getJson(url)
+        val arr = root.getAsJsonArray("playlists") ?: return emptyList()
+
+        return arr.mapNotNull { elem ->
+            val obj = elem.asJsonObject ?: return@mapNotNull null
+            val id = obj.get("id")?.asString ?: return@mapNotNull null
+            val cover = obj.get("coverImgUrl")?.asString ?: obj.get("picUrl")?.asString
+            PlaylistItem(
+                id = id,
+                name = obj.get("name")?.asString.orEmpty(),
+                coverUrl = fixPicUrl(cover),
+                playCount = obj.get("playCount")?.asLong,
+                trackCount = obj.get("trackCount")?.asLong,
+                platform = "netease"
+            )
+        }
+    }
+
     suspend fun getCategories(): CategoriesData {
         val catDefs = listOf(
             Triple("pop", "流行", "人生走在路上，愿你心花路放"),

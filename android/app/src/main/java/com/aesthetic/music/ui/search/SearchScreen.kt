@@ -202,9 +202,17 @@ fun SearchScreen(
             }
 
             // 自动聚焦搜索框
-            // 仅在无关键词时自动聚焦：从歌手页等返回且已有搜索结果时不再顶起键盘
+            // 仅在无关键词时自动聚焦：从歌手页等返回且已有搜索结果时不再顶起键盘。
+            // requestFocus 在 FocusRequester 尚未挂载到时抛 IllegalStateException（点击搜索框
+            // 触发闪退的常见根因），此处做竞态防御：挂载失败就静默放弃，不打断页面呈现。
             LaunchedEffect(Unit) {
-                if (query.isBlank()) focusRequester.requestFocus()
+                if (query.isBlank()) {
+                    try {
+                        focusRequester.requestFocus()
+                    } catch (_: IllegalStateException) {
+                        // 焦点节点尚未就绪，忽略；用户可手动点击输入框聚焦
+                    }
+                }
             }
 
             Spacer(Modifier.height(12.dp))

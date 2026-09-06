@@ -17,7 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
@@ -48,14 +48,14 @@ import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 底部导航 Dock：主页 / 发现 / 中央旋转唱片（带进度环） / 歌单 / 个人
+ * 底部导航 Dock：主页 / 歌单（方块歌单广场） / 中央旋转唱片（带进度环） / 我的歌单 / 个人
  */
 @Composable
 fun NavigationDock(
     currentTab: AppTab,
     currentArtwork: String?,
     onHome: () -> Unit,
-    onDiscover: () -> Unit,
+    onSheet: () -> Unit,
     onPlaylist: () -> Unit,
     onProfile: () -> Unit,
     onOpenPlayer: () -> Unit,
@@ -89,7 +89,7 @@ fun NavigationDock(
         horizontalArrangement = Arrangement.SpaceAround,
     ){
         DockIcon(Icons.Filled.Home, label = "首页", selected = currentTab == AppTab.HOME, onClick = onHome)
-        DockIcon(Icons.Filled.Explore, label = "发现", selected = currentTab == AppTab.DISCOVER, onClick = onDiscover)
+        DockIcon(Icons.Filled.GridOn, label = "歌单", selected = currentTab == AppTab.SHEET, onClick = onSheet)
 
         CenterDisc(
             currentArtwork = currentArtwork,

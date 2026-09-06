@@ -31,8 +31,8 @@ import androidx.compose.runtime.compositionLocalOf
 
 /**
  * 底部动态避让高度 CompositionLocal：
- * 当有歌曲在播时（MiniPlayer + Dock）为 ~124dp，无歌曲在播时（仅 Dock）收缩至 ~68dp，
- * 彻底消除此前硬编码 150dp 导致未播放歌曲时底部留下近 90dp 巨大空白的问题。
+ * 供列表页为底部 Dock 预留空间（默认 ~72dp），
+ * 消除此前硬编码 150dp 导致未播放歌曲时底部留下近 90dp 巨大空白的问题。
  */
 val LocalBottomBarPadding = compositionLocalOf { 72.dp }
 

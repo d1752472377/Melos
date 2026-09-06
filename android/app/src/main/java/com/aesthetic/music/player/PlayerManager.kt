@@ -34,7 +34,7 @@ enum class PlayMode { SEQUENCE, REPEAT, SHUFFLE }
 
 /**
  * 高频播放进度：每 500ms 更新一次。
- * 与低频 [PlayerState] 分离——只有迷你播放器/播放页底部控件订阅它，
+ * 与低频 [PlayerState] 分离——只有底部 Dock 进度环 / 播放页底部控件订阅它，
  * 进度跳动不再带动 AppShell 及整棵内容树重组。
  */
 data class PlaybackProgress(
@@ -98,7 +98,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     )
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
-    /** 高频进度流：仅 MiniPlayer / PlayerScreen 底部控件订阅 */
+    /** 高频进度流：仅底部 Dock 进度环 / PlayerScreen 底部控件订阅 */
     private val _progress = MutableStateFlow(PlaybackProgress())
     val progress: StateFlow<PlaybackProgress> = _progress.asStateFlow()
 
