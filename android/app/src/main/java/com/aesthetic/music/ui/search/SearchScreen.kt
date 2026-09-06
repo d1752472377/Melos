@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
@@ -149,6 +150,13 @@ fun SearchScreen(
                         .border(1.dp, Stone200, RoundedCornerShape(20.dp))
                         .clip(RoundedCornerShape(20.dp))
                         .background(Surface)
+                        .clickable {
+                            try {
+                                focusRequester.requestFocus()
+                                keyboard?.show()
+                            } catch (_: Throwable) {
+                            }
+                        }
                         .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -203,14 +211,16 @@ fun SearchScreen(
 
             // 自动聚焦搜索框
             // 仅在无关键词时自动聚焦：从歌手页等返回且已有搜索结果时不再顶起键盘。
-            // requestFocus 在 FocusRequester 尚未挂载到时抛 IllegalStateException（点击搜索框
-            // 触发闪退的常见根因），此处做竞态防御：挂载失败就静默放弃，不打断页面呈现。
+            // 增加 delay(200) 确保 Navigation 转场与 Composable 布局节点完全挂载就绪；
+            // 捕获全部 Throwable 防止输入法或系统 Window 服务抛出 NPE/异常导致崩溃。
             LaunchedEffect(Unit) {
                 if (query.isBlank()) {
                     try {
+                        delay(200)
                         focusRequester.requestFocus()
-                    } catch (_: IllegalStateException) {
-                        // 焦点节点尚未就绪，忽略；用户可手动点击输入框聚焦
+                        keyboard?.show()
+                    } catch (_: Throwable) {
+                        // 焦点节点尚未就绪或系统输入法异常，静默放弃，绝不闪退；用户可手动点击输入框聚焦
                     }
                 }
             }

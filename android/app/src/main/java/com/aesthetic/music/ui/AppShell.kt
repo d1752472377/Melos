@@ -295,7 +295,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             isLoading = isLoadingContent,
                             onRetryContent = { viewModel.refreshContent() },
                             onPlaySong = { song, list -> playSong(song, list) },
-                            onSearchBarClick = { navController.navigate(ScreenRoute.Search.route) },
+                            onSearchBarClick = {
+                                navController.navigate(ScreenRoute.Search.route) {
+                                    launchSingleTop = true
+                                }
+                            },
                             onOpenPlaylistDetail = { pl ->
                                 viewModel.openPlaylistDetail(pl)
                                 navController.navigate(ScreenRoute.PlaylistDetail.route)
