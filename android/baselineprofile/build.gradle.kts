@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.aesthetic.music.baselineprofile"
-    compileSdk = 37  // 改为 37，与主 app 保持一致
+    compileSdk = 35  // 与主 app 保持一致
 
     defaultConfig {
         minSdk = 28

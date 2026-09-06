@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
@@ -69,13 +70,18 @@ import com.aesthetic.music.ui.theme.TextSoft
 @Composable
 fun PlaylistScreen(
     myPlaylists: List<MyPlaylist>,
+    favoritePlaylists: List<PlaylistItem> = emptyList(),
     onOpenMyPlaylist: (String) -> Unit,
+    onOpenPlaylistDetail: (PlaylistItem) -> Unit = {},
     onCreatePlaylist: (String) -> Unit,
     onRenamePlaylist: (String, String) -> Unit,
     onDeletePlaylist: (String) -> Unit,
     onOpenImport: () -> Unit,
     onPlayPlaylist: (List<Song>) -> Unit,
 ) {
+    // 歌单主 Tab：0 = 自建歌单, 1 = 收藏歌单
+    var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
     // 新建与重命名弹窗状态
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
@@ -88,45 +94,58 @@ fun PlaylistScreen(
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (myPlaylists.isEmpty()) {
-            // 空状态
-            EmptyPlaylistState(
-                onCreatePlaylist = { showCreateDialog = true },
-                onOpenImport = onOpenImport
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(
+                top = 24.dp,
+                start = 20.dp,
+                end = 20.dp,
+                bottom = LocalBottomBarPadding.current
             )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(
-                    top = 24.dp,
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = LocalBottomBarPadding.current
-                )
-            ) {
-                // 顶部标题
-                item(key = "playlist_header") {
-                    Column {
+        ) {
+            // 顶部标题与 Tab 切换
+            item(key = "playlist_header") {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "我的歌单",
+                            text = "自建歌单",
                             style = MaterialTheme.typography.headlineLarge.copy(
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = if (selectedTab == 0) 26.sp else 20.sp,
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
                                 letterSpacing = 0.5.sp
                             ),
-                            color = TextPrimary
+                            color = if (selectedTab == 0) TextPrimary else TextSoft,
+                            modifier = Modifier.clickable { selectedTab = 0 }
                         )
-                        Spacer(Modifier.height(4.dp))
+
                         Text(
-                            text = "${myPlaylists.size} 个歌单",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSoft
+                            text = "收藏歌单",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontSize = if (selectedTab == 1) 26.sp else 20.sp,
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = if (selectedTab == 1) TextPrimary else TextSoft,
+                            modifier = Modifier.clickable { selectedTab = 1 }
                         )
                     }
-                }
 
-                // 操作按钮行
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = if (selectedTab == 0) "${myPlaylists.size} 个自建歌单" else "${favoritePlaylists.size} 个收藏歌单",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSoft
+                    )
+                }
+            }
+
+            // 自建歌单：操作按钮行（新建与导入）
+            if (selectedTab == 0) {
                 item(key = "playlist_actions") {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -159,21 +178,63 @@ fun PlaylistScreen(
                     }
                 }
 
-                // 歌单列表
-                items(myPlaylists, key = { it.id }) { playlist ->
-                    PlaylistCard(
-                        playlist = playlist,
-                        onClick = { onOpenMyPlaylist(playlist.id) },
-                        onPlay = {
-                            if (playlist.songs.isNotEmpty()) {
-                                onPlayPlaylist(playlist.songs)
-                            }
-                        },
-                        onMore = {
-                            selectedPlaylist = playlist
-                            showBottomSheet = true
+                // 自建歌单列表
+                if (myPlaylists.isEmpty()) {
+                    item(key = "my_empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 50.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "还没有自建歌单，点击上方「新建歌单」创建",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSoft
+                            )
                         }
-                    )
+                    }
+                } else {
+                    items(myPlaylists, key = { it.id }) { playlist ->
+                        PlaylistCard(
+                            playlist = playlist,
+                            onClick = { onOpenMyPlaylist(playlist.id) },
+                            onPlay = {
+                                if (playlist.songs.isNotEmpty()) {
+                                    onPlayPlaylist(playlist.songs)
+                                }
+                            },
+                            onMore = {
+                                selectedPlaylist = playlist
+                                showBottomSheet = true
+                            }
+                        )
+                    }
+                }
+            } else {
+                // 收藏歌单列表
+                if (favoritePlaylists.isEmpty()) {
+                    item(key = "fav_empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 50.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "还没有收藏的歌单\n浏览歌单时点击 ♡ 即可收藏到这里",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSoft
+                            )
+                        }
+                    }
+                } else {
+                    items(favoritePlaylists, key = { it.id }) { playlist ->
+                        CollectedPlaylistCard(
+                            playlist = playlist,
+                            onClick = { onOpenPlaylistDetail(playlist) }
+                        )
+                    }
                 }
             }
         }
@@ -580,5 +641,57 @@ private fun BottomSheetAction(
             ),
             color = textColor
         )
+    }
+}
+
+@Composable
+private fun CollectedPlaylistCard(
+    playlist: PlaylistItem,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SongCover(
+            url = playlist.coverUrl,
+            modifier = Modifier.size(64.dp),
+            corner = 12.dp
+        )
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = playlist.name,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            val playCountPart = if (playlist.playCount != null && playlist.playCount > 0) {
+                " · ${com.aesthetic.music.ui.components.formatPlayCountText(playlist.playCount)} 播放"
+            } else ""
+
+            Text(
+                text = "${playlist.trackCount ?: 0} 首歌$playCountPart",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp
+                ),
+                color = TextSoft
+            )
+        }
     }
 }

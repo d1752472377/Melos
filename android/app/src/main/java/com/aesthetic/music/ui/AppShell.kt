@@ -77,6 +77,8 @@ import com.aesthetic.music.ui.discover.DiscoverScreen
 import com.aesthetic.music.ui.favorites.FavoritesScreen
 import com.aesthetic.music.ui.home.HomeScreen
 import com.aesthetic.music.ui.player.PlayerScreen
+import com.aesthetic.music.data.api.PlaylistItem
+import com.aesthetic.music.ui.playlist.PlaylistDetailScreen
 import com.aesthetic.music.ui.playlist.PlaylistScreen
 import com.aesthetic.music.ui.profile.HistoryScreen
 import com.aesthetic.music.ui.profile.MyPlaylistsScreen
@@ -123,6 +125,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val hotPlaylistsError by viewModel.hotPlaylistsError.collectAsState()
     val playlistSongs by viewModel.playlistSongs.collectAsState()
     val isLoadingPlaylist by viewModel.isLoadingPlaylist.collectAsState()
+    val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val qualityLevel by viewModel.quality.collectAsState()
     val systemDark = isSystemInDarkTheme()
@@ -301,7 +304,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     AppTab.PLAYLIST -> pageStateHolder.SaveableStateProvider("playlist") {
                         PlaylistScreen(
                             myPlaylists = myPlaylists,
+                            favoritePlaylists = favoritePlaylists,
                             onOpenMyPlaylist = { id -> viewModel.openMyPlaylist(id) },
+                            onOpenPlaylistDetail = viewModel::openPlaylistDetail,
                             onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
                             onRenamePlaylist = viewModel::renamePlaylist,
                             onDeletePlaylist = viewModel::deletePlaylist,
@@ -355,20 +360,41 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 // ===== 歌单详情 =====
                 val playlistDetail = showPlaylistDetail
                 if (playlistDetail != null) {
-                    PlaylistDetailOverlay(
-                        title = playlistDetail.name,
+                    val isFav = viewModel.isPlaylistFavorite(playlistDetail.id)
+                    PlaylistDetailScreen(
+                        playlist = playlistDetail,
                         songs = playlistSongs,
                         isLoading = isLoadingPlaylist,
-                        isLocal = playlistDetail.platform == "local",
                         error = playlistError,
-                        onRetry = { viewModel.openPlaylistDetail(playlistDetail) },
+                        isFavorite = isFav,
+                        myPlaylists = myPlaylists,
+                        currentSong = playerState.currentSong,
                         onBack = { viewModel.showPlaylistDetail.value = null },
-                        onPlaySong = { playSong(it, playlistSongs) },
-                        onPlayAll = { if (playlistSongs.isNotEmpty()) playSong(playlistSongs.first(), playlistSongs) },
-                        onAddCurrent = {
-                            if (playerState.currentSong != null) {
-                                showAddToPlaylist = true
-                            }
+                        onRetry = { viewModel.openPlaylistDetail(playlistDetail) },
+                        onPlaySong = { song, list -> playSong(song, list) },
+                        onPlayAll = { songs -> if (songs.isNotEmpty()) playSong(songs.first(), songs) },
+                        onToggleFavoritePlaylist = { viewModel.toggleFavoritePlaylist(playlistDetail) },
+                        onToggleFavoriteSong = viewModel::toggleFavorite,
+                        isSongFavorite = viewModel::isFavorite,
+                        onAddToQueue = { song ->
+                            playerManager.addToQueue(song)
+                            viewModel.showToast("已加入播放队列")
+                        },
+                        onPlayNext = { song ->
+                            playerManager.playNext(song)
+                            viewModel.showToast("已设为下一首播放")
+                        },
+                        onDownloadSong = { song ->
+                            viewModel.downloadSong(context, song)
+                        },
+                        onAddToPlaylist = { playlistId, song ->
+                            viewModel.addSongsToPlaylist(playlistId, listOf(song))
+                            val targetPlaylist = myPlaylists.firstOrNull { it.id == playlistId }
+                            viewModel.showToast("已添加到「${targetPlaylist?.name ?: "歌单"}」")
+                        },
+                        onCreatePlaylist = { name, song ->
+                            viewModel.createPlaylist(name, listOfNotNull(song))
+                            viewModel.showToast("已创建并加入「$name」")
                         },
                     )
                 }
@@ -376,20 +402,50 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 // ===== 专辑详情页（搜索页专辑 Tab 进入） =====
                 val albumDetail = showAlbumDetail
                 if (albumDetail != null) {
-                    PlaylistDetailOverlay(
-                        title = albumDetail.name,
+                    val albumPlaylistItem = remember(albumDetail, albumDetailSongs.size) {
+                        PlaylistItem(
+                            id = albumDetail.id,
+                            name = albumDetail.name,
+                            coverUrl = albumDetail.coverUrl,
+                            trackCount = albumDetail.size ?: albumDetailSongs.size.toLong(),
+                            platform = albumDetail.platform,
+                        )
+                    }
+                    val isFav = viewModel.isPlaylistFavorite(albumDetail.id)
+                    PlaylistDetailScreen(
+                        playlist = albumPlaylistItem,
                         songs = albumDetailSongs,
                         isLoading = isLoadingAlbum,
-                        isLocal = false,
                         error = albumError,
-                        onRetry = { viewModel.openAlbum(albumDetail) },
+                        isFavorite = isFav,
+                        myPlaylists = myPlaylists,
+                        currentSong = playerState.currentSong,
                         onBack = { viewModel.closeAlbum() },
-                        onPlaySong = { playSong(it, albumDetailSongs) },
-                        onPlayAll = { if (albumDetailSongs.isNotEmpty()) playSong(albumDetailSongs.first(), albumDetailSongs) },
-                        onAddCurrent = {
-                            if (playerState.currentSong != null) {
-                                showAddToPlaylist = true
-                            }
+                        onRetry = { viewModel.openAlbum(albumDetail) },
+                        onPlaySong = { song, list -> playSong(song, list) },
+                        onPlayAll = { songs -> if (songs.isNotEmpty()) playSong(songs.first(), songs) },
+                        onToggleFavoritePlaylist = { viewModel.toggleFavoritePlaylist(albumPlaylistItem) },
+                        onToggleFavoriteSong = viewModel::toggleFavorite,
+                        isSongFavorite = viewModel::isFavorite,
+                        onAddToQueue = { song ->
+                            playerManager.addToQueue(song)
+                            viewModel.showToast("已加入播放队列")
+                        },
+                        onPlayNext = { song ->
+                            playerManager.playNext(song)
+                            viewModel.showToast("已设为下一首播放")
+                        },
+                        onDownloadSong = { song ->
+                            viewModel.downloadSong(context, song)
+                        },
+                        onAddToPlaylist = { playlistId, song ->
+                            viewModel.addSongsToPlaylist(playlistId, listOf(song))
+                            val targetPlaylist = myPlaylists.firstOrNull { it.id == playlistId }
+                            viewModel.showToast("已添加到「${targetPlaylist?.name ?: "歌单"}」")
+                        },
+                        onCreatePlaylist = { name, song ->
+                            viewModel.createPlaylist(name, listOfNotNull(song))
+                            viewModel.showToast("已创建并加入「$name」")
                         },
                     )
                 }
@@ -760,185 +816,4 @@ private fun ImportPlaylistDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
-}
-
-/** 歌单详情全屏覆盖层 */
-@Composable
-private fun PlaylistDetailOverlay(
-    title: String,
-    songs: List<Song>,
-    isLoading: Boolean,
-    isLocal: Boolean,
-    error: String?,
-    onRetry: () -> Unit,
-    onBack: () -> Unit,
-    onPlaySong: (Song) -> Unit,
-    onPlayAll: () -> Unit,
-    onAddCurrent: () -> Unit,
-) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Background)
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp)
-                .padding(top = 24.dp)
-                .padding(bottom = LocalBottomBarPadding.current),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Surface)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = TextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "共 ${songs.size} 首曲目",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft
-                    )
-                }
-                if (isLocal) {
-                    Row(
-                        modifier = Modifier
-                            .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Surface)
-                            .clickable(onClick = onAddCurrent)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = null,
-                            tint = PrimaryBrown,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text("加入当前", style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), color = PrimaryBrown)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
-                if (songs.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = PrimaryBrown.copy(alpha = 0.3f))
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(PrimaryBrown)
-                            .clickable(onClick = onPlayAll)
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "播放全部",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            if (isLoading && songs.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("探索曲目中…", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                }
-            } else if (!error.isNullOrEmpty() && songs.isEmpty()) {
-                // 加载失败态：此前失败 = 空列表白页，无文案无重试
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    ErrorBox(message = error, onRetry = onRetry)
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // index 参与 key：同平台同曲重复入列时避免 key 碰撞崩溃，数据变化时只重组受影响行
-                    itemsIndexed(
-                        songs,
-                        key = { i, s -> "$i:${s.platform}:${s.id}" },
-                    ) { index, song ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Surface)
-                                .clickable { onPlaySong(song) }
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "${index + 1}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (index < 3) PrimaryBrown else TextSoft,
-                                fontWeight = if (index < 3) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.width(22.dp),
-                            )
-                            SongCover(song.artwork, Modifier.size(44.dp), corner = 8.dp)
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = song.title,
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    color = TextPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(Modifier.height(1.dp))
-                                Text(
-                                    text = song.subtitleText,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = TextSoft,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

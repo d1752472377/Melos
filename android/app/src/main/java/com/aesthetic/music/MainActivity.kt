@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.metrics.performance.FrameData
 import androidx.metrics.performance.JankStats
+import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.PlayerSessionStore
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
         SettingsStore.init(this)
         FavoriteStore.init(this)
+        FavoritePlaylistStore.init(this)
         HistoryStore.init(this)
         UserStore.init(this)
         com.aesthetic.music.data.settings.SyncServerStore.init(this)

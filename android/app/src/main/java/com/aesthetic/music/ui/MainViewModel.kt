@@ -11,6 +11,7 @@ import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.api.UserStatsDto
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.LocalStats
@@ -77,6 +78,12 @@ class MainViewModel : ViewModel() {
     // 收藏 key 集合（供列表红心状态使用，与 favoriteSongs 同步维护）
     private val _favoriteKeys = MutableStateFlow(emptySet<String>())
     val favorites: StateFlow<Set<String>> = _favoriteKeys.asStateFlow()
+
+    // 收藏的歌单（来自推荐/网络精选歌单，持久化：重启不丢失）
+    private val _favoritePlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
+    val favoritePlaylists: StateFlow<List<PlaylistItem>> = _favoritePlaylists.asStateFlow()
+    private val _favoritePlaylistIds = MutableStateFlow<Set<String>>(emptySet())
+    val favoritePlaylistIds: StateFlow<Set<String>> = _favoritePlaylistIds.asStateFlow()
 
     // （全局搜索相关状态见下方「==================== 全局搜索 ====================」区块）
 
@@ -184,12 +191,15 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val h = HistoryStore.load()
             val f = FavoriteStore.load().take(MAX_FAVORITES)
+            val favP = FavoritePlaylistStore.load()
             val p = PlaylistStore.load()
             withContext(Dispatchers.Main) {
                 _history.value = mergeSongs(_history.value, h).take(HISTORY_LIMIT)
                 val fav = mergeSongs(_favoriteSongs.value, f).take(MAX_FAVORITES)
                 _favoriteSongs.value = fav
                 _favoriteKeys.value = fav.map { it.platform + ":" + it.id }.toSet()
+                _favoritePlaylists.value = favP
+                _favoritePlaylistIds.value = favP.map { it.id }.toSet()
                 val cur = _myPlaylists.value
                 _myPlaylists.value = cur + p.filter { lp ->
                     cur.none { it.id == lp.id || (lp.cloudId.isNotBlank() && it.cloudId == lp.cloudId) }
@@ -518,6 +528,68 @@ class MainViewModel : ViewModel() {
     fun isFavorite(song: Song): Boolean =
         (song.platform + ":" + song.id) in _favoriteKeys.value
 
+    fun toggleFavoritePlaylist(playlist: PlaylistItem) {
+        val list = _favoritePlaylists.value.toMutableList()
+        val idx = list.indexOfFirst { it.id == playlist.id }
+        val isNowFav: Boolean
+        if (idx >= 0) {
+            list.removeAt(idx)
+            isNowFav = false
+        } else {
+            list.add(0, playlist)
+            isNowFav = true
+        }
+        _favoritePlaylists.value = list
+        _favoritePlaylistIds.value = list.map { it.id }.toSet()
+        FavoritePlaylistStore.save(list)
+        showToast(if (isNowFav) "已收藏歌单" else "已取消收藏歌单")
+    }
+
+    fun isPlaylistFavorite(id: String): Boolean =
+        id in _favoritePlaylistIds.value
+
+    fun showToast(msg: String) {
+        _appToast.value = msg
+    }
+
+    /** 异步下载/缓存歌曲并提供全局提示 */
+    fun downloadSong(context: android.content.Context, song: Song) {
+        viewModelScope.launch {
+            val quality = SettingsStore.getQuality().value
+            val cached = withContext(Dispatchers.IO) {
+                com.aesthetic.music.player.AudioCacheService.getCachedPath(context, song.platform, song.id, quality)
+            }
+            if (cached != null) {
+                showToast("「${song.title}」已在本地下载")
+                return@launch
+            }
+            showToast("正在获取「${song.title}」下载链接…")
+            val r = repository.getSongUrl(song, quality)
+            val url = r.getOrNull()?.url
+            if (url.isNullOrBlank()) {
+                showToast("下载失败：未能获取「${song.title}」直链")
+                return@launch
+            }
+            showToast("开始下载「${song.title}」…")
+            com.aesthetic.music.player.AudioCacheService.cacheAudio(
+                context = context,
+                platformCode = song.platform,
+                songId = song.id,
+                url = url,
+                name = song.title,
+                artist = song.artist,
+                quality = quality,
+                scope = viewModelScope,
+            ) { path ->
+                if (path != null) {
+                    showToast("「${song.title}」下载完成")
+                } else {
+                    showToast("「${song.title}」下载失败")
+                }
+            }
+        }
+    }
+
     // ==================== 发现页 / 内容 ====================
 
     fun loadHotPlaylists(force: Boolean = false) {
@@ -710,6 +782,7 @@ class MainViewModel : ViewModel() {
             id = p.id,
             name = p.name,
             coverUrl = p.coverUrl,
+            trackCount = p.songs.size.toLong(),
             platform = "local",
         )
     }

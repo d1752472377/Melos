@@ -314,6 +314,20 @@ class PlayerManager private constructor(private val appContext: Context) {
         notifyState()
     }
 
+    /** 下一首播放（插入到当前播放歌曲之后） */
+    fun playNext(song: Song) {
+        val s = _state.value
+        if (s.queue.isEmpty()) {
+            playSingle(song)
+            return
+        }
+        val targetIdx = (s.currentIndex + 1).coerceAtMost(s.queue.size)
+        val newQueue = s.queue.toMutableList().apply { add(targetIdx, song) }
+        _state.value = s.copy(queue = newQueue)
+        saveSession()
+        notifyState()
+    }
+
     /** 点击队列项播放 */
     fun playQueueItem(index: Int) {
         val s = _state.value
