@@ -7,31 +7,25 @@ import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.AuthData
 import com.aesthetic.music.data.api.CategoriesData
-import com.aesthetic.music.data.api.CloudPlaylistDto
-import com.aesthetic.music.data.api.CloudScriptDto
 import com.aesthetic.music.data.api.CloudSyncPullData
-import com.aesthetic.music.data.api.SyncPingData
-import com.aesthetic.music.data.settings.SyncServerStore
-import com.aesthetic.music.data.userapi.UserApiEngine
-import com.aesthetic.music.data.api.platform.PlatformMusicService
 import com.aesthetic.music.data.api.DailyData
 import com.aesthetic.music.data.api.LoginBody
 import com.aesthetic.music.data.api.LyricData
 import com.aesthetic.music.data.api.MusicApi
 import com.aesthetic.music.data.api.NewSongsData
-import com.aesthetic.music.data.api.PlayEventDto
 import com.aesthetic.music.data.api.PlaylistItem
-import com.aesthetic.music.data.api.PlaylistMetaBody
 import com.aesthetic.music.data.api.ProfileBody
 import com.aesthetic.music.data.api.RanksData
 import com.aesthetic.music.data.api.RegisterBody
-import com.aesthetic.music.data.api.SongsBody
 import com.aesthetic.music.data.api.SongUrlData
-import com.aesthetic.music.data.api.StatsReportBody
+import com.aesthetic.music.data.api.SyncPushPayload
+import com.aesthetic.music.data.api.SyncPushResult
 import com.aesthetic.music.data.api.UserInfo
-import com.aesthetic.music.data.api.UserPlaylistDto
-import com.aesthetic.music.data.api.UserStatsDto
+import com.aesthetic.music.data.api.platform.PlatformMusicService
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.data.settings.SyncServerStore
+import com.aesthetic.music.data.settings.UserStore
+import com.aesthetic.music.data.userapi.UserApiEngine
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import java.net.ConnectException
@@ -39,14 +33,9 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 /**
- * 音乐数据仓库：封装后端 API 调用，统一返回 Result。
- *
- * 错误处理约定（apiCatching）：
- * - CancellationException 一律原样重抛：协程取消不是业务失败，
- *   吞掉它会破坏结构化并发（表现为"已取消的请求把错误状态写回 UI"）；
- * - IOException 族（断网/超时/DNS 失败）翻译成统一的友好中文提示，
- *   不再把 UnknownHostException 之类的原始英文信息直出给用户；
- * - 其余异常原样进 Result.failure，服务端业务 msg 由调用方透传。
+ * 音乐数据仓库：
+ * 1. 核心音乐能力（搜索、榜单、广场、电台、直链、歌词）：完全在客户端独立运行（直连平台公开协议 + 本地 QuickJS 音源脚本）；
+ * 2. 账号与同步能力：连接用户私有后端，支持用户认证与多端增量 LWW 数据同步。
  */
 class MusicRepository(
     private val api: MusicApi = ApiClient.api,
@@ -67,7 +56,7 @@ class MusicRepository(
         return if (networkError) Exception("网络连接失败，请检查网络后重试") else e
     }
 
-    // ==================== 音乐（直连公共平台协议） ====================
+    // ==================== 音乐（直连公共平台协议，客户端独立自治） ====================
 
     suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): Result<List<Song>> = apiCatching {
         PlatformMusicService.search(keyword, limit, platform)
@@ -108,7 +97,7 @@ class MusicRepository(
     }
 
     suspend fun getSongUrl(song: Song, quality: String = "lossless"): Result<SongUrlData> = apiCatching {
-        // 1. 优先使用本地 QuickJS 音源脚本解析直链（零法律风险、官方 CDN 直连、客户端独立运行）
+        // 1. 优先使用本地 QuickJS 音源脚本解析直链（完全在客户端沙箱独立执行）
         if (UserApiEngine.isAvailable()) {
             val scriptResult = UserApiEngine.resolveMusicUrl(song.platform, song, quality)
             if (scriptResult.isSuccess) {
@@ -123,7 +112,7 @@ class MusicRepository(
             }
         }
 
-        // 2. 音源脚本未安装或未解析成功时，直接使用官方公开外链播放协议直连兜底
+        // 2. 音源脚本未安装或未解析成功时，使用平台公开外链协议直连兜底
         try {
             val direct = PlatformMusicService.getDirectSongUrl(song, quality)
             if (!direct.url.isNullOrBlank()) {
@@ -131,22 +120,11 @@ class MusicRepository(
             }
         } catch (_: Exception) {}
 
-        // 3. 若用户配置了私有服务器，回退至服务端传统解析接口
-        if (SyncServerStore.isConfigured()) {
-            try {
-                val resp = api.songUrl(song.platform, song.id, song.title, quality)
-                if (resp.code == 200) {
-                    val d = resp.data
-                    if (!d?.url.isNullOrBlank()) return@apiCatching d
-                }
-            } catch (_: Exception) {}
-        }
-
         throw Exception("未获取到播放直链，请在「设置」中导入音源脚本以获得高品质音源")
     }
 
     suspend fun getLyric(song: Song): Result<LyricData> = apiCatching {
-        // 1. 优先使用音源脚本解析歌词
+        // 1. 优先使用本地音源脚本解析歌词
         if (UserApiEngine.isAvailable()) {
             val scriptResult = UserApiEngine.resolveLyric(song.platform, song)
             if (scriptResult.isSuccess) {
@@ -167,47 +145,7 @@ class MusicRepository(
             return@apiCatching directLyric
         }
 
-        // 3. 回退至私有服务端
-        if (SyncServerStore.isConfigured()) {
-            try {
-                val resp = api.lyric(song.platform, song.id, song.title)
-                if (resp.code == 200 && resp.data != null) return@apiCatching resp.data
-            } catch (_: Exception) {}
-        }
-
-        LyricData()
-    }
-
-    // ==================== 私有云同步 ====================
-
-    suspend fun syncPing(): Result<SyncPingData> = apiCatching {
-        val resp = api.syncPing()
-        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "服务器连接失败")
-    }
-
-    suspend fun syncPull(): Result<CloudSyncPullData> = apiCatching {
-        val resp = api.syncPull()
-        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "数据拉取失败")
-    }
-
-    suspend fun syncPush(
-        favorites: List<Song>,
-        history: List<Song>,
-        playlists: List<CloudPlaylistDto>
-    ): Result<Unit> = apiCatching {
-        val resp = api.syncPush(
-            com.aesthetic.music.data.api.SyncPushBody(
-                favorites = favorites,
-                history = history,
-                playlists = playlists
-            )
-        )
-        if (resp.code == 200) Unit else throw Exception(resp.msg ?: "同步上传失败")
-    }
-
-    suspend fun getActiveScript(): Result<CloudScriptDto> = apiCatching {
-        val resp = api.getActiveScript()
-        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "获取音源脚本失败")
+        LyricData(platform = song.platform)
     }
 
     suspend fun getPlaylist(id: String): Result<List<Song>> = apiCatching {
@@ -218,7 +156,7 @@ class MusicRepository(
         PlatformMusicService.getHotPlaylists(limit)
     }
 
-    // ==================== 内容（直连公共平台协议） ====================
+    // ==================== 内容发现（直连公共平台协议） ====================
 
     suspend fun getDaily(limit: Int = 8): Result<DailyData> = apiCatching {
         PlatformMusicService.getDaily(limit)
@@ -254,102 +192,84 @@ class MusicRepository(
     // ==================== FM 电台（免登录会话级推荐） ====================
 
     /** FM 风格种子池：推荐新歌或按标签拉精品歌单曲目 */
-    suspend fun fmSeedSongs(tag: String, limit: Int =  120): Result<List<Song>> =
+    suspend fun fmSeedSongs(tag: String, limit: Int = 120): Result<List<Song>> =
         apiCatching {
-            PlatformMusicService.fmSeedSongs( tag , limit )
+            PlatformMusicService.fmSeedSongs(tag, limit)
         }
 
     /** 歌手热歌（FM 漂移：点赞/听完 → 歌手 ID） */
-    suspend fun artistTopSongs(artistId: String, limit: Int =  50): Result<List<Song>> =
+    suspend fun artistTopSongs(artistId: String, limit: Int = 50): Result<List<Song>> =
         apiCatching {
-            PlatformMusicService.artistTopSongs( artistId , limit )
+            PlatformMusicService.artistTopSongs(artistId, limit)
         }
 
     /** 按歌手名/歌名搜索扩充（FM 漂移补充） */
-    suspend fun searchSongs(query: String, limit: Int =  20): Result<List<Song>> =
+    suspend fun searchSongs(query: String, limit: Int = 20): Result<List<Song>> =
         apiCatching {
-            PlatformMusicService.searchSongs( query , limit )
+            PlatformMusicService.searchSongs(query, limit)
         }
 
-    // ==================== 用户 ====================
+    // ==================== 用户体系 (Auth) ====================
 
-    suspend fun register(username: String, password: String, nickname: String): Result<AuthData> = apiCatching {
-        val resp = api.register(RegisterBody(username = username, password = password, nickname = nickname))
+    suspend fun register(
+        username: String,
+        password: String,
+        nickname: String = "",
+        deviceName: String = "Android"
+    ): Result<AuthData> = apiCatching {
+        val resp = api.register(RegisterBody(username = username, password = password, nickname = nickname.ifBlank { null }, deviceName = deviceName))
         if (resp.code == 200) resp.data ?: throw Exception("注册返回为空") else throw Exception(resp.msg ?: "注册失败")
     }
 
-    suspend fun login(username: String, password: String): Result<AuthData> = apiCatching {
-        val resp = api.login(LoginBody(username = username, password = password))
+    suspend fun login(
+        username: String,
+        password: String,
+        deviceName: String = "Android"
+    ): Result<AuthData> = apiCatching {
+        val resp = api.login(LoginBody(username = username, password = password, deviceName = deviceName))
         if (resp.code == 200) resp.data ?: throw Exception("登录返回为空") else throw Exception(resp.msg ?: "登录失败")
     }
 
-    suspend fun updateProfile(nickname: String, avatar: String = ""): Result<UserInfo> = apiCatching {
+    suspend fun logout(): Result<Unit> = apiCatching {
+        val resp = api.logout()
+        if (resp.code == 200) Unit else throw Exception(resp.msg ?: "登出失败")
+    }
+
+    suspend fun logoutAll(): Result<Unit> = apiCatching {
+        val resp = api.logoutAll()
+        if (resp.code == 200) Unit else throw Exception(resp.msg ?: "登出失败")
+    }
+
+    suspend fun getMe(): Result<UserInfo> = apiCatching {
+        val resp = api.me()
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "获取个人信息失败")
+    }
+
+    suspend fun updateProfile(nickname: String? = null, avatar: String? = null): Result<UserInfo> = apiCatching {
         val resp = api.updateProfile(ProfileBody(nickname = nickname, avatar = avatar))
-        if (resp.code == 200) resp.data ?: throw Exception("更新失败") else throw Exception(resp.msg ?: "更新失败")
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "更新资料失败")
     }
 
-    suspend fun cloudFavorites(): Result<List<Song>> = apiCatching {
-        val resp = api.cloudFavorites()
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "同步失败")
+    // ==================== 私有云同步 (Sync LWW) ====================
+
+    suspend fun testConnection(): Result<Boolean> = apiCatching {
+        val token = SyncServerStore.getSyncToken().ifBlank { UserStore.token().orEmpty() }
+        if (token.isNotBlank()) {
+            val resp = api.me()
+            if (resp.code == 200) return@apiCatching true
+            throw Exception(resp.msg ?: "HTTP ${resp.code}")
+        }
+        val pullResp = api.syncPull(0, 0)
+        if (pullResp.code == 200) true else throw Exception(pullResp.msg ?: "连接异常")
     }
 
-    suspend fun pushFavorites(songs: List<Song>): Result<Unit> = apiCatching {
-        val resp = api.putFavorites(SongsBody(songs = songs))
-        if (resp.code != 200) throw Exception(resp.msg ?: "同步失败")
+    suspend fun syncPull(since: Long = 0L, eventSince: Long = 0L): Result<CloudSyncPullData> = apiCatching {
+        val resp = api.syncPull(since = since, eventSince = eventSince)
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "数据拉取失败")
     }
 
-    suspend fun cloudHistory(): Result<List<Song>> = apiCatching {
-        val resp = api.cloudHistory()
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "同步失败")
-    }
-
-    suspend fun pushHistory(songs: List<Song>): Result<Unit> = apiCatching {
-        val resp = api.putHistory(SongsBody(songs = songs))
-        if (resp.code != 200) throw Exception(resp.msg ?: "同步失败")
-    }
-
-    suspend fun cloudPlaylists(): Result<List<UserPlaylistDto>> = apiCatching {
-        val resp = api.cloudPlaylists()
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "同步失败")
-    }
-
-    suspend fun createCloudPlaylist(name: String, coverUrl: String?): Result<UserPlaylistDto> = apiCatching {
-        val resp = api.createPlaylist(PlaylistMetaBody(name = name, coverUrl = coverUrl))
-        if (resp.code == 200) resp.data ?: throw Exception("创建失败") else throw Exception(resp.msg ?: "创建失败")
-    }
-
-    suspend fun renameCloudPlaylist(id: String, name: String): Result<UserPlaylistDto> = apiCatching {
-        val resp = api.updatePlaylist(id, PlaylistMetaBody(name = name))
-        if (resp.code == 200) resp.data ?: throw Exception("重命名失败") else throw Exception(resp.msg ?: "重命名失败")
-    }
-
-    suspend fun deleteCloudPlaylist(id: String): Result<Unit> = apiCatching {
-        val resp = api.deletePlaylist(id)
-        if (resp.code != 200) throw Exception(resp.msg ?: "删除失败")
-    }
-
-    suspend fun cloudPlaylistSongs(id: String): Result<List<Song>> = apiCatching {
-        val resp = api.cloudPlaylistSongs(id)
-        if (resp.code == 200) resp.data.orEmpty() else throw Exception(resp.msg ?: "同步失败")
-    }
-
-    suspend fun pushPlaylistSongs(id: String, songs: List<Song>): Result<Unit> = apiCatching {
-        val resp = api.putPlaylistSongs(id, SongsBody(songs = songs))
-        if (resp.code != 200) throw Exception(resp.msg ?: "同步失败")
-    }
-
-    suspend fun addCloudPlaylistSongs(id: String, songs: List<Song>): Result<Unit> = apiCatching {
-        val resp = api.addPlaylistSongs(id, SongsBody(songs = songs))
-        if (resp.code != 200) throw Exception(resp.msg ?: "同步失败")
-    }
-
-    suspend fun reportStats(events: List<PlayEventDto>): Result<Unit> = apiCatching {
-        val resp = api.reportStats(StatsReportBody(events = events))
-        if (resp.code != 200) throw Exception(resp.msg ?: "上报失败")
-    }
-
-    suspend fun userStats(): Result<UserStatsDto> = apiCatching {
-        val resp = api.userStats()
-        if (resp.code == 200) resp.data ?: UserStatsDto() else throw Exception(resp.msg ?: "获取统计失败")
+    suspend fun syncPush(payload: SyncPushPayload): Result<SyncPushResult> = apiCatching {
+        val resp = api.syncPush(payload)
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "同步上传失败")
     }
 }

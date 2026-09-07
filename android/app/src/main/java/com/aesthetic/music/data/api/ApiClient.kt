@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     /** 默认本地回环占位地址（Retrofit 初始化需要合法 URL，运行时由拦截器动态重定向至用户配置地址） */
-    const val DEFAULT_PLACEHOLDER_URL = "http://127.0.0.1:3000/"
+    const val DEFAULT_PLACEHOLDER_URL = "http://127.0.0.1:8787/"
 
     @Volatile
     private var onAuthFailed: (() -> Unit)? = null
@@ -46,24 +46,18 @@ object ApiClient {
                         request = request.newBuilder().url(newUrl).build()
                     }
                 } else {
-                    // 若未配置私有服务器且试图请求后端云接口，直接拦截并提示
+                    // 若未配置私有服务器且试图请求后端云接口，直接拦截并友好提示
                     val path = request.url.encodedPath
-                    if (path.startsWith("/api/sync") || path.startsWith("/api/scripts")) {
+                    if (path.startsWith("/api/sync") || path.startsWith("/api/auth") || path.startsWith("/api/me")) {
                         throw IOException("未配置私有服务器地址，请先在「设置」中填入后端地址与密钥")
                     }
                 }
 
-                // 2. 自动附加私有云同步密钥
-                val syncToken = SyncServerStore.getSyncToken()
+                // 2. 自动附加私有云同步/用户密钥 (Bearer Token)
+                val token = SyncServerStore.getSyncToken().ifBlank { UserStore.token().orEmpty() }
                 val reqBuilder = request.newBuilder()
-                if (syncToken.isNotBlank()) {
-                    reqBuilder.header("X-Sync-Token", syncToken)
-                    reqBuilder.header("Authorization", "Bearer $syncToken")
-                } else {
-                    val userToken = UserStore.token()
-                    if (userToken != null) {
-                        reqBuilder.header("Authorization", "Bearer $userToken")
-                    }
+                if (token.isNotBlank()) {
+                    reqBuilder.header("Authorization", "Bearer $token")
                 }
                 val newRequest = reqBuilder.build()
 

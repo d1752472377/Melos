@@ -16,7 +16,7 @@ data class ApiResponse<T>(
     val data: T? = null,
 )
 
-/** /api/song/url 返回的直链数据 */
+/** 直链数据（供本地音源解析引擎与公开外链直连协议使用） */
 data class SongUrlData(
     val url: String? = null,
     val format: String? = null,
@@ -26,7 +26,7 @@ data class SongUrlData(
     val sourceName: String? = null,
 )
 
-/** /api/lyric 返回的歌词数据 */
+/** 歌词数据（供本地解析与官方直连接口使用） */
 data class LyricData(
     val lyric: String? = null,
     val translated: String? = null,
@@ -34,7 +34,7 @@ data class LyricData(
     val sourceName: String? = null,
 )
 
-/** 热门歌单条目（也用于排行榜） */
+/** 歌单条目模型（用于排行榜、热门歌单、歌单广场等） */
 data class PlaylistItem(
     val id: String = "",
     val name: String = "",
@@ -52,345 +52,73 @@ data class UserInfo(
     val username: String = "",
     val nickname: String = "",
     val avatar: String = "",
+    val createdAt: Long = 0L,
 )
 
-/** 注册/登录返回 */
+/** 注册/登录返回数据 */
 data class AuthData(
     val token: String = "",
+    val expiresAt: Long = 0L,
     val user: UserInfo = UserInfo(),
 )
 
-/** 云端我的歌单 */
-data class UserPlaylistDto(
+/** 会话设备条目 */
+data class SessionDto(
     val id: String = "",
-    val name: String = "",
-    val coverUrl: String? = null,
-    val songCount: Int = 0,
-)
-
-/** 统计聚合 */
-data class UserStatsDto(
-    val totalPlayMs: Long = 0,
-    val totalPlays: Long = 0,
-    val todayPlayMs: Long = 0,
-    val weekPlayMs: Long = 0,
-    val topSongs: List<TopSong> = emptyList(),
-    val topArtists: List<TopArtist> = emptyList(),
-    val weekChart: List<WeekPoint> = emptyList(),
-)
-
-data class TopSong(
-    val platform: String = "",
-    val id: String = "",
-    val title: String = "",
-    val artist: String = "",
-    val listenedMs: Long = 0,
-    val plays: Long = 0,
-)
-
-data class TopArtist(
-    val artist: String = "",
-    val listenedMs: Long = 0,
-    val plays: Long = 0,
-)
-
-data class WeekPoint(
-    val day: String = "",
-    val listenedMs: Long = 0,
+    val deviceName: String = "",
+    val createdAt: Long = 0L,
+    val lastSeenAt: Long = 0L,
+    val isCurrent: Boolean = false,
 )
 
 /** 听歌明细上报条目 */
 data class PlayEventDto(
+    val eventId: String = "",
     val platform: String = "",
     val id: String = "",
     val title: String = "",
     val artist: String = "",
     val listenedMs: Long = 0,
     val durationMs: Long = 0,
+    val listenedAtMs: Long = 0,
 )
 
-/** 内容聚合包（每日推荐 / 新歌速递 / 排行榜） */
-data class ContentData<T>(
-    val title: String = "",
-    val data: T? = null,
-)
-
-/** 歌手条目（/api/artist/search 与歌手详情 info 共用） */
+/** 歌手条目（歌手搜索与歌手详情共用） */
 data class ArtistItem(
     val id: String = "",
     val name: String = "",
     val avatar: String? = null,
     val alias: String? = null,
     val platform: String? = null,
-    /** 歌手专辑数（仅详情接口返回） */
     val albumSize: Long? = null,
-    /** 歌手歌曲数（仅详情接口返回） */
     val musicSize: Long? = null,
 )
 
-/** /api/artist 返回的详情 + 热门歌曲 */
+/** 歌手详情 + 热门歌曲 */
 data class ArtistDetailData(
     val info: ArtistItem? = null,
     val songs: List<Song> = emptyList(),
 )
 
-/** 专辑搜索条目（也用于专辑详情 info） */
+/** 专辑搜索条目 */
 data class AlbumItem(
     val id: String = "",
     val name: String = "",
     val artist: String = "",
     val coverUrl: String? = null,
-    /** 专辑曲目数（搜索与详情均可能返回） */
     val size: Long? = null,
     val platform: String? = null,
 )
 
-/** /api/album 返回的专辑详情 + 全部曲目 */
+/** 专辑详情 + 全部曲目 */
 data class AlbumDetailData(
     val info: AlbumItem? = null,
     val songs: List<Song> = emptyList(),
 )
 
-/** 热搜词（/api/search/hot） */
+/** 热搜词 */
 data class HotWordDto(
     val word: String = "",
-)
-
-/** 请求体：注册 */
-data class RegisterBody(
-    val username: String,
-    val password: String,
-    val nickname: String = "",
-)
-
-/** 请求体：登录 */
-data class LoginBody(
-    val username: String,
-    val password: String,
-)
-
-/** 请求体：修改资料 */
-data class ProfileBody(
-    val nickname: String? = null,
-    val avatar: String? = null,
-)
-
-/** 请求体：同步歌曲列表 */
-data class SongsBody(
-    val songs: List<Song>,
-)
-
-/** 请求体：创建/重命名歌单 */
-data class PlaylistMetaBody(
-    val name: String,
-    val coverUrl: String? = null,
-)
-
-/** 请求体：统计上报 */
-data class StatsReportBody(
-    val events: List<PlayEventDto>,
-)
-
-interface MusicApi {
-
-    // ==================== 音乐 ====================
-
-    @GET("api/search")
-    suspend fun search(
-        @Query("keyword") keyword: String,
-        @Query("limit") limit: Int = 30,
-        /** 可选：只搜指定平台（netease/kuwo/kugou/qq...），null = 聚合全部健康源 */
-        @Query("platform") platform: String? = null,
-    ): ApiResponse<List<Song>>
-
-    /** 热搜词（搜索页"热门搜索"区） */
-    @GET("api/search/hot")
-    suspend fun hotSearchWords(): ApiResponse<List<HotWordDto>>
-
-    /** 歌单搜索（netease） */
-    @GET("api/search/playlist")
-    suspend fun searchPlaylists(
-        @Query("keyword") keyword: String,
-        @Query("limit") limit: Int = 20,
-    ): ApiResponse<List<PlaylistItem>>
-
-    /** 专辑搜索（netease） */
-    @GET("api/search/album")
-    suspend fun searchAlbums(
-        @Query("keyword") keyword: String,
-        @Query("limit") limit: Int = 20,
-    ): ApiResponse<List<AlbumItem>>
-
-    /** 歌词关键词搜歌（netease type=1006） */
-    @GET("api/search/lyric")
-    suspend fun searchByLyric(
-        @Query("keyword") keyword: String,
-        @Query("limit") limit: Int = 20,
-    ): ApiResponse<List<Song>>
-
-    /** 专辑详情 + 曲目列表 */
-    @GET("api/album")
-    suspend fun albumDetail(@Query("id") id: String): ApiResponse<AlbumDetailData>
-
-    @GET("api/artist/search")
-    suspend fun artistSearch(
-        @Query("keyword") keyword: String,
-        @Query("limit") limit: Int = 8,
-        @Query("platform") platform: String? = null,
-    ): ApiResponse<List<ArtistItem>>
-
-    @GET("api/artist")
-    suspend fun artistDetail(
-        @Query("platform") platform: String? = null,
-        @Query("id") id: String,
-        @Query("limit") limit: Int = 50,
-    ): ApiResponse<ArtistDetailData>
-
-    @GET("api/song/url")
-    suspend fun songUrl(
-        @Query("platform") platform: String,
-        @Query("id") id: String,
-        @Query("title") title: String,
-        @Query("quality") quality: String = "lossless",
-    ): ApiResponse<SongUrlData>
-
-    @GET("api/lyric")
-    suspend fun lyric(
-        @Query("platform") platform: String,
-        @Query("id") id: String,
-        @Query("title") title: String,
-    ): ApiResponse<LyricData>
-
-    @GET("api/playlist")
-    suspend fun playlistDetail(
-        @Query("id") id: String,
-    ): ApiResponse<List<Song>>
-
-    @GET("api/playlist/hot")
-    suspend fun hotPlaylists(
-        @Query("limit") limit: Int = 20,
-    ): ApiResponse<List<PlaylistItem>>
-
-    // ==================== 内容 ====================
-
-    @GET("api/daily")
-    suspend fun daily(@Query("limit") limit: Int = 8): ApiResponse<DailyData>
-
-    @GET("api/newsongs")
-    suspend fun newSongs(@Query("limit") limit: Int = 20): ApiResponse<NewSongsData>
-
-    @GET("api/ranks")
-    suspend fun ranks(): ApiResponse<RanksData>
-
-    @GET("api/rank/{id}")
-    suspend fun rankDetail(@Path("id") id: String): ApiResponse<List<Song>>
-
-    // ==================== 用户 ====================
-
-    @POST("api/user/register")
-    suspend fun register(@Body body: RegisterBody): ApiResponse<AuthData>
-
-    @POST("api/user/login")
-    suspend fun login(@Body body: LoginBody): ApiResponse<AuthData>
-
-    @GET("api/user/me")
-    suspend fun me(): ApiResponse<UserInfo>
-
-    @PUT("api/user/profile")
-    suspend fun updateProfile(@Body body: ProfileBody): ApiResponse<UserInfo>
-
-    @GET("api/user/favorites")
-    suspend fun cloudFavorites(): ApiResponse<List<Song>>
-
-    @PUT("api/user/favorites")
-    suspend fun putFavorites(@Body body: SongsBody): ApiResponse<List<Song>>
-
-    @GET("api/user/history")
-    suspend fun cloudHistory(): ApiResponse<List<Song>>
-
-    @PUT("api/user/history")
-    suspend fun putHistory(@Body body: SongsBody): ApiResponse<List<Song>>
-
-    @GET("api/user/playlists")
-    suspend fun cloudPlaylists(): ApiResponse<List<UserPlaylistDto>>
-
-    @POST("api/user/playlists")
-    suspend fun createPlaylist(@Body body: PlaylistMetaBody): ApiResponse<UserPlaylistDto>
-
-    @PUT("api/user/playlists/{id}")
-    suspend fun updatePlaylist(@Path("id") id: String, @Body body: PlaylistMetaBody): ApiResponse<UserPlaylistDto>
-
-    @DELETE("api/user/playlists/{id}")
-    suspend fun deletePlaylist(@Path("id") id: String): ApiResponse<Any>
-
-    @GET("api/user/playlists/{id}/songs")
-    suspend fun cloudPlaylistSongs(@Path("id") id: String): ApiResponse<List<Song>>
-
-    @PUT("api/user/playlists/{id}/songs")
-    suspend fun putPlaylistSongs(@Path("id") id: String, @Body body: SongsBody): ApiResponse<UserPlaylistDto>
-
-    @POST("api/user/playlists/{id}/songs")
-    suspend fun addPlaylistSongs(@Path("id") id: String, @Body body: SongsBody): ApiResponse<UserPlaylistDto>
-
-    @POST("api/user/stats/report")
-    suspend fun reportStats(@Body body: StatsReportBody): ApiResponse<Any>
-
-    @GET("api/user/stats")
-    suspend fun userStats(): ApiResponse<UserStatsDto>
-
-    // ==================== 私有云同步 & 音源脚本 ====================
-
-    @GET("api/sync/ping")
-    suspend fun syncPing(): ApiResponse<SyncPingData>
-
-    @GET("api/sync/pull")
-    suspend fun syncPull(): ApiResponse<CloudSyncPullData>
-
-    @POST("api/sync/push")
-    suspend fun syncPush(@Body body: SyncPushBody): ApiResponse<Any>
-
-    @GET("api/scripts/active")
-    suspend fun getActiveScript(): ApiResponse<CloudScriptDto>
-}
-
-/** 私有云同步数据包 */
-data class CloudSyncPullData(
-    val script: CloudScriptDto? = null,
-    val scripts: List<CloudScriptDto> = emptyList(),
-    val favorites: List<Song> = emptyList(),
-    val history: List<Song> = emptyList(),
-    val playlists: List<CloudPlaylistDto> = emptyList(),
-    val syncedAt: String? = null,
-)
-
-data class CloudScriptDto(
-    val id: String = "",
-    val name: String = "",
-    val version: String = "",
-    val description: String = "",
-    val content: String = "",
-    val isActive: Boolean = false,
-    val status: String? = null,
-    val statusMessage: String? = null,
-    val updatedAt: String? = null,
-)
-
-data class CloudPlaylistDto(
-    val id: String = "",
-    val name: String = "",
-    val coverUrl: String? = null,
-    val songs: List<Song> = emptyList(),
-)
-
-data class SyncPushBody(
-    val favorites: List<Song>? = null,
-    val history: List<Song>? = null,
-    val playlists: List<CloudPlaylistDto>? = null,
-)
-
-data class SyncPingData(
-    val serverTime: Long = 0L,
-    val syncEnabled: Boolean = false,
 )
 
 /** 每日推荐 */
@@ -425,3 +153,190 @@ data class HomeCategoryDto(
     val previewSongs: List<String> = emptyList(),
     val playlist: PlaylistItem? = null,
 )
+
+// ==================== 请求体 ====================
+
+/** 请求体：注册 */
+data class RegisterBody(
+    val username: String,
+    val password: String,
+    val nickname: String? = null,
+    val deviceName: String? = null,
+)
+
+/** 请求体：登录 */
+data class LoginBody(
+    val username: String,
+    val password: String,
+    val deviceName: String? = null,
+)
+
+/** 请求体：修改资料 */
+data class ProfileBody(
+    val nickname: String? = null,
+    val avatar: String? = null,
+)
+
+// ==================== 多端增量同步模型 (LWW + 墓碑) ====================
+
+/**
+ * 增量拉取数据包（GET /api/sync/pull?since={version}&eventSince={eventSince}）
+ */
+data class CloudSyncPullData(
+    val version: Long = 0L,
+    val nextEventId: Long = 0L,
+    val serverTime: Long = 0L,
+    val favorites: List<SyncFavoriteItem> = emptyList(),
+    val history: List<SyncHistoryItem> = emptyList(),
+    val playlists: List<SyncPlaylistItem> = emptyList(),
+    val playlistSongs: List<SyncPlaylistSongItem> = emptyList(),
+    val playEvents: List<SyncPlayEventItem> = emptyList(),
+)
+
+data class SyncFavoriteItem(
+    val platform: String = "",
+    val id: String = "",
+    val song: Song? = null,
+    val updatedAtMs: Long = 0L,
+    val deleted: Boolean = false,
+)
+
+data class SyncHistoryItem(
+    val platform: String = "",
+    val id: String = "",
+    val song: Song? = null,
+    val playedAtMs: Long = 0L,
+    val updatedAtMs: Long = 0L,
+    val deleted: Boolean = false,
+)
+
+data class SyncPlaylistItem(
+    val id: String = "",
+    val name: String = "",
+    val coverUrl: String = "",
+    val updatedAtMs: Long = 0L,
+    val deleted: Boolean = false,
+)
+
+data class SyncPlaylistSongItem(
+    val playlistId: String = "",
+    val position: Int = 0,
+    val platform: String = "",
+    val songId: String = "",
+    val song: Song? = null,
+    val updatedAtMs: Long = 0L,
+    val deleted: Boolean = false,
+)
+
+data class SyncPlayEventItem(
+    val eventId: String = "",
+    val platform: String = "",
+    val songId: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val listenedMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val listenedAtMs: Long = 0L,
+    val updatedAtMs: Long = 0L,
+)
+
+/**
+ * 增量推送变更包（POST /api/sync/push）
+ */
+data class SyncPushPayload(
+    val favorites: SyncCollection<Song, SyncSongKey>? = null,
+    val history: SyncCollection<SyncHistoryUpsert, SyncSongKey>? = null,
+    val playlists: SyncCollection<SyncPlaylistUpsert, SyncPlaylistKey>? = null,
+    val playlistSongs: SyncCollection<SyncPlaylistSongUpsert, SyncPlaylistSongKey>? = null,
+    val playEvents: List<PlayEventDto>? = null,
+)
+
+data class SyncCollection<U, D>(
+    val upsert: List<U> = emptyList(),
+    val delete: List<D> = emptyList(),
+)
+
+data class SyncSongKey(
+    val platform: String,
+    val id: String,
+)
+
+data class SyncHistoryUpsert(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val album: String = "",
+    val artwork: String? = null,
+    val platform: String = "netease",
+    val playedAtMs: Long = System.currentTimeMillis(),
+)
+
+data class SyncPlaylistUpsert(
+    val id: String,
+    val name: String,
+    val coverUrl: String? = null,
+)
+
+data class SyncPlaylistKey(
+    val id: String,
+)
+
+data class SyncPlaylistSongUpsert(
+    val playlistId: String,
+    val position: Int,
+    val song: Song,
+)
+
+data class SyncPlaylistSongKey(
+    val playlistId: String,
+    val platform: String,
+    val songId: String,
+)
+
+data class SyncPushResult(
+    val version: Long = 0L,
+    val acceptedEvents: Int = 0,
+    val serverTime: Long = 0L,
+)
+
+// ==================== Retrofit 接口 ====================
+
+interface MusicApi {
+
+    // ==================== 用户体系 (Auth) ====================
+
+    @POST("api/auth/register")
+    suspend fun register(@Body body: RegisterBody): ApiResponse<AuthData>
+
+    @POST("api/auth/login")
+    suspend fun login(@Body body: LoginBody): ApiResponse<AuthData>
+
+    @POST("api/auth/logout")
+    suspend fun logout(): ApiResponse<Any>
+
+    @POST("api/auth/logout-all")
+    suspend fun logoutAll(): ApiResponse<Any>
+
+    @GET("api/me")
+    suspend fun me(): ApiResponse<UserInfo>
+
+    @PUT("api/me")
+    suspend fun updateProfile(@Body body: ProfileBody): ApiResponse<UserInfo>
+
+    @GET("api/me/sessions")
+    suspend fun sessions(): ApiResponse<List<SessionDto>>
+
+    @DELETE("api/me/sessions/{id}")
+    suspend fun deleteSession(@Path("id") id: String): ApiResponse<Any>
+
+    // ==================== 数据同步 (Sync) ====================
+
+    @GET("api/sync/pull")
+    suspend fun syncPull(
+        @Query("since") since: Long = 0L,
+        @Query("eventSince") eventSince: Long = 0L,
+    ): ApiResponse<CloudSyncPullData>
+
+    @POST("api/sync/push")
+    suspend fun syncPush(@Body body: SyncPushPayload): ApiResponse<SyncPushResult>
+}

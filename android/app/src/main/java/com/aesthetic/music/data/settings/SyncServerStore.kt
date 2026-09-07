@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 
 /**
  * 私有同步服务器配置存储：
- * 替代旧的多用户登录系统。用户填入私有 Melos 后端地址与同步密钥后，
- * 即可实现双向云同步与云端音源脚本拉取。
+ * 保存用户填入的私有 Melos 后端地址与同步密钥，
+ * 以及多端增量同步的版本号与事件游标。
  */
 object SyncServerStore {
 
@@ -15,6 +15,8 @@ object SyncServerStore {
     private const val KEY_SYNC_TOKEN = "sync_token"
     private const val KEY_LAST_SYNCED_AT = "last_synced_at"
     private const val KEY_LAST_SYNC_STATUS = "last_sync_status"
+    private const val KEY_LAST_SYNC_VERSION = "last_sync_version"
+    private const val KEY_LAST_EVENT_SINCE = "last_event_since"
 
     private var prefs: SharedPreferences? = null
 
@@ -53,6 +55,22 @@ object SyncServerStore {
 
     fun getLastSyncStatus(): String? {
         return prefs?.getString(KEY_LAST_SYNC_STATUS, null)
+    }
+
+    fun getLastSyncVersion(): Long {
+        return prefs?.getLong(KEY_LAST_SYNC_VERSION, 0L) ?: 0L
+    }
+
+    fun setLastSyncVersion(version: Long) {
+        prefs?.edit()?.putLong(KEY_LAST_SYNC_VERSION, version)?.apply()
+    }
+
+    fun getLastEventSince(): Long {
+        return prefs?.getLong(KEY_LAST_EVENT_SINCE, 0L) ?: 0L
+    }
+
+    fun setLastEventSince(eventId: Long) {
+        prefs?.edit()?.putLong(KEY_LAST_EVENT_SINCE, eventId)?.apply()
     }
 
     fun isConfigured(): Boolean {
