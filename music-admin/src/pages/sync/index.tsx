@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, Table, Tag, Button, Space, message, Statistic, Row, Col } from "antd";
 import { SyncOutlined, ReloadOutlined, CheckCircleOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import { useApiUrl } from "@refinedev/core";
@@ -30,20 +30,26 @@ export const SyncPage = () => {
       });
       const json = await res.json();
       if (json.code === 200 && json.data) {
-        const data = json.data.data || [];
-        const events = json.data.events || [];
+        const d = json.data;
+        const events = d.playEvents || [];
         setSyncStatus({
-          version: json.data.version || 0,
+          version: d.version || 0,
           eventCount: events.length,
           lastSync: new Date().toLocaleString(),
           collections: {
-            favorites: data.filter((d: any) => d.collection === "favorites").length,
-            history: data.filter((d: any) => d.collection === "history").length,
-            playlists: data.filter((d: any) => d.collection === "playlists").length,
-            playlistSongs: data.filter((d: any) => d.collection === "playlistSongs").length,
+            favorites: d.favorites?.length || 0,
+            history: d.history?.length || 0,
+            playlists: d.playlists?.length || 0,
+            playlistSongs: d.playlistSongs?.length || 0,
           },
         });
-        setSyncLogs(events.slice(0, 20));
+        setSyncLogs(events.slice(0, 50).map((e: any) => ({
+          id: e.id || e.eventId,
+          collection: "play_events",
+          operation: "append",
+          recordId: `${e.platform || "event"}:${e.songId || e.id || ""} (${e.title || "-"})`,
+          timestamp: e.updatedAtMs || e.listenedAtMs || Date.now(),
+        })));
         message.success("同步数据拉取成功");
       } else {
         message.error("拉取同步数据失败");

@@ -1,14 +1,23 @@
 import type { RefineThemedLayoutHeaderProps } from "@refinedev/antd";
-import { useGetIdentity } from "@refinedev/core";
+import { useGetIdentity, useLogout } from "@refinedev/core";
 import {
   Avatar,
+  Dropdown,
   Layout as AntdLayout,
+  MenuProps,
   Space,
   Switch,
   theme,
   Typography,
 } from "antd";
 import React, { useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  SettingOutlined,
+  LogoutOutlined,
+  DownOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
 import { ColorModeContext } from "../../contexts/color-mode";
 
 const { Text } = Typography;
@@ -18,6 +27,7 @@ type IUser = {
   id: number;
   name: string;
   avatar: string;
+  role?: string;
 };
 
 export const Header: React.FC<RefineThemedLayoutHeaderProps> = ({
@@ -26,6 +36,27 @@ export const Header: React.FC<RefineThemedLayoutHeaderProps> = ({
   const { token } = useToken();
   const { data: user } = useGetIdentity<IUser>();
   const { mode, setMode } = useContext(ColorModeContext);
+  const { mutate: logout } = useLogout();
+  const navigate = useNavigate();
+
+  const userMenuItems: MenuProps["items"] = [
+    {
+      key: "profile",
+      icon: <SettingOutlined />,
+      label: "账号设置",
+      onClick: () => navigate("/profile"),
+    },
+    {
+      type: "divider",
+    },
+    {
+      key: "logout",
+      icon: <LogoutOutlined />,
+      danger: true,
+      label: "退出登录",
+      onClick: () => logout(),
+    },
+  ];
 
   const headerStyles: React.CSSProperties = {
     backgroundColor: token.colorBgElevated,
@@ -44,17 +75,26 @@ export const Header: React.FC<RefineThemedLayoutHeaderProps> = ({
 
   return (
     <AntdLayout.Header style={headerStyles}>
-      <Space>
+      <Space size="large">
         <Switch
           checkedChildren="🌛"
           unCheckedChildren="🔆"
           onChange={() => setMode(mode === "light" ? "dark" : "light")}
           defaultChecked={mode === "dark"}
         />
-        <Space style={{ marginLeft: "8px" }} size="middle">
-          {user?.name && <Text strong>{user.name}</Text>}
-          {user?.avatar && <Avatar src={user?.avatar} alt={user?.name} />}
-        </Space>
+        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
+          <Space style={{ cursor: "pointer" }} size="small">
+            <Avatar
+              src={user?.avatar}
+              icon={<UserOutlined />}
+              style={{ backgroundColor: "#1677ff" }}
+            >
+              {user?.name?.[0]}
+            </Avatar>
+            {user?.name && <Text strong>{user.name}</Text>}
+            <DownOutlined style={{ fontSize: 11, color: token.colorTextSecondary }} />
+          </Space>
+        </Dropdown>
       </Space>
     </AntdLayout.Header>
   );

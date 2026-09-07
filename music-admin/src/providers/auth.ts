@@ -12,6 +12,7 @@ interface AuthResponse {
       username: string;
       nickname: string;
       avatar: string | null;
+      role: string;
       created_at: number;
     };
   };
@@ -24,6 +25,7 @@ interface MeResponse {
     username: string;
     nickname: string;
     avatar: string | null;
+    role: string;
     created_at: number;
   };
 }
@@ -60,6 +62,20 @@ export const authProvider: AuthProvider = {
       const json: AuthResponse = await res.json();
 
       if (json.code === 200 && json.data?.token) {
+        // 限制普通用户无法登录管理后台
+        if (json.data.user?.role !== "admin") {
+          try {
+            await fetch(`${API_URL}/auth/logout`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${json.data.token}` },
+            });
+          } catch {}
+          return {
+            success: false,
+            error: { name: "PermissionError", message: "普通用户无权登录管理后台" },
+          };
+        }
+
         saveSession(json.data.token, json.data.user);
         return { success: true, redirectTo: "/" };
       }
@@ -150,6 +166,15 @@ export const authProvider: AuthProvider = {
       if (res.ok) {
         const json: MeResponse = await res.json();
         if (json.code === 200 && json.data) {
+          // 仅允许管理员维持登录态
+          if (json.data.role !== "admin") {
+            clearSession();
+            return {
+              authenticated: false,
+              redirectTo: "/login",
+              error: { name: "PermissionError", message: "普通用户无权访问管理后台" },
+            };
+          }
           localStorage.setItem("user", JSON.stringify(json.data));
           return { authenticated: true };
         }
@@ -159,7 +184,16 @@ export const authProvider: AuthProvider = {
     return { authenticated: false, redirectTo: "/login" };
   },
 
-  getPermissions: async () => null,
+  getPermissions: async () => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        return user.role;
+      } catch {}
+    }
+    return null;
+  },
 
   getIdentity: async () => {
     const userStr = localStorage.getItem("user");
@@ -170,6 +204,7 @@ export const authProvider: AuthProvider = {
           id: user.id,
           name: user.nickname || user.username,
           avatar: user.avatar || undefined,
+          role: user.role,
         };
       } catch {}
     }

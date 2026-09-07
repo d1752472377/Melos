@@ -11,7 +11,7 @@ interface RegisterFormValues {
 }
 
 export const Register = () => {
-  const { mutate: register, isLoading } = useRegister();
+  const { mutate: register, isPending } = useRegister();
 
   const onFinish = (values: RegisterFormValues) => {
     const { confirm, ...payload } = values;
@@ -93,7 +93,7 @@ export const Register = () => {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={isLoading}>
+            <Button type="primary" htmlType="submit" block loading={isPending}>
               注册
             </Button>
           </Form.Item>

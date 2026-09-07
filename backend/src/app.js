@@ -1,9 +1,11 @@
 import Fastify from 'fastify';
 import { config } from './lib/config.js';
 import { initDb } from './lib/db.js';
+import { ensureAdminUser } from './lib/seed.js';
 import { rateLimit } from './lib/rateLimit.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerSyncRoutes } from './routes/sync.js';
+import { registerAdminRoutes } from './routes/admin.js';
 
 /**
  * 构建 Fastify 应用（不监听端口）。
@@ -16,6 +18,8 @@ export async function buildApp() {
   }
 
   const client = await initDb(config.dbUrl, config.dbAuthToken);
+  // 确保内置管理员账号存在（admin / 12346）
+  await ensureAdminUser(client);
 
   const app = Fastify({
     logger: true,
@@ -28,6 +32,7 @@ export async function buildApp() {
     reply.header('Access-Control-Allow-Origin', '*');
     reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
     reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    reply.header('Access-Control-Expose-Headers', 'x-total-count');
     reply.header('Access-Control-Max-Age', '86400');
 
     // 处理浏览器预检请求
@@ -51,6 +56,7 @@ export async function buildApp() {
 
   registerAuthRoutes(app, { config, client });
   registerSyncRoutes(app, { config, client });
+  registerAdminRoutes(app, { config, client });
 
   app.setErrorHandler((err, req, reply) => {
     req.log.error(err);
@@ -66,8 +72,9 @@ export async function buildApp() {
     version: '2.0.0',
     endpoints: [
       '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/logout-all',
-      '/api/me', '/api/me/sessions',
+      '/api/me', '/api/me/password', '/api/me/sessions',
       '/api/sync/pull', '/api/sync/push',
+      '/api/admin/users',
     ],
   }));
 

@@ -66,9 +66,24 @@ export function requireUser(config, client) {
       username: session.username,
       nickname: session.nickname,
       avatar: session.avatar,
+      role: session.role || 'user',
     };
     req.session = session;
     req.tokenHash = tokenHash;
+  };
+}
+
+/**
+ * Fastify preHandler：要求管理员权限。
+ */
+export function requireAdmin(config, client) {
+  const allowUser = requireUser(config, client);
+  return async (req, reply) => {
+    await allowUser(req, reply);
+    if (reply.sent) return;
+    if (req.user?.role !== 'admin') {
+      return reply.code(403).send({ code: 403, msg: '无权限访问：仅管理员可用' });
+    }
   };
 }
 

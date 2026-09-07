@@ -134,6 +134,67 @@ try {
   const unauth = await j('GET', '/api/sync/pull?since=0');
   ok('无 token 拉取被拒(401)', unauth.statusCode === 401);
 
+  console.log('== 内置管理员与权限控制 ==');
+  const adminLogin = await j('POST', '/api/auth/login', { payload: { username: 'admin', password: '12346' } });
+  ok('默认管理员账号 admin/12346 登录成功', adminLogin.statusCode === 200 && adminLogin.json().data.token);
+  const adminToken = adminLogin.json().data.token;
+  const adminMe = await j('GET', '/api/me', { token: adminToken });
+  ok('管理员角色为 admin', adminMe.statusCode === 200 && adminMe.json().data.role === 'admin');
+
+  // 普通用户权限拦截
+  const normalUserForbidden = await j('GET', '/api/admin/users', { token: tokenB });
+  ok('普通用户请求管理员接口被拦截 (403)', normalUserForbidden.statusCode === 403);
+
+  // 管理员查看用户列表
+  const adminList = await j('GET', '/api/admin/users', { token: adminToken });
+  ok('管理员获取用户列表成功 (200)', adminList.statusCode === 200 && adminList.json().data.total >= 2);
+
+  // 管理员创建用户
+  const createdBob = await j('POST', '/api/admin/users', {
+    token: adminToken,
+    payload: { username: 'bob_test', password: 'bobpassword', nickname: '鲍勃', role: 'user' },
+  });
+  ok('管理员创建用户成功', createdBob.statusCode === 200 && createdBob.json().data.username === 'bob_test');
+  const bobId = createdBob.json().data.id;
+
+  // 管理员更新用户
+  const updatedBob = await j('PUT', `/api/admin/users/${bobId}`, {
+    token: adminToken,
+    payload: { nickname: '鲍勃改名', role: 'admin' },
+  });
+  ok('管理员更新用户角色与昵称成功', updatedBob.statusCode === 200 && updatedBob.json().data.nickname === '鲍勃改名' && updatedBob.json().data.role === 'admin');
+
+  // 管理员删除用户
+  const deleteBob = await j('DELETE', `/api/admin/users/${bobId}`, { token: adminToken });
+  ok('管理员删除用户成功', deleteBob.statusCode === 200);
+
+  // 管理员无法删除自己
+  const deleteSelf = await j('DELETE', `/api/admin/users/${adminMe.json().data.id}`, { token: adminToken });
+  ok('管理员删除自己被阻止 (400)', deleteSelf.statusCode === 400);
+
+  console.log('== 修改账号密码 ==');
+  // 用错误旧密码修改
+  const wrongOldPass = await j('PUT', '/api/me/password', {
+    token: adminToken,
+    payload: { oldPassword: 'wrong', newPassword: 'newpassword999' },
+  });
+  ok('旧密码错误拒绝修改 (400)', wrongOldPass.statusCode === 400);
+
+  // 用正确旧密码修改
+  const changePass = await j('PUT', '/api/me/password', {
+    token: adminToken,
+    payload: { oldPassword: '12346', newPassword: 'newpassword999' },
+  });
+  ok('密码修改成功 (200)', changePass.statusCode === 200);
+
+  // 旧密码登录失败
+  const oldLoginFail = await j('POST', '/api/auth/login', { payload: { username: 'admin', password: '12346' } });
+  ok('修改后旧密码登录失败 (401)', oldLoginFail.statusCode === 401);
+
+  // 新密码登录成功
+  const newLoginSuccess = await j('POST', '/api/auth/login', { payload: { username: 'admin', password: 'newpassword999' } });
+  ok('修改后新密码登录成功 (200)', newLoginSuccess.statusCode === 200 && newLoginSuccess.json().data.token);
+
   console.log(`\n全部通过，共 ${passed} 项断言。`);
 } finally {
   await app.close();

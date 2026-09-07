@@ -1,26 +1,38 @@
-﻿import { Card, Col, Row, Statistic } from "antd";
+import { useState, useEffect } from "react";
+import { Card, Col, Row, Statistic } from "antd";
 import { UserOutlined, DatabaseOutlined, SyncOutlined, PlayCircleOutlined } from "@ant-design/icons";
-import { useApiUrl, useCustom } from "@refinedev/core";
+import { request } from "../../providers/api";
 
 export const DashboardPage = () => {
-  const apiUrl = useApiUrl();
-  
-  // 尝试获取同步状态
-  const { data: syncData, isLoading: syncLoading } = useCustom({
-    url: `${apiUrl}/sync/pull?since=0&eventSince=0`,
-    method: "get",
-    config: {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("refine-auth")}`,
-      },
-    },
-  });
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncData, setSyncData] = useState<any>(null);
+
+  useEffect(() => {
+    let active = true;
+    setSyncLoading(true);
+    request("/sync/pull?since=0&eventSince=0")
+      .then((res) => {
+        if (active && res.code === 200 && res.data) {
+          setSyncData(res.data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setSyncLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const userStr = localStorage.getItem("user");
   const user = userStr ? JSON.parse(userStr) : null;
 
-  const dataCount = syncData?.data?.data?.data?.length || 0;
-  const eventCount = syncData?.data?.data?.events?.length || 0;
+  const dataCount = (syncData?.favorites?.length || 0) +
+    (syncData?.history?.length || 0) +
+    (syncData?.playlists?.length || 0) +
+    (syncData?.playlistSongs?.length || 0);
+  const eventCount = syncData?.playEvents?.length || 0;
 
   return (
     <div style={{ padding: 24 }}>
@@ -70,9 +82,16 @@ export const DashboardPage = () => {
           <Card title="📋 最近同步数据预览">
             {syncLoading ? (
               <p>加载中...</p>
-            ) : syncData?.data?.data?.data?.length > 0 ? (
+            ) : syncData ? (
               <pre style={{ maxHeight: 400, overflow: "auto", background: "#f5f5f5", padding: 12, borderRadius: 8 }}>
-                {JSON.stringify(syncData.data.data.data.slice(0, 5), null, 2)}
+                {JSON.stringify({
+                  version: syncData.version,
+                  favoritesCount: syncData.favorites?.length || 0,
+                  playlistsCount: syncData.playlists?.length || 0,
+                  historyCount: syncData.history?.length || 0,
+                  eventsCount: syncData.playEvents?.length || 0,
+                  recentFavorites: syncData.favorites?.slice(0, 3),
+                }, null, 2)}
               </pre>
             ) : (
               <p style={{ color: "#999" }}>暂无数据，请先同步。</p>

@@ -9,7 +9,7 @@ interface LoginFormValues {
 }
 
 export const Login = () => {
-  const { mutate: login, isLoading } = useLogin();
+  const { mutate: login, isPending } = useLogin();
 
   const onFinish = (values: LoginFormValues) => {
     login(values, {
@@ -33,16 +33,19 @@ export const Login = () => {
       }}
     >
       <Card style={{ width: 400 }}>
-        <Typography.Title level={3} style={{ textAlign: "center", marginBottom: 24 }}>
-          登录
+        <Typography.Title level={3} style={{ textAlign: "center", marginBottom: 8 }}>
+          Melos 管理后台
         </Typography.Title>
+        <Typography.Paragraph type="secondary" style={{ textAlign: "center", marginBottom: 24 }}>
+          请使用管理员账号登录
+        </Typography.Paragraph>
         <Form<LoginFormValues> layout="vertical" onFinish={onFinish}>
           <Form.Item
             label="用户名"
             name="username"
             rules={[{ required: true, message: "请输入用户名" }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="用户名" autoComplete="username" />
+            <Input prefix={<UserOutlined />} placeholder="用户名（如 admin）" autoComplete="username" />
           </Form.Item>
 
           <Form.Item
@@ -54,13 +57,13 @@ export const Login = () => {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={isLoading}>
+            <Button type="primary" htmlType="submit" block loading={isPending}>
               登录
             </Button>
           </Form.Item>
         </Form>
-        <div style={{ textAlign: "center" }}>
-          还没有账号？ <Link to="/register">去注册</Link>
+        <div style={{ textAlign: "center", fontSize: 13, color: "#8c8c8c" }}>
+          仅管理员账号可访问后台，如需开通请联系系统管理员
         </div>
       </Card>
     </div>

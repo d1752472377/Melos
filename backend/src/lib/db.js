@@ -24,6 +24,7 @@ const SCHEMA = `
       salt          TEXT NOT NULL,
       nickname      TEXT NOT NULL DEFAULT '',
       avatar        TEXT NOT NULL DEFAULT '',
+      role          TEXT NOT NULL DEFAULT 'user',
       created_at    INTEGER NOT NULL,
       updated_at    INTEGER NOT NULL
     );
@@ -142,6 +143,12 @@ export async function initDb(dbUrl, authToken) {
   for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
     await client.execute(stmt);
   }
+  // 平滑升级老数据库：确保 users 表有 role 字段
+  try {
+    await client.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+  } catch {
+    // 字段已存在时忽略错误
+  }
   return client;
 }
 
@@ -168,10 +175,10 @@ export async function findUserById(client, id) {
   return first(client, 'SELECT * FROM users WHERE id = ?', [id]);
 }
 
-export async function createUser(client, { username, passwordHash, salt, nickname, nowMs }) {
+export async function createUser(client, { username, passwordHash, salt, nickname, role = 'user', nowMs }) {
   const r = await run(client,
-    'INSERT INTO users (username, password_hash, salt, nickname, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-    [username, passwordHash, salt, nickname || username, nowMs, nowMs],
+    'INSERT INTO users (username, password_hash, salt, nickname, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [username, passwordHash, salt, nickname || username, role || 'user', nowMs, nowMs],
   );
   return findUserById(client, r.lastId);
 }
@@ -184,9 +191,92 @@ export async function updateUserProfile(client, id, { nickname, avatar, nowMs })
   return findUserById(client, id);
 }
 
+export async function updateUserPassword(client, id, { passwordHash, salt, nowMs }) {
+  return run(client, 'UPDATE users SET password_hash = ?, salt = ?, updated_at = ? WHERE id = ?',
+    [passwordHash, salt, nowMs, id]);
+}
+
+export async function listUsers(client, { offset = 0, limit = 10, search = '', role = '' } = {}) {
+  let sql = 'SELECT id, username, nickname, avatar, role, created_at, updated_at FROM users WHERE 1=1';
+  const args = [];
+  if (search) {
+    sql += ' AND (username LIKE ? OR nickname LIKE ?)';
+    args.push(`%${search}%`, `%${search}%`);
+  }
+  if (role) {
+    sql += ' AND role = ?';
+    args.push(role);
+  }
+  sql += ' ORDER BY id DESC LIMIT ? OFFSET ?';
+  args.push(limit, offset);
+  return all(client, sql, args);
+}
+
+export async function countUsers(client, { search = '', role = '' } = {}) {
+  let sql = 'SELECT COUNT(*) AS total FROM users WHERE 1=1';
+  const args = [];
+  if (search) {
+    sql += ' AND (username LIKE ? OR nickname LIKE ?)';
+    args.push(`%${search}%`, `%${search}%`);
+  }
+  if (role) {
+    sql += ' AND role = ?';
+    args.push(role);
+  }
+  const row = await first(client, sql, args);
+  return row ? num(row.total) : 0;
+}
+
+export async function adminUpdateUser(client, id, { nickname, avatar, role, passwordHash, salt, nowMs }) {
+  const cur = await findUserById(client, id);
+  if (!cur) return null;
+  const updates = ['updated_at = ?'];
+  const args = [nowMs];
+  if (nickname !== undefined) {
+    updates.push('nickname = ?');
+    args.push(nickname);
+  }
+  if (avatar !== undefined) {
+    updates.push('avatar = ?');
+    args.push(avatar);
+  }
+  if (role !== undefined) {
+    updates.push('role = ?');
+    args.push(role);
+  }
+  if (passwordHash && salt) {
+    updates.push('password_hash = ?', 'salt = ?');
+    args.push(passwordHash, salt);
+  }
+  args.push(id);
+  await run(client, `UPDATE users SET ${updates.join(', ')} WHERE id = ?`, args);
+  return findUserById(client, id);
+}
+
+export async function adminDeleteUser(client, id) {
+  const stmts = [
+    { sql: 'DELETE FROM play_events WHERE user_id = ?', args: [id] },
+    { sql: 'DELETE FROM playlist_songs WHERE user_id = ?', args: [id] },
+    { sql: 'DELETE FROM playlists WHERE user_id = ?', args: [id] },
+    { sql: 'DELETE FROM history WHERE user_id = ?', args: [id] },
+    { sql: 'DELETE FROM favorites WHERE user_id = ?', args: [id] },
+    { sql: 'DELETE FROM user_state WHERE user_id = ?', args: [id] },
+    { sql: 'DELETE FROM sessions WHERE user_id = ?', args: [id] },
+    { sql: 'DELETE FROM users WHERE id = ?', args: [id] },
+  ];
+  await client.batch(stmts, 'write');
+  return true;
+}
+
 export function publicUser(row) {
   if (!row) return null;
-  return { id: row.id, username: row.username, nickname: row.nickname || row.username, avatar: row.avatar || '' };
+  return {
+    id: row.id,
+    username: row.username,
+    nickname: row.nickname || row.username,
+    avatar: row.avatar || '',
+    role: row.role || 'user',
+  };
 }
 
 // ==================== 会话 ====================
@@ -211,7 +301,7 @@ export async function createSession(client, { userId, tokenHash, deviceName, ttl
 
 export async function findSessionByTokenHash(client, tokenHash) {
   return first(client,
-    `SELECT s.*, u.username, u.nickname, u.avatar
+    `SELECT s.*, u.username, u.nickname, u.avatar, u.role
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ?`, [tokenHash]);
 }

@@ -1,4 +1,4 @@
-﻿import { Refine, Authenticated } from "@refinedev/core";
+import { Refine, Authenticated } from "@refinedev/core";
 import { DevtoolsPanel, DevtoolsProvider } from "@refinedev/devtools";
 import { RefineKbar, RefineKbarProvider } from "@refinedev/kbar";
 
@@ -27,8 +27,10 @@ import { DashboardPage } from "./pages/dashboard";
 import { Register } from "./pages/register";
 import { Login } from "./pages/login";
 import { SyncPage } from "./pages/sync";
+import { UsersPage } from "./pages/users";
+import { ProfilePage } from "./pages/profile";
 
-import { DashboardOutlined, SyncOutlined } from "@ant-design/icons";
+import { DashboardOutlined, SyncOutlined, TeamOutlined } from "@ant-design/icons";
 
 function App() {
   return (
@@ -50,6 +52,11 @@ function App() {
                       meta: { label: "仪表盘", icon: <DashboardOutlined /> },
                     },
                     {
+                      name: "users",
+                      list: "/users",
+                      meta: { label: "用户管理", icon: <TeamOutlined /> },
+                    },
+                    {
                       name: "sync",
                       list: "/sync",
                       meta: { label: "同步监控", icon: <SyncOutlined /> },
@@ -64,7 +71,7 @@ function App() {
                   <Routes>
                     <Route
                       element={
-                        <Authenticated fallback={<CatchAllNavigate to="/login" />}>
+                        <Authenticated key="authenticated-routes" fallback={<CatchAllNavigate to="/login" />}>
                           <ThemedLayout Header={Header} Sider={ThemedSider}>
                             <Outlet />
                           </ThemedLayout>
@@ -72,12 +79,14 @@ function App() {
                       }
                     >
                       <Route index element={<DashboardPage />} />
+                      <Route path="/users" element={<UsersPage />} />
+                      <Route path="/profile" element={<ProfilePage />} />
                       <Route path="/sync" element={<SyncPage />} />
                     </Route>
 
                     <Route
                       element={
-                        <Authenticated fallback={<Outlet />}>
+                        <Authenticated key="authenticated-auth" fallback={<Outlet />}>
                           <NavigateToResource resource="dashboard" />
                         </Authenticated>
                       }
@@ -89,7 +98,7 @@ function App() {
 
                     <Route
                       element={
-                        <Authenticated>
+                        <Authenticated key="authenticated-error">
                           <ThemedLayout Header={Header} Sider={ThemedSider}>
                             <Outlet />
                           </ThemedLayout>

@@ -1,7 +1,9 @@
 import {
   findUserByUsername,
+  findUserById,
   createUser,
   updateUserProfile,
+  updateUserPassword,
   publicUser,
   createSession,
   revokeSessionByTokenHash,
@@ -25,7 +27,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$/;
 
 function validateRegister(username, password, nickname) {
   if (!USERNAME_RE.test(String(username || ''))) return '用户名需 2-20 位（字母/数字/下划线/中文）';
-  if (typeof password !== 'string' || password.length < 6 || password.length > 64) return '密码需 6-64 位';
+  if (typeof password !== 'string' || password.length < 5 || password.length > 64) return '密码需 5-64 位';
   if (nickname != null && String(nickname).length > 24) return '昵称最长 24 字';
   return null;
 }
@@ -128,6 +130,34 @@ export function registerAuthRoutes(app, { config, client }) {
       nowMs: Date.now(),
     });
     return { code: 200, data: publicUser(user) };
+  });
+
+  app.put('/api/me/password', { preHandler: allowAuth }, async (req, reply) => {
+    const { oldPassword, newPassword } = req.body || {};
+    if (!oldPassword || typeof oldPassword !== 'string') {
+      return reply.code(400).send({ code: 400, msg: '请输入原密码' });
+    }
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 5 || newPassword.length > 64) {
+      return reply.code(400).send({ code: 400, msg: '新密码需 5-64 位' });
+    }
+    const user = await findUserById(client, req.user.id);
+    if (!user) {
+      return reply.code(404).send({ code: 404, msg: '用户不存在' });
+    }
+    const ok = await verifyPassword(oldPassword, user.salt, user.password_hash);
+    if (!ok) {
+      return reply.code(400).send({ code: 400, msg: '原密码错误' });
+    }
+    const salt = newSalt();
+    const passwordHash = await hashPassword(newPassword, salt);
+    await updateUserPassword(client, req.user.id, {
+      passwordHash,
+      salt,
+      nowMs: Date.now(),
+    });
+    // 修改密码后，注销本用户除当前设备外的其它设备会话
+    await revokeAllSessions(client, req.user.id, req.session.id);
+    return { code: 200, msg: '密码修改成功' };
   });
 
   app.get('/api/me/sessions', { preHandler: allowAuth }, async (req) => {
