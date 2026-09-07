@@ -23,6 +23,19 @@ export async function buildApp() {
     trustProxy: config.trustProxy,
   });
 
+  // CORS：允许前端 dev server（Vite/Refine）跨域访问
+  app.addHook('onRequest', async (req, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+    reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    reply.header('Access-Control-Max-Age', '86400');
+
+    // 处理浏览器预检请求
+    if (req.method === 'OPTIONS') {
+      reply.code(204).send();
+    }
+  });
+
   // 每 IP 限速：登录/注册 10 次/分，其余 API 120 次/分
   if (!config.rateLimitDisabled) {
     app.addHook('onRequest', async (req, reply) => {

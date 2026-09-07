@@ -35,6 +35,16 @@ backend/data/*.db-journal
 backend/data/*.db-wal
 backend/data/*.db-shm
 
+# ---- music-admin 前端 ----
+music-admin/node_modules/
+music-admin/dist/
+music-admin/.env
+music-admin/.env.*
+!music-admin/.env.example
+music-admin/.pnpm-store/
+music-admin/*.tsbuildinfo
+music-admin/.refine/
+
 # ---- 临时 / 参考目录（已从仓库移除）----
 reference/
 research/
@@ -50,6 +60,4 @@ Thumbs.db
 
 # ---- Vercel CLI 本地元数据 ----
 .vercel/
-.vercel/
-.vercel
 .env*
