@@ -1,62 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
   "functions": {
     "api/[...].js": {
       "regions": [
         "hkg1"
-      ],
-      "includeFiles": "public/**"
-    },
-    "api/release-proxy.js": {
-      "regions": [
-        "hkg1"
-      ],
-      "maxDuration": 60
+      ]
     }
   },
-  "redirects": [
-    {
-      "source": "/admin",
-      "destination": "/admin/",
-      "permanent": false
-    }
-  ],
   "rewrites": [
     {
-      "source": "/style.css",
-      "destination": "/admin/style.css"
-    },
-    {
-      "source": "/app.js",
-      "destination": "/admin/app.js"
-    },
-    {
-      "source": "/update.json",
-      "destination": "/api/release-proxy.js"
-    },
-    {
-      "source": "/latest.apk",
-      "destination": "/api/release-proxy.js"
-    },
-    {
-      "source": "/download",
-      "destination": "/api/release-proxy.js"
-    },
-    {
       "source": "/",
-      "destination": "/api/[...]"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/[...]"
-    },
-    {
-      "source": "/admin",
-      "destination": "/api/[...]"
-    },
-    {
-      "source": "/admin/(.*)",
       "destination": "/api/[...]"
     }
   ]

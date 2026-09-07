@@ -1,51 +1,22 @@
 import { createClient } from '@libsql/client';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, isAbsolute } from 'node:path';
+import crypto from 'node:crypto';
 
 /**
- * 存储层：基于 @libsql/client（SQLite 分支，SQL 完全兼容）。
+ * 存储层：基于 @libsql/client（SQLite 兼容，支持本地 file: 与远端 libsql:// / http://）。
  *
- * 支持 DB_URL 两种形态（见 .env）：
- *   - file:/path/to/music.db      本地文件（单机部署，开发默认）
- *   - http://host:port            远端 libSQL 服务（sqld），分布式部署时
- *                                 多个业务节点共享同一中央数据库
- *
- * 表结构：
- * - sources         音源注册表（config 为 AES-GCM 加密 JSON）
- * - users           用户账号（scrypt 加盐密码）
- * - favorites       云端收藏
- * - history         云端最近播放
- * - playlists       我的歌单
- * - playlist_songs  歌单歌曲
- * - play_events     听歌统计明细（服务端聚合）
+ * 设计要点：
+ * - 单一职责：只存「用户 + 会话 + 同步数据」，不存任何音源配置。
+ * - 多端同步采用「按记录 last-write-wins + 删除墓碑」：
+ *     * 每条记录带 update_seq（服务端分配的单调递增序号）与 updated_at_ms（服务端收包时间）。
+ *     * 谁后推送谁就是最新版本（update_seq 大者胜）；删除记录以 deleted=1 的墓碑形式保留，
+ *       保证设备 A 删除后，晚一步推送旧快照的设备 B 不会把已删项“复活”。
+ *     * 客户端用 version（即服务端 sync_seq）做增量拉取游标。
+ * - play_events 是 append-only 事件（不参与 LWW），用自增 id 做游标、event_id 做幂等去重。
  */
 
 const SCHEMA = `
-    CREATE TABLE IF NOT EXISTS scripts (
-      id              TEXT PRIMARY KEY,
-      name            TEXT NOT NULL,
-      version         TEXT NOT NULL DEFAULT '',
-      description     TEXT NOT NULL DEFAULT '',
-      content         TEXT NOT NULL,
-      is_active       INTEGER NOT NULL DEFAULT 0,
-      status          TEXT NOT NULL DEFAULT 'untested',
-      status_message  TEXT NOT NULL DEFAULT '',
-      last_checked_at TEXT DEFAULT NULL,
-      created_at      TEXT DEFAULT (datetime('now')),
-      updated_at      TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS sources (
-      id         TEXT PRIMARY KEY,
-      name       TEXT NOT NULL,
-      type       TEXT NOT NULL,
-      enabled    INTEGER NOT NULL DEFAULT 1,
-      weight     INTEGER NOT NULL DEFAULT 100,
-      config     TEXT NOT NULL DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       username      TEXT NOT NULL UNIQUE,
@@ -53,190 +24,164 @@ const SCHEMA = `
       salt          TEXT NOT NULL,
       nickname      TEXT NOT NULL DEFAULT '',
       avatar        TEXT NOT NULL DEFAULT '',
-      created_at    TEXT DEFAULT (datetime('now')),
-      updated_at    TEXT DEFAULT (datetime('now'))
+      created_at    INTEGER NOT NULL,
+      updated_at    INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id            TEXT PRIMARY KEY,
+      user_id       INTEGER NOT NULL,
+      token_hash    TEXT NOT NULL UNIQUE,
+      device_name   TEXT NOT NULL DEFAULT '',
+      created_at    INTEGER NOT NULL,
+      last_seen_at  INTEGER NOT NULL,
+      expires_at    INTEGER NOT NULL,
+      revoked_at    INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+    -- 每用户一个单调递增的同步序号（sync_seq），作为 LWW 版本游标
+    CREATE TABLE IF NOT EXISTS user_state (
+      user_id  INTEGER PRIMARY KEY,
+      sync_seq INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS favorites (
-      user_id    INTEGER NOT NULL,
-      platform   TEXT NOT NULL,
-      song_id    TEXT NOT NULL,
-      song_json  TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
+      user_id       INTEGER NOT NULL,
+      platform      TEXT NOT NULL,
+      song_id       TEXT NOT NULL,
+      song_json     TEXT NOT NULL DEFAULT '',
+      update_seq    INTEGER NOT NULL DEFAULT 0,
+      updated_at_ms INTEGER NOT NULL DEFAULT 0,
+      deleted       INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (user_id, platform, song_id)
     );
+    CREATE INDEX IF NOT EXISTS idx_favorites_seq ON favorites(user_id, update_seq);
 
     CREATE TABLE IF NOT EXISTS history (
-      user_id    INTEGER NOT NULL,
-      platform   TEXT NOT NULL,
-      song_id    TEXT NOT NULL,
-      song_json  TEXT NOT NULL,
-      played_at  TEXT NOT NULL,
+      user_id       INTEGER NOT NULL,
+      platform      TEXT NOT NULL,
+      song_id       TEXT NOT NULL,
+      song_json     TEXT NOT NULL DEFAULT '',
+      played_at_ms  INTEGER NOT NULL DEFAULT 0,
+      update_seq    INTEGER NOT NULL DEFAULT 0,
+      updated_at_ms INTEGER NOT NULL DEFAULT 0,
+      deleted       INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (user_id, platform, song_id)
     );
+    CREATE INDEX IF NOT EXISTS idx_history_seq ON history(user_id, update_seq);
 
     CREATE TABLE IF NOT EXISTS playlists (
-      id         TEXT PRIMARY KEY,
-      user_id    INTEGER NOT NULL,
-      name       TEXT NOT NULL,
-      cover_url  TEXT NOT NULL DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      user_id       INTEGER NOT NULL,
+      playlist_id   TEXT NOT NULL,
+      name          TEXT NOT NULL DEFAULT '',
+      cover_url     TEXT NOT NULL DEFAULT '',
+      update_seq    INTEGER NOT NULL DEFAULT 0,
+      updated_at_ms INTEGER NOT NULL DEFAULT 0,
+      deleted       INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, playlist_id)
     );
+    CREATE INDEX IF NOT EXISTS idx_playlists_seq ON playlists(user_id, update_seq);
 
     CREATE TABLE IF NOT EXISTS playlist_songs (
-      playlist_id TEXT NOT NULL,
-      position    INTEGER NOT NULL DEFAULT 0,
-      platform    TEXT NOT NULL,
-      song_id     TEXT NOT NULL,
-      song_json   TEXT NOT NULL,
-      added_at    TEXT DEFAULT (datetime('now')),
-      PRIMARY KEY (playlist_id, platform, song_id)
+      user_id       INTEGER NOT NULL,
+      playlist_id   TEXT NOT NULL,
+      platform      TEXT NOT NULL,
+      song_id       TEXT NOT NULL,
+      position      INTEGER NOT NULL DEFAULT 0,
+      song_json     TEXT NOT NULL DEFAULT '',
+      update_seq    INTEGER NOT NULL DEFAULT 0,
+      updated_at_ms INTEGER NOT NULL DEFAULT 0,
+      deleted       INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, playlist_id, platform, song_id)
     );
+    CREATE INDEX IF NOT EXISTS idx_playlist_songs_seq ON playlist_songs(user_id, update_seq);
 
     CREATE TABLE IF NOT EXISTS play_events (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id    INTEGER NOT NULL,
-      platform   TEXT NOT NULL,
-      song_id    TEXT NOT NULL,
-      title      TEXT NOT NULL DEFAULT '',
-      artist     TEXT NOT NULL DEFAULT '',
-      listened_ms INTEGER NOT NULL DEFAULT 0,
-      duration_ms INTEGER NOT NULL DEFAULT 0,
-      day        TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        INTEGER NOT NULL,
+      event_id       TEXT NOT NULL,
+      platform       TEXT NOT NULL DEFAULT '',
+      song_id        TEXT NOT NULL DEFAULT '',
+      title          TEXT NOT NULL DEFAULT '',
+      artist         TEXT NOT NULL DEFAULT '',
+      listened_ms    INTEGER NOT NULL DEFAULT 0,
+      duration_ms    INTEGER NOT NULL DEFAULT 0,
+      listened_at_ms INTEGER NOT NULL DEFAULT 0,
+      updated_at_ms  INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (user_id, event_id)
     );
-    CREATE INDEX IF NOT EXISTS idx_play_events_user_day ON play_events(user_id, day);
-    CREATE INDEX IF NOT EXISTS idx_history_user_time ON history(user_id, played_at);
+    CREATE INDEX IF NOT EXISTS idx_play_events_user ON play_events(user_id, id);
 `;
 
-/**
- * 适配器：模拟 node:sqlite 的 prepare(sql).all/get/run 形态，
- * 业务函数无需改动 SQL，只需要 await。
- * 注意：libSQL 的 INTEGER 列返回 BigInt，JSON 序列化会抛错，统一归一化为 Number。
- */
-class LibsqlDb {
-  constructor(client) {
-    this.client = client;
-  }
+function num(v) {
+  return typeof v === 'bigint' ? Number(v) : v;
+}
 
-  _normalize(rows) {
-    return rows.map((row) => {
-      const out = {};
-      for (const [k, v] of Object.entries(row)) {
-        out[k] = typeof v === 'bigint' ? Number(v) : v;
-      }
-      return out;
-    });
-  }
+function mapRow(r) {
+  const out = {};
+  for (const [k, v] of Object.entries(r)) out[k] = num(v);
+  return out;
+}
 
-  prepare(sql) {
-    return {
-      all: async (...args) => {
-        const rs = await this.client.execute({ sql, args });
-        return this._normalize(rs.rows);
-      },
-      get: async (...args) => {
-        const rs = await this.client.execute({ sql, args });
-        return this._normalize(rs.rows)[0];
-      },
-      run: async (...args) => {
-        const rs = await this.client.execute({ sql, args });
-        return {
-          changes: rs.rowsAffected,
-          lastInsertRowid: rs.lastInsertRowid != null ? Number(rs.lastInsertRowid) : undefined,
-        };
-      },
-    };
-  }
-
-  /** 批量执行 SQL（可开事务）。statements: [{ sql, args }]；mode: 'deferred'|'write'|'read' */
-  batch(statements, mode = 'deferred') {
-    return this.client.batch(statements, mode);
-  }
+function rowsOf(rs) {
+  return rs.rows.map(mapRow);
 }
 
 export async function initDb(dbUrl, authToken) {
-  // file: 模式确保父目录存在；远端模式跳过
-  if (dbUrl.startsWith('file:')) {
-    const p = dbUrl.slice('file:'.length);
-    mkdirSync(dirname(p), { recursive: true });
-  } else if (/^[a-z]:[\\/]/i.test(dbUrl) || dbUrl.startsWith('/')) {
-    // 兼容直接传本地路径的旧用法
-    mkdirSync(dirname(dbUrl), { recursive: true });
-    dbUrl = `file:${dbUrl}`;
+  let url = dbUrl;
+  if (url.startsWith('file:')) {
+    const p = url.slice('file:'.length);
+    try { mkdirSync(dirname(p), { recursive: true }); } catch { /* 远端无需处理 */ }
+  } else if (/^[a-zA-Z]:[\\/]/.test(url) || isAbsolute(url)) {
+    try { mkdirSync(dirname(url), { recursive: true }); } catch { /* ignore */ }
+    url = `file:${url}`;
   }
-  const client = createClient({ url: dbUrl, authToken });
-
-  // 建表（幂等）。schema 无字符串内嵌分号，按 ';' 切分逐条执行。
+  const client = createClient({ url, authToken, intMode: 'number' });
   for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
     await client.execute(stmt);
   }
-
-  return new LibsqlDb(client);
+  return client;
 }
 
-// ==================== 音源 ====================
-
-export async function listSources(db) {
-  return db.prepare('SELECT id, name, type, enabled, weight, config, created_at, updated_at FROM sources ORDER BY weight DESC, id ASC').all();
+async function all(client, sql, args = []) {
+  return rowsOf(await client.execute({ sql, args }));
 }
 
-export async function getSource(db, id) {
-  return db.prepare('SELECT id, name, type, enabled, weight, config, created_at, updated_at FROM sources WHERE id = ?').get(id);
+async function first(client, sql, args = []) {
+  return rowsOf(await client.execute({ sql, args }))[0];
 }
 
-export async function insertSource(db, { id, name, type, enabled = 1, weight = 100, config = '' }) {
-  await db.prepare('INSERT INTO sources (id, name, type, enabled, weight, config) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, name, type, enabled ? 1 : 0, weight, config);
-  return getSource(db, id);
-}
-
-export async function updateSource(db, id, fields) {
-  const cur = await getSource(db, id);
-  if (!cur) return null;
-  const next = {
-    name: fields.name ?? cur.name,
-    type: fields.type ?? cur.type,
-    enabled: fields.enabled ?? cur.enabled,
-    weight: fields.weight ?? cur.weight,
-    config: fields.config ?? cur.config,
-  };
-  await db.prepare('UPDATE sources SET name = ?, type = ?, enabled = ?, weight = ?, config = ?, updated_at = datetime(\'now\') WHERE id = ?')
-    .run(next.name, next.type, next.enabled ? 1 : 0, next.weight, next.config, id);
-  return getSource(db, id);
-}
-
-export async function deleteSource(db, id) {
-  return db.prepare('DELETE FROM sources WHERE id = ?').run(id);
+async function run(client, sql, args = []) {
+  const rs = await client.execute({ sql, args });
+  return { changes: rs.rowsAffected, lastId: rs.lastInsertRowid != null ? Number(rs.lastInsertRowid) : undefined };
 }
 
 // ==================== 用户 ====================
 
-export async function getUserByUsername(db, username) {
-  return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+export async function findUserByUsername(client, username) {
+  return first(client, 'SELECT * FROM users WHERE username = ?', [username]);
 }
 
-export async function getUserById(db, id) {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+export async function findUserById(client, id) {
+  return first(client, 'SELECT * FROM users WHERE id = ?', [id]);
 }
 
-export async function insertUser(db, { username, passwordHash, salt, nickname }) {
-  const r = await db.prepare('INSERT INTO users (username, password_hash, salt, nickname) VALUES (?, ?, ?, ?)')
-    .run(username, passwordHash, salt, nickname || username);
-  return getUserById(db, Number(r.lastInsertRowid));
+export async function createUser(client, { username, passwordHash, salt, nickname, nowMs }) {
+  const r = await run(client,
+    'INSERT INTO users (username, password_hash, salt, nickname, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [username, passwordHash, salt, nickname || username, nowMs, nowMs],
+  );
+  return findUserById(client, r.lastId);
 }
 
-export async function updateUserProfile(db, id, { nickname, avatar }) {
-  const cur = await getUserById(db, id);
+export async function updateUserProfile(client, id, { nickname, avatar, nowMs }) {
+  const cur = await findUserById(client, id);
   if (!cur) return null;
-  await db.prepare('UPDATE users SET nickname = ?, avatar = ?, updated_at = datetime(\'now\') WHERE id = ?')
-    .run(
-      nickname ?? cur.nickname,
-      avatar ?? cur.avatar,
-      id,
-    );
-  return getUserById(db, id);
+  await run(client, 'UPDATE users SET nickname = ?, avatar = ?, updated_at = ? WHERE id = ?',
+    [nickname ?? cur.nickname, avatar ?? cur.avatar, nowMs, id]);
+  return findUserById(client, id);
 }
 
 export function publicUser(row) {
@@ -244,321 +189,269 @@ export function publicUser(row) {
   return { id: row.id, username: row.username, nickname: row.nickname || row.username, avatar: row.avatar || '' };
 }
 
-// ==================== 收藏 / 历史（整表替换同步） ====================
+// ==================== 会话 ====================
 
-/**
- * 整表替换（收藏 / 注释：历史走 mergeHistory，见下）。
- * 用单个 write 事务包裹 DELETE + 全部 INSERT，避免旧实现"先删后插、非原子"：
- * 中途失败/崩溃/并发时不再清空用户数据。
- */
-async function insertSongs(db, table, userId, songs, timeCol) {
-  const stmts = [{ sql: `DELETE FROM ${table} WHERE user_id = ?`, args: [userId] }];
-  if (Array.isArray(songs)) {
-    // 逆序插入：调用方约定"数组首元素最新"。rowid 单调递增、读取按 rowid DESC，
-    // 因此最后插入的（数组首元素）rowid 最大，读回时即"新在前"，顺序不反转。
-    const list = songs;
-    for (let i = list.length - 1; i >= 0; i--) {
-      const s = list[i];
-      if (!s || !s.platform || !s.id) continue;
-      stmts.push({
-        sql: `INSERT OR REPLACE INTO ${table} (user_id, platform, song_id, song_json, ${timeCol}) VALUES (?, ?, ?, ?, ?)`,
-        args: [userId, String(s.platform), String(s.id), JSON.stringify(s), datetimeNow()],
-      });
-    }
-  }
-  // 只有 DELETE + 至少一条 INSERT 才需要真的执行；空列表时仅清空
-  if (stmts.length > 1) await db.batch(stmts, 'write');
-}
-
-/**
- * 读取歌曲列表。排序用 rowid DESC：
- * 替换写入是"整表重插"，rowid 单调递增即代表数组顺序（最新在前），
- * 比 played_at/created_at 时间戳可靠（整表重插时时间戳相同，排序会退化）。
- */
-async function listSongs(db, table, userId, limit = 500) {
-  const rows = await db.prepare(`SELECT song_json FROM ${table} WHERE user_id = ? ORDER BY rowid DESC LIMIT ?`).all(userId, limit);
-  const out = [];
-  for (const r of rows) {
-    try {
-      out.push(JSON.parse(r.song_json));
-    } catch {
-      // 单条损坏不应拖垮整组数据（旧实现会 500 且用户无法恢复）
-    }
-  }
-  return out;
-}
-
-function datetimeNow() {
-  return new Date().toISOString();
-}
-
-export function replaceFavorites(db, userId, songs) {
-  return insertSongs(db, 'favorites', userId, songs, 'created_at');
-}
-
-export function listFavorites(db, userId) {
-  return listSongs(db, 'favorites', userId);
-}
-
-/**
- * 历史合并同步（多设备友好）：新提交的列表置前，与云端已有记录按
- * (platform, song_id) 去重合并，再整表写回。设备 A、B 互相推送时不再互相清空。
- * 上限 300 条，超出丢弃最旧。
- */
-export async function mergeHistory(db, userId, songs) {
-  const existing = await listSongs(db, 'history', userId, 300);
-  const seen = new Set();
-  const merged = [];
-  for (const s of [...(Array.isArray(songs) ? songs : []), ...existing]) {
-    if (!s || !s.platform || !s.id) continue;
-    const key = `${s.platform}:${s.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(s);
-  }
-  await insertSongs(db, 'history', userId, merged.slice(0, 300), 'played_at');
-  return listSongs(db, 'history', userId);
-}
-
-export function listHistory(db, userId) {
-  return listSongs(db, 'history', userId);
-}
-
-// ==================== 我的歌单 ====================
-
-export async function createPlaylist(db, userId, { id, name, coverUrl = '' }) {
-  const pid = id || `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.prepare('INSERT INTO playlists (id, user_id, name, cover_url) VALUES (?, ?, ?, ?)')
-    .run(pid, userId, name, coverUrl || '');
-  return getPlaylist(db, userId, pid);
-}
-
-export async function getPlaylist(db, userId, id) {
-  const p = await db.prepare('SELECT * FROM playlists WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!p) return null;
-  const cnt = await db.prepare('SELECT COUNT(*) AS c FROM playlist_songs WHERE playlist_id = ?').get(id);
-  const cover = await db.prepare('SELECT song_json FROM playlist_songs WHERE playlist_id = ? ORDER BY position ASC LIMIT 1').get(id);
-  let coverUrl = p.cover_url;
-  if (!coverUrl && cover) {
-    try { coverUrl = JSON.parse(cover.song_json).artwork || ''; } catch { coverUrl = ''; }
-  }
-  return {
-    id: p.id,
-    name: p.name,
-    coverUrl,
-    songCount: cnt?.c || 0,
-    createdAt: p.created_at,
-    updatedAt: p.updated_at,
-  };
-}
-
-export async function listPlaylists(db, userId) {
-  const rows = await db.prepare('SELECT * FROM playlists WHERE user_id = ? ORDER BY updated_at DESC').all(userId);
-  const out = [];
-  for (const p of rows) out.push(await getPlaylist(db, userId, p.id));
-  return out;
-}
-
-export async function updatePlaylistMeta(db, userId, id, { name, coverUrl }) {
-  const cur = await db.prepare('SELECT * FROM playlists WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!cur) return null;
-  await db.prepare('UPDATE playlists SET name = ?, cover_url = ?, updated_at = datetime(\'now\') WHERE id = ?')
-    .run(name ?? cur.name, coverUrl ?? cur.cover_url, id);
-  return getPlaylist(db, userId, id);
-}
-
-export async function deletePlaylist(db, userId, id) {
-  // 歌单与歌曲删除放同一事务，避免删一半留下孤儿歌曲
-  await db.batch([
-    { sql: 'DELETE FROM playlist_songs WHERE playlist_id = ?', args: [id] },
-    { sql: 'DELETE FROM playlists WHERE id = ? AND user_id = ?', args: [id, userId] },
-  ], 'write');
-  return { changes: 1 };
-}
-
-export async function replacePlaylistSongs(db, userId, id, songs) {
-  const cur = await db.prepare('SELECT id FROM playlists WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!cur) return null;
-  const stmts = [{ sql: 'DELETE FROM playlist_songs WHERE playlist_id = ?', args: [id] }];
-  let i = 0;
-  for (const s of (Array.isArray(songs) ? songs : [])) {
-    if (!s || !s.platform || !s.id) continue;
-    stmts.push({
-      sql: 'INSERT INTO playlist_songs (playlist_id, position, platform, song_id, song_json) VALUES (?, ?, ?, ?, ?)',
-      args: [id, i, String(s.platform), String(s.id), JSON.stringify(s)],
-    });
-    i++;
-  }
-  if (stmts.length > 1) await db.batch(stmts, 'write');
-  await db.prepare('UPDATE playlists SET updated_at = datetime(\'now\') WHERE id = ?').run(id);
-  return getPlaylist(db, userId, id);
-}
-
-export async function addPlaylistSongs(db, userId, id, songs) {
-  const cur = await db.prepare('SELECT id FROM playlists WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!cur) return null;
-  const existing = await listPlaylistSongs(db, userId, id);
-  return replacePlaylistSongs(db, userId, id, [...existing, ...(Array.isArray(songs) ? songs : [])]);
-}
-
-export async function removePlaylistSong(db, userId, id, platform, songId) {
-  const cur = await db.prepare('SELECT id FROM playlists WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!cur) return null;
-  await db.prepare('DELETE FROM playlist_songs WHERE playlist_id = ? AND platform = ? AND song_id = ?').run(id, platform, songId);
-  await db.prepare('UPDATE playlists SET updated_at = datetime(\'now\') WHERE id = ?').run(id);
-  return getPlaylist(db, userId, id);
-}
-
-export async function listPlaylistSongs(db, userId, id) {
-  const cur = await db.prepare('SELECT id FROM playlists WHERE id = ? AND user_id = ?').get(id, userId);
-  if (!cur) return null;
-  const rows = await db.prepare('SELECT song_json FROM playlist_songs WHERE playlist_id = ? ORDER BY position ASC').all(id);
-  return rows.map((r) => JSON.parse(r.song_json));
-}
-
-// ==================== 听歌统计 ====================
-
-export async function insertPlayEvents(db, userId, events) {
-  const ins = db.prepare(
-    'INSERT INTO play_events (user_id, platform, song_id, title, artist, listened_ms, duration_ms, day) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  );
-  const day = new Date().toISOString().slice(0, 10);
-  let n = 0;
-  // 单批条数上限：防登录用户用超大 events 数组做存储 DoS
-  const capped = (Array.isArray(events) ? events : []).slice(0, 200);
-  for (const e of capped) {
-    if (!e) continue;
-    const listened = Math.max(0, Math.min(Number(e.listenedMs) || 0, 4 * 60 * 60 * 1000));
-    if (listened <= 0) continue;
-    await ins.run(
-      userId,
-      String(e.platform || ''),
-      String(e.id || ''),
-      String(e.title || ''),
-      String(e.artist || ''),
-      Math.round(listened),
-      Math.max(0, Number(e.durationMs) || 0),
-      day,
+export async function createSession(client, { userId, tokenHash, deviceName, ttlMs, maxSessions, nowMs }) {
+  // 清理已过期 & 保持并发会话数上限（淘汰最久未活动）
+  await client.execute('DELETE FROM sessions WHERE expires_at < ?', [nowMs]);
+  const count = rowsOf(await client.execute({ sql: 'SELECT COUNT(*) AS c FROM sessions WHERE user_id = ? AND revoked_at IS NULL', args: [userId] }))[0]?.c ?? 0;
+  if (count >= maxSessions) {
+    await client.execute(
+      'DELETE FROM sessions WHERE id IN (SELECT id FROM sessions WHERE user_id = ? AND revoked_at IS NULL ORDER BY last_seen_at ASC LIMIT ?)',
+      [userId, count - maxSessions + 1],
     );
-    n++;
   }
-  return n;
+  const id = crypto.randomUUID();
+  await run(client,
+    'INSERT INTO sessions (id, user_id, token_hash, device_name, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [id, userId, tokenHash, deviceName || '', nowMs, nowMs, nowMs + ttlMs],
+  );
+  return { id, expiresAt: nowMs + ttlMs };
 }
 
-/** 清理 days 天前的听歌统计明细（防表无限膨胀）。返回删除行数。 */
-export async function pruneOldPlayEvents(db, days = 90) {
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  try {
-    const r = await db.prepare('DELETE FROM play_events WHERE day < ?').run(cutoff);
-    return r.changes || 0;
-  } catch {
-    return 0;
-  }
+export async function findSessionByTokenHash(client, tokenHash) {
+  return first(client,
+    `SELECT s.*, u.username, u.nickname, u.avatar
+     FROM sessions s JOIN users u ON u.id = s.user_id
+     WHERE s.token_hash = ?`, [tokenHash]);
 }
 
-export async function getUserStats(db, userId) {
-  const day = new Date().toISOString().slice(0, 10);
-  const weekStart = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const agg = await db.prepare(
-    'SELECT COUNT(*) AS plays, COALESCE(SUM(listened_ms), 0) AS total FROM play_events WHERE user_id = ?'
-  ).get(userId);
-  const today = await db.prepare(
-    'SELECT COALESCE(SUM(listened_ms), 0) AS total FROM play_events WHERE user_id = ? AND day = ?'
-  ).get(userId, day);
-  const week = await db.prepare(
-    'SELECT COALESCE(SUM(listened_ms), 0) AS total FROM play_events WHERE user_id = ? AND day >= ?'
-  ).get(userId, weekStart);
-  const topSongs = await db.prepare(
-    `SELECT platform, song_id AS id, MAX(title) AS title, MAX(artist) AS artist,
-            SUM(listened_ms) AS listenedMs, COUNT(*) AS plays
-     FROM play_events WHERE user_id = ? GROUP BY platform, song_id
-     ORDER BY listenedMs DESC LIMIT 20`
-  ).all(userId);
-  const topArtists = await db.prepare(
-    `SELECT artist, SUM(listened_ms) AS listenedMs, COUNT(*) AS plays
-     FROM play_events WHERE user_id = ? AND artist != '' GROUP BY artist
-     ORDER BY listenedMs DESC LIMIT 10`
-  ).all(userId);
-  const weekChart = await db.prepare(
-    `SELECT day, COALESCE(SUM(listened_ms), 0) AS listenedMs FROM play_events
-     WHERE user_id = ? AND day >= ? GROUP BY day ORDER BY day ASC`
-  ).all(userId, weekStart);
+export async function touchSession(client, id, nowMs) {
+  return run(client, 'UPDATE sessions SET last_seen_at = ? WHERE id = ?', [nowMs, id]);
+}
+
+export async function revokeSessionByTokenHash(client, tokenHash) {
+  return run(client, 'DELETE FROM sessions WHERE token_hash = ?', [tokenHash]);
+}
+
+export async function revokeSessionById(client, userId, id) {
+  return run(client, 'DELETE FROM sessions WHERE id = ? AND user_id = ?', [id, userId]);
+}
+
+export async function revokeAllSessions(client, userId, exceptId = null) {
+  if (exceptId) {
+    return run(client, 'DELETE FROM sessions WHERE user_id = ? AND id != ?', [userId, exceptId]);
+  }
+  return run(client, 'DELETE FROM sessions WHERE user_id = ?', [userId]);
+}
+
+export async function listSessions(client, userId) {
+  return all(client,
+    'SELECT id, device_name, created_at, last_seen_at, expires_at FROM sessions WHERE user_id = ? AND revoked_at IS NULL ORDER BY last_seen_at DESC',
+    [userId]);
+}
+
+// ==================== 同步：LWW + 墓碑 ====================
+
+const SEQ_SQL = '(SELECT sync_seq FROM user_state WHERE user_id = ?)';
+
+/**
+ * 生成一批 LWW 的 upsert/delete 语句。
+ * @param rows [{ table, keys:[[col,val]...], data:[[col,val]...], deleted:0|1 }]
+ * table 只允许调用方硬编码的固定值（无注入面）。
+ */
+function lwwStatements(userId, nowMs, rows) {
+  return rows.map((r) => {
+    const keyCols = r.keys.map(([c]) => c);
+    const keyVals = r.keys.map(([, v]) => v);
+    const dataCols = r.data.map(([c]) => c);
+    const dataVals = r.data.map(([, v]) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : v));
+
+    const insertCols = ['user_id', ...keyCols, ...dataCols, 'update_seq', 'updated_at_ms', 'deleted'];
+    const placeholders = [
+      '?',
+      ...keyCols.map(() => '?'),
+      ...dataCols.map(() => '?'),
+      SEQ_SQL,
+      '?',
+      '?',
+    ];
+    const args = [userId, ...keyVals, ...dataVals, userId, nowMs, r.deleted ? 1 : 0];
+    const conflict = ['user_id', ...keyCols].join(', ');
+
+    const setClause = r.deleted
+      ? 'update_seq = excluded.update_seq, updated_at_ms = excluded.updated_at_ms, deleted = 1'
+      : `${dataCols.map((c) => `${c} = excluded.${c}`).join(', ')}, update_seq = excluded.update_seq, updated_at_ms = excluded.updated_at_ms, deleted = 0`;
+
+    return {
+      sql: `INSERT INTO ${r.table} (${insertCols.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT (${conflict}) DO UPDATE SET ${setClause}`,
+      args,
+    };
+  });
+}
+
+function songKey(song) {
+  return [['platform', String(song.platform || '')], ['song_id', String(song.id || '')]];
+}
+
+/**
+ * 应用一次客户端推送（favorites/history/playlists/playlistSongs 走 LWW，playEvents 走幂等追加）。
+ * 整个写操作在单个事务（batch 'write'）内完成，seq 与数据在同一事务分配，保证游标不丢行。
+ */
+export async function applySync(client, userId, changes, nowMs) {
+  const lww = [];
+
+  for (const s of changes.favorites?.upsert || []) {
+    if (!s?.platform || s?.id == null) continue;
+    lww.push({ table: 'favorites', keys: songKey(s), data: [['song_json', s]], deleted: 0 });
+  }
+  for (const d of changes.favorites?.delete || []) {
+    lww.push({ table: 'favorites', keys: songKey(d), data: [['song_json', '']], deleted: 1 });
+  }
+
+  for (const s of changes.history?.upsert || []) {
+    if (!s?.platform || s?.id == null) continue;
+    lww.push({
+      table: 'history', keys: songKey(s),
+      data: [['song_json', s], ['played_at_ms', Math.max(0, Number(s.playedAtMs) || 0)]], deleted: 0,
+    });
+  }
+  for (const d of changes.history?.delete || []) {
+    lww.push({ table: 'history', keys: songKey(d), data: [['song_json', ''], ['played_at_ms', 0]], deleted: 1 });
+  }
+
+  for (const p of changes.playlists?.upsert || []) {
+    if (!p?.id) continue;
+    lww.push({
+      table: 'playlists', keys: [['playlist_id', String(p.id)]],
+      data: [['name', String(p.name || '')], ['cover_url', String(p.coverUrl || '')]], deleted: 0,
+    });
+  }
+  // 删除歌单时在该事务内同步墓碑化其下歌曲（纯 SQL UPDATE，避免“孤儿歌曲”复活）
+  const deletedPlaylistIds = (changes.playlists?.delete || []).map((p) => String(p.id)).filter(Boolean);
+  const playlistSongTombstoneStmts = [];
+  for (const pid of deletedPlaylistIds) {
+    lww.push({ table: 'playlists', keys: [['playlist_id', pid]], data: [['name', ''], ['cover_url', '']], deleted: 1 });
+    playlistSongTombstoneStmts.push({
+      sql: `UPDATE playlist_songs SET update_seq = ${SEQ_SQL}, updated_at_ms = ?, deleted = 1 WHERE user_id = ? AND playlist_id = ?`,
+      args: [userId, nowMs, userId, pid],
+    });
+  }
+
+  for (const s of changes.playlistSongs?.upsert || []) {
+    if (!s?.playlistId || !s?.song?.platform || s?.song?.id == null) continue;
+    lww.push({
+      table: 'playlist_songs',
+      keys: [['playlist_id', String(s.playlistId)], ['platform', String(s.song.platform)], ['song_id', String(s.song.id)]],
+      data: [['position', Math.max(0, Number(s.position) || 0)], ['song_json', s.song]], deleted: 0,
+    });
+  }
+  for (const d of changes.playlistSongs?.delete || []) {
+    if (!d?.playlistId || !d?.platform || d?.songId == null) continue;
+    lww.push({
+      table: 'playlist_songs',
+      keys: [['playlist_id', String(d.playlistId)], ['platform', String(d.platform)], ['song_id', String(d.songId)]],
+      data: [['position', -1], ['song_json', '']], deleted: 1,
+    });
+  }
+
+  const eventStmts = (changes.playEvents || []).map((e) => {
+    if (!e) return null;
+    const listened = Math.max(0, Math.min(Number(e.listenedMs) || 0, 24 * 60 * 60 * 1000));
+    return {
+      sql: `INSERT INTO play_events (user_id, event_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (user_id, event_id) DO NOTHING`,
+      args: [
+        userId,
+        String(e.eventId || `${e.platform || ''}:${e.id || ''}:${e.listenedAtMs || nowMs}`),
+        String(e.platform || ''),
+        String(e.id || ''),
+        String(e.title || ''),
+        String(e.artist || ''),
+        Math.round(listened),
+        Math.max(0, Number(e.durationMs) || 0),
+        Math.max(0, Number(e.listenedAtMs) || nowMs),
+        nowMs,
+      ],
+    };
+  }).filter(Boolean);
+
+  const lwwStmts = lwwStatements(userId, nowMs, lww);
+  const stmts = [
+    { sql: 'INSERT INTO user_state (user_id, sync_seq) VALUES (?, 0) ON CONFLICT(user_id) DO NOTHING', args: [userId] },
+    { sql: 'UPDATE user_state SET sync_seq = sync_seq + 1 WHERE user_id = ?', args: [userId] },
+    ...lwwStmts,
+    ...playlistSongTombstoneStmts,
+    ...eventStmts,
+    { sql: 'SELECT sync_seq FROM user_state WHERE user_id = ?', args: [userId] },
+  ];
+
+  const results = await client.batch(stmts, 'write');
+  const last = results[results.length - 1];
+  const version = num(last.rows?.[0]?.sync_seq ?? 0);
+
+  // 统计本次成功插入的事件数（rowsAffected 与 eventStmts 顺序对齐）
+  const evtStart = 2 + lwwStmts.length + playlistSongTombstoneStmts.length;
+  let acceptedEvents = 0;
+  for (let i = 0; i < eventStmts.length; i++) {
+    const rs = results[evtStart + i];
+    if (rs?.rowsAffected > 0) acceptedEvents += rs.rowsAffected;
+  }
+
+  return { version, acceptedEvents };
+}
+
+function safeParse(s) {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+/**
+ * 拉取自 since（sync_seq 游标）/ eventSince（play_events id 游标）之后的变化，
+ * 含墓碑（deleted=true），客户端据此本地增删。返回的 version 作为下一次 since。
+ */
+export async function pullSync(client, userId, { since = 0, eventSince = 0 } = {}) {
+  const headRow = await first(client, 'SELECT sync_seq FROM user_state WHERE user_id = ?', [userId]);
+  const head = headRow ? headRow.sync_seq : 0;
+
+  const favorites = await all(client, 'SELECT platform, song_id, song_json, updated_at_ms, deleted FROM favorites WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
+  const history = await all(client, 'SELECT platform, song_id, song_json, played_at_ms, updated_at_ms, deleted FROM history WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
+  const playlists = await all(client, 'SELECT playlist_id, name, cover_url, updated_at_ms, deleted FROM playlists WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
+  const playlistSongs = await all(client, 'SELECT playlist_id, position, platform, song_id, song_json, updated_at_ms, deleted FROM playlist_songs WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
+  const events = await all(client, 'SELECT id, event_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms FROM play_events WHERE user_id = ? AND id > ? ORDER BY id LIMIT 500', [userId, eventSince]);
+
+  const nextEventId = events.length ? events[events.length - 1].id : eventSince;
+
   return {
-    totalPlayMs: agg.total || 0,
-    totalPlays: agg.plays || 0,
-    todayPlayMs: today.total || 0,
-    weekPlayMs: week.total || 0,
-    topSongs,
-    topArtists,
-    weekChart,
+    version: head,
+    nextEventId,
+    serverTime: Date.now(),
+    favorites: favorites.map((r) => ({
+      platform: r.platform, id: r.song_id,
+      song: r.deleted ? null : safeParse(r.song_json),
+      updatedAtMs: r.updated_at_ms, deleted: !!r.deleted,
+    })),
+    history: history.map((r) => ({
+      platform: r.platform, id: r.song_id,
+      song: r.deleted ? null : safeParse(r.song_json),
+      playedAtMs: r.played_at_ms, updatedAtMs: r.updated_at_ms, deleted: !!r.deleted,
+    })),
+    playlists: playlists.map((r) => ({
+      id: r.playlist_id, name: r.name, coverUrl: r.cover_url,
+      updatedAtMs: r.updated_at_ms, deleted: !!r.deleted,
+    })),
+    playlistSongs: playlistSongs.map((r) => ({
+      playlistId: r.playlist_id, position: r.position, platform: r.platform, songId: r.song_id,
+      song: r.deleted ? null : safeParse(r.song_json),
+      updatedAtMs: r.updated_at_ms, deleted: !!r.deleted,
+    })),
+    playEvents: events.map((r) => ({
+      eventId: r.event_id, platform: r.platform, songId: r.song_id,
+      title: r.title, artist: r.artist, listenedMs: r.listened_ms, durationMs: r.duration_ms,
+      listenedAtMs: r.listened_at_ms, updatedAtMs: r.updated_at_ms,
+    })),
   };
 }
 
-// ==================== 音源脚本管理 ====================
-
-export async function listScripts(db) {
-  return db.prepare(
-    'SELECT id, name, version, description, is_active, status, status_message, last_checked_at, created_at, updated_at FROM scripts ORDER BY is_active DESC, updated_at DESC'
-  ).all();
+/** 清理 days 天前的听歌统计明细（防表无限膨胀）。Serviceless 可由定时任务调用。 */
+export async function pruneOldPlayEvents(client, days = 180) {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const r = await run(client, 'DELETE FROM play_events WHERE listened_at_ms < ? AND listened_at_ms > 0', [cutoff]);
+  return r.changes || 0;
 }
 
-/** 全字段列表（含 content，供 /api/sync/pull 把全部脚本下发到客户端本地切换） */
-export async function listScriptsFull(db) {
-  return db.prepare(
-    'SELECT * FROM scripts ORDER BY is_active DESC, updated_at DESC'
-  ).all();
+/** 顺手清理过期会话（登录/启动时调用）。 */
+export async function pruneExpiredSessions(client, nowMs = Date.now()) {
+  const r = await run(client, 'DELETE FROM sessions WHERE expires_at < ?', [nowMs]);
+  return r.changes || 0;
 }
-
-export async function getActiveScript(db) {
-  return db.prepare(
-    'SELECT * FROM scripts WHERE is_active = 1 LIMIT 1'
-  ).get();
-}
-
-export async function getScript(db, id) {
-  return db.prepare(
-    'SELECT * FROM scripts WHERE id = ?'
-  ).get(id);
-}
-
-export async function insertScript(db, { id, name, version = '', description = '', content, isActive = 0 }) {
-  if (isActive) {
-    await db.prepare('UPDATE scripts SET is_active = 0').run();
-  }
-  await db.prepare(
-    'INSERT INTO scripts (id, name, version, description, content, is_active, status, status_message, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
-  ).run(id, name, version, description, content, isActive ? 1 : 0, 'untested', '');
-  return getScript(db, id);
-}
-
-export async function updateScript(db, id, fields) {
-  const cur = await getScript(db, id);
-  if (!cur) return null;
-  const name = fields.name ?? cur.name;
-  const version = fields.version ?? cur.version;
-  const description = fields.description ?? cur.description;
-  const content = fields.content ?? cur.content;
-
-  await db.prepare(
-    'UPDATE scripts SET name = ?, version = ?, description = ?, content = ?, updated_at = datetime(\'now\') WHERE id = ?'
-  ).run(name, version, description, content, id);
-  return getScript(db, id);
-}
-
-export async function setActiveScript(db, id) {
-  await db.prepare('UPDATE scripts SET is_active = 0').run();
-  await db.prepare('UPDATE scripts SET is_active = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id);
-  return getScript(db, id);
-}
-
-export async function updateScriptStatus(db, id, { status, statusMessage = '' }) {
-  await db.prepare(
-    'UPDATE scripts SET status = ?, status_message = ?, last_checked_at = datetime(\'now\'), updated_at = datetime(\'now\') WHERE id = ?'
-  ).run(status, statusMessage, id);
-  return getScript(db, id);
-}
-
-export async function deleteScript(db, id) {
-  return db.prepare('DELETE FROM scripts WHERE id = ?').run(id);
-}
-

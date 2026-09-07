@@ -1,20 +1,18 @@
 {
-  "name": "music-backend",
-  "version": "0.1.0",
-  "description": "音乐 App 后端：音源管理 + 统一音乐业务 API",
+  "name": "melos-backend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Melos 用户体系 + 多端数据同步服务（单一职责，不含音源/管理后台）",
   "type": "module",
   "main": "src/start.js",
   "scripts": {
     "start": "node src/start.js",
     "dev": "node --watch src/start.js",
-    "seed": "node src/seed.js"
+    "smoke": "node scripts/smoke.mjs"
   },
   "license": "MIT",
   "dependencies": {
-    "@fastify/cors": "^11.3.0",
-    "@fastify/static": "^10.1.3",
     "@libsql/client": "^0.17.4",
-    "@meting/core": "^1.6.1",
     "dotenv": "^17.4.2",
     "fastify": "^5.12.0"
   }

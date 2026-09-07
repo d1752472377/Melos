@@ -1,64 +1,78 @@
 import crypto from 'node:crypto';
-
-const TOKEN_TTL_SEC = 24 * 60 * 60; // 24 小时
+import { findSessionByTokenHash, touchSession, revokeSessionByTokenHash } from './db.js';
 
 /**
- * 管理端鉴权：
- * - 登录接口用 ADMIN_USER / ADMIN_PASSWORD（环境变量）校验，签发 HMAC 签名 token。
- * - 管理 API 通过 Authorization: Bearer <token> 校验。
- * - 签名密钥复用 ENCRYPTION_KEY（不额外引入依赖）。
+ * 鉴权原语：
+ * - 密码：异步 scrypt（加盐），不阻塞事件循环。
+ * - 登录态：不透明随机 token（crypto.randomBytes），服务端只存 SHA-256 哈希。
+ *   登出即删行，token 立刻失效；不存在“签发出去就收不回”的无状态 JWT 堆积问题。
  */
 
-export function signToken(payload, key) {
-  const body = Buffer.from(
-    JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC })
-  ).toString('base64url');
-  const sig = crypto.createHmac('sha256', key).update(body).digest('base64url');
-  return `${body}.${sig}`;
+export function newSalt() {
+  return crypto.randomBytes(16).toString('hex');
 }
 
-export function verifyToken(token, key) {
-  if (!token) return null;
-  const idx = token.indexOf('.');
-  if (idx <= 0) return null;
-  const body = token.slice(0, idx);
-  const sig = token.slice(idx + 1);
-  const expect = crypto.createHmac('sha256', key).update(body).digest('base64url');
-  try {
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    if (typeof payload.exp !== 'number' || payload.exp < Date.now() / 1000) return null;
-    return payload;
-  } catch {
-    return null;
-  }
+export function hashPassword(password, salt) {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(String(password), salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey.toString('hex'));
+    });
+  });
 }
 
-/** 校验登录并返回 token；失败返回 null */
-export function login(username, password, config) {
-  if (!config.adminPassword) return { error: '服务端未配置 ADMIN_PASSWORD' };
-  if (username !== config.adminUser || password !== config.adminPassword) {
-    return { error: '用户名或密码错误' };
-  }
-  const token = signToken({ username, role: 'admin' }, config.encryptionKey);
-  return { token };
+export async function verifyPassword(password, salt, expectedHex) {
+  const derived = await hashPassword(password, salt);
+  const a = Buffer.from(derived, 'hex');
+  const b = Buffer.from(expectedHex, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/** Fastify preHandler：要求有效 token */
-export function requireAuth(config) {
+export function generateToken() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+export function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+const LAST_SEEN_REFRESH_MS = 5 * 60 * 1000; // 节流：最多每 5 分钟刷新一次 last_seen_at
+
+/**
+ * Fastify preHandler：要求有效登录态。校验通过后注入 req.user / req.session / req.tokenHash。
+ */
+export function requireUser(config, client) {
   return async (req, reply) => {
     const header = req.headers.authorization || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : header;
-    const payload = verifyToken(token, config.encryptionKey);
-    if (!payload) {
-      return reply.code(401).send({ code: 401, msg: '未授权：请先登录获取 token' });
+    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : header.trim();
+    if (!token) {
+      return reply.code(401).send({ code: 401, msg: '未登录' });
     }
-    req.admin = payload;
+    const tokenHash = hashToken(token);
+    const session = await findSessionByTokenHash(client, tokenHash);
+    if (!session || session.revoked_at != null) {
+      return reply.code(401).send({ code: 401, msg: '登录已失效，请重新登录' });
+    }
+    const now = Date.now();
+    if (session.expires_at <= now) {
+      await revokeSessionByTokenHash(client, tokenHash); // 顺手清掉过期行，防堆积
+      return reply.code(401).send({ code: 401, msg: '登录已过期，请重新登录' });
+    }
+    if (now - session.last_seen_at >= LAST_SEEN_REFRESH_MS) {
+      await touchSession(client, session.id, now);
+    }
+    req.user = {
+      id: session.user_id,
+      username: session.username,
+      nickname: session.nickname,
+      avatar: session.avatar,
+    };
+    req.session = session;
+    req.tokenHash = tokenHash;
   };
 }
 
-// ==================== 登录失败锁定（防在线爆破） ====================
-// 连续失败 5 次锁定账号 15 分钟（内存态，服务重启即解除；配合 IP 限速使用）。
+// ==================== 登录失败锁定（防在线爆破，内存态） ====================
 
 const LOGIN_FAIL_LIMIT = 5;
 const LOGIN_LOCK_MS = 15 * 60 * 1000;
