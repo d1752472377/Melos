@@ -56,10 +56,148 @@ object UserStore {
 
     fun isLoggedIn(): Boolean = token() != null && user() != null
 
+    private const val KEY_CUSTOM_AVATAR = "custom_avatar"
+    private const val KEY_CUSTOM_BG = "custom_bg"
+    private const val KEY_BG_BLUR = "bg_blur"
+    private const val KEY_CUSTOM_NICKNAME = "custom_nickname"
+    private const val KEY_CUSTOM_BIO = "custom_bio"
+    private const val KEY_CUSTOM_GENDER = "custom_gender"
+    private const val KEY_CUSTOM_BIRTHDAY = "custom_birthday"
+    private const val KEY_CUSTOM_ID = "custom_id"
+
     fun logout() {
         try {
             prefs?.edit()?.remove(KEY_TOKEN)?.remove(KEY_USER)?.apply()
         } catch (_: Exception) {
         }
+    }
+
+    // ===== 个人中心自定义字段 =====
+    fun getAvatarPath(): String? = try {
+        prefs?.getString(KEY_CUSTOM_AVATAR, null)?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+
+    fun setAvatarPath(path: String?) {
+        try {
+            if (path == null) {
+                prefs?.edit()?.remove(KEY_CUSTOM_AVATAR)?.apply()
+            } else {
+                prefs?.edit()?.putString(KEY_CUSTOM_AVATAR, path)?.apply()
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun getBackgroundPath(): String? = try {
+        prefs?.getString(KEY_CUSTOM_BG, null)?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+
+    fun setBackgroundPath(path: String?) {
+        try {
+            if (path == null) {
+                prefs?.edit()?.remove(KEY_CUSTOM_BG)?.apply()
+            } else {
+                prefs?.edit()?.putString(KEY_CUSTOM_BG, path)?.apply()
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun isBackgroundBlur(): Boolean = try {
+        prefs?.getBoolean(KEY_BG_BLUR, false) ?: false
+    } catch (_: Exception) {
+        false
+    }
+
+    fun setBackgroundBlur(blur: Boolean) {
+        try {
+            prefs?.edit()?.putBoolean(KEY_BG_BLUR, blur)?.apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getNickname(): String = try {
+        prefs?.getString(KEY_CUSTOM_NICKNAME, null)?.takeIf { it.isNotBlank() }
+            ?: user()?.nickname?.takeIf { it.isNotBlank() }
+            ?: user()?.username?.takeIf { it.isNotBlank() }
+            ?: "Melos 音乐人"
+    } catch (_: Exception) {
+        "Melos 音乐人"
+    }
+
+    fun setNickname(nickname: String) {
+        try {
+            prefs?.edit()?.putString(KEY_CUSTOM_NICKNAME, nickname)?.apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getBio(): String = try {
+        prefs?.getString(KEY_CUSTOM_BIO, "") ?: ""
+    } catch (_: Exception) {
+        ""
+    }
+
+    fun setBio(bio: String) {
+        try {
+            prefs?.edit()?.putString(KEY_CUSTOM_BIO, bio)?.apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getGender(): String = try {
+        prefs?.getString(KEY_CUSTOM_GENDER, "保密") ?: "保密"
+    } catch (_: Exception) {
+        "保密"
+    }
+
+    fun setGender(gender: String) {
+        try {
+            prefs?.edit()?.putString(KEY_CUSTOM_GENDER, gender)?.apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getBirthday(): String = try {
+        prefs?.getString(KEY_CUSTOM_BIRTHDAY, "") ?: ""
+    } catch (_: Exception) {
+        ""
+    }
+
+    fun setBirthday(birthday: String) {
+        try {
+            prefs?.edit()?.putString(KEY_CUSTOM_BIRTHDAY, birthday)?.apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getUserId(): String = try {
+        user()?.id?.takeIf { it > 0 }?.toString()
+            ?: prefs?.getString(KEY_CUSTOM_ID, null)?.takeIf { it.isNotBlank() }
+            ?: "10001"
+    } catch (_: Exception) {
+        "10001"
+    }
+
+    fun setUserId(id: String) {
+        try {
+            prefs?.edit()?.putString(KEY_CUSTOM_ID, id)?.apply()
+        } catch (_: Exception) {}
+    }
+
+    /** 恢复默认头像、背景、模糊开关及个性化偏好 */
+    fun restoreProfileDefaults(context: Context) {
+        try {
+            val dir = java.io.File(context.filesDir, "profile")
+            if (dir.exists()) {
+                dir.deleteRecursively()
+            }
+            prefs?.edit()
+                ?.remove(KEY_CUSTOM_AVATAR)
+                ?.remove(KEY_CUSTOM_BG)
+                ?.remove(KEY_BG_BLUR)
+                ?.remove(KEY_CUSTOM_NICKNAME)
+                ?.remove(KEY_CUSTOM_BIO)
+                ?.remove(KEY_CUSTOM_GENDER)
+                ?.remove(KEY_CUSTOM_BIRTHDAY)
+                ?.apply()
+        } catch (_: Exception) {}
     }
 }

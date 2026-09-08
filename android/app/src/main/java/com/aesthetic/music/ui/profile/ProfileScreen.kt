@@ -1,5 +1,8 @@
 package com.aesthetic.music.ui.profile
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,34 +22,67 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.BlurOn
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.player.AudioCacheService
+import com.aesthetic.music.service.UpdateInfo
+import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentMint
+import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
@@ -55,28 +91,114 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import kotlinx.coroutines.launch
 
 /**
- * 个人中心：本地优先仪表盘 + 私有云同步状态
+ * 个人界面（重写版）：
+ * 1. 顶部个性化卡片：头像（点击上传更换）、用户名、Melos ID、编辑资料按钮、右上角三点下拉菜单（更换背景/背景模糊/恢复默认/退出登录）；
+ * 2. 快捷入口：收藏、歌单、下载（跳转新建独立下载页）；
+ * 3. 详细功能列表：播放历史、听歌时长、云端管理、设置、插件管理、检查更新。
  */
 @Composable
 fun ProfileScreen(
-    localStats: LocalStats,
+    nickname: String,
+    userId: String,
+    avatarPath: String?,
+    backgroundPath: String?,
+    isBackgroundBlur: Boolean,
     historyCount: Int,
     favoritesCount: Int,
+    playlistsCount: Int,
     cacheCount: Int,
     cacheSize: Long,
+    localStats: LocalStats,
     isSyncConfigured: Boolean,
-    isSyncing: Boolean,
     activeScript: ScriptMetadata?,
-    onOpenSettings: () -> Unit,
-    onOpenRecent: () -> Unit,
+    onOpenEditProfile: () -> Unit,
     onOpenFavorites: () -> Unit,
-    onOpenCacheList: () -> Unit,
     onOpenMyPlaylists: () -> Unit,
-    onSyncClick: () -> Unit,
+    onOpenDownloads: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onOpenListeningStats: () -> Unit,
+    onOpenCloudManage: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenPluginManage: () -> Unit,
+    onUpdateAvatar: (String?) -> Unit,
+    onUpdateBackground: (String?) -> Unit,
+    onToggleBgBlur: () -> Unit,
+    onRestoreDefaults: () -> Unit,
+    onLogout: () -> Unit,
+    onShowToast: (String) -> Unit = {},
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var showMenu by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showRestoreConfirm by remember { mutableStateOf(false) }
+
+    // 检查更新弹窗状态
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var updateAvailableInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updateProgressText by remember { mutableStateOf<String?>(null) }
+
+    // 头像选择器
+    val avatarPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val saved = ProfileUtils.saveImageToInternal(context, uri, "avatar")
+            if (saved != null) {
+                onUpdateAvatar(saved)
+                onShowToast("头像更新成功")
+            } else {
+                onShowToast("头像保存失败")
+            }
+        }
+    }
+
+    // 背景图选择器
+    val bgPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val saved = ProfileUtils.saveImageToInternal(context, uri, "background")
+            if (saved != null) {
+                onUpdateBackground(saved)
+                onShowToast("背景图更新成功")
+            } else {
+                onShowToast("背景图保存失败")
+            }
+        }
+    }
+
+    // 检查更新逻辑
+    fun triggerCheckUpdate() {
+        if (checkingUpdate) return
+        checkingUpdate = true
+        scope.launch {
+            when (val result = UpdateService.checkUpdate()) {
+                is UpdateService.CheckResult.Available -> {
+                    checkingUpdate = false
+                    updateAvailableInfo = result.info
+                }
+                is UpdateService.CheckResult.UpToDate -> {
+                    checkingUpdate = false
+                    onShowToast("当前已是最新版本 (v${BuildConfig.VERSION_NAME})")
+                }
+                is UpdateService.CheckResult.Failed -> {
+                    checkingUpdate = false
+                    onShowToast("检查更新失败: ${result.reason ?: "网络连接异常"}")
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -84,348 +206,852 @@ fun ProfileScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = LocalBottomBarPadding.current
-            )
+                bottom = LocalBottomBarPadding.current,
+            ),
         ) {
-            // 顶栏
-            item(key = "profile_header") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+            // ===== 1. 顶部个性化卡片 =====
+            item(key = "top_profile_card") {
+                TopProfileCard(
+                    nickname = nickname,
+                    userId = userId,
+                    avatarPath = avatarPath,
+                    backgroundPath = backgroundPath,
+                    isBackgroundBlur = isBackgroundBlur,
+                    showMenu = showMenu,
+                    onMenuToggle = { showMenu = it },
+                    onAvatarClick = { avatarPickerLauncher.launch("image/*") },
+                    onEditProfileClick = onOpenEditProfile,
+                    onChangeBackgroundClick = {
+                        showMenu = false
+                        bgPickerLauncher.launch("image/*")
+                    },
+                    onToggleBgBlur = {
+                        showMenu = false
+                        onToggleBgBlur()
+                    },
+                    onRestoreDefaults = {
+                        showMenu = false
+                        showRestoreConfirm = true
+                    },
+                    onLogoutClick = {
+                        showMenu = false
+                        showLogoutConfirm = true
+                    },
+                )
+            }
+
+            // ===== 2. 分组标题：我的音乐 =====
+            item(key = "section_my_music") {
+                Column(modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)) {
+                    Text(
+                        text = "我的音乐",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = TextPrimary,
+                    )
+                    Text(
+                        text = "你的收藏、歌单与离线音乐",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = TextSoft,
+                    )
+                }
+            }
+
+// ===== 快捷入口卡片 =====
+            item(key = "quick_actions_card") {
+                QuickActionsCard(
+                    favoritesCount = favoritesCount,
+                    playlistsCount = playlistsCount,
+                    cacheCount = cacheCount,
+                    onOpenFavorites = onOpenFavorites,
+                    onOpenMyPlaylists = onOpenMyPlaylists,
+                    onOpenDownloads = onOpenDownloads,
+                )
+            }
+
+// ===== 3. 播放历史与听歌统计 (独立区块) =====
+            item(key = "history_and_stats_card") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Surface)
+                        .border(1.dp, Stone200, RoundedCornerShape(20.dp))
+                        .padding(16.dp),
                 ) {
-                    Column {
-                        Text(
-                            text = "个人中心",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = TextPrimary
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = "本地优先 · 私有云同步 · 自由音源",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextSoft
+                    // 播放历史顶栏
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onOpenHistory),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(AccentCoral.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.History,
+                                    contentDescription = null,
+                                    tint = AccentCoral,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "播放历史",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                    color = TextPrimary,
+                                )
+                                Text(
+                                    text = "已留下 $historyCount 首歌的聆听足迹",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = TextSoft,
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(12.dp),
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Surface)
-                            .clickable(onClick = onOpenSettings),
-                        contentAlignment = Alignment.Center,
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Stone100)
+
+                    // 底部二分网格：听歌统计 + 听歌排行
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable(onClick = onOpenListeningStats),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.GraphicEq,
+                                contentDescription = null,
+                                tint = AccentCyan,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text("听歌统计", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold), color = TextPrimary)
+                                Text("时间脉络", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextSoft)
+                            }
+                        }
+
+                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(Stone200))
+
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 12.dp)
+                                .clickable(onClick = onOpenListeningStats),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CloudSync,
+                                contentDescription = null,
+                                tint = AccentAmber,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text("听歌排行", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold), color = TextPrimary)
+                                Text("看看排名", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = TextSoft)
+                            }
+                        }
+                    }
+                }
+            }
+
+// ===== 4. 分组标题：账号与设备 =====
+            item(key = "section_account_and_device") {
+                Column(modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)) {
+                    Text(
+                        text = "账号与设备",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = TextPrimary,
+                    )
+                }
+            }
+
+// 剩余的系统功能列表（云端管理、设置、插件管理、检查更新）
+            item(key = "feature_menu_card") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Stone200, RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Surface)
+                        .padding(vertical = 4.dp),
+                ) {
+                    ProfileMenuItem(
+                        icon = Icons.Filled.CloudSync,
+                        iconTint = Color(0xFF6366F1),
+                        title = "云端管理",
+                        subtitle = if (isSyncConfigured) "已连接" else "未配置",
+                        onClick = onOpenCloudManage,
+                    )
+                    ProfileMenuItem(
+                        icon = Icons.Filled.Settings,
+                        iconTint = TextPrimary,
+                        title = "设置",
+                        subtitle = "偏好与外观",
+                        onClick = onOpenSettings,
+                    )
+                    ProfileMenuItem(
+                        icon = Icons.Filled.Extension,
+                        iconTint = AccentMint,
+                        title = "插件管理",
+                        subtitle = activeScript?.name ?: "音源与扩展",
+                        onClick = onOpenPluginManage,
+                    )
+                    ProfileMenuItem(
+                        icon = Icons.Filled.SystemUpdate,
+                        iconTint = AccentCoral,
+                        title = "检查更新",
+                        subtitle = if (checkingUpdate) "检查中…" else "v${BuildConfig.VERSION_NAME}",
+                        isLoading = checkingUpdate,
+                        onClick = { triggerCheckUpdate() },
+                    )
+                }
+            }
+
+
+        }
+    }
+
+    // ===== 恢复默认确认弹窗 =====
+    if (showRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirm = false },
+            title = { Text("恢复默认") },
+            text = { Text("将清除您自定义的头像、背景图，并重置个人界面显示偏好。确认恢复吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRestoreConfirm = false
+                    onRestoreDefaults()
+                }) {
+                    Text("恢复默认", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreConfirm = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+
+    // ===== 退出登录确认弹窗 =====
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("退出登录") },
+            text = { Text("退出登录后将清空私有云同步配置与当前会话。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutConfirm = false
+                    onLogout()
+                }) {
+                    Text("退出", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+
+    // ===== 发现新版本更新弹窗 =====
+    val updateInfo = updateAvailableInfo
+    if (updateInfo != null) {
+        AlertDialog(
+            onDismissRequest = {
+                if (updateProgressText == null) updateAvailableInfo = null
+            },
+            title = { Text("发现新版本 ${updateInfo.versionName}") },
+            text = {
+                Column {
+                    if (updateProgressText != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text(updateProgressText ?: "正在下载…", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    } else {
+                        Text(
+                            text = if (updateInfo.updateLog.isNotBlank()) updateInfo.updateLog else "修复已知问题，提升使用体验。",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "大小: ${AudioCacheService.formatSize(updateInfo.apkSize)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSoft,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (updateProgressText == null) {
+                    TextButton(onClick = {
+                        scope.launch {
+                            updateProgressText = "准备下载…"
+                            try {
+                                val path = UpdateService.downloadApk(context, updateInfo) { received, total ->
+                                    if (total > 0) {
+                                        updateProgressText = "下载中 ${received * 100 / total}%"
+                                    }
+                                }
+                                updateProgressText = "正在打开安装程序…"
+                                if (UpdateService.installApk(context, path)) {
+                                    updateAvailableInfo = null
+                                    updateProgressText = null
+                                } else {
+                                    onShowToast("请允许「安装未知应用」后重新安装")
+                                    updateProgressText = null
+                                }
+                            } catch (e: Exception) {
+                                onShowToast("更新失败: ${e.message ?: "未知错误"}")
+                                updateProgressText = null
+                                updateAvailableInfo = null
+                            }
+                        }
+                    }) {
+                        Text("立即更新", fontWeight = FontWeight.Bold, color = PrimaryBrown)
+                    }
+                }
+            },
+            dismissButton = {
+                if (updateProgressText == null && !updateInfo.forceUpdate) {
+                    TextButton(onClick = { updateAvailableInfo = null }) {
+                        Text("稍后再说")
+                    }
+                }
+            },
+        )
+    }
+}
+
+/**
+ * 顶部个性化卡片
+ */
+@Composable
+private fun TopProfileCard(
+    nickname: String,
+    userId: String,
+    avatarPath: String?,
+    backgroundPath: String?,
+    isBackgroundBlur: Boolean,
+    showMenu: Boolean,
+    onMenuToggle: (Boolean) -> Unit,
+    onAvatarClick: () -> Unit,
+    onEditProfileClick: () -> Unit,
+    onChangeBackgroundClick: () -> Unit,
+    onToggleBgBlur: () -> Unit,
+    onRestoreDefaults: () -> Unit,
+    onLogoutClick: () -> Unit,
+) {
+    val context = LocalContext.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(12.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.4f))
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF8B3A42), Color(0xFF1E1015))
+                )
+            ),
+    ) {
+        // 自定义背景图层与重蒙层
+        if (!backgroundPath.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(context).data(backgroundPath).crossfade(true).build(),
+                contentDescription = null,
+                modifier = Modifier
+                    .matchParentSize()
+                    .then(if (isBackgroundBlur) Modifier.blur(20.dp) else Modifier),
+                contentScale = ContentScale.Crop,
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.2f), Color.Black.copy(alpha = 0.75f))
+                        )
+                    )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            // 顶栏：微型标题与三点菜单
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "MUSIC PROFILE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                    ),
+                    color = Color.White.copy(alpha = 0.6f),
+                )
+                Box {
+                    IconButton(
+                        onClick = { onMenuToggle(!showMenu) },
+                        modifier = Modifier.size(28.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = "设置",
-                            tint = TextMuted,
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "更多设置",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { onMenuToggle(false) },
+                        modifier = Modifier.background(Surface),
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("更换背景", color = TextPrimary, fontSize = 13.sp) },
+                            leadingIcon = { Icon(Icons.Filled.Image, null, tint = TextPrimary, modifier = Modifier.size(18.dp)) },
+                            onClick = onChangeBackgroundClick,
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (isBackgroundBlur) "取消模糊" else "背景模糊", color = TextPrimary, fontSize = 13.sp) },
+                            leadingIcon = { Icon(Icons.Filled.BlurOn, null, tint = TextPrimary, modifier = Modifier.size(18.dp)) },
+                            onClick = onToggleBgBlur,
+                        )
+                        DropdownMenuItem(
+                            text = { Text("恢复默认", color = TextPrimary, fontSize = 13.sp) },
+                            leadingIcon = { Icon(Icons.Filled.RestartAlt, null, tint = TextPrimary, modifier = Modifier.size(18.dp)) },
+                            onClick = onRestoreDefaults,
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Stone200)
+                        DropdownMenuItem(
+                            text = { Text("退出登录", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                            onClick = onLogoutClick,
                         )
                     }
                 }
             }
 
-            // 用户中心信息卡片
-            item(key = "profile_user_card") {
-                UserCard(
-                    isSyncConfigured = isSyncConfigured,
-                    isSyncing = isSyncing,
-                    activeScript = activeScript,
-                    historyCount = historyCount,
-                    favoritesCount = favoritesCount,
-                    onSyncClick = onSyncClick,
-                    onOpenSettings = onOpenSettings,
-                )
-            }
+            Spacer(Modifier.height(12.dp))
 
-            // 听歌统计卡片
-            item(key = "profile_stats_card") {
-                StatsCard(localStats = localStats)
-            }
-
-            // 资料库卡片
-            item(key = "profile_library_card") {
-                LibraryCard(
-                    historyCount = historyCount,
-                    favoritesCount = favoritesCount,
-                    cacheCount = cacheCount,
-                    cacheSize = cacheSize,
-                    onOpenRecent = onOpenRecent,
-                    onOpenFavorites = onOpenFavorites,
-                    onOpenCacheList = onOpenCacheList,
-                    onOpenMyPlaylists = onOpenMyPlaylists,
-                    onOpenSettings = onOpenSettings,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun UserCard(
-    isSyncConfigured: Boolean,
-    isSyncing: Boolean,
-    activeScript: ScriptMetadata?,
-    historyCount: Int,
-    favoritesCount: Int,
-    onSyncClick: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    val bgGradient = if (Palette.isDark) {
-        Brush.linearGradient(listOf(Color(0xFF3730A3), Color(0xFF1E1B4B)))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFF5352ED), Color(0xFF7052FF)))
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(14.dp), ambientColor = PrimaryBrown.copy(alpha = 0.25f))
-            .clip(RoundedCornerShape(14.dp))
-            .background(bgGradient)
-            .padding(18.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape),
-                contentAlignment = Alignment.Center,
+            // 用户头像与基本信息
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Melos 个人音乐",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = Color.White
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = if (activeScript != null) "音源: [${activeScript.name} v${activeScript.version}]" else "暂未安装音源脚本",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = Color.White.copy(alpha = 0.85f),
-                    maxLines = 1
-                )
-                Text(
-                    text = "最近播放 $historyCount 首 · 收藏 $favoritesCount 首",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                    color = Color.White.copy(alpha = 0.7f),
-                )
-            }
-            // 操作按钮
-            Box(
-                modifier = Modifier
-                    .shadow(2.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.1f))
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White)
-                    .clickable {
-                        if (isSyncConfigured) onSyncClick() else onOpenSettings()
-                    }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-            ) {
-                Text(
-                    text = if (isSyncConfigured) (if (isSyncing) "同步中…" else "⟳ 一键同步") else "☁️ 配置同步",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = PrimaryBrown
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatsCard(localStats: LocalStats) {
-    val totalPlayMs = localStats.totalPlayMs
-    val totalPlays = localStats.totalPlays
-    val todayPlayMs = localStats.dayPlayMs
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, Stone200, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(Surface)
-            .padding(16.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(5.dp)
+                        .size(68.dp)
                         .clip(CircleShape)
-                        .background(AccentMint)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "听歌统计",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = TextPrimary
-                )
+                        .border(2.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                        .clickable(onClick = onAvatarClick),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (!avatarPath.isNullOrBlank()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context).data(avatarPath).crossfade(true).build(),
+                            contentDescription = "用户头像",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(38.dp),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = nickname,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        ),
+                        color = Color.White,
+                        maxLines = 1,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "@$userId",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = Color.White.copy(alpha = 0.6f),
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // 身份 Badge 标签排版
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ProfileTag(text = "注册用户")
+                        ProfileTag(text = "解锁赞助版", isHighlight = true)
+                    }
+                }
             }
-            Box(
+
+            Spacer(Modifier.height(18.dp))
+
+            // 宽幅半透明编辑资料按钮
+            Row(
                 modifier = Modifier
-                    .border(0.5.dp, Stone200, RoundedCornerShape(6.dp))
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Stone100)
-                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                    .fillMaxWidth()
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(21.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(21.dp))
+                    .clickable(onClick = onEditProfileClick)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    text = "本机本地",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextSoft
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "编辑音乐资料",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = Color.White,
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "个人档案",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = Color.White.copy(alpha = 0.6f),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(10.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileTag(text: String, isHighlight: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                if (isHighlight) Color.Black.copy(alpha = 0.4f)
+                else Color.White.copy(alpha = 0.15f)
+            )
+            .border(
+                width = 0.5.dp,
+                color = if (isHighlight) Color.White.copy(alpha = 0.3f) else Color.Transparent,
+                shape = RoundedCornerShape(6.dp),
+            )
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = Color.White.copy(alpha = 0.9f),
+        )
+    }
+}
+@Composable
+private fun QuickActionsCard(
+    favoritesCount: Int,
+    playlistsCount: Int,
+    cacheCount: Int,
+    onOpenFavorites: () -> Unit,
+    onOpenMyPlaylists: () -> Unit,
+    onOpenDownloads: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // 左侧大卡片：我的收藏
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(130.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFFFFF0F2), Color(0xFFFFE4E8))
+                    )
                 )
+                .clickable(onClick = onOpenFavorites)
+                .padding(16.dp),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF4D6D).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Favorite,
+                            contentDescription = null,
+                            tint = Color(0xFFFF4D6D),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "音乐收藏",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = Color(0xFF801A2B),
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = "$favoritesCount",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Black,
+                        ),
+                        color = Color(0xFFFF4D6D),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "继续收藏好音乐",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                        color = Color(0xFFA65362),
+                    )
+                }
             }
         }
 
-        Spacer(Modifier.height(14.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+        // 右侧上下堆叠：歌单与下载
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .height(130.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            StatItem(label = "累计听歌", value = formatDuration(totalPlayMs), accent = AccentAmber, modifier = Modifier.weight(1f))
-            StatItem(label = "播放次数", value = "${totalPlays}次", accent = AccentCoral, modifier = Modifier.weight(1f))
-            StatItem(label = "今日收听", value = formatDuration(todayPlayMs), accent = AccentCyan, modifier = Modifier.weight(1f))
+            // 我的歌单卡片
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFFEEF2FF))
+                    .clickable(onClick = onOpenMyPlaylists)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF6366F1).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = null,
+                            tint = Color(0xFF6366F1),
+                            modifier = Modifier.size(15.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "我的歌单",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = TextPrimary,
+                    )
+                }
+                Text(
+                    text = "$playlistsCount",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = Color(0xFF6366F1),
+                )
+            }
+
+            // 下载音乐卡片
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFFECFDF5))
+                    .clickable(onClick = onOpenDownloads)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF10B981).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DownloadDone,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(15.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "下载音乐",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            color = TextPrimary,
+                        )
+                        Text(
+                            text = "离线也能听",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = TextSoft,
+                        )
+                    }
+                }
+                Text(
+                    text = "$cacheCount",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = Color(0xFF10B981),
+                )
+            }
         }
     }
 }
 
+/**
+ * 菜单行项
+ */
 @Composable
-private fun StatItem(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
-            color = accent
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-            color = TextSoft
-        )
-    }
-}
-
-@Composable
-private fun LibraryCard(
-    historyCount: Int,
-    favoritesCount: Int,
-    cacheCount: Int,
-    cacheSize: Long,
-    onOpenRecent: () -> Unit,
-    onOpenFavorites: () -> Unit,
-    onOpenCacheList: () -> Unit,
-    onOpenMyPlaylists: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, Stone200, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(Surface)
-            .padding(vertical = 4.dp),
-    ) {
-        LibraryItem(
-            icon = Icons.Filled.History,
-            iconTint = AccentCyan,
-            title = "最近播放",
-            badge = "${historyCount}首",
-            onClick = onOpenRecent
-        )
-        LibraryItem(
-            icon = Icons.Filled.Favorite,
-            iconTint = AccentCoral,
-            title = "我的收藏",
-            badge = "${favoritesCount}首",
-            onClick = onOpenFavorites
-        )
-        LibraryItem(
-            icon = Icons.AutoMirrored.Filled.QueueMusic,
-            iconTint = AccentAmber,
-            title = "我的歌单",
-            badge = "自建歌单",
-            onClick = onOpenMyPlaylists
-        )
-        LibraryItem(
-            icon = Icons.Filled.DownloadDone,
-            iconTint = AccentMint,
-            title = "本地缓存",
-            badge = if (cacheCount > 0) "${cacheCount}首 · ${AudioCacheService.formatSize(cacheSize)}" else "暂无",
-            onClick = onOpenCacheList
-        )
-    }
-}
-
-@Composable
-private fun LibraryItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun ProfileMenuItem(
+    icon: ImageVector,
     iconTint: Color,
     title: String,
-    badge: String,
-    onClick: () -> Unit
+    subtitle: String,
+    isLoading: Boolean = false,
+    onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(iconTint.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(17.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(17.dp),
+            )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+            ),
             color = TextPrimary,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
-        Text(
-            text = badge,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-            color = TextSoft
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(14.dp),
+                strokeWidth = 2.dp,
+                color = iconTint,
+            )
+        } else if (subtitle.isNotBlank()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                color = TextSoft,
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+            contentDescription = null,
+            tint = TextMuted,
+            modifier = Modifier.size(12.dp),
         )
-        Spacer(Modifier.width(4.dp))
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
     }
-}
-
-private fun formatDuration(ms: Long): String {
-    if (ms <= 0) return "0分"
-    val s = ms / 1000
-    val m = s / 60
-    val h = m / 60
-    return if (h > 0) "${h}小时${m % 60}分" else "${m}分"
 }

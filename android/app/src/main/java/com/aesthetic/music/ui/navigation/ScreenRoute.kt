@@ -23,4 +23,9 @@ sealed class ScreenRoute(val route: String) {
     data object CacheList : ScreenRoute("cache_list")
     data object History : ScreenRoute("history")
     data object Settings : ScreenRoute("settings")
+    data object ProfileEdit : ScreenRoute("profile_edit")
+    data object Downloads : ScreenRoute("downloads")
+    data object ListeningStats : ScreenRoute("listening_stats")
+    data object CloudManage : ScreenRoute("cloud_manage")
+    data object PluginManage : ScreenRoute("plugin_manage")
 }

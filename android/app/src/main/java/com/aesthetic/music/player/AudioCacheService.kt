@@ -304,7 +304,16 @@ object AudioCacheService {
             queryIndex(context) { it.values.toList() }
                 .mapNotNull { e ->
                     val f = File(e.filePath)
-                    if (f.exists()) CachedSong(e.name, e.artist, f.length(), e.filePath) else null
+                    if (f.exists()) {
+                        CachedSong(
+                            title = e.name,
+                            artist = e.artist,
+                            size = f.length(),
+                            filePath = e.filePath,
+                            platformCode = e.platformCode,
+                            songId = e.songId,
+                        )
+                    } else null
                 }
                 .sortedByDescending { it.size }
         } catch (_: Exception) { emptyList() }
@@ -315,6 +324,8 @@ object AudioCacheService {
         val artist: String,
         val size: Long,
         val filePath: String,
+        val platformCode: String = "",
+        val songId: String = "",
     )
 
     /** 删除单个缓存（按路径），并同步清掉索引条目避免残留 */

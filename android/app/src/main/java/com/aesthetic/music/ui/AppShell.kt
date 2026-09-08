@@ -65,8 +65,13 @@ import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.player.PlayerScreen
 import com.aesthetic.music.ui.playlist.PlaylistDetailScreen
 import com.aesthetic.music.ui.playlist.PlaylistScreen
+import com.aesthetic.music.ui.profile.CloudManageScreen
+import com.aesthetic.music.ui.profile.DownloadsScreen
 import com.aesthetic.music.ui.profile.HistoryScreen
+import com.aesthetic.music.ui.profile.ListeningStatsScreen
 import com.aesthetic.music.ui.profile.MyPlaylistsScreen
+import com.aesthetic.music.ui.profile.PluginManageScreen
+import com.aesthetic.music.ui.profile.ProfileEditScreen
 import com.aesthetic.music.ui.profile.ProfileScreen
 import com.aesthetic.music.ui.rank.RankPage
 import com.aesthetic.music.ui.search.SearchScreen
@@ -150,6 +155,16 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val lastSyncStatus by viewModel.lastSyncStatus.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val artistError by viewModel.artistError.collectAsState()
+
+    // 个人中心个性化状态
+    val profileAvatar by viewModel.profileAvatar.collectAsState()
+    val profileBackground by viewModel.profileBackground.collectAsState()
+    val isProfileBgBlur by viewModel.isProfileBgBlur.collectAsState()
+    val profileNickname by viewModel.profileNickname.collectAsState()
+    val profileBio by viewModel.profileBio.collectAsState()
+    val profileGender by viewModel.profileGender.collectAsState()
+    val profileBirthday by viewModel.profileBirthday.collectAsState()
+    val profileUserId by viewModel.profileUserId.collectAsState()
 
     // 动态背景色
     val pageBackground by viewModel.currentPageBackground.collectAsState()
@@ -313,8 +328,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     // FM 电台
                     composable(ScreenRoute.Fm.route) {
                         FmScreen(
-                            styles = fmStyles,
-                            fmStyle = fmStyle,
                             fmQueue = fmQueue,
                             fmIndex = fmIndex,
                             fmLoading = fmLoading,
@@ -323,7 +336,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             favorites = favorites,
                             currentSongId = playerState.currentSong?.id,
                             isPlaying = playerState.isPlaying,
-                            onStart = { style -> viewModel.fmStart(style) },
+                            onRefreshRecommendation = {
+                                // 重新拉取/刷新私人 FM 或心动推荐流
+                                // viewModel.loadFm() //
+                            },
                             onSelect = { index ->
                                 viewModel.fmSelect(index)
                                 val q = viewModel.fmQueue.value
@@ -333,7 +349,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             },
                             onToggleLike = { song -> viewModel.fmToggleLike(song) },
                             onPlayPause = { playerManager.toggle() },
-                            onExport = { songs -> shareSongs(songs) },
+                            onExport = { songs -> shareSongs(songs) }
                         )
                     }
 
@@ -365,26 +381,42 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     // 我的/个人中心 Tab
                     composable(ScreenRoute.Profile.route) {
                         ProfileScreen(
-                            localStats = localStats,
+                            nickname = profileNickname,
+                            userId = profileUserId,
+                            avatarPath = profileAvatar,
+                            backgroundPath = profileBackground,
+                            isBackgroundBlur = isProfileBgBlur,
                             historyCount = history.size,
                             favoritesCount = favorites.size,
+                            playlistsCount = myPlaylists.size,
                             cacheCount = cacheCount,
                             cacheSize = cacheSize,
+                            localStats = localStats,
                             isSyncConfigured = isSyncConfigured,
-                            isSyncing = isSyncing,
                             activeScript = activeScriptInfo,
-                            onOpenSettings = { navController.navigate(ScreenRoute.Settings.route) },
-                            onOpenRecent = {
+                            onOpenEditProfile = { navController.navigate(ScreenRoute.ProfileEdit.route) },
+                            onOpenFavorites = { navController.navigate(ScreenRoute.Favorites.route) },
+                            onOpenMyPlaylists = { navController.navigate(ScreenRoute.MyPlaylists.route) },
+                            onOpenDownloads = {
+                                refreshCacheInfo()
+                                navController.navigate(ScreenRoute.Downloads.route)
+                            },
+                            onOpenHistory = {
                                 viewModel.openHistory()
                                 navController.navigate(ScreenRoute.History.route)
                             },
-                            onOpenFavorites = { navController.navigate(ScreenRoute.Favorites.route) },
-                            onOpenCacheList = {
-                                refreshCacheInfo()
-                                navController.navigate(ScreenRoute.CacheList.route)
+                            onOpenListeningStats = { navController.navigate(ScreenRoute.ListeningStats.route) },
+                            onOpenCloudManage = { navController.navigate(ScreenRoute.CloudManage.route) },
+                            onOpenSettings = { navController.navigate(ScreenRoute.Settings.route) },
+                            onOpenPluginManage = { navController.navigate(ScreenRoute.PluginManage.route) },
+                            onUpdateAvatar = { path -> viewModel.setProfileAvatar(path) },
+                            onUpdateBackground = { path -> viewModel.setProfileBackground(path) },
+                            onToggleBgBlur = { viewModel.toggleProfileBgBlur() },
+                            onRestoreDefaults = { viewModel.restoreProfileDefaults(context) },
+                            onLogout = { viewModel.logout() },
+                            onShowToast = { msg ->
+                                scope.launch { snackbarHostState.showSnackbar(msg) }
                             },
-                            onOpenMyPlaylists = { navController.navigate(ScreenRoute.MyPlaylists.route) },
-                            onSyncClick = { viewModel.performCloudSync() },
                         )
                     }
 
@@ -649,6 +681,80 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onPlayAll = { if (history.isNotEmpty()) playSong(history.first(), history) },
                             onRemoveOne = viewModel::removeFromHistory,
                             onClearAll = viewModel::clearHistory,
+                        )
+                    }
+
+                    // 编辑个人资料页
+                    composable(ScreenRoute.ProfileEdit.route) {
+                        ProfileEditScreen(
+                            initialNickname = profileNickname,
+                            initialBio = profileBio,
+                            initialGender = profileGender,
+                            initialBirthday = profileBirthday,
+                            initialAvatarPath = profileAvatar,
+                            userId = profileUserId,
+                            onBack = { navController.popBackStack() },
+                            onSave = { nick, bio, gender, bday, avatar ->
+                                viewModel.saveProfileInfo(nick, bio, gender, bday, avatar)
+                            },
+                            onShowToast = { msg ->
+                                scope.launch { snackbarHostState.showSnackbar(msg) }
+                            },
+                        )
+                    }
+
+                    // 本地下载页
+                    composable(ScreenRoute.Downloads.route) {
+                        DownloadsScreen(
+                            songs = cachedSongs,
+                            currentSong = playerState.currentSong,
+                            onBack = { navController.popBackStack() },
+                            onPlaySong = { song, list -> playSong(song, list) },
+                            onRemoveOne = { path ->
+                                scope.launch(Dispatchers.IO) {
+                                    AudioCacheService.removeCacheByPath(context, path)
+                                    withContext(Dispatchers.Main) { refreshCacheInfo() }
+                                }
+                            },
+                            onClearAll = {
+                                scope.launch(Dispatchers.IO) {
+                                    AudioCacheService.clearCache(context)
+                                    withContext(Dispatchers.Main) { refreshCacheInfo() }
+                                }
+                            },
+                        )
+                    }
+
+                    // 听歌时长页
+                    composable(ScreenRoute.ListeningStats.route) {
+                        ListeningStatsScreen(
+                            localStats = localStats,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+
+                    // 云端管理页
+                    composable(ScreenRoute.CloudManage.route) {
+                        CloudManageScreen(
+                            isSyncConfigured = isSyncConfigured,
+                            syncServerUrl = syncServerUrl,
+                            lastSyncedAt = lastSyncedAt,
+                            lastSyncStatus = lastSyncStatus,
+                            isSyncing = isSyncing,
+                            onBack = { navController.popBackStack() },
+                            onOpenSettings = { navController.navigate(ScreenRoute.Settings.route) },
+                            onPerformSync = { viewModel.performCloudSync() },
+                        )
+                    }
+
+                    // 插件管理页
+                    composable(ScreenRoute.PluginManage.route) {
+                        PluginManageScreen(
+                            activeScript = activeScriptInfo,
+                            isEngineReady = isEngineReady,
+                            onBack = { navController.popBackStack() },
+                            onOpenSettings = { navController.navigate(ScreenRoute.Settings.route) },
+                            onReloadScript = { viewModel.retryLoadScript() },
                         )
                     }
 

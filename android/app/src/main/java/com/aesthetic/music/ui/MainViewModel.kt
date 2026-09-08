@@ -191,6 +191,16 @@ class MainViewModel : ViewModel() {
     val authBusy = MutableStateFlow(false)
     val authError = MutableStateFlow<String?>(null)
 
+    // 个人中心个性化状态
+    val profileAvatar = MutableStateFlow(UserStore.getAvatarPath())
+    val profileBackground = MutableStateFlow(UserStore.getBackgroundPath())
+    val isProfileBgBlur = MutableStateFlow(UserStore.isBackgroundBlur())
+    val profileNickname = MutableStateFlow(UserStore.getNickname())
+    val profileBio = MutableStateFlow(UserStore.getBio())
+    val profileGender = MutableStateFlow(UserStore.getGender())
+    val profileBirthday = MutableStateFlow(UserStore.getBirthday())
+    val profileUserId = MutableStateFlow(UserStore.getUserId())
+
     /** 一次性全局提示（导入歌单失败、改昵称失败、登录态过期等）：
      *  此前这些场景的错误要么写进没人消费的状态（albumError），要么复用只被登录弹窗读的
      *  authError，用户"点了没反应"。AppShell 订阅本流弹 Snackbar 后调用 consumeToast() 清空 */
@@ -1399,6 +1409,8 @@ class MainViewModel : ViewModel() {
             syncServerUrl.value = ""
             syncToken.value = ""
             isSyncConfigured.value = false
+            profileNickname.value = UserStore.getNickname()
+            profileUserId.value = UserStore.getUserId()
             _appToast.value = "已退出登录并清空私有服务器配置"
         }
     }
@@ -1409,10 +1421,70 @@ class MainViewModel : ViewModel() {
             repository.updateProfile(nickname = nickname).onSuccess { updated ->
                 _user.value = updated
                 UserStore.updateUser(updated)
+                profileNickname.value = updated.nickname.ifBlank { updated.username }
                 _appToast.value = "昵称已更新"
             }.onFailure { e ->
                 _appToast.value = "更新失败: ${e.message ?: "网络异常"}"
             }
+        }
+    }
+
+    // ===== 个人中心个性化管理 =====
+
+    fun setProfileAvatar(path: String?) {
+        UserStore.setAvatarPath(path)
+        profileAvatar.value = path
+    }
+
+    fun setProfileBackground(path: String?) {
+        UserStore.setBackgroundPath(path)
+        profileBackground.value = path
+    }
+
+    fun toggleProfileBgBlur() {
+        val next = !isProfileBgBlur.value
+        UserStore.setBackgroundBlur(next)
+        isProfileBgBlur.value = next
+    }
+
+    fun restoreProfileDefaults(context: android.content.Context) {
+        UserStore.restoreProfileDefaults(context)
+        profileAvatar.value = null
+        profileBackground.value = null
+        isProfileBgBlur.value = false
+        profileNickname.value = UserStore.getNickname()
+        profileBio.value = ""
+        profileGender.value = "保密"
+        profileBirthday.value = ""
+        profileUserId.value = UserStore.getUserId()
+        _appToast.value = "已恢复默认设置"
+    }
+
+    fun saveProfileInfo(
+        nickname: String,
+        bio: String,
+        gender: String,
+        birthday: String,
+        avatarPath: String? = null
+    ) {
+        if (nickname.isNotBlank()) {
+            UserStore.setNickname(nickname)
+            profileNickname.value = nickname
+        }
+        UserStore.setBio(bio)
+        profileBio.value = bio
+        UserStore.setGender(gender)
+        profileGender.value = gender
+        UserStore.setBirthday(birthday)
+        profileBirthday.value = birthday
+        if (avatarPath != null) {
+            UserStore.setAvatarPath(avatarPath)
+            profileAvatar.value = avatarPath
+        }
+        if (UserStore.isLoggedIn() && nickname.isNotBlank()) {
+            updateNickname(nickname)
+        } else {
+            _appToast.value = "个人信息已保存"
         }
     }
 
