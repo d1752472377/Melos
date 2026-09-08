@@ -16,6 +16,10 @@ import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.StatsTracker
+import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
+import com.mocharealm.accompanist.lyrics.core.model.karaoke.KaraokeLine
+import com.mocharealm.accompanist.lyrics.core.model.synced.SyncedLine
+import com.mocharealm.accompanist.lyrics.core.parser.AutoParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +55,7 @@ data class PlayerState(
     val currentIndex: Int = -1,
     val isPlaying: Boolean = false,
     val lyrics: List<LyricLine> = emptyList(),
+    val syncedLyrics: SyncedLyrics? = null,
     val isLoading: Boolean = false,
     val playMode: PlayMode = PlayMode.SEQUENCE,
     val errorMessage: String? = null,
@@ -384,7 +389,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         val gen = ++playGeneration
         // 重置歌词/进度
         _progress.value = PlaybackProgress()
-        _state.value = _state.value.copy(lyrics = emptyList(), errorMessage = null, isLoading = true)
+        _state.value = _state.value.copy(lyrics = emptyList(), syncedLyrics = null, errorMessage = null, isLoading = true)
         // 取消上一首的在途取链请求（此前只靠代数丢弃结果，旧请求继续跑完白白耗流量）
         playJob?.cancel()
         playJob = scope.launch {
@@ -468,7 +473,61 @@ class PlayerManager private constructor(private val appContext: Context) {
             val original = parseLrc(d.lyric)
             val translated = parseLrc(d.translated)
             val merged = mergeTranslation(original, translated)
-            _state.value = _state.value.copy(lyrics = merged)
+
+            val rawLyric = d.lyric ?: ""
+            val rawTranslated = d.translated
+            val contentToParse = if (!rawTranslated.isNullOrBlank() && !rawLyric.contains(rawTranslated)) {
+                "$rawLyric\n$rawTranslated"
+            } else {
+                rawLyric
+            }
+            val parsedSynced = if (contentToParse.isNotBlank()) {
+                try {
+                    AutoParser().parse(contentToParse)
+                } catch (e: Exception) {
+                    null
+                }
+            } else null
+
+            val finalSynced = when {
+                parsedSynced != null && parsedSynced.lines.isNotEmpty() -> {
+                    if (merged.any { it.translated != null } && parsedSynced.lines.none { it.translation != null }) {
+                        val updatedLines = parsedSynced.lines.map { line ->
+                            val match = merged.find { kotlin.math.abs(it.timeMs - line.start) < 1000 }
+                            if (match?.translated != null) {
+                                when (line) {
+                                    is KaraokeLine.MainKaraokeLine -> line.copy(translation = match.translated)
+                                    is KaraokeLine.AccompanimentKaraokeLine -> line.copy(translation = match.translated)
+                                    is SyncedLine -> line.copy(translation = match.translated)
+                                    else -> line
+                                }
+                            } else line
+                        }
+                        parsedSynced.copy(lines = updatedLines)
+                    } else {
+                        parsedSynced
+                    }
+                }
+                merged.isNotEmpty() -> {
+                    SyncedLyrics(
+                        lines = merged.mapIndexed { idx, item ->
+                            val nextStart = merged.getOrNull(idx + 1)?.timeMs?.toInt() ?: (item.timeMs.toInt() + 5000)
+                            SyncedLine(
+                                content = item.text,
+                                start = item.timeMs.toInt(),
+                                end = nextStart,
+                                translation = item.translated
+                            )
+                        }
+                    )
+                }
+                else -> null
+            }
+
+            _state.value = _state.value.copy(
+                lyrics = merged,
+                syncedLyrics = finalSynced
+            )
         }
     }
 

@@ -104,6 +104,8 @@ dependencies {
     implementation(libs.androidx.metrics.performance)
     implementation(libs.androidx.compose.ui.geometry)
 
+    implementation(project(":lyrics"))
+
     baselineProfile(project(":baselineprofile"))
 
     debugImplementation(libs.androidx.ui.tooling)

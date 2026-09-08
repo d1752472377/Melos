@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
@@ -66,6 +67,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -106,6 +108,9 @@ import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.PlayerBg
 import com.aesthetic.music.ui.theme.PlayerBgDark
 import com.aesthetic.music.ui.theme.Rose
+import com.mocharealm.accompanist.lyrics.ui.composable.lyrics.KaraokeLyricsView
+import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
@@ -138,6 +143,27 @@ fun PlayerScreen(
     // 进度只在播放页内部收集：每 500ms 一次的更新不会离开本页作用域
     val progress by progressFlow.collectAsState()
     val lyricIndex = currentLyricIndex(state.lyrics, progress.positionMs)
+    val karaokeListState = rememberLazyListState()
+    val animatedPositionState = remember { mutableLongStateOf(0L) }
+    val currentPositionProvider = remember {
+        { animatedPositionState.longValue.toInt() }
+    }
+
+    // 帧级平滑插值：逐帧刷新当前毫秒数，供 KaraokeLyricsView 绘制平滑字级染色与滚动，无需引起全页重组
+    LaunchedEffect(state.isPlaying, progress.positionMs, state.speed) {
+        animatedPositionState.longValue = progress.positionMs
+        if (state.isPlaying) {
+            val baseWallTime = System.currentTimeMillis()
+            val basePos = progress.positionMs
+            while (isActive) {
+                awaitFrame()
+                val elapsed = ((System.currentTimeMillis() - baseWallTime) * state.speed).toLong()
+                val newPos = (basePos + elapsed).coerceAtMost(progress.durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE)
+                animatedPositionState.longValue = newPos
+            }
+        }
+    }
+
     var showLyric by remember { mutableStateOf(true) }
     var showQueueSheet by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
@@ -234,6 +260,21 @@ fun PlayerScreen(
                             .size(38.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.12f))
+                            .clickable { showLyric = !showLyric },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (showLyric) Icons.Filled.Album else Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = if (showLyric) "切换封面" else "切换歌词",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f))
                             .clickable(onClick = onToggleFavorite),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -256,13 +297,43 @@ fun PlayerScreen(
                     .fillMaxWidth()
             ) {
                 if (showLyric) {
-                    LyricList(
-                        lyrics = state.lyrics,
-                        currentIndex = lyricIndex,
-                        onLyricClick = { line -> onSeekToLyric(line) },
-                        onToggleLyricMode = { showLyric = false },
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    val synced = state.syncedLyrics
+                    if (synced != null && synced.lines.isNotEmpty()) {
+                        KaraokeLyricsView(
+                            listState = karaokeListState,
+                            lyrics = synced,
+                            currentPosition = currentPositionProvider,
+                            onLineClicked = { line -> onSeek(line.start.toLong()) },
+                            onLinePressed = { line -> onSeek(line.start.toLong()) },
+                            showTranslation = true,
+                            showPhonetic = false,
+                            textColor = Color.White,
+                            normalLineTextStyle = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 23.sp
+                            ),
+                            accompanimentLineTextStyle = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp
+                            ),
+                            useBlurEffect = true,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = { showLyric = false }
+                                    )
+                                }
+                        )
+                    } else {
+                        LyricList(
+                            lyrics = state.lyrics,
+                            currentIndex = lyricIndex,
+                            onLyricClick = { line -> onSeekToLyric(line) },
+                            onToggleLyricMode = { showLyric = false },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 } else {
                     AnimatedCoverBox(
                         artworkUrl = song?.artwork,
