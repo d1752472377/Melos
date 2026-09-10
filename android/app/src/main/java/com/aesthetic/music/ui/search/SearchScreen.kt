@@ -18,11 +18,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -49,7 +51,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
@@ -151,11 +152,8 @@ fun SearchScreen(
                         .clip(RoundedCornerShape(20.dp))
                         .background(Surface)
                         .clickable {
-                            try {
-                                focusRequester.requestFocus()
-                                keyboard?.show()
-                            } catch (_: Throwable) {
-                            }
+                            focusRequester.requestFocus()
+                            keyboard?.show()
                         }
                         .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -209,19 +207,11 @@ fun SearchScreen(
                 }
             }
 
-            // 自动聚焦搜索框
-            // 仅在无关键词时自动聚焦：从歌手页等返回且已有搜索结果时不再顶起键盘。
-            // 增加 delay(200) 确保 Navigation 转场与 Composable 布局节点完全挂载就绪；
-            // 捕获全部 Throwable 防止输入法或系统 Window 服务抛出 NPE/异常导致崩溃。
+            // 自动聚焦搜索框：仅在无关键词时聚焦（从歌手页等返回且已有结果时不再顶起键盘）
             LaunchedEffect(Unit) {
                 if (query.isBlank()) {
-                    try {
-                        delay(200)
-                        focusRequester.requestFocus()
-                        keyboard?.show()
-                    } catch (_: Throwable) {
-                        // 焦点节点尚未就绪或系统输入法异常，静默放弃，绝不闪退；用户可手动点击输入框聚焦
-                    }
+                    focusRequester.requestFocus()
+                    keyboard?.show()
                 }
             }
 
@@ -250,18 +240,10 @@ fun SearchScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    listOf(
-                        "全部平台" to null,
-                        "网易云" to "netease",
-                        "酷狗" to "kugou",
-                        "QQ" to "qq",
-                        "酷我" to "kuwo",
-                    ).forEach { (label, value) ->
-                        val selected = platform == value
+                    PlatformFilters.forEach { (label, value) ->
                         FilterChipBox(
                             label = label,
-                            selected = selected,
-                            enabled = true,
+                            selected = platform == value,
                             onClick = { viewModel.setSearchPlatform(value) },
                         )
                     }
@@ -280,7 +262,12 @@ fun SearchScreen(
             // ===== 内容区 =====
             if (query.isBlank()) {
                 // 未搜索：最近搜索 + 热门搜索
-                Column(Modifier.fillMaxSize()) {
+                // 可滚动：最近最多 10 条 + 热门 8 条，键盘弹起后可视区变小，不滚动会被裁掉且无法触达
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
                     if (recentSearches.isNotEmpty()) {
                         Row(
                             Modifier.fillMaxWidth(),
@@ -384,23 +371,29 @@ fun SearchScreen(
 
 // ==================== 通用小组件 ====================
 
+/** 平台筛选：label 用于展示，value 为音源 id（null = 全部平台聚合） */
+private val PlatformFilters = listOf(
+    "全部平台" to null,
+    "网易云" to "netease",
+    "酷狗" to "kugou",
+    "QQ" to "qq",
+    "酷我" to "kuwo",
+)
+
 /** 筛选小胶囊：平台切换用描边样式、类型 Tab 用实底选中 */
 @Composable
 private fun FilterChipBox(
     label: String,
     selected: Boolean,
     filledSelected: Boolean = false,
-    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val bg = when {
-        !enabled -> Surface
         selected && filledSelected -> PrimaryBrown
         selected -> PrimaryBrown.copy(alpha = 0.12f)
         else -> Surface
     }
     val fg = when {
-        !enabled -> TextSoft.copy(alpha = 0.5f)
         selected && filledSelected -> Color.White
         selected -> PrimaryBrown
         else -> TextSoft
@@ -414,7 +407,7 @@ private fun FilterChipBox(
                     Modifier.border(1.dp, Stone200, RoundedCornerShape(14.dp))
                 } else Modifier
             )
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 5.dp),
     ) {
         Text(label, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), color = fg)
