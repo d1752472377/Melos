@@ -131,8 +131,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val sheetOrder by viewModel.sheetOrder.collectAsState()
     val isLoadingSheets by viewModel.isLoadingSheets.collectAsState()
     val sheetError by viewModel.sheetError.collectAsState()
-    val fmStyles = viewModel.fmStyles
-    val fmStyle by viewModel.fmStyle.collectAsState()
     val fmQueue by viewModel.fmQueue.collectAsState()
     val fmIndex by viewModel.fmIndex.collectAsState()
     val fmLoading by viewModel.fmLoading.collectAsState()
@@ -335,10 +333,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             favorites = favorites,
                             currentSongId = playerState.currentSong?.id,
                             isPlaying = playerState.isPlaying,
-                            onRefreshRecommendation = {
-                                // 重新拉取/刷新私人 FM 或心动推荐流
-                                // viewModel.loadFm() //
-                            },
+                            onRefreshRecommendation = { viewModel.fmRefresh() },
                             onSelect = { index ->
                                 viewModel.fmSelect(index)
                                 val q = viewModel.fmQueue.value

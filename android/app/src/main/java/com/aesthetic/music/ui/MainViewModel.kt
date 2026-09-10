@@ -129,7 +129,7 @@ class MainViewModel : ViewModel() {
     private val _fmActive = MutableStateFlow(false)
     val fmActive: StateFlow<Boolean> = _fmActive.asStateFlow()
     /** FM 可选风格：推荐新歌 + 歌单广场全部标签 */
-    val fmStyles: List<String> = listOf("推荐新歌") + repository.sheetTags()
+    val fmStyles: List<String> = listOf(DEFAULT_FM_STYLE) + repository.sheetTags()
     private val _fmStyle = MutableStateFlow<String?>(null)
     val fmStyle: StateFlow<String?> = _fmStyle.asStateFlow()
     private val _fmQueue = MutableStateFlow<List<Song>>(emptyList())
@@ -776,6 +776,17 @@ class MainViewModel : ViewModel() {
                 _fmLoading.value = false
             }
         }
+    }
+
+    /** 进入 FM 页时若无推荐流则自动开拉（当前无风格选择 UI，固定用默认风格） */
+    private fun ensureFmStarted() {
+        if (_fmQueue.value.isNotEmpty() || _fmLoading.value) return
+        fmStart( _fmStyle.value ?: DEFAULT_FM_STYLE )
+    }
+
+    /** 空态「换换口味」/ 手动刷新：按当前风格重新拉取推荐流 */
+    fun fmRefresh() {
+        fmStart( _fmStyle.value ?: DEFAULT_FM_STYLE )
     }
 
     /** FM 切歌（拖动/自动续播同步索引；近队尾触发补池） */
@@ -1524,6 +1535,7 @@ class MainViewModel : ViewModel() {
         showRanks.value = false
         showSheet.value = false
         _fmActive.value = (tab == AppTab.SHEET)
+        if (tab == AppTab.SHEET) ensureFmStarted()
         if (tab == AppTab.PROFILE) refreshStats()
     }
 
@@ -1545,5 +1557,7 @@ class MainViewModel : ViewModel() {
         private const val MAX_FAVORITES = 1000
         /** 单个歌单曲目数上限 */
         private const val MAX_PLAYLIST_SONGS = 1000
+        /** FM 默认风格：当前无风格选择 UI，进入 FM 页直接用这个开拉 */
+        private const val DEFAULT_FM_STYLE = "推荐新歌"
     }
 }
