@@ -74,10 +74,12 @@ import coil.request.ImageRequest
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
+import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.components.rememberDominantColors
@@ -670,10 +672,10 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // ===== 单曲更多操作底部抽屉 (SongActionBottomSheet) =====
+    // ===== 单曲更多操作底部抽屉 =====
     songForActionMenu?.let { song ->
         val isSongFav = isSongFavorite(song)
-        SongActionBottomSheet(
+        SongActionSheet(
             song = song,
             isFavorite = isSongFav,
             onDismiss = { songForActionMenu = null },
@@ -701,9 +703,9 @@ fun PlaylistDetailScreen(
         )
     }
 
-    // ===== 添加到自建歌单抽屉 (AddToPlaylistBottomSheet) =====
+    // ===== 添加到自建歌单抽屉 =====
     songForAddToPlaylist?.let { song ->
-        AddToPlaylistBottomSheet(
+        AddToPlaylistSheet(
             song = song,
             myPlaylists = myPlaylists,
             onDismiss = { songForAddToPlaylist = null },
@@ -786,312 +788,4 @@ private fun PlaylistSongRow(
             )
         }
     }
-}
-
-// ==================== 歌曲更多操作底部抽屉 ====================
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SongActionBottomSheet(
-    song: Song,
-    isFavorite: Boolean,
-    onDismiss: () -> Unit,
-    onToggleFavorite: () -> Unit,
-    onAddToPlaylist: () -> Unit,
-    onAddToQueue: () -> Unit,
-    onPlayNext: () -> Unit,
-    onDownload: () -> Unit,
-) {
-    AppBottomSheet(
-        onDismissRequest = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 18.dp)
-        ) {
-            // 顶部歌曲信息
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SongCover(song.artwork, Modifier.size(46.dp), corner = 8.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = song.title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = song.subtitleText,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = TextSoft,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 12.dp),
-                thickness = 0.5.dp,
-                color = Stone200
-            )
-
-            // 操作列表
-            ActionMenuItem(
-                icon = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                iconTint = if (isFavorite) Rose else TextPrimary,
-                title = if (isFavorite) "取消收藏" else "收藏歌曲",
-                onClick = onToggleFavorite
-            )
-
-            ActionMenuItem(
-                icon = Icons.AutoMirrored.Filled.QueueMusic,
-                title = "添加到歌单",
-                onClick = onAddToPlaylist
-            )
-
-            ActionMenuItem(
-                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                title = "下一首播放",
-                onClick = onPlayNext
-            )
-
-            ActionMenuItem(
-                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                title = "加入播放队列",
-                onClick = onAddToQueue
-            )
-
-            ActionMenuItem(
-                icon = Icons.Filled.Download,
-                title = "下载歌曲",
-                onClick = onDownload
-            )
-
-            Spacer(Modifier.height(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun ActionMenuItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconTint: Color = TextPrimary,
-    title: String,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = title,
-            tint = iconTint,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(14.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            ),
-            color = TextPrimary
-        )
-    }
-}
-
-// ==================== 添加到自建歌单抽屉 ====================
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddToPlaylistBottomSheet(
-    song: Song,
-    myPlaylists: List<MyPlaylist>,
-    onDismiss: () -> Unit,
-    onSelectPlaylist: (String) -> Unit,
-    onCreateAndAdd: (String) -> Unit,
-) {
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var newPlaylistName by remember { mutableStateOf("") }
-
-    AppBottomSheet(
-        onDismissRequest = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 18.dp)
-        ) {
-            // 标题
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "收藏到歌单",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "将《${song.title}》加入自建歌单",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                TextButton(onClick = { showCreateDialog = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(3.dp))
-                    Text("新建歌单", color = PrimaryBrown, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 10.dp),
-                thickness = 0.5.dp,
-                color = Stone200
-            )
-
-            // 自建歌单列表
-            if (myPlaylists.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 40.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无自建歌单，点击右上角新建",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSoft
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                ) {
-                    itemsIndexed(myPlaylists, key = { _, p -> p.id }) { _, playlist ->
-                        val alreadyIn = playlist.songs.any { it.id == song.id && it.platform == song.platform }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelectPlaylist(playlist.id) }
-                                .padding(horizontal = 20.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            SongCover(
-                                url = playlist.coverUrl ?: playlist.songs.firstOrNull()?.artwork,
-                                modifier = Modifier.size(46.dp),
-                                corner = 8.dp
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = playlist.name,
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    color = TextPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    text = "${playlist.songs.size} 首歌曲",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = TextSoft
-                                )
-                            }
-                            if (alreadyIn) {
-                                Text(
-                                    text = "已包含",
-                                    style = TextStyle(fontSize = 11.sp, color = TextMuted),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Stone100)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-        }
-    }
-
-    // 新建歌单对话框
-    if (showCreateDialog) {
-        AppDialog(
-            onDismissRequest = {
-                showCreateDialog = false
-                newPlaylistName = ""
-            },
-            title = "新建歌单",
-            confirmText = "创建并添加",
-            onConfirm = {
-                val name = newPlaylistName.trim()
-                if (name.isNotEmpty()) {
-                    onCreateAndAdd(name)
-                    showCreateDialog = false
-                    newPlaylistName = ""
-                }
-            },
-            confirmEnabled = newPlaylistName.trim().isNotEmpty(),
-            cancelText = "取消",
-            onCancel = {
-                showCreateDialog = false
-                newPlaylistName = ""
-            },
-        ) {
-            BasicTextField(
-                value = newPlaylistName,
-                onValueChange = { if (it.length <= 30) newPlaylistName = it },
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Stone100)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                decorationBox = { inner ->
-                    if (newPlaylistName.isEmpty()) {
-                        Text("请输入歌单名称", color = TextMuted, fontSize = 14.sp)
-                    }
-                    inner()
-                }
-            )
-        }
-
-    }
-
 }

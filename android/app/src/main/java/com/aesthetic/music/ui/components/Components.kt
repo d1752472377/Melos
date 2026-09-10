@@ -42,6 +42,11 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.Stone200
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 /** 封面占位渐变（文件级缓存）：避免每次组合新封面时重复分配 Brush 与颜色列表 */
 private val CoverPlaceholderBrushLight =
@@ -297,4 +302,46 @@ fun formatPlayCountText(count: Long?): String {
         count >= 10_000 -> String.format(java.util.Locale.US, "%.1f万", count / 10_000.0)
         else -> count.toString()
     }
+}
+
+// ==================== 平台标签 ====================
+
+/** 平台显示名（原先私有在 SearchScreen，搜索结果/歌单等都要用，故上提为公共） */
+fun platformLabel(p: String?): String = when (p) {
+    "netease", "chksz" -> "网易"
+    "kugou" -> "酷狗"
+    "qq" -> "QQ"
+    "kuwo" -> "酷我"
+    null -> ""
+    else -> p.take(3)
+}
+
+/** 平台品牌色，供标签与文字着色共用 */
+fun platformColor(p: String?): Color = when (p) {
+    "netease", "chksz" -> Color(0xFFC20C0C)
+    "kugou" -> Color(0xFF2CA6E0)
+    "qq" -> Color(0xFF31C27C)
+    "kuwo" -> Color(0xFFE08A00)
+    else -> Color(0xFF8893A7)
+}
+
+/**
+ * 平台小标签：品牌色文字 + 同色浅底。
+ *
+ * 原实现是实底白字的徽标，只能贴在浅色卡片右侧；改成品牌色文字 + 12% 同色底后，
+ * 浅色与深色容器上都能保证对比度，也便于内联排版（如放在歌曲副标题里）。
+ */
+@Composable
+fun PlatformTag(platform: String?, modifier: Modifier = Modifier) {
+    if (platform.isNullOrBlank()) return
+    val color = platformColor(platform)
+    Text(
+        text = platformLabel(platform),
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+        color = color,
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
 }

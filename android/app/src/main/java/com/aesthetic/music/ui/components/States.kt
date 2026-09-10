@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextSoft
 
 import androidx.compose.runtime.compositionLocalOf
@@ -61,7 +62,7 @@ fun LoadingBox(
             }
             Text(
                 text = message,
-                color = TextSoft,
+                color = TextMuted,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -85,7 +86,7 @@ fun ErrorBox(
         ) {
             Text(
                 text = message,
-                color = TextSoft,
+                color = TextMuted,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
             )
@@ -117,7 +118,7 @@ fun EmptyBox(
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = message,
-            color = TextSoft,
+            color = TextMuted,
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )
