@@ -26,11 +26,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
@@ -192,29 +191,23 @@ fun MyPlaylistsScreen(
 
     // 删除歌单确认对话框
     deleteTarget?.let { target ->
-        AlertDialog(
+        AppDialog(
             onDismissRequest = { deleteTarget = null },
-            containerColor = Surface,
-            title = { Text("删除歌单") },
-            text = {
-                val syncNote = if (target.cloudId.isNotBlank())
-                    "\n该歌单已同步云端，删除后云端歌单也会一并删除。"
-                else ""
-                Text(
-                    "确认删除《${target.name}》？\n歌单内 ${target.songs.size} 首歌曲记录将一并移除。$syncNote\n此操作不可恢复。",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+            title = "删除歌单",
+            confirmText = "删除",
+            onConfirm = {
+                onDelete(target.id)
+                deleteTarget = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(target.id)
-                    deleteTarget = null
-                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
-            },
-        )
+            destructive = true,
+        ) {
+            val syncNote = if (target.cloudId.isNotBlank())
+                "\n该歌单已同步云端，删除后云端歌单也会一并删除。"
+            else ""
+            Text(
+                "确认删除《${target.name}》？\n歌单内 ${target.songs.size} 首歌曲记录将一并移除。$syncNote\n此操作不可恢复。",
+            )
+        }
     }
 
     renameTarget?.let { target ->
@@ -331,58 +324,35 @@ private fun NameDialog(
 ) {
     var input by remember { mutableStateOf(initial) }
 
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        containerColor = Surface, // 强制指定为应用统一的卡片背景，覆盖默认紫光
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-        },
-        text = {
-            BasicTextField(
-                value = input,
-                onValueChange = { if (it.length <= 30) input = it },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Stone100)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                decorationBox = { innerTextField ->
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (input.isEmpty()) {
-                            Text(
-                                text = "请输入歌单名称",
-                                color = TextMuted,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        innerTextField()
+        title = title,
+        confirmText = "确定",
+        onConfirm = { onConfirm(input.trim()) },
+        confirmEnabled = input.isNotBlank(),
+    ) {
+        BasicTextField(
+            value = input,
+            onValueChange = { if (it.length <= 30) input = it },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Stone100)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            decorationBox = { innerTextField ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (input.isEmpty()) {
+                        Text(
+                            text = "请输入歌单名称",
+                            color = TextMuted,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
+                    innerTextField()
                 }
-            )
-        },
-        confirmButton = {
-            TextButton(
-                enabled = input.isNotBlank(),
-                onClick = { onConfirm(input.trim()) }
-            ) {
-                Text(
-                    text = "确定",
-                    color = if (input.isNotBlank()) PrimaryBrown else TextMuted,
-                    fontWeight = FontWeight.Bold
-                )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消", color = TextMuted)
-            }
-        },
-    )
+        )
+    }
 }

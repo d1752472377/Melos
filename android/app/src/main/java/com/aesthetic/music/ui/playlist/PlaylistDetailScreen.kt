@@ -42,15 +42,12 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -77,6 +74,8 @@ import coil.request.ImageRequest
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.ui.components.AppBottomSheet
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongCover
@@ -86,7 +85,6 @@ import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
-import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -629,59 +627,47 @@ fun PlaylistDetailScreen(
 
     // ===== 排序选择弹窗 =====
     if (showSortDialog) {
-        AlertDialog(
+        AppDialog(
             onDismissRequest = { showSortDialog = false },
-            containerColor = Surface,
-            title = {
-                Text(
-                    text = "歌单排序",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    PlaylistSortOrder.entries.forEach { option ->
-                        val selected = sortOrder == option
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selected) PrimaryBrown.copy(alpha = 0.08f) else Color.Transparent)
-                                .clickable {
-                                    sortOrder = option
-                                    showSortDialog = false
-                                }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = option.label,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selected) PrimaryBrown else TextPrimary
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (selected) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    tint = PrimaryBrown,
-                                    modifier = Modifier.size(18.dp)
-                                )
+            title = "歌单排序",
+            confirmText = null,
+            cancelText = "取消",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                PlaylistSortOrder.entries.forEach { option ->
+                    val selected = sortOrder == option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selected) PrimaryBrown.copy(alpha = 0.08f) else Color.Transparent)
+                            .clickable {
+                                sortOrder = option
+                                showSortDialog = false
                             }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = option.label,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) PrimaryBrown else TextPrimary
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (selected) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = PrimaryBrown,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showSortDialog = false }) {
-                    Text("取消", color = TextSoft)
-                }
             }
-        )
+        }
     }
 
     // ===== 单曲更多操作底部抽屉 (SongActionBottomSheet) =====
@@ -816,13 +802,8 @@ private fun SongActionBottomSheet(
     onPlayNext: () -> Unit,
     onDownload: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Surface,
-        dragHandle = null,
     ) {
         Column(
             modifier = Modifier
@@ -946,15 +927,11 @@ private fun AddToPlaylistBottomSheet(
     onSelectPlaylist: (String) -> Unit,
     onCreateAndAdd: (String) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Surface,
-        dragHandle = null,
     ) {
         Column(
             modifier = Modifier
@@ -1074,56 +1051,46 @@ private fun AddToPlaylistBottomSheet(
 
     // 新建歌单对话框
     if (showCreateDialog) {
-        AlertDialog(
+        AppDialog(
             onDismissRequest = {
                 showCreateDialog = false
                 newPlaylistName = ""
             },
-            containerColor = Surface,
-            title = { Text("新建歌单") },
-            text = {
-                BasicTextField(
-                    value = newPlaylistName,
-                    onValueChange = { if (it.length <= 30) newPlaylistName = it },
-                    singleLine = true,
-                    textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Stone100)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    decorationBox = { inner ->
-                        if (newPlaylistName.isEmpty()) {
-                            Text("请输入歌单名称", color = TextMuted, fontSize = 14.sp)
-                        }
-                        inner()
-                    }
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = newPlaylistName.trim().isNotEmpty(),
-                    onClick = {
-                        val name = newPlaylistName.trim()
-                        if (name.isNotEmpty()) {
-                            onCreateAndAdd(name)
-                            showCreateDialog = false
-                            newPlaylistName = ""
-                        }
-                    }
-                ) {
-                    Text("创建并添加", color = if (newPlaylistName.isNotBlank()) PrimaryBrown else TextMuted)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
+            title = "新建歌单",
+            confirmText = "创建并添加",
+            onConfirm = {
+                val name = newPlaylistName.trim()
+                if (name.isNotEmpty()) {
+                    onCreateAndAdd(name)
                     showCreateDialog = false
                     newPlaylistName = ""
-                }) {
-                    Text("取消", color = TextSoft)
                 }
-            }
-        )
+            },
+            confirmEnabled = newPlaylistName.trim().isNotEmpty(),
+            cancelText = "取消",
+            onCancel = {
+                showCreateDialog = false
+                newPlaylistName = ""
+            },
+        ) {
+            BasicTextField(
+                value = newPlaylistName,
+                onValueChange = { if (it.length <= 30) newPlaylistName = it },
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Stone100)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                decorationBox = { inner ->
+                    if (newPlaylistName.isEmpty()) {
+                        Text("请输入歌单名称", color = TextMuted, fontSize = 14.sp)
+                    }
+                    inner()
+                }
+            )
+        }
 
     }
 

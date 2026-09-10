@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,13 +27,9 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +48,8 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.ui.components.AppBottomSheet
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -66,7 +63,6 @@ import com.aesthetic.music.ui.theme.TextSoft
  * 歌单中心页（重新设计）：
  * 只展示自建歌单，空状态提示新建或导入
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistScreen(
     myPlaylists: List<MyPlaylist>,
@@ -242,18 +238,16 @@ fun PlaylistScreen(
 
     // 底部抽屉：歌单操作
     if (showBottomSheet && selectedPlaylist != null) {
-        ModalBottomSheet(
+        AppBottomSheet(
             onDismissRequest = {
                 showBottomSheet = false
                 selectedPlaylist = null
             },
-            containerColor = Surface,
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .navigationBarsPadding()
                     .padding(bottom = 20.dp)
             ) {
                 // 歌单名称
@@ -328,111 +322,82 @@ fun PlaylistScreen(
 
     // 删除歌单确认对话框
     deleteTarget?.let { target ->
-        AlertDialog(
+        AppDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("删除歌单") },
-            text = {
-                val syncNote = if (target.cloudId.isNotBlank())
-                    "\n该歌单已同步云端，删除后云端也将删除"
-                else ""
-                Text(
-                    "确认删除《${target.name}》？\n歌单内 ${target.songs.size} 首歌曲记录将一并移除，此操作不可恢复。$syncNote",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+            title = "删除歌单",
+            confirmText = "删除",
+            onConfirm = {
+                onDeletePlaylist(target.id)
+                deleteTarget = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeletePlaylist(target.id)
-                    deleteTarget = null
-                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
-            },
-        )
+            destructive = true,
+        ) {
+            val syncNote = if (target.cloudId.isNotBlank())
+                "\n该歌单已同步云端，删除后云端也将删除"
+            else ""
+            Text(
+                "确认删除《${target.name}》？\n歌单内 ${target.songs.size} 首歌曲记录将一并移除，此操作不可恢复。$syncNote",
+            )
+        }
     }
 
     // 新建歌单对话框
     if (showCreateDialog) {
-        AlertDialog(
+        AppDialog(
             onDismissRequest = {
                 showCreateDialog = false
                 newPlaylistName = ""
             },
-            title = { Text("新建歌单") },
-            text = {
-                BasicTextField(
-                    value = newPlaylistName,
-                    onValueChange = { if (it.length <= 30) newPlaylistName = it },
-                    singleLine = true,
-                    textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Stone100)
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = newPlaylistName.trim().isNotEmpty(),
-                    onClick = {
-                        if (newPlaylistName.isNotBlank()) {
-                            onCreatePlaylist(newPlaylistName.trim())
-                            showCreateDialog = false
-                            newPlaylistName = ""
-                        }
-                    }
-                ) {
-                    Text(
-                        "创建",
-                        color = if (newPlaylistName.isNotBlank()) PrimaryBrown else TextMuted
-                    )
+            title = "新建歌单",
+            confirmText = "创建",
+            onConfirm = {
+                if (newPlaylistName.isNotBlank()) {
+                    onCreatePlaylist(newPlaylistName.trim())
+                    showCreateDialog = false
+                    newPlaylistName = ""
                 }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showCreateDialog = false
-                        newPlaylistName = ""
-                    }
-                ) { Text("取消", color = TextSoft) }
-            }
-        )
+            confirmEnabled = newPlaylistName.trim().isNotEmpty(),
+        ) {
+            BasicTextField(
+                value = newPlaylistName,
+                onValueChange = { if (it.length <= 30) newPlaylistName = it },
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Stone100)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            )
+        }
     }
 
     // 重命名歌单对话框
     renameTarget?.let { target ->
-        AlertDialog(
+        AppDialog(
             onDismissRequest = { renameTarget = null },
-            title = { Text("重命名歌单") },
-            text = {
-                BasicTextField(
-                    value = renameText,
-                    onValueChange = { renameText = it },
-                    singleLine = true,
-                    textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Stone100)
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                )
+            title = "重命名歌单",
+            confirmText = "保存",
+            onConfirm = {
+                if (renameText.isNotBlank()) {
+                    onRenamePlaylist(target.id, renameText.trim())
+                    renameTarget = null
+                }
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (renameText.isNotBlank()) {
-                            onRenamePlaylist(target.id, renameText.trim())
-                            renameTarget = null
-                        }
-                    }
-                ) { Text("保存", color = PrimaryBrown) }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("取消", color = TextSoft) }
-            }
-        )
+        ) {
+            BasicTextField(
+                value = renameText,
+                onValueChange = { renameText = it },
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Stone100)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            )
+        }
     }
 }
 
