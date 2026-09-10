@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import com.aesthetic.music.BuildConfig
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +76,7 @@ object UpdateService {
     }
 
     /** 下载 APK 到外部存储 updates 目录，返回本地路径 */
+    @RequiresApi(Build.VERSION_CODES.FROYO)
     suspend fun downloadApk(
         context: Context,
         info: UpdateInfo,
