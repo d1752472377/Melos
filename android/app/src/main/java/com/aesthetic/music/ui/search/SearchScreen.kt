@@ -26,10 +26,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,7 +41,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,10 +62,16 @@ import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.MainViewModel
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
+import com.aesthetic.music.ui.components.AddToPlaylistSheet
+import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.DangerTextButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.LoadingBox
+import com.aesthetic.music.ui.components.LocalBottomBarPadding
+import com.aesthetic.music.ui.components.PlatformTag
+import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.theme.Background
@@ -73,24 +85,32 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 全局搜索页（独立页面，不再寄生在歌单 Tab）：
- * - 顶部搜索框（自动聚焦，IME 搜索键立即提交）；
- * - 平台切换：全部平台 / 网易云 / 酷狗 / QQ / 酷我（仅单曲 Tab 生效）；
- * - 类型 Tab：单曲 / 歌手 / 歌单 / 专辑 / 歌词；
- * - 未输入时展示：最近搜索（本地持久化）+ 热门搜索（netease 官方热搜）。
+ * 全局搜索页：
+ * - 顶部搜索框，平台选择内嵌在其右端（仅影响「单曲」）；已去掉返回按钮，退出走系统返回 / 底部 Dock；
+ * - 类型筛选为 tag：单曲 / 歌手 / 歌单 / 专辑 / 歌词；
+ * - 未输入时展示：最近搜索（本地持久化，带二次确认的清空）+ 热门搜索（卡片 + 排序列表）；
+ * - 单曲/歌词结果行右侧「...」打开单曲操作抽屉
+ *   （下一首播放 / 收藏 / 下载 / 加入播放队列 / 添加到歌单）。
  *
- * 单曲/歌词结果每行带平台徽标：播放时按 song.platform 分流到对应音源取直链。
+ * 播放时按 song.platform 分流到对应音源取直链。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     viewModel: MainViewModel,
     currentSong: Song?,
-    onClose: () -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
     onOpenArtist: (ArtistItem) -> Unit,
     onOpenPlaylist: (PlaylistItem) -> Unit,
     onOpenAlbum: (AlbumItem) -> Unit,
+    myPlaylists: List<MyPlaylist>,
+    isSongFavorite: (Song) -> Boolean,
+    onToggleFavorite: (Song) -> Unit,
+    onPlayNext: (Song) -> Unit,
+    onAddToQueue: (Song) -> Unit,
+    onDownloadSong: (Song) -> Unit,
+    onAddToPlaylist: (String, Song) -> Unit,
+    onCreatePlaylist: (String, Song) -> Unit,
 ) {
     val query by viewModel.searchQuery.collectAsState()
     val searchType by viewModel.searchType.collectAsState()
@@ -108,6 +128,11 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
+    // 单曲操作抽屉：点击结果行右侧「...」时记录目标歌曲
+    var songForActionMenu by remember { mutableStateOf<Song?>(null) }
+    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
+    var showClearRecentConfirm by remember { mutableStateOf(false) }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -120,91 +145,70 @@ fun SearchScreen(
                 .padding(top = 24.dp)
                 .padding(bottom = LocalBottomBarPadding.current),
         ) {
-            // ===== 顶部：返回 + 搜索框 =====
+            // ===== 顶部：搜索框（内嵌平台选择） =====
+            // 无返回按钮：退出走系统返回 / 底部 Dock（NavHost 原生接管返回栈）
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .border(1.dp, Stone200, RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Surface)
+                    .clickable {
+                        focusRequester.requestFocus()
+                        keyboard?.show()
+                    }
+                    .padding(start = 14.dp, end = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Surface)
-                        .clickable {
-                            keyboard?.hide()
-                            onClose()
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = PrimaryBrown,
+                    modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f)) {
+                    BasicTextField(
+                        value = query,
+                        onValueChange = viewModel::onSearchQueryChanged,
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 14.sp,
+                            color = TextPrimary,
+                        ),
+                        cursorBrush = SolidColor(PrimaryBrown),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                viewModel.submitSearch()
+                                keyboard?.hide()
+                            },
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                    )
+                    if (query.isEmpty()) {
+                        Text(
+                            "歌名 / 歌手 / 歌单 / 专辑 / 歌词",
+                            color = TextSoft,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                        )
+                    }
+                }
+                if (query.isNotEmpty()) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
+                        Icons.Filled.Close,
+                        contentDescription = "清空",
                         tint = TextMuted,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clickable { viewModel.onSearchQueryChanged("") },
                     )
+                    Spacer(Modifier.width(6.dp))
                 }
-                Spacer(Modifier.width(12.dp))
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                        .border(1.dp, Stone200, RoundedCornerShape(20.dp))
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Surface)
-                        .clickable {
-                            focusRequester.requestFocus()
-                            keyboard?.show()
-                        }
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Filled.Search,
-                        contentDescription = null,
-                        tint = PrimaryBrown,
-                        modifier = Modifier.size(17.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Box(Modifier.weight(1f)) {
-                        BasicTextField(
-                            value = query,
-                            onValueChange = viewModel::onSearchQueryChanged,
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 14.sp,
-                                color = TextPrimary,
-                            ),
-                            cursorBrush = SolidColor(PrimaryBrown),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(
-                                onSearch = {
-                                    viewModel.submitSearch()
-                                    keyboard?.hide()
-                                },
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequester),
-                        )
-                        if (query.isEmpty()) {
-                            Text(
-                                "歌名 / 歌手 / 歌单 / 专辑 / 歌词",
-                                color = TextSoft,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                            )
-                        }
-                    }
-                    if (query.isNotEmpty()) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = "清空",
-                            tint = TextSoft,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clickable { viewModel.onSearchQueryChanged("") },
-                        )
-                    }
-                }
+                PlatformSelector(current = platform, onSelect = viewModel::setSearchPlatform)
             }
 
             // 自动聚焦搜索框：仅在无关键词时聚焦（从歌手页等返回且已有结果时不再顶起键盘）
@@ -223,37 +227,21 @@ fun SearchScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 MainViewModel.SearchType.entries.forEach { type ->
-                    val selected = searchType == type
-                    FilterChipBox(
+                    TypeTag(
                         label = type.label,
-                        selected = selected,
-                        filledSelected = true,
+                        selected = searchType == type,
                         onClick = { viewModel.setSearchType(type) },
                     )
                 }
             }
 
-            // ===== 2. 仅单曲 Tab 展开平台切换（全网直连） =====
-            if (searchType == MainViewModel.SearchType.SONG) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    PlatformFilters.forEach { (label, value) ->
-                        FilterChipBox(
-                            label = label,
-                            selected = platform == value,
-                            onClick = { viewModel.setSearchPlatform(value) },
-                        )
-                    }
-                }
-            } else if (query.isNotBlank()) {
+            // 非单曲类型不涉及平台切换（平台选择器在搜索框内，仅影响单曲）
+            if (searchType != MainViewModel.SearchType.SONG && query.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "该类型结果来自公共平台官方接口",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextFaint,
+                    color = TextMuted,
                 )
             }
 
@@ -281,11 +269,9 @@ fun SearchScreen(
                                 color = TextPrimary,
                                 modifier = Modifier.weight(1f),
                             )
-                            Text(
-                                "清空",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                color = TextSoft,
-                                modifier = Modifier.clickable { viewModel.clearRecentSearches() },
+                            DangerTextButton(
+                                text = "清空",
+                                onClick = { showClearRecentConfirm = true },
                             )
                         }
                         Spacer(Modifier.height(10.dp))
@@ -294,7 +280,7 @@ fun SearchScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             recentSearches.forEach { word ->
-                                WordChip(word = word, accent = false) {
+                                WordChip(word = word) {
                                     viewModel.submitSearch(word)
                                     keyboard?.hide()
                                 }
@@ -312,17 +298,13 @@ fun SearchScreen(
                             color = TextPrimary,
                         )
                         Spacer(Modifier.height(10.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            hotWords.forEachIndexed { idx, word ->
-                                WordChip(word = "${idx + 1}  $word", accent = idx < 3) {
-                                    viewModel.submitSearch(word)
-                                    keyboard?.hide()
-                                }
-                            }
-                        }
+                        HotSearchCard(
+                            words = hotWords,
+                            onPick = { word ->
+                                viewModel.submitSearch(word)
+                                keyboard?.hide()
+                            },
+                        )
                     }
                 }
             } else {
@@ -339,12 +321,14 @@ fun SearchScreen(
                                 currentSong = currentSong,
                                 emptyHint = searchError ?: "没有找到相关的单曲",
                                 onPlay = { song -> onPlaySong(song, songResults) },
+                                onMore = { song -> songForActionMenu = song },
                             )
                             MainViewModel.SearchType.LYRIC -> SongResultList(
                                 songs = lyricResults,
                                 currentSong = currentSong,
                                 emptyHint = searchError ?: "没有匹配歌词的歌曲",
                                 onPlay = { song -> onPlaySong(song, lyricResults) },
+                                onMore = { song -> songForActionMenu = song },
                             )
                             MainViewModel.SearchType.ARTIST -> ArtistResultList(
                                 artists = artistResults,
@@ -365,79 +349,224 @@ fun SearchScreen(
                     }
                 }
             }
+
+            // ===== 单曲操作抽屉 / 收藏到歌单抽屉 / 清空最近搜索确认 =====
+            songForActionMenu?.let { song ->
+                SongActionSheet(
+                    song = song,
+                    isFavorite = isSongFavorite(song),
+                    onDismiss = { songForActionMenu = null },
+                    onToggleFavorite = { onToggleFavorite(song) },
+                    onPlayNext = { onPlayNext(song) },
+                    onAddToQueue = { onAddToQueue(song) },
+                    onDownload = { onDownloadSong(song) },
+                    onAddToPlaylist = {
+                        val target = song
+                        songForActionMenu = null
+                        songForAddToPlaylist = target
+                    },
+                )
+            }
+
+            songForAddToPlaylist?.let { song ->
+                AddToPlaylistSheet(
+                    song = song,
+                    myPlaylists = myPlaylists,
+                    onDismiss = { songForAddToPlaylist = null },
+                    onSelectPlaylist = { playlistId ->
+                        onAddToPlaylist(playlistId, song)
+                        songForAddToPlaylist = null
+                    },
+                    onCreateAndAdd = { newName ->
+                        onCreatePlaylist(newName, song)
+                        songForAddToPlaylist = null
+                    },
+                )
+            }
+
+            if (showClearRecentConfirm) {
+                AppConfirmDialog(
+                    onDismissRequest = { showClearRecentConfirm = false },
+                    title = "清空最近搜索",
+                    message = "将清除全部最近搜索记录。",
+                    confirmText = "清空",
+                    onConfirm = {
+                        showClearRecentConfirm = false
+                        viewModel.clearRecentSearches()
+                    },
+                )
+            }
         }
     }
 }
 
 // ==================== 通用小组件 ====================
 
-/** 平台筛选：label 用于展示，value 为音源 id（null = 全部平台聚合） */
+/** 平台筛选：短标签用于搜索框内的紧凑选择器，value 为音源 id（null = 全部平台聚合） */
 private val PlatformFilters = listOf(
-    "全部平台" to null,
-    "网易云" to "netease",
+    "全部" to null,
+    "网易" to "netease",
     "酷狗" to "kugou",
     "QQ" to "qq",
     "酷我" to "kuwo",
 )
 
-/** 筛选小胶囊：平台切换用描边样式、类型 Tab 用实底选中 */
+/** 最近搜索词条：圆角收到 6dp（原先 15dp 接近胶囊），文字用 TextMuted 保证对比度达标 */
 @Composable
-private fun FilterChipBox(
-    label: String,
-    selected: Boolean,
-    filledSelected: Boolean = false,
-    onClick: () -> Unit,
-) {
-    val bg = when {
-        selected && filledSelected -> PrimaryBrown
-        selected -> PrimaryBrown.copy(alpha = 0.12f)
-        else -> Surface
-    }
-    val fg = when {
-        selected && filledSelected -> Color.White
-        selected -> PrimaryBrown
-        else -> TextSoft
-    }
+private fun WordChip(word: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(bg)
-            .then(
-                if (!filledSelected || !selected) {
-                    Modifier.border(1.dp, Stone200, RoundedCornerShape(14.dp))
-                } else Modifier
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-    ) {
-        Text(label, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), color = fg)
-    }
-}
-
-/** 最近/热搜词条 */
-@Composable
-private fun WordChip(word: String, accent: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .border(1.dp, Stone200, RoundedCornerShape(15.dp))
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (accent) Surface else Stone100)
+            .border(1.dp, Stone200, RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(6.dp))
+            .background(Stone100)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
             word,
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-            color = if (accent) TextPrimary else TextSoft,
+            color = TextMuted,
             maxLines = 1,
         )
+    }
+}
+
+/**
+ * 类型筛选 tag。
+ *
+ * 用户要求把「单曲/歌手/歌单/专辑/歌词」从实底按钮改成 tag：选中态用主色淡底 + 主色文字，
+ * 未选中只留弱描边，视觉重量明显低于按钮，不再和结果行抢注意力。
+ */
+@Composable
+private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Color.Transparent)
+            .then(
+                if (selected) Modifier
+                else Modifier.border(1.dp, Stone200, RoundedCornerShape(8.dp))
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+            color = if (selected) PrimaryBrown else TextMuted,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
+}
+
+/** 搜索框内的平台选择器：显示当前平台，点击弹出下拉菜单 */
+@Composable
+private fun PlatformSelector(current: String?, onSelect: (String?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val label = PlatformFilters.firstOrNull { it.second == current }?.first ?: PlatformFilters.first().first
+
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(Stone100)
+                .clickable { expanded = true }
+                .padding(start = 9.dp, end = 5.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                color = if (current == null) TextMuted else PrimaryBrown,
+                fontWeight = FontWeight.Medium,
+            )
+            Icon(
+                Icons.Filled.ArrowDropDown,
+                contentDescription = "选择搜索平台",
+                tint = TextMuted,
+                modifier = Modifier.size(15.dp),
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = Surface,
+        ) {
+            PlatformFilters.forEach { (name, value) ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = if (value == current) PrimaryBrown else TextPrimary,
+                            fontWeight = if (value == current) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(value)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** 热门搜索卡片：展示为带序号的排序列表，前三名主色加粗 */
+@Composable
+private fun HotSearchCard(words: List<String>, onPick: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Surface),
+    ) {
+        words.forEachIndexed { idx, word ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPick(word) }
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${idx + 1}",
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                    color = if (idx < 3) PrimaryBrown else TextMuted,
+                    fontWeight = if (idx < 3) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.width(26.dp),
+                )
+                Text(
+                    text = word,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (idx != words.lastIndex) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 14.dp),
+                    thickness = 0.5.dp,
+                    color = Stone200.copy(alpha = 0.6f),
+                )
+            }
+        }
     }
 }
 
 // ==================== 结果列表 ====================
 
 @Composable
-private fun SongResultList(songs: List<Song>, currentSong: Song?, emptyHint: String, onPlay: (Song) -> Unit) {
+private fun SongResultList(
+    songs: List<Song>,
+    currentSong: Song?,
+    emptyHint: String,
+    onPlay: (Song) -> Unit,
+    onMore: (Song) -> Unit,
+) {
     if (songs.isEmpty()) {
         EmptyHint(emptyHint)
         return
@@ -450,7 +579,12 @@ private fun SongResultList(songs: List<Song>, currentSong: Song?, emptyHint: Str
         ) { _, song ->
             val playingNow = currentSong != null &&
                 song.id == currentSong.id && song.platform == currentSong.platform
-            ResultSongRow(song = song, isPlaying = playingNow, onClick = { onPlay(song) })
+            ResultSongRow(
+                song = song,
+                isPlaying = playingNow,
+                onPlay = { onPlay(song) },
+                onMore = { onMore(song) },
+            )
         }
     }
 }
@@ -513,7 +647,7 @@ private fun ArtistResultList(artists: List<ArtistItem>, emptyHint: String, onOpe
                         )
                     }
                 }
-                PlatformBadge(artist.platform)
+                PlatformTag(artist.platform)
             }
         }
     }
@@ -561,7 +695,7 @@ private fun PlaylistResultList(playlists: List<PlaylistItem>, emptyHint: String,
                         Text(count, style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = TextSoft)
                     }
                 }
-                PlatformBadge(p.platform)
+                PlatformTag(p.platform)
             }
         }
     }
@@ -605,87 +739,89 @@ private fun AlbumResultList(albums: List<AlbumItem>, emptyHint: String, onOpen: 
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                PlatformBadge(album.platform)
+                PlatformTag(album.platform)
             }
         }
     }
 }
 
-/** 单曲/歌词搜索结果行：封面 + 标题 + 副标题 + 平台徽标（播放时按 platform 分流音源） */
+/**
+ * 单曲/歌词搜索结果行。
+ * 封面 48dp + 15sp 标题；平台改为标题下方的彩色小标签；最右侧「...」打开单曲操作抽屉。
+ */
 @Composable
-private fun ResultSongRow(song: Song, isPlaying: Boolean, onClick: () -> Unit) {
+private fun ResultSongRow(
+    song: Song,
+    isPlaying: Boolean,
+    onPlay: () -> Unit,
+    onMore: () -> Unit,
+) {
+    val subtitle = listOfNotNull(
+        song.artist.ifBlank { null },
+        song.album.ifBlank { null },
+    ).joinToString(" · ")
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 1.dp,
                 if (isPlaying) PrimaryBrown.copy(alpha = 0.5f) else Stone200.copy(alpha = 0.6f),
-                RoundedCornerShape(10.dp),
+                RoundedCornerShape(12.dp),
             )
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Surface)
-            .clickable(onClick = onClick)
-            .padding(8.dp),
+            .clickable(onClick = onPlay)
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SongCover(song.artwork, Modifier.size(44.dp), corner = 8.dp)
-        Spacer(Modifier.width(10.dp))
+        SongCover(song.artwork, Modifier.size(48.dp), corner = 10.dp)
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = song.title,
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 13.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
-                color = TextPrimary,
+                color = if (isPlaying) PrimaryBrown else TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(1.dp))
-            Text(
-                text = song.subtitleText,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = TextSoft,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!song.platform.isNullOrBlank()) {
+                    PlatformTag(song.platform)
+                    if (subtitle.isNotBlank()) Spacer(Modifier.width(6.dp))
+                }
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = TextSoft,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.width(4.dp))
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onMore),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.MoreHoriz,
+                contentDescription = "更多操作",
+                tint = TextMuted,
+                modifier = Modifier.size(20.dp),
             )
         }
-        Spacer(Modifier.width(8.dp))
-        PlatformBadge(song.platform)
     }
-}
-
-// ==================== 平台徽标 ====================
-
-private fun platformLabel(p: String?): String = when (p) {
-    "netease", "chksz" -> "网易"
-    "kugou" -> "酷狗"
-    "qq" -> "QQ"
-    "kuwo" -> "酷我"
-    null -> ""
-    else -> p.take(3)
-}
-
-private fun platformColor(p: String?): Color = when (p) {
-    "netease", "chksz" -> Color(0xFFC20C0C)
-    "kugou" -> Color(0xFF2CA6E0)
-    "qq" -> Color(0xFF31C27C)
-    "kuwo" -> Color(0xFFE08A00)
-    else -> Color(0xFF8893A7)
-}
-
-@Composable
-private fun PlatformBadge(platform: String?) {
-    if (platform.isNullOrBlank()) return
-    Text(
-        text = platformLabel(platform),
-        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Medium),
-        color = Color.White,
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(platformColor(platform).copy(alpha = 0.85f))
-            .padding(horizontal = 5.dp, vertical = 2.dp),
-    )
 }
 
 // ==================== 杂项 ====================

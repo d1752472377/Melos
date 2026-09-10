@@ -424,7 +424,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         SearchScreen(
                             viewModel = viewModel,
                             currentSong = playerState.currentSong,
-                            onClose = { navController.popBackStack() },
                             onPlaySong = { song, list -> playSong(song, list) },
                             onOpenArtist = { artist ->
                                 viewModel.openArtist(artist)
@@ -437,6 +436,27 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onOpenAlbum = { album ->
                                 viewModel.openAlbum(album)
                                 navController.navigate(ScreenRoute.AlbumDetail.route)
+                            },
+                            myPlaylists = myPlaylists,
+                            isSongFavorite = viewModel::isFavorite,
+                            onToggleFavorite = viewModel::toggleFavorite,
+                            onPlayNext = { song ->
+                                playerManager.playNext(song)
+                                viewModel.showToast("已设为下一首播放")
+                            },
+                            onAddToQueue = { song ->
+                                playerManager.addToQueue(song)
+                                viewModel.showToast("已加入播放队列")
+                            },
+                            onDownloadSong = { song -> viewModel.downloadSong(context, song) },
+                            onAddToPlaylist = { playlistId, song ->
+                                viewModel.addSongsToPlaylist(playlistId, listOf(song))
+                                val target = myPlaylists.firstOrNull { it.id == playlistId }
+                                viewModel.showToast("已添加到「${target?.name ?: "歌单"}」")
+                            },
+                            onCreatePlaylist = { name, song ->
+                                viewModel.createPlaylist(name, listOf(song))
+                                viewModel.showToast("已创建并加入「$name」")
                             },
                         )
                     }
