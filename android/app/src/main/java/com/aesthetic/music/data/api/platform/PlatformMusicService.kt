@@ -559,7 +559,11 @@ object PlatformMusicService {
                             previewSongs = songs.map { s ->
                                 if (s.artist.isNotBlank()) "${s.title} - ${s.artist}" else s.title
                             }
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) {
+                            // 预览歌单拉取失败不影响分类本身可用，但仍需留痕：
+                            // 若长期失败说明该分类的 playlistId 已失效，需要后台更新
+                            Log.w("PlatformMusicService", "分类预览歌单拉取失败: $pId", e)
+                        }
                     }
 
                     categories.add(

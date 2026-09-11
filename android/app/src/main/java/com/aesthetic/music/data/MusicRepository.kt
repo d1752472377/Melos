@@ -1,5 +1,6 @@
 package com.aesthetic.music.data
 
+import android.util.Log
 import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.api.AlbumDetailData
 import com.aesthetic.music.data.api.AlbumItem
@@ -36,6 +37,10 @@ import kotlinx.coroutines.CancellationException
 class MusicRepository(
     private val api: MusicApi = ApiClient.api,
 ) {
+
+    private companion object {
+        const val TAG = "MusicRepository"
+    }
 
     private suspend fun <T> apiCatching(block: suspend () -> T): Result<T> = try {
         Result.success(block())
@@ -108,7 +113,11 @@ class MusicRepository(
             if (!direct.url.isNullOrBlank()) {
                 return@apiCatching direct
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            // 平台直连兜底也失败。这里仍会抛"请导入音源脚本"，但记录原因才能区分
+            // "平台接口变更"与"网络问题"——此前静默吞掉，线上只能看到一句通用提示。
+            Log.w(TAG, "平台直连兜底失败 ${song.platform}:${song.id}", e)
+        }
 
         throw Exception("未获取到播放直链，请在「设置」中导入音源脚本以获得高品质音源")
     }
