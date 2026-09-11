@@ -6,11 +6,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.AlbumItem
-import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.artist.ArtistController
+import com.aesthetic.music.ui.artist.ArtistRef
 import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.home.ContentController
@@ -61,6 +62,9 @@ class MainViewModel : ViewModel() {
 
     // 歌单广场：已抽到 SheetController（见 ui/sheet/SheetController.kt）
     private val sheet = SheetController(repository, viewModelScope)
+
+    // 歌手页：已抽到 ArtistController（见 ui/artist/ArtistController.kt）
+    private val artistPage = ArtistController(repository, viewModelScope)
 
     // 页面/弹层状态
     private val _currentTab = MutableStateFlow(AppTab.HOME)
@@ -188,9 +192,6 @@ class MainViewModel : ViewModel() {
     /** 专辑详情请求令牌（openAlbum 用，防快速切换专辑时旧响应覆盖新数据） */
     @Volatile
     private var albumRequestId = 0L
-    /** 歌手详情请求令牌（openArtist 用，同上） */
-    @Volatile
-    private var artistRequestId = 0L
 
     /**
      * 云同步串行互斥锁 + 待发标记：
@@ -269,18 +270,11 @@ class MainViewModel : ViewModel() {
     private val _quality = MutableStateFlow(SettingsStore.getQuality())
     val quality = _quality.asStateFlow()
 
-    // 歌手页
-    private val _showArtist = MutableStateFlow<ArtistRef?>(null)
-    val showArtist = _showArtist.asStateFlow()
-    private val _artistDetail = MutableStateFlow<ArtistDetailData?>(null)
-    val artistDetail: StateFlow<ArtistDetailData?> = _artistDetail.asStateFlow()
-    private val _isLoadingArtist = MutableStateFlow(false)
-    val isLoadingArtist = _isLoadingArtist.asStateFlow()
-    private val _artistError = MutableStateFlow<String?>(null)
-    val artistError = _artistError.asStateFlow()
-
-    /** 歌手页定位信息（平台内标识） */
-    data class ArtistRef(val platform: String, val id: String, val name: String)
+    // 歌手页：已抽到 ArtistController，保留同名只读委托
+    val showArtist get() = artistPage.showArtist
+    val artistDetail get() = artistPage.artistDetail
+    val isLoadingArtist get() = artistPage.isLoading
+    val artistError get() = artistPage.error
 
     init {
         // 冷启动异步加载持久化数据（历史/收藏/歌单），完成后与窗口期内已发生的变更合并，
@@ -551,43 +545,13 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ==================== 歌手页 ====================
+    // ==================== 歌手页（委托 ArtistController） ====================
 
-    fun openArtist(artist: ArtistItem) {
-        openArtist(
-            ArtistRef(
-                platform = artist.platform ?: "netease",
-                id = artist.id,
-                name = artist.name,
-            )
-        )
-    }
+    fun openArtist(artist: ArtistItem) = artistPage.open(artist)
 
-    fun openArtist(ref: ArtistRef) {
-        _showArtist.value = ref
-        val req = ++artistRequestId
-        viewModelScope.launch {
-            _isLoadingArtist.value = true
-            _artistDetail.value = null
-            _artistError.value = null
-            repository.getArtist(ref.platform, ref.id).onSuccess { detail ->
-                // 请求在途期间用户已打开别的歌手：丢弃过期响应
-                if (req != artistRequestId) return@launch
-                _artistDetail.value = detail
-            }.onFailure { e ->
-                if (req != artistRequestId) return@launch
-                // 失败要可见：否则页面显示"暂无相关歌曲"，把网络错误伪装成歌手无作品
-                _artistError.value = e.message ?: "获取歌手失败"
-            }
-            if (req == artistRequestId) _isLoadingArtist.value = false
-        }
-    }
+    fun openArtist(ref: ArtistRef) = artistPage.open(ref)
 
-    fun closeArtist() {
-        _showArtist.value = null
-        _artistDetail.value = null
-        _artistError.value = null
-    }
+    fun closeArtist() = artistPage.close()
 
     fun addToHistory(song: Song) {
         val list = _history.value.toMutableList().apply {
@@ -1306,8 +1270,7 @@ class MainViewModel : ViewModel() {
         _currentTab.value = tab
         // 切 Tab 时关闭二级页面（搜索/歌单详情/歌手页/收藏页/最近播放等覆盖层），否则会盖住新 Tab 内容
         _showPlaylistDetail.value = null
-        _showArtist.value = null
-        _artistDetail.value = null
+        artistPage.close()
         _showFavorites.value = false
         _showCacheList.value = false
         _showMyPlaylists.value = false
