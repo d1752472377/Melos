@@ -61,4 +61,5 @@ Thumbs.db
 # ---- Vercel CLI 本地元数据 ----
 .vercel/
 .env*
-!**/.env.example
+!**/.env.example"*.tar.gz" 
+"*.tgz" 
