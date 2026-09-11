@@ -152,12 +152,21 @@
 <section>
   <h2><span class="n">0</span>本轮修复进展</h2>
   <p>以下条目已在本次会话中实际修改并验证（<code>BUILD SUCCESSFUL</code>、Lint 0 Error、84 项单元测试全绿）。</p>
-  <h3>第六批 · 拆分 MainViewModel（进行中）</h3>
+  <h3>第六批 · 拆分 MainViewModel（进行中：已抽出 FM + 脚本两个域）</h3>
   <div class="road">
     <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已完成 FM 域</span><div>
       <b>P1-1（部分）· FM 电台抽出为 <code>FmController</code></b> — FM 是自成一体的一个域：自带完整状态（当前频道/风格/队列/索引/加载态/宝藏歌单）与算法（种子池开拉 → 漂移歌手补池 → 去重入队），此前混在 1600 余行 ViewModel 里，改一行都要通读全文确认影响面。<br>
       <code>MainViewModel</code> <strong>1686 → 1561 行</strong>，新增 <code>ui/fm/FmController.kt</code> 231 行。<code>FmChannel</code> 随域迁到 <code>ui.fm</code> 包。<br>
       <strong>视图层零改动</strong>：MainViewModel 保留同名只读委托（<code>val fmQueue get() = fm.queue</code> 等），AppShell 的 20 处 <code>viewModel.fm*</code> 调用全部原样可用。这属于"绞杀者模式"的中间态，后续可让 FM 页直接持有控制器。
+    </div></div>
+    <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已完成 脚本域</span><div>
+      <b>P1-1（部分）· 音源脚本抽出为 <code>ScriptController</code></b> — 脚本生命周期（导入 / 重载 / 卸载 / 本地切换）同样自成一域：状态来自 <code>UserApiEngine</code> 与 <code>ScriptCatalogStore</code>，操作只有"把脚本送进沙箱执行"。与 UI 的唯一耦合是"给用户一句提示"，通过 <code>onToast</code> 回调注入。<br>
+      新增 <code>ui/script/ScriptController.kt</code> 185 行。顺手修掉一处资源泄漏：原 <code>importScriptFromUrl</code> 的 <code>client.newCall(req).execute()</code> 没有关闭响应体，已改为 <code>.use { }</code>。
+    </div></div>
+    <div class="step"><span class="tag" style="background:var(--red-bg);color:var(--red);border-color:var(--red-bd)">顺带发现</span><div>
+      <b>"云端音源脚本目录 + 本地切换"整条链路未实现</b> — 抽取时核对数据流发现：<code>ScriptCatalogStore.saveAll()</code> 在全仓库<strong>没有任何调用点</strong>，<code>ScriptCatalogEntry</code> <strong>没有任何构造点</strong>，且同步响应模型 <code>CloudSyncPullData</code> <strong>根本没有脚本字段</strong>（只有 favorites / history / playlists / playlistSongs / playEvents）。<br>
+      因此 <code>ScriptCatalogStore.list()</code> 恒为空 → <code>scriptCatalog</code> 恒为空 → <code>switchScript(id)</code> 永远走"未找到该音源脚本"分支。<br>
+      <strong>实际影响比看起来小</strong>：设置页对该列表加了 <code>isNotEmpty()</code> 判断，所以界面不会出现空目录或报错——「音源脚本目录」这一节只是永远不显示。属于"客户端管道已铺好、数据源缺失"的半成品，不是崩溃点。但这也意味着<strong>不能对外宣称支持"云端切换音源"</strong>。已在 <code>ScriptController</code> 里写明该缺口。
     </div></div>
     <div class="step"><span class="tag" style="background:var(--amber-bg);color:var(--amber);border-color:var(--amber-bd)">抽取要点</span><div>
       <b>一个必须保住的隐藏语义</b> — <code>fmToggleLike</code> 判断"是否已收藏"时，检查的是 <code>platform:id</code> <strong>或裸 <code>song.id</code></strong>；而 ViewModel 的 <code>isFavorite()</code> 只认前者。这个额外的裸 id 分支是历史数据兼容（旧版本只存了 id）。抽取时若图省事直接注入 <code>isFavorite()</code>，老用户在 FM 里的收藏状态会被判为未收藏——所以注入的是等价谓词，并在代码里写明原因。
@@ -242,7 +251,7 @@
       <tr><td>测试是否会被提交</td><td><span class="b b-p0">被 .gitignore 吞掉</span></td><td><span class="b b-ok">正常纳入版本控制</span></td></tr>
       <tr><td>token 存储</td><td>明文</td><td><span class="b b-ok">AES-256-GCM 加密</span></td></tr>
       <tr><td>升级包摘要</td><td>MD5</td><td><span class="b b-ok">SHA-256（保留 MD5 回退）</span></td></tr>
-      <tr><td>MainViewModel 行数</td><td>1,612</td><td><span class="b b-ok">1,561（FM 域已抽出）</span></td></tr>
+      <tr><td>MainViewModel 行数</td><td>1,612</td><td><span class="b b-ok">1,444（FM + 脚本域已抽出）</span></td></tr>
       <tr><td>静默吞异常</td><td>16 处</td><td><span class="b b-ok">0 处（保留降级 + 留日志）</span></td></tr>
       <tr><td>公开可变状态（MutableStateFlow）</td><td>56 处</td><td><span class="b b-ok">0 处（97 处统一封装）</span></td></tr>
       <tr><td>视图层直接写 ViewModel 状态</td><td>7 处</td><td><span class="b b-ok">0 处（改为方法调用）</span></td></tr>
@@ -250,7 +259,7 @@
   </table>
 
   <h3>仍未处理</h3>
-  <p><strong>P1-1 剩余部分</strong>：<code>MainViewModel</code> 仍有 1,561 行，尚待抽出「音源脚本」「私有云同步」「搜索」「歌单」等域。云同步那块最复杂（互斥锁 + 待发标记 + LWW 合并 + 已删歌单重放 + 请求令牌），建议单独一次会话处理。<br>
+  <p><strong>P1-1 剩余部分</strong>：<code>MainViewModel</code> 仍有 1,444 行，尚待抽出「音源脚本」「私有云同步」「搜索」「歌单」等域。云同步那块最复杂（互斥锁 + 待发标记 + LWW 合并 + 已删歌单重放 + 请求令牌），建议单独一次会话处理。<br>
   <strong>P1-2</strong>：AppShell 的 942 行单 Composable 未动——该文件当前有未提交的并行改动，此时重构会冲突。<br>
   <code>MainViewModel</code> 的请求令牌逻辑仍缺测试覆盖。</p>
   <p><strong>待你确认的一项</strong>：方括号逐字格式（见「第三批」）究竟是 bug 还是 KDoc 示例写错了。若能提供一份真实的该格式歌词样本，即可定论。</p>
@@ -315,7 +324,7 @@
     <div class="m"><div class="k">Lint Error</div><div class="v ok">0</div></div>
     <div class="m"><div class="k">Lint 警告 / 提示</div><div class="v warn">79<small> 现</small></div></div>
     <div class="m"><div class="k">单元测试</div><div class="v ok">84<small> 项通过</small></div></div>
-    <div class="m"><div class="k">最大单文件</div><div class="v warn">1,561<small> 行</small></div></div>
+    <div class="m"><div class="k">最大单文件</div><div class="v warn">1,444<small> 行</small></div></div>
     <div class="m"><div class="k">最大单 Composable</div><div class="v bad">942<small> 行</small></div></div>
     <div class="m"><div class="k">硬编码中文串</div><div class="v warn">816<small> 处</small></div></div>
     <div class="m"><div class="k">string 资源</div><div class="v bad">1<small> 条</small></div></div>
