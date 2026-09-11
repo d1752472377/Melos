@@ -33,6 +33,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -48,7 +49,7 @@ import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
-
+import com.aesthetic.music.R
 // --- 1. 更新数据模型：加入图标资源字段 ---
 data class PlatformItem(
     val name: String,
@@ -60,15 +61,13 @@ data class PlatformItem(
 // --- 2. 配置平台数据源 ---
 // TODO: 把 iconRes 换成你项目里真实的图片资源，例如 R.drawable.ic_qq_music
 private val PlatformFilters = listOf(
-    PlatformItem("全部平台", null, Color(0xFF9E9E9E), null),
-    PlatformItem("网易云", "netease", Color(0xFFE53935), null), // 示例：R.drawable.ic_netease
-    PlatformItem("QQ", "qq", Color(0xFFFDD835), null),          // 示例：R.drawable.ic_qq
-    PlatformItem("酷狗", "kugou", Color(0xFF1E88E5), null),
-    PlatformItem("酷我", "kuwo", Color(0xFFFFB300), null),
-    PlatformItem("咪咕", "migu", Color(0xFFEC407A), null),
-    PlatformItem("汽水音乐", "qishui", Color(0xFF66BB6A), null)
-)
+    PlatformItem("全部平台", null, Color(0xFF9E9E9E), R.drawable.ic_music),
 
+    PlatformItem("网易云", "netease", Color(0xFFE53935), R.drawable.ic_netease_music),
+    PlatformItem("QQ", "qq", Color(0xFFFDD835), R.drawable.ic_qq_music),
+    PlatformItem("酷狗", "kugou", Color(0xFF1E88E5), R.drawable.ic_kugou_music),
+    PlatformItem("酷我", "kuwo", Color(0xFFFFB300), R.drawable.ic_kuwo_music)
+)
 @Composable
 fun SearchInputBar(
     query: String,
@@ -238,11 +237,13 @@ private fun PlatformSelector(
 @Composable
 private fun PlatformIcon(item: PlatformItem, size: androidx.compose.ui.unit.Dp) {
     if (item.iconRes != null) {
-        // 如果有真实图片，直接加载
+        // 统一由代码里的 size 控制显示尺寸（已去掉圆形裁剪），按 ContentScale.Fit 等比缩放，
+        // 这样各图标即便固有尺寸/留白不同，显示的边长也一致。
         Image(
             painter = painterResource(id = item.iconRes),
             contentDescription = item.name,
-            modifier = Modifier.size(size).clip(CircleShape)
+            modifier = Modifier.size(size),
+            contentScale = ContentScale.Fit,
         )
     } else {
         // 如果没有图片，回退显示彩色圆圈+首字母（为了让你现在能跑通）
