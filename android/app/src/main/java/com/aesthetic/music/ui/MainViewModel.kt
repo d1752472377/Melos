@@ -17,6 +17,7 @@ import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.library.LibraryController
+import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.script.ScriptController
 import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
@@ -76,6 +77,10 @@ class MainViewModel : ViewModel() {
     // 全局搜索：已抽到 SearchController（见 ui/search/SearchController.kt）
     private val search = SearchController(repository, viewModelScope)
 
+    // 歌单/榜单详情：已抽到 PlaylistDetailController（见 ui/playlist/PlaylistDetailController.kt）
+    private val playlistDetail =
+        PlaylistDetailController(repository, viewModelScope, onToast = { _appToast.value = it })
+
     // 页面/弹层状态
     private val _currentTab = MutableStateFlow(AppTab.HOME)
     val currentTab = _currentTab.asStateFlow()
@@ -85,8 +90,7 @@ class MainViewModel : ViewModel() {
     val showThemeSheet = _showThemeSheet.asStateFlow()
     private val _showSettings = MutableStateFlow(false)
     val showSettings = _showSettings.asStateFlow()
-    private val _showPlaylistDetail = MutableStateFlow<PlaylistItem?>(null)
-    val showPlaylistDetail = _showPlaylistDetail.asStateFlow()
+    val showPlaylistDetail get() = playlistDetail.showDetail
     private val _showImportDialog = MutableStateFlow(false)
     val showImportDialog = _showImportDialog.asStateFlow()
     private val _showFavorites = MutableStateFlow(false)
@@ -111,7 +115,7 @@ class MainViewModel : ViewModel() {
     fun closePlayer() { _showPlayer.value = false }
     fun openImportDialog() { _showImportDialog.value = true }
     fun closeImportDialog() { _showImportDialog.value = false }
-    fun closePlaylistDetail() { _showPlaylistDetail.value = null }
+    fun closePlaylistDetail() = playlistDetail.close()
 
 
 
@@ -172,19 +176,10 @@ class MainViewModel : ViewModel() {
     private val _showRanks = MutableStateFlow(false)
     val showRanks = _showRanks.asStateFlow()
 
-    // 歌单详情
-    private val _playlistSongs = MutableStateFlow<List<Song>>(emptyList())
-    val playlistSongs: StateFlow<List<Song>> = _playlistSongs.asStateFlow()
-    private val _isLoadingPlaylist = MutableStateFlow(false)
-    val isLoadingPlaylist = _isLoadingPlaylist.asStateFlow()
-    /** 歌单/榜单详情加载失败信息：此前失败静默成空白列表页，无文案无重试 */
-    private val _playlistError = MutableStateFlow<String?>(null)
-    val playlistError = _playlistError.asStateFlow()
-    /** 歌单详情请求令牌：快速连开两个歌单时丢弃慢的旧响应，防止串台 */
-    @Volatile
-    private var playlistRequestId = 0L
-
-    // 云同步的串行互斥锁与待发标记已随收藏/历史/歌单一起抽到 LibraryController。
+    // 歌单详情：已抽到 PlaylistDetailController，保留同名只读委托
+    val playlistSongs get() = playlistDetail.songs
+    val isLoadingPlaylist get() = playlistDetail.isLoading
+    val playlistError get() = playlistDetail.error
 
     // 用户体系
     private val _user = MutableStateFlow(UserStore.user())
@@ -418,59 +413,13 @@ class MainViewModel : ViewModel() {
     fun openRanks() { _showRanks.value = true }
     fun closeRanks() { _showRanks.value = false }
 
-    // ==================== 歌单 ====================
+    // ==================== 歌单（委托 PlaylistDetailController） ====================
 
-    fun openPlaylistDetail(item: PlaylistItem) {
-        _showPlaylistDetail.value = item
-        _playlistSongs.value = emptyList()
-        _playlistError.value = null
-        val req = ++playlistRequestId
-        viewModelScope.launch {
-            _isLoadingPlaylist.value = true
-            repository.getPlaylist(item.id).onSuccess { list ->
-                if (req == playlistRequestId) _playlistSongs.value = list
-            }.onFailure { e ->
-                // 失败要可见：此前只写 onSuccess，失败后列表空 + 无 loading，
-                // Overlay 渲染 0 项 LazyColumn 白页，无文案无重试
-                if (req == playlistRequestId) _playlistError.value = e.message ?: "歌单加载失败"
-            }
-            if (req == playlistRequestId) _isLoadingPlaylist.value = false
-        }
-    }
+    fun openPlaylistDetail(item: PlaylistItem) = playlistDetail.open(item)
 
-    fun openRankDetail(item: PlaylistItem) {
-        _showPlaylistDetail.value = item
-        _playlistSongs.value = emptyList()
-        _playlistError.value = null
-        val req = ++playlistRequestId
-        viewModelScope.launch {
-            _isLoadingPlaylist.value = true
-            repository.getRankSongs(item.id).onSuccess { list ->
-                if (req == playlistRequestId) _playlistSongs.value = list
-            }.onFailure { e ->
-                if (req == playlistRequestId) _playlistError.value = e.message ?: "榜单加载失败"
-            }
-            if (req == playlistRequestId) _isLoadingPlaylist.value = false
-        }
-    }
+    fun openRankDetail(item: PlaylistItem) = playlistDetail.openRank(item)
 
-    fun importPlaylist(id: String) {
-        val req = ++playlistRequestId
-        viewModelScope.launch {
-            _isLoadingPlaylist.value = true
-            repository.getPlaylist(id).onSuccess { list ->
-                if (req != playlistRequestId) return@launch
-                _playlistSongs.value = list
-                _showPlaylistDetail.value = PlaylistItem(id = id, name = "导入的歌单")
-            }.onFailure { e ->
-                // 此前失败静默：弹窗关闭后"什么都没发生"
-                if (req == playlistRequestId) {
-                    _appToast.value = "导入歌单失败：${e.message ?: "网络异常"}"
-                }
-            }
-            if (req == playlistRequestId) _isLoadingPlaylist.value = false
-        }
-    }
+    fun importPlaylist(id: String) = playlistDetail.import(id)
 
     // ==================== 我的歌单（委托 LibraryController） ====================
 
@@ -487,15 +436,15 @@ class MainViewModel : ViewModel() {
 
     fun openMyPlaylist(id: String) {
         val p = library.myPlaylist(id) ?: return
-        ++playlistRequestId
-        _playlistError.value = null
-        _playlistSongs.value = p.songs
-        _showPlaylistDetail.value = PlaylistItem(
-            id = p.id,
-            name = p.name,
-            coverUrl = p.coverUrl,
-            trackCount = p.songs.size.toLong(),
-            platform = "local",
+        playlistDetail.showLocal(
+            item = PlaylistItem(
+                id = p.id,
+                name = p.name,
+                coverUrl = p.coverUrl,
+                trackCount = p.songs.size.toLong(),
+                platform = "local",
+            ),
+            songs = p.songs,
         )
     }
 
@@ -719,7 +668,7 @@ class MainViewModel : ViewModel() {
     fun switchTab(tab: AppTab) {
         _currentTab.value = tab
         // 切 Tab 时关闭二级页面（搜索/歌单详情/歌手页/收藏页/最近播放等覆盖层），否则会盖住新 Tab 内容
-        _showPlaylistDetail.value = null
+        playlistDetail.close()
         artistPage.close()
         _showFavorites.value = false
         _showCacheList.value = false
