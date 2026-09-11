@@ -87,28 +87,59 @@ export function requireAdmin(config, client) {
   };
 }
 
-// ==================== 登录失败锁定（防在线爆破，内存态） ====================
+// ==================== 登录失败锁定（防在线爆破，按 用户名+IP 隔离，带 TTL 与容量保护） ====================
 
 const LOGIN_FAIL_LIMIT = 5;
 const LOGIN_LOCK_MS = 15 * 60 * 1000;
-const failMap = new Map(); // username -> { count, firstAt }
+const MAX_FAIL_MAP_SIZE = 5000;
+const failMap = new Map(); // key -> { count, firstAt }
+let lastFailSweepAt = 0;
 
-export function isLoginLocked(username) {
-  const e = failMap.get(username);
+function failKey(username, ip = '') {
+  return ip ? `${username}\u0001${ip}` : String(username);
+}
+
+function sweepFailMap(now) {
+  if (failMap.size < MAX_FAIL_MAP_SIZE && now - lastFailSweepAt < 60_000) return;
+  lastFailSweepAt = now;
+  for (const [k, v] of failMap) {
+    if (now - v.firstAt >= LOGIN_LOCK_MS) {
+      failMap.delete(k);
+    }
+  }
+  // 若大量随机攻击仍超出容量上限，淘汰最旧记录防 OOM
+  if (failMap.size > MAX_FAIL_MAP_SIZE) {
+    const toDelete = failMap.size - MAX_FAIL_MAP_SIZE;
+    let deleted = 0;
+    for (const k of failMap.keys()) {
+      failMap.delete(k);
+      deleted++;
+      if (deleted >= toDelete) break;
+    }
+  }
+}
+
+export function isLoginLocked(username, ip = '') {
+  const key = failKey(username, ip);
+  const e = failMap.get(key);
   if (!e) return false;
-  if (Date.now() - e.firstAt >= LOGIN_LOCK_MS) {
-    failMap.delete(username);
+  const now = Date.now();
+  if (now - e.firstAt >= LOGIN_LOCK_MS) {
+    failMap.delete(key);
     return false;
   }
   return e.count >= LOGIN_FAIL_LIMIT;
 }
 
-export function recordLoginFailure(username) {
-  const e = failMap.get(username) || { count: 0, firstAt: Date.now() };
+export function recordLoginFailure(username, ip = '') {
+  const key = failKey(username, ip);
+  const now = Date.now();
+  sweepFailMap(now);
+  const e = failMap.get(key) || { count: 0, firstAt: now };
   e.count += 1;
-  failMap.set(username, e);
+  failMap.set(key, e);
 }
 
-export function clearLoginFailures(username) {
-  failMap.delete(username);
+export function clearLoginFailures(username, ip = '') {
+  failMap.delete(failKey(username, ip));
 }

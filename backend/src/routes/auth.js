@@ -86,20 +86,20 @@ export function registerAuthRoutes(app, { config, client }) {
     if (!name || typeof password !== 'string' || !password) {
       return reply.code(400).send({ code: 400, msg: '需要 username / password' });
     }
-    if (isLoginLocked(name)) {
+    if (isLoginLocked(name, req.ip)) {
       return reply.code(429).send({ code: 429, msg: '失败次数过多，请 15 分钟后再试' });
     }
     const user = await findUserByUsername(client, name);
     if (!user) {
-      recordLoginFailure(name);
+      recordLoginFailure(name, req.ip);
       return reply.code(401).send({ code: 401, msg: '用户名或密码错误' });
     }
     const ok = await verifyPassword(password, user.salt, user.password_hash);
     if (!ok) {
-      recordLoginFailure(name);
+      recordLoginFailure(name, req.ip);
       return reply.code(401).send({ code: 401, msg: '用户名或密码错误' });
     }
-    clearLoginFailures(name);
+    clearLoginFailures(name, req.ip);
     const session = await issueSession(client, user, deviceName, SESSION_TTL_MS, config.maxSessionsPerUser);
     return { code: 200, data: { token: session.token, expiresAt: session.expiresAt, user: publicUser(user) } };
   });

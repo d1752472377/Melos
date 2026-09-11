@@ -41,18 +41,24 @@ export async function buildApp() {
     }
   });
 
-  // 每 IP 限速：登录/注册 10 次/分，其余 API 120 次/分
+  // 每 IP 限速：登录/注册 10 次/分，其余 API 120 次/分（按桶隔离，避免普通流量挤占登录限额）
   if (!config.rateLimitDisabled) {
+    const authLimiter = rateLimit({ name: 'auth', limit: 10, windowMs: 60_000 });
+    const apiLimiter = rateLimit({ name: 'api', limit: 120, windowMs: 60_000 });
+
     app.addHook('onRequest', async (req, reply) => {
       const path = (req.url || '').split('?')[0];
       if (path === '/api/auth/login' || path === '/api/auth/register') {
-        return rateLimit({ limit: 10, windowMs: 60_000 })(req, reply);
+        return authLimiter(req, reply);
       }
       if (path.startsWith('/api/')) {
-        return rateLimit({ limit: 120, windowMs: 60_000 })(req, reply);
+        return apiLimiter(req, reply);
       }
     });
   }
+
+  // 挂载 DB client 供启动清理及其他组件复用，避免二次连接与重复初始化
+  app.client = client;
 
   registerAuthRoutes(app, { config, client });
   registerSyncRoutes(app, { config, client });

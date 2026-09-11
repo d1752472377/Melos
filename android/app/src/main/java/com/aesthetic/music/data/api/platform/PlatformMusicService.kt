@@ -341,14 +341,52 @@ object PlatformMusicService {
     }
 
     suspend fun fmSeedSongs( tag : String , limit : Int =  120 ) : List<Song> {
-        if ( tag == "推荐新歌" ) return fmRecommendSongs( limit.coerceAtMost( 100 ) )
-        val encodedCat = URLEncoder.encode( tag , "UTF-8" )
-        val root = getJson( "https://music.163.com/api/playlist/highquality/list?cat=$encodedCat&limit=3" )
-        val playlistIds = root.getAsJsonArray( "playlists" )?.mapNotNull { it.asJsonObject?.get( "id" )?.asString } ?: emptyList()
         val seen = hashSetOf<String>()
         val out = mutableListOf<Song>()
-        playlistIds.take( 3 ).forEach { id ->
-            if ( out.size >= limit ) return out
+
+        // 1. 心动模式 / 私人心动：聚合新歌推荐与热门精选歌单曲目并随机混排，呈现类似网易云私人 FM 的心动感
+        if ( tag == "心动模式" || tag == "私人心动" || tag.contains("心动") || tag == "全部" ) {
+            try {
+                val newSongs = fmRecommendSongs( 40 )
+                newSongs.forEach { if ( it.id.isNotBlank() && seen.add( it.id ) ) out += it }
+            } catch ( _ : Exception ) {}
+
+            try {
+                val hotPlaylists = getHotPlaylists( 3 )
+                for ( pl in hotPlaylists ) {
+                    if ( out.size >= limit ) break
+                    val plSongs = try { getPlaylist( pl.id ) } catch ( _ : Exception ) { emptyList() }
+                    plSongs.take( 30 ).forEach { s ->
+                        if ( s.id.isNotBlank() && seen.add( s.id ) ) out += s
+                    }
+                }
+            } catch ( _ : Exception ) {}
+
+            if ( out.isNotEmpty() ) {
+                return out.shuffled()
+            }
+        }
+
+        // 2. 推荐新歌专属流
+        if ( tag == "推荐新歌" ) {
+            val list = fmRecommendSongs( limit.coerceAtMost( 100 ) )
+            if ( list.isNotEmpty() ) return list
+        }
+
+        // 3. 标签精选流（流行/民谣/摇滚/治愈/电子/ACG等）
+        val actualCat = when ( tag ) {
+            "二次元", "ACG" -> "ACG"
+            "国风", "古风" -> "古风"
+            "治愈", "助眠" -> "治愈"
+            else -> tag
+        }
+        val encodedCat = URLEncoder.encode( actualCat , "UTF-8" )
+        val root = try {
+            getJson( "https://music.163.com/api/playlist/highquality/list?cat=$encodedCat&limit=4" )
+        } catch ( _ : Exception ) { JsonObject() }
+        val playlistIds = root.getAsJsonArray( "playlists" )?.mapNotNull { it.asJsonObject?.get( "id" )?.asString } ?: emptyList()
+        playlistIds.take( 4 ).forEach { id ->
+            if ( out.size >= limit ) return@forEach
             val songs = try { getPlaylist( id ) } catch ( _ : Exception ) { emptyList() }
             songs.forEach { s ->
                 if ( s.id.isNotBlank() && seen.add( s.id ) ) {
@@ -356,7 +394,18 @@ object PlatformMusicService {
                 }
             }
         }
-        return out
+
+        // 4. 兜底保护：如果特定标签歌单未能拉到歌曲，使用推荐新歌与热门歌单兜底，杜绝白屏
+        if ( out.isEmpty() ) {
+            val fallback = fmRecommendSongs( 60 )
+            return fallback.ifEmpty {
+                try {
+                    val hot = getHotPlaylists( 2 ).firstOrNull()?.id
+                    if ( hot != null ) getPlaylist( hot ) else emptyList()
+                } catch ( _ : Exception ) { emptyList() }
+            }
+        }
+        return out.shuffled()
     }
 
     suspend fun getRanks(): RanksData {

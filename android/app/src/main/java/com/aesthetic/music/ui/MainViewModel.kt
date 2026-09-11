@@ -52,6 +52,15 @@ import kotlinx.coroutines.withContext
 
 enum class AppTab { HOME, SHEET, PLAYLIST, PROFILE }
 
+/** FM 电台频道定义 */
+data class FmChannel(
+    val id: String,
+    val name: String,
+    val subtitle: String,
+    val tag: String,
+    val icon: String = "📻"
+)
+
 class MainViewModel : ViewModel() {
 
     private val repository = MusicRepository()
@@ -126,11 +135,26 @@ class MainViewModel : ViewModel() {
     val showSheet = MutableStateFlow(false)
 
     // FM 电台（免登录会话级推荐）：SHEET Tab 全屏刷歌
+    val fmChannels = listOf(
+        FmChannel("heart", "私人心动", "根据你的音乐偏好实时漫游", "心动模式", "💖"),
+        FmChannel("new", "推荐新歌", "发现全网新鲜出炉的优质单曲", "推荐新歌", "✨"),
+        FmChannel("pop", "热门流行", "热度霸榜，耳熟能详的动感旋律", "流行", "🔥"),
+        FmChannel("folk", "清新民谣", "一把木吉他，唱出温暖与远方", "民谣", "🌿"),
+        FmChannel("rock", "燃系摇滚", "节奏轰鸣，释放热血与激情", "摇滚", "🎸"),
+        FmChannel("elec", "迷幻电音", "重低音与未来声场的感官盛宴", "电子", "⚡"),
+        FmChannel("heal", "深夜治愈", "伴你入眠，安静温柔的情绪避难所", "治愈", "🌙"),
+        FmChannel("acg", "动漫二次元", "燃曲与物语，穿越异次元时空", "ACG", "🌸"),
+        FmChannel("gufeng", "唯美国风", "江南烟雨，墨染古韵悠扬", "古风", "📜"),
+        FmChannel("jazz", "慵懒爵士", "黑胶微醺，随性摇摆的午后时光", "全部", "☕"),
+        FmChannel("soundtrack", "影视原声", "经典荧幕声画，重温光影记忆", "影视原声", "🎬")
+    )
+    private val _currentFmChannel = MutableStateFlow(fmChannels[0])
+    val currentFmChannel: StateFlow<FmChannel> = _currentFmChannel.asStateFlow()
     private val _fmActive = MutableStateFlow(false)
     val fmActive: StateFlow<Boolean> = _fmActive.asStateFlow()
     /** FM 可选风格：推荐新歌 + 歌单广场全部标签 */
     val fmStyles: List<String> = listOf("推荐新歌") + repository.sheetTags()
-    private val _fmStyle = MutableStateFlow<String?>(null)
+    private val _fmStyle = MutableStateFlow<String?>(fmChannels[0].tag)
     val fmStyle: StateFlow<String?> = _fmStyle.asStateFlow()
     private val _fmQueue = MutableStateFlow<List<Song>>(emptyList())
     val fmQueue: StateFlow<List<Song>> = _fmQueue.asStateFlow()
@@ -146,6 +170,8 @@ class MainViewModel : ViewModel() {
     private val fmDriftArtists = ArrayDeque<Pair<String,String>>()
     /** FM 已入队曲目 id（去重补充） */
     private val fmQueuedIds = hashSetOf<String>()
+    /** FM 已标记不喜欢的歌曲 id（跳过且不再推荐） */
+    private val fmDislikedIds = hashSetOf<String>()
     // 排行榜页（覆盖层）
     val showRanks = MutableStateFlow(false)
 
@@ -755,27 +781,43 @@ class MainViewModel : ViewModel() {
 
     // ==================== FM 电台（会话级推荐逻辑） ====================
 
-    /** 进入 FM（选风格后开拉种子池；推荐新歌 or 标签精品歌单） */
-    fun fmStart( style : String ) {
-        _fmStyle.value = style
+    /** 进入 FM / 切换频道（开拉种子池，拉取完成后可自动触发播放） */
+    fun fmStart( channel : FmChannel = fmChannels[0], onReady : ((Song, List<Song>) -> Unit)? = null ) {
+        _currentFmChannel.value = channel
+        _fmStyle.value = channel.tag
         fmDriftArtists.clear()
         fmQueuedIds.clear()
         _fmQueue.value = emptyList()
         _fmIndex.value = 0
-        _fmTreasure.value = emptyList()
         _fmError.value = null
         _fmActive.value = true
         _fmLoading.value = true
         viewModelScope.launch {
-            repository.fmSeedSongs(style,  120).onSuccess { songs ->
+            repository.fmSeedSongs(channel.tag,  120).onSuccess { rawSongs ->
+                val songs = rawSongs.filterNot { fmDislikedIds.contains(it.id) }
                 fmQueuedIds.addAll(songs.map { it.id })
                 _fmQueue.value = songs
                 _fmLoading.value = false
+                if (songs.isNotEmpty()) {
+                    onReady?.invoke(songs.first(), songs)
+                }
             }.onFailure { e ->
-                _fmError.value = e.message ?: "加载失败"
+                _fmError.value = e.message ?: "电台调频失败，请点击重新调频"
                 _fmLoading.value = false
             }
         }
+    }
+
+    /** 兼容旧版调用：按风格名称开拉 */
+    fun fmStart( style : String ) {
+        val ch = fmChannels.find { it.tag == style || it.name == style }
+            ?: FmChannel(style, style, "定制电台风格", style, "🎵")
+        fmStart(ch)
+    }
+
+    /** 重新调频当前频道 */
+    fun fmRefresh( onReady : ((Song, List<Song>) -> Unit)? = null ) {
+        fmStart(_currentFmChannel.value, onReady)
     }
 
     /** FM 切歌（拖动/自动续播同步索引；近队尾触发补池） */
@@ -786,11 +828,30 @@ class MainViewModel : ViewModel() {
         maybeFmFill( index )
     }
 
+    /** FM 不感兴趣（垃圾桶 / 讨厌）：标记丢弃，移出队列并立即切至下一首 */
+    fun fmDislike( song : Song, onPlayNext : ((Song, List<Song>) -> Unit)? = null ) {
+        fmDislikedIds.add(song.id)
+        val curr = _fmQueue.value.toMutableList()
+        val idx = curr.indexOfFirst { it.id == song.id }
+        if (idx >= 0) {
+            curr.removeAt(idx)
+            _fmQueue.value = curr
+            val nextSong = curr.getOrNull(idx) ?: curr.firstOrNull()
+            if (nextSong != null) {
+                _fmIndex.value = idx.coerceAtMost(curr.size - 1)
+                onPlayNext?.invoke(nextSong, curr)
+            }
+        }
+        maybeFmFill( _fmIndex.value )
+    }
+
     /** FM 点赞/取消：点赞 → 收藏（我喜欢的音乐）+ 本次宝藏歌单；取消 → 一并移除 */
     fun fmToggleLike( song : Song ) {
         toggleFavorite( song )
+        val key = song.platform + ":" + song.id
+        val isFav = _favoriteKeys.value.contains(key) || _favoriteKeys.value.contains(song.id)
         val trea = _fmTreasure.value.toMutableList()
-        if (_favoriteKeys.value.contains(song.id)) {
+        if (isFav) {
             if (trea.none { it.id == song.id }) {
                 trea.add( song )
                 _fmTreasure.value = trea
@@ -816,7 +877,7 @@ class MainViewModel : ViewModel() {
     /** 接近队尾或收到信号时补充：优先漂移歌手，否则同风格再补池 */
     private fun maybeFmFill( index : Int ) {
         val q = _fmQueue.value
-        if (q.size - index >= 5) return
+        if (q.size - index >= 6) return
         if (_fmLoading.value) return
         val style = _fmStyle.value ?: return
         _fmLoading.value = true
@@ -825,15 +886,15 @@ class MainViewModel : ViewModel() {
             val drift = fmDriftArtists.removeFirstOrNull()
             if ( drift != null ) {
                 repository.artistTopSongs(drift.first,  50).onSuccess { songs ->
-                    added += songs.filter { it.id.isNotBlank() && fmQueuedIds.add( it.id ) }
+                    added += songs.filter { it.id.isNotBlank() && !fmDislikedIds.contains(it.id) && fmQueuedIds.add( it.id ) }
                 }
                 repository.searchSongs( drift.second ,  20 ).onSuccess { songs ->
-                    added += songs.filter { it.id.isNotBlank() && fmQueuedIds.add( it.id ) }
+                    added += songs.filter { it.id.isNotBlank() && !fmDislikedIds.contains(it.id) && fmQueuedIds.add( it.id ) }
                 }
             }
             if (added.isEmpty()) {
                 repository.fmSeedSongs(style,  80).onSuccess { songs ->
-                    added += songs.filter { it.id.isNotBlank() && fmQueuedIds.add( it.id ) }
+                    added += songs.filter { it.id.isNotBlank() && !fmDislikedIds.contains(it.id) && fmQueuedIds.add( it.id ) }
                 }
             }
             if (added.isNotEmpty()) {

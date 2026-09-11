@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -122,8 +123,8 @@ fun NavigationDock(
         )
 
         DockIcon(
-            icon = Icons.Filled.GridOn,
-            label = "FM",
+            icon = Icons.Filled.Radio,
+            label = "心动FM",
             selected = currentTab == AppTab.SHEET,
             onClick = onSheet,
             selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,

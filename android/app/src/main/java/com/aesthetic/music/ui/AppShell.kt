@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -134,6 +135,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val sheetError by viewModel.sheetError.collectAsState()
     val fmStyles = viewModel.fmStyles
     val fmStyle by viewModel.fmStyle.collectAsState()
+    val currentFmChannel by viewModel.currentFmChannel.collectAsState()
     val fmQueue by viewModel.fmQueue.collectAsState()
     val fmIndex by viewModel.fmIndex.collectAsState()
     val fmLoading by viewModel.fmLoading.collectAsState()
@@ -327,18 +329,47 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // FM 电台
                     composable(ScreenRoute.Fm.route) {
+                        // 进入 FM 路由自动设置暗色背景，使底部 NavigationDock 呈现暗黑毛玻璃质感
+                        DisposableEffect(Unit) {
+                            viewModel.updatePageBackground(androidx.compose.ui.graphics.Color(0xFF0D0D11), true)
+                            onDispose {
+                                viewModel.updatePageBackground(null, false)
+                            }
+                        }
+
+                        // 首次切入若队列为空，自动开始调频并启播
+                        LaunchedEffect(Unit) {
+                            if (fmQueue.isEmpty() && !fmLoading) {
+                                viewModel.fmStart(viewModel.currentFmChannel.value) { firstSong, list ->
+                                    playSong(firstSong, list)
+                                }
+                            }
+                        }
+
                         FmScreen(
                             fmQueue = fmQueue,
                             fmIndex = fmIndex,
                             fmLoading = fmLoading,
                             fmError = fmError,
                             fmTreasure = fmTreasure,
+                            currentChannel = currentFmChannel,
+                            channels = viewModel.fmChannels,
                             favorites = favorites,
-                            currentSongId = playerState.currentSong?.id,
+                            currentSong = playerState.currentSong,
                             isPlaying = playerState.isPlaying,
+                            isBuffering = playerState.isLoading,
+                            lyrics = playerState.lyrics,
+                            syncedLyrics = playerState.syncedLyrics,
+                            progressFlow = playerManager.progress,
+                            onSelectChannel = { channel ->
+                                viewModel.fmStart(channel) { firstSong, list ->
+                                    playSong(firstSong, list)
+                                }
+                            },
                             onRefreshRecommendation = {
-                                // 重新拉取/刷新私人 FM 或心动推荐流
-                                // viewModel.loadFm() //
+                                viewModel.fmRefresh { firstSong, list ->
+                                    playSong(firstSong, list)
+                                }
                             },
                             onSelect = { index ->
                                 viewModel.fmSelect(index)
@@ -348,7 +379,32 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                                 if (target != null && !alreadySame) playSong(target, q)
                             },
                             onToggleLike = { song -> viewModel.fmToggleLike(song) },
+                            onDislike = { song ->
+                                viewModel.fmDislike(song) { nextSong, list ->
+                                    playSong(nextSong, list)
+                                }
+                            },
                             onPlayPause = { playerManager.toggle() },
+                            onNext = {
+                                val q = viewModel.fmQueue.value
+                                val nextIdx = (fmIndex + 1).coerceAtMost(q.size - 1)
+                                val nextSong = q.getOrNull(nextIdx)
+                                if (nextSong != null) {
+                                    viewModel.fmSelect(nextIdx)
+                                    playSong(nextSong, q)
+                                }
+                            },
+                            onPrevious = {
+                                val q = viewModel.fmQueue.value
+                                val prevIdx = (fmIndex - 1).coerceAtLeast(0)
+                                val prevSong = q.getOrNull(prevIdx)
+                                if (prevSong != null) {
+                                    viewModel.fmSelect(prevIdx)
+                                    playSong(prevSong, q)
+                                }
+                            },
+                            onSeek = { ms -> playerManager.seekTo(ms) },
+                            onSeekToLyric = { line -> playerManager.seekToLyric(line) },
                             onExport = { songs -> shareSongs(songs) }
                         )
                     }

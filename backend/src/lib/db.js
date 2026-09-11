@@ -140,8 +140,12 @@ export async function initDb(dbUrl, authToken) {
     url = `file:${url}`;
   }
   const client = createClient({ url, authToken, intMode: 'number' });
-  for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
-    await client.execute(stmt);
+  if (typeof client.executeMultiple === 'function') {
+    await client.executeMultiple(SCHEMA);
+  } else {
+    for (const stmt of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) {
+      await client.execute(stmt);
+    }
   }
   // 平滑升级老数据库：确保 users 表有 role 字段
   try {
@@ -493,12 +497,18 @@ function safeParse(s) {
 export async function pullSync(client, userId, { since = 0, eventSince = 0 } = {}) {
   const headRow = await first(client, 'SELECT sync_seq FROM user_state WHERE user_id = ?', [userId]);
   const head = headRow ? headRow.sync_seq : 0;
+  const isInitial = since === 0;
 
-  const favorites = await all(client, 'SELECT platform, song_id, song_json, updated_at_ms, deleted FROM favorites WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
-  const history = await all(client, 'SELECT platform, song_id, song_json, played_at_ms, updated_at_ms, deleted FROM history WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
-  const playlists = await all(client, 'SELECT playlist_id, name, cover_url, updated_at_ms, deleted FROM playlists WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
-  const playlistSongs = await all(client, 'SELECT playlist_id, position, platform, song_id, song_json, updated_at_ms, deleted FROM playlist_songs WHERE user_id = ? AND update_seq > ? AND update_seq <= ? ORDER BY update_seq', [userId, since, head]);
-  const events = await all(client, 'SELECT id, event_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms FROM play_events WHERE user_id = ? AND id > ? ORDER BY id LIMIT 500', [userId, eventSince]);
+  // 全量首次拉取(since=0)无需下发已被删除的历史墓碑，增量拉取才下发墓碑通知客户端本地删除
+  const deletedFilter = isInitial ? ' AND deleted = 0' : '';
+
+  const [favorites, history, playlists, playlistSongs, events] = await Promise.all([
+    all(client, `SELECT platform, song_id, song_json, updated_at_ms, deleted FROM favorites WHERE user_id = ? AND update_seq > ? AND update_seq <= ?${deletedFilter} ORDER BY update_seq`, [userId, since, head]),
+    all(client, `SELECT platform, song_id, song_json, played_at_ms, updated_at_ms, deleted FROM history WHERE user_id = ? AND update_seq > ? AND update_seq <= ?${deletedFilter} ORDER BY update_seq`, [userId, since, head]),
+    all(client, `SELECT playlist_id, name, cover_url, updated_at_ms, deleted FROM playlists WHERE user_id = ? AND update_seq > ? AND update_seq <= ?${deletedFilter} ORDER BY update_seq`, [userId, since, head]),
+    all(client, `SELECT playlist_id, position, platform, song_id, song_json, updated_at_ms, deleted FROM playlist_songs WHERE user_id = ? AND update_seq > ? AND update_seq <= ?${deletedFilter} ORDER BY update_seq`, [userId, since, head]),
+    all(client, 'SELECT id, event_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms FROM play_events WHERE user_id = ? AND id > ? ORDER BY id LIMIT 500', [userId, eventSince]),
+  ]);
 
   const nextEventId = events.length ? events[events.length - 1].id : eventSince;
 

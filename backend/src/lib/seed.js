@@ -9,7 +9,10 @@ import { newSalt, hashPassword } from './auth.js';
  *   角色: admin
  *   昵称: 管理员
  */
-export async function ensureAdminUser(client, { username = 'admin', password = '12346' } = {}) {
+export async function ensureAdminUser(client, {
+  username = 'admin',
+  password = process.env.ADMIN_INITIAL_PASSWORD || '12346',
+} = {}) {
   const existing = await findUserByUsername(client, username);
   if (!existing) {
     const salt = newSalt();

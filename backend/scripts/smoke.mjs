@@ -113,6 +113,11 @@ try {
   ok('歌单删除传播为墓碑', pl.playlists.some((p) => p.id === 'pl_1' && p.deleted === true));
   ok('歌单下歌曲同步墓碑化', pl.playlistSongs.every((s) => s.deleted === true));
 
+  const newDevicePull = await j('GET', `/api/sync/pull?since=0&eventSince=0`, { token: tokenA });
+  const ndData = newDevicePull.json().data;
+  ok('新设备全量拉取(since=0)不包含已删除的墓碑记录', !ndData.playlists.some((p) => p.deleted) && !ndData.playlistSongs.some((s) => s.deleted));
+
+
   console.log('== 登出失效 / 多端独立会话 ==');
   const out = await j('POST', '/api/auth/logout', { token: tokenA });
   ok('登出返回 200', out.statusCode === 200);
