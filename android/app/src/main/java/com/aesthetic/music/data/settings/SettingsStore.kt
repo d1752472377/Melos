@@ -34,6 +34,7 @@ enum class QualityLevel(val value: String, val label: String) {
  */
 object SettingsStore {
 
+    private const val TAG = "SettingsStore"
     private const val PREFS = "aesthetic_music_settings"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_QUALITY = "quality"
@@ -60,8 +61,8 @@ object SettingsStore {
         ThemeMode.SYSTEM
     }
 
-    fun setThemeMode(mode: ThemeMode) {
-        try { p()?.edit()?.putString(KEY_THEME_MODE, mode.name)?.apply() } catch (_: Exception) {}
+    fun setThemeMode(mode: ThemeMode) = bestEffort(TAG, "保存主题模式") {
+        p()?.edit()?.putString(KEY_THEME_MODE, mode.name)?.apply()
     }
 
     // ===== 音质 =====
@@ -71,8 +72,8 @@ object SettingsStore {
         QualityLevel.LOSSLESS
     }
 
-    fun setQuality(level: QualityLevel) {
-        try { p()?.edit()?.putString(KEY_QUALITY, level.value)?.apply() } catch (_: Exception) {}
+    fun setQuality(level: QualityLevel) = bestEffort(TAG, "保存音质等级") {
+        p()?.edit()?.putString(KEY_QUALITY, level.value)?.apply()
     }
 
     // ===== 悬浮窗开关 =====
@@ -82,8 +83,8 @@ object SettingsStore {
         false
     }
 
-    fun setFloatingCapsuleEnabled(enabled: Boolean) {
-        try { p()?.edit()?.putBoolean(KEY_FLOATING_CAPSULE, enabled)?.apply() } catch (_: Exception) {}
+    fun setFloatingCapsuleEnabled(enabled: Boolean) = bestEffort(TAG, "保存悬浮窗开关") {
+        p()?.edit()?.putBoolean(KEY_FLOATING_CAPSULE, enabled)?.apply()
     }
 
     // ===== 播放页主题 =====
@@ -93,8 +94,8 @@ object SettingsStore {
         PlayerTheme.CLASSIC
     }
 
-    fun setPlayerTheme(theme: PlayerTheme) {
-        try { p()?.edit()?.putString(KEY_PLAYER_THEME, theme.value)?.apply() } catch (_: Exception) {}
+    fun setPlayerTheme(theme: PlayerTheme) = bestEffort(TAG, "保存播放页主题") {
+        p()?.edit()?.putString(KEY_PLAYER_THEME, theme.value)?.apply()
     }
 
     // ===== 倍速播放（0.5x - 2.0x）=====
@@ -104,10 +105,7 @@ object SettingsStore {
         1f
     }
 
-    fun setPlaybackSpeed(speed: Float) {
-        try {
-            p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
-        } catch (_: Exception) {
-        }
+    fun setPlaybackSpeed(speed: Float) = bestEffort(TAG, "保存播放倍速") {
+        p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
     }
 }

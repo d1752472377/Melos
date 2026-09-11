@@ -11,6 +11,7 @@ import com.aesthetic.music.data.api.UserInfo
  */
 object UserStore {
 
+    private const val TAG = "UserStore"
     private const val PREFS = "aesthetic_music_user"
     private const val KEY_TOKEN = "token"
     private const val KEY_USER = "user"
@@ -94,14 +95,12 @@ object UserStore {
         null
     }
 
-    fun setAvatarPath(path: String?) {
-        try {
+    fun setAvatarPath(path: String?) = bestEffort(TAG, "保存头像路径") {
             if (path == null) {
                 prefs?.edit()?.remove(KEY_CUSTOM_AVATAR)?.apply()
             } else {
                 prefs?.edit()?.putString(KEY_CUSTOM_AVATAR, path)?.apply()
             }
-        } catch (_: Exception) {}
     }
 
     fun getBackgroundPath(): String? = try {
@@ -110,14 +109,12 @@ object UserStore {
         null
     }
 
-    fun setBackgroundPath(path: String?) {
-        try {
+    fun setBackgroundPath(path: String?) = bestEffort(TAG, "保存背景图路径") {
             if (path == null) {
                 prefs?.edit()?.remove(KEY_CUSTOM_BG)?.apply()
             } else {
                 prefs?.edit()?.putString(KEY_CUSTOM_BG, path)?.apply()
             }
-        } catch (_: Exception) {}
     }
 
     fun isBackgroundBlur(): Boolean = try {
@@ -126,10 +123,8 @@ object UserStore {
         false
     }
 
-    fun setBackgroundBlur(blur: Boolean) {
-        try {
+    fun setBackgroundBlur(blur: Boolean) = bestEffort(TAG, "保存背景模糊开关") {
             prefs?.edit()?.putBoolean(KEY_BG_BLUR, blur)?.apply()
-        } catch (_: Exception) {}
     }
 
     fun getNickname(): String = try {
@@ -141,10 +136,8 @@ object UserStore {
         "Melos 音乐人"
     }
 
-    fun setNickname(nickname: String) {
-        try {
+    fun setNickname(nickname: String) = bestEffort(TAG, "保存昵称") {
             prefs?.edit()?.putString(KEY_CUSTOM_NICKNAME, nickname)?.apply()
-        } catch (_: Exception) {}
     }
 
     fun getBio(): String = try {
@@ -153,10 +146,8 @@ object UserStore {
         ""
     }
 
-    fun setBio(bio: String) {
-        try {
+    fun setBio(bio: String) = bestEffort(TAG, "保存个性签名") {
             prefs?.edit()?.putString(KEY_CUSTOM_BIO, bio)?.apply()
-        } catch (_: Exception) {}
     }
 
     fun getGender(): String = try {
@@ -165,10 +156,8 @@ object UserStore {
         "保密"
     }
 
-    fun setGender(gender: String) {
-        try {
+    fun setGender(gender: String) = bestEffort(TAG, "保存性别") {
             prefs?.edit()?.putString(KEY_CUSTOM_GENDER, gender)?.apply()
-        } catch (_: Exception) {}
     }
 
     fun getBirthday(): String = try {
@@ -177,10 +166,8 @@ object UserStore {
         ""
     }
 
-    fun setBirthday(birthday: String) {
-        try {
+    fun setBirthday(birthday: String) = bestEffort(TAG, "保存生日") {
             prefs?.edit()?.putString(KEY_CUSTOM_BIRTHDAY, birthday)?.apply()
-        } catch (_: Exception) {}
     }
 
     fun getUserId(): String = try {
@@ -191,28 +178,24 @@ object UserStore {
         "10001"
     }
 
-    fun setUserId(id: String) {
-        try {
+    fun setUserId(id: String) = bestEffort(TAG, "保存用户 ID") {
             prefs?.edit()?.putString(KEY_CUSTOM_ID, id)?.apply()
-        } catch (_: Exception) {}
     }
 
     /** 恢复默认头像、背景、模糊开关及个性化偏好 */
-    fun restoreProfileDefaults(context: Context) {
-        try {
-            val dir = java.io.File(context.filesDir, "profile")
-            if (dir.exists()) {
-                dir.deleteRecursively()
-            }
-            prefs?.edit()
-                ?.remove(KEY_CUSTOM_AVATAR)
-                ?.remove(KEY_CUSTOM_BG)
-                ?.remove(KEY_BG_BLUR)
-                ?.remove(KEY_CUSTOM_NICKNAME)
-                ?.remove(KEY_CUSTOM_BIO)
-                ?.remove(KEY_CUSTOM_GENDER)
-                ?.remove(KEY_CUSTOM_BIRTHDAY)
-                ?.apply()
-        } catch (_: Exception) {}
+    fun restoreProfileDefaults(context: Context) = bestEffort(TAG, "恢复个人资料默认值") {
+        val dir = java.io.File(context.filesDir, "profile")
+        if (dir.exists()) {
+            dir.deleteRecursively()
+        }
+        prefs?.edit()
+            ?.remove(KEY_CUSTOM_AVATAR)
+            ?.remove(KEY_CUSTOM_BG)
+            ?.remove(KEY_BG_BLUR)
+            ?.remove(KEY_CUSTOM_NICKNAME)
+            ?.remove(KEY_CUSTOM_BIO)
+            ?.remove(KEY_CUSTOM_GENDER)
+            ?.remove(KEY_CUSTOM_BIRTHDAY)
+            ?.apply()
     }
 }
