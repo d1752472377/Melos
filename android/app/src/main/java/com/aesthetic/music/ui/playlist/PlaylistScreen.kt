@@ -1,43 +1,23 @@
 package com.aesthetic.music.ui.playlist
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
@@ -59,10 +39,12 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
-/**
- * 歌单中心页（重新设计）：
- * 只展示自建歌单，空状态提示新建或导入
- */
+// 补充：建议在 Theme 中定义这些颜色，这里为了演示直接硬编码
+private val AppBackground = Color(0xFFF7F8FA)
+private val CardBackground = Color.White
+private val TabSelectedBg = Color(0xFFE8E0D8) // 浅棕色底
+private val TabSelectedText = Color(0xFF5D4037) // 深棕色字
+
 @Composable
 fun PlaylistScreen(
     myPlaylists: List<MyPlaylist>,
@@ -75,72 +57,81 @@ fun PlaylistScreen(
     onOpenImport: () -> Unit,
     onPlayPlaylist: (List<Song>) -> Unit,
 ) {
-    // 歌单主 Tab：0 = 自建歌单, 1 = 收藏歌单
-    var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-
-    // 新建与重命名弹窗状态
+    var selectedTab by remember { mutableIntStateOf(0) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<MyPlaylist?>(null) }
     var renameText by remember { mutableStateOf("") }
-
-    // 底部抽屉状态
     var showBottomSheet by remember { mutableStateOf(false) }
     var selectedPlaylist by remember { mutableStateOf<MyPlaylist?>(null) }
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(AppBackground)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp), // 增加间距
             contentPadding = PaddingValues(
-                top = 24.dp,
+                top = 32.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = LocalBottomBarPadding.current
+                bottom = LocalBottomBarPadding.current + 20.dp
             )
         ) {
-            // 顶部标题与 Tab 切换
+            // ================= 顶部 Header =================
             item(key = "playlist_header") {
                 Column {
+                    // 标题行
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Bottom
                     ) {
                         Text(
-                            text = "自建歌单",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontSize = if (selectedTab == 0) 26.sp else 20.sp,
-                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                                letterSpacing = 0.5.sp
+                            text = "我的音乐",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.5).sp
                             ),
-                            color = if (selectedTab == 0) TextPrimary else TextSoft,
-                            modifier = Modifier.clickable { selectedTab = 0 }
+                            color = TextPrimary
                         )
-
+                        Spacer(Modifier.weight(1f))
+                        // 数量统计放在右侧，显得更精致
                         Text(
-                            text = "收藏歌单",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontSize = if (selectedTab == 1) 26.sp else 20.sp,
-                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = if (selectedTab == 1) TextPrimary else TextSoft,
-                            modifier = Modifier.clickable { selectedTab = 1 }
+                            text = if (selectedTab == 0) "${myPlaylists.size} 个歌单" else "${favoritePlaylists.size} 个收藏",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSoft,
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
                     }
 
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = if (selectedTab == 0) "${myPlaylists.size} 个自建歌单" else "${favoritePlaylists.size} 个收藏歌单",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSoft
-                    )
+                    Spacer(Modifier.height(20.dp))
+
+                    // 胶囊 Tab 切换
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color.White.copy(alpha = 0.6f))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        TabButton(
+                            text = "自建歌单",
+                            isSelected = selectedTab == 0,
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedTab = 0 }
+                        )
+                        TabButton(
+                            text = "收藏歌单",
+                            isSelected = selectedTab == 1,
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedTab = 1 }
+                        )
+                    }
                 }
             }
 
-            // 自建歌单：操作按钮行（新建与导入）
+            // ================= 操作按钮区 =================
             if (selectedTab == 0) {
                 item(key = "playlist_actions") {
                     Row(
@@ -148,47 +139,27 @@ fun PlaylistScreen(
                     ) {
                         ActionButton(
                             text = "新建歌单",
-                            icon = {
-                                Icon(
-                                    Icons.Filled.Add,
-                                    contentDescription = null,
-                                    tint = PrimaryBrown,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
+                            icon = Icons.Filled.Add,
+                            isPrimary = true,
                             onClick = { showCreateDialog = true }
                         )
-
                         ActionButton(
                             text = "导入歌单",
-                            icon = {
-                                Icon(
-                                    Icons.Filled.Download,
-                                    contentDescription = null,
-                                    tint = TextSoft,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            },
+                            icon = Icons.Filled.Download,
+                            isPrimary = false,
                             onClick = onOpenImport
                         )
                     }
                 }
 
-                // 自建歌单列表
+                // ================= 自建歌单列表 =================
                 if (myPlaylists.isEmpty()) {
                     item(key = "my_empty") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 50.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "还没有自建歌单，点击上方「新建歌单」创建",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSoft
-                            )
-                        }
+                        EmptyStateView(
+                            title = "还没有自建歌单",
+                            subtitle = "点击上方「新建歌单」创建你的第一个歌单",
+                            icon = Icons.Filled.LibraryMusic
+                        )
                     }
                 } else {
                     items(myPlaylists, key = { it.id }) { playlist ->
@@ -208,21 +179,14 @@ fun PlaylistScreen(
                     }
                 }
             } else {
-                // 收藏歌单列表
+                // ================= 收藏歌单列表 =================
                 if (favoritePlaylists.isEmpty()) {
                     item(key = "fav_empty") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 50.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "还没有收藏的歌单\n浏览歌单时点击 ♡ 即可收藏到这里",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSoft
-                            )
-                        }
+                        EmptyStateView(
+                            title = "还没有收藏的歌单",
+                            subtitle = "浏览歌单时点击 ♡ 即可收藏到这里",
+                            icon = Icons.Filled.FavoriteBorder
+                        )
                     }
                 } else {
                     items(favoritePlaylists, key = { it.id }) { playlist ->
@@ -236,7 +200,7 @@ fun PlaylistScreen(
         }
     }
 
-    // 底部抽屉：歌单操作
+    // ================= 弹窗与抽屉 (保持原有逻辑，仅微调样式) =================
     if (showBottomSheet && selectedPlaylist != null) {
         AppBottomSheet(
             onDismissRequest = {
@@ -247,32 +211,27 @@ fun PlaylistScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 20.dp)
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
             ) {
-                // 歌单名称
                 Text(
                     text = selectedPlaylist?.name ?: "",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 18.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                Spacer(Modifier.height(4.dp))
-
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = "${selectedPlaylist?.songs?.size ?: 0} 首歌",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSoft
                 )
+                Spacer(Modifier.height(24.dp))
 
-                Spacer(Modifier.height(16.dp))
-
-                // 操作项
                 BottomSheetAction(
                     icon = Icons.Filled.PlayArrow,
                     text = "播放全部",
@@ -286,9 +245,7 @@ fun PlaylistScreen(
                         selectedPlaylist = null
                     }
                 )
-
-                Spacer(Modifier.height(8.dp))
-
+                Spacer(Modifier.height(12.dp))
                 BottomSheetAction(
                     icon = Icons.Filled.Edit,
                     text = "重命名",
@@ -301,9 +258,7 @@ fun PlaylistScreen(
                         selectedPlaylist = null
                     }
                 )
-
-                Spacer(Modifier.height(8.dp))
-
+                Spacer(Modifier.height(12.dp))
                 BottomSheetAction(
                     icon = Icons.Filled.Delete,
                     text = "删除歌单",
@@ -320,7 +275,6 @@ fun PlaylistScreen(
         }
     }
 
-    // 删除歌单确认对话框
     deleteTarget?.let { target ->
         AppDialog(
             onDismissRequest = { deleteTarget = null },
@@ -341,7 +295,6 @@ fun PlaylistScreen(
         }
     }
 
-    // 新建歌单对话框
     if (showCreateDialog) {
         AppDialog(
             onDismissRequest = {
@@ -363,17 +316,16 @@ fun PlaylistScreen(
                 value = newPlaylistName,
                 onValueChange = { if (it.length <= 30) newPlaylistName = it },
                 singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
+                textStyle = TextStyle(fontSize = 16.sp, color = TextPrimary),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Stone100)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
             )
         }
     }
 
-    // 重命名歌单对话框
     renameTarget?.let { target ->
         AppDialog(
             onDismissRequest = { renameTarget = null },
@@ -390,107 +342,81 @@ fun PlaylistScreen(
                 value = renameText,
                 onValueChange = { renameText = it },
                 singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
+                textStyle = TextStyle(fontSize = 16.sp, color = TextPrimary),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Stone100)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
             )
         }
     }
 }
 
-// ==================== 子组件 ====================
+// ==================== 重新设计的子组件 ====================
 
+/** 胶囊形状的 Tab 按钮 */
 @Composable
-private fun EmptyPlaylistState(
-    onCreatePlaylist: () -> Unit,
-    onOpenImport: () -> Unit,
+private fun TabButton(
+    text: String,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) TabSelectedBg else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "还没有收藏的歌单",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
+            text = text,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 14.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
             ),
-            color = TextPrimary
+            color = if (isSelected) TabSelectedText else TextSoft
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "新建或导入，把喜欢的歌单收进来",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 13.sp
-            ),
-            color = TextSoft
-        )
-        Spacer(Modifier.height(24.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            ActionButton(
-                text = "新建歌单",
-                icon = {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = PrimaryBrown,
-                        modifier = Modifier.size(16.dp)
-                    )
-                },
-                onClick = onCreatePlaylist
-            )
-            ActionButton(
-                text = "导入歌单",
-                icon = {
-                    Icon(
-                        Icons.Filled.Download,
-                        contentDescription = null,
-                        tint = TextSoft,
-                        modifier = Modifier.size(15.dp)
-                    )
-                },
-                onClick = onOpenImport
-            )
-        }
     }
 }
 
+/** 重新设计的操作按钮 */
 @Composable
 private fun ActionButton(
     text: String,
-    icon: @Composable () -> Unit,
+    icon: ImageVector,
+    isPrimary: Boolean,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
-            .border(1.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(Surface)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isPrimary) PrimaryBrown else Color.White)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        icon()
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isPrimary) Color.White else PrimaryBrown,
+            modifier = Modifier.size(18.dp)
+        )
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
             ),
-            color = TextPrimary
+            color = if (isPrimary) Color.White else TextPrimary
         )
     }
 }
 
+/** 自建歌单卡片 */
 @Composable
 private fun PlaylistCard(
     playlist: MyPlaylist,
@@ -501,63 +427,61 @@ private fun PlaylistCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), clip = false)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
             .clickable(onClick = onClick)
-            .padding(12.dp),
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 封面增加投影
         SongCover(
             url = playlist.coverUrl ?: playlist.songs.firstOrNull()?.artwork,
-            modifier = Modifier.size(64.dp),
-            corner = 12.dp
+            modifier = Modifier
+                .size(64.dp)
+                .shadow(4.dp, RoundedCornerShape(14.dp)),
+            corner = 14.dp
         )
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(16.dp))
 
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = playlist.name,
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
                 ),
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-
-            Spacer(Modifier.height(4.dp))
-
+            Spacer(Modifier.height(6.dp))
             Text(
                 text = "${playlist.songs.size} 首歌",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.sp
-                ),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                 color = TextSoft
             )
         }
 
+        // 播放按钮：使用浅色底 + 图标，更精致
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(PrimaryBrown)
+                .background(PrimaryBrown.copy(alpha = 0.1f))
                 .clickable(onClick = onPlay),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 Icons.Filled.PlayArrow,
                 contentDescription = "播放",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                tint = PrimaryBrown,
+                modifier = Modifier.size(22.dp)
             )
         }
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(8.dp))
 
         Box(
             modifier = Modifier
@@ -576,6 +500,57 @@ private fun PlaylistCard(
     }
 }
 
+/** 收藏歌单卡片 */
+@Composable
+private fun CollectedPlaylistCard(
+    playlist: PlaylistItem,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), clip = false)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SongCover(
+            url = playlist.coverUrl,
+            modifier = Modifier
+                .size(64.dp)
+                .shadow(4.dp, RoundedCornerShape(14.dp)),
+            corner = 14.dp
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = playlist.name,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(6.dp))
+            val playCountPart = if (playlist.playCount != null && playlist.playCount > 0) {
+                " · ${com.aesthetic.music.ui.components.formatPlayCountText(playlist.playCount)} 播放"
+            } else ""
+            Text(
+                text = "${playlist.trackCount ?: 0} 首歌$playCountPart",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                color = TextSoft
+            )
+        }
+    }
+}
+
+/** 底部抽屉操作项 */
 @Composable
 private fun BottomSheetAction(
     icon: ImageVector,
@@ -586,22 +561,22 @@ private fun BottomSheetAction(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 8.dp),
+            .padding(vertical = 14.dp, horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = textColor,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(22.dp)
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(16.dp))
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             ),
             color = textColor
@@ -609,54 +584,48 @@ private fun BottomSheetAction(
     }
 }
 
+/** 统一的空状态视图 */
 @Composable
-private fun CollectedPlaylistCard(
-    playlist: PlaylistItem,
-    onClick: () -> Unit,
+private fun EmptyStateView(
+    title: String,
+    subtitle: String,
+    icon: ImageVector
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
-            .clickable(onClick = onClick)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 60.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        SongCover(
-            url = playlist.coverUrl,
-            modifier = Modifier.size(64.dp),
-            corner = 12.dp
-        )
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist.name,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            val playCountPart = if (playlist.playCount != null && playlist.playCount > 0) {
-                " · ${com.aesthetic.music.ui.components.formatPlayCountText(playlist.playCount)} 播放"
-            } else ""
-
-            Text(
-                text = "${playlist.trackCount ?: 0} 首歌$playCountPart",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.sp
-                ),
-                color = TextSoft
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextMuted.copy(alpha = 0.5f),
+                modifier = Modifier.size(40.dp)
             )
         }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
+            color = TextPrimary
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+            color = TextSoft
+        )
     }
 }

@@ -108,5 +108,8 @@ dependencies {
 
     baselineProfile(project(":baselineprofile"))
 
+    // 纯逻辑单元测试（JVM，无需设备）
+    testImplementation(libs.junit)
+
     debugImplementation(libs.androidx.ui.tooling)
 }

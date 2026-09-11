@@ -101,14 +101,20 @@ object FloatCapsuleManager {
             update(title, artist, coverUrl, isPlaying)
             return
         }
-        if (!hasPermission(context)) return
+        // 归一化为 Application Context：本类是全局 object，capsuleView / windowManager
+        // 都是静态字段，会被 inflate 出来的 View 反向持有。
+        // 当前唯一调用点（PlayerManager）传的是 appContext，因此没有实际泄漏；
+        // 但作为公开单例，无法阻止未来调用方误传 Activity——一旦 View 捕获 Activity Context，
+        // 这个静态字段会拖住整个 Activity 无法回收。在此收敛，把"约定"变成代码保证。
+        val appCtx = context.applicationContext
+        if (!hasPermission(appCtx)) return
         if (windowManager == null) {
-            windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            windowManager = appCtx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         }
         onPlayPauseTap = onPlayPause
         onCapsuleTap = onTap
 
-        val view = LayoutInflater.from(context).inflate(R.layout.float_capsule, null)
+        val view = LayoutInflater.from(appCtx).inflate(R.layout.float_capsule, null)
         val titleView = view.findViewById<TextView>(R.id.fc_title)
         val artistView = view.findViewById<TextView>(R.id.fc_artist)
         val coverView = view.findViewById<ImageView>(R.id.fc_cover)
@@ -118,7 +124,7 @@ object FloatCapsuleManager {
         artistView.text = artist
         playBtn.setImageResource(if (isPlaying) R.drawable.ic_pause_white else R.drawable.ic_play_white)
         if (!coverUrl.isNullOrEmpty()) {
-            loadImage(context, coverUrl, coverView)
+            loadImage(appCtx, coverUrl, coverView)
         }
 
         playBtn.setOnClickListener { onPlayPauseTap?.invoke() }
@@ -160,14 +166,14 @@ object FloatCapsuleManager {
                     if (!isDragging) {
                         // 轻点（未拖动）= 回 App
                         onCapsuleTap?.invoke()
-                        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                        val launch = appCtx.packageManager.getLaunchIntentForPackage(appCtx.packageName)
                             ?.apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                             }
-                        if (launch != null) context.startActivity(launch)
+                        if (launch != null) appCtx.startActivity(launch)
                     } else {
                         // 拖动结束：记住位置，下次展示沿用
-                        saveCapsulePosition(context, params.x, params.y)
+                        saveCapsulePosition(appCtx, params.x, params.y)
                     }
                     isDragging = false
                     true
@@ -192,9 +198,9 @@ object FloatCapsuleManager {
         )
         params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         // 恢复上次拖拽位置；首次展示默认距顶 100dp（此前 y=100 是像素硬编码，不同密度屏位置差异大且不持久化）
-        val saved = loadCapsulePosition(context)
+        val saved = loadCapsulePosition(appCtx)
         params.x = saved?.first ?: 0
-        params.y = saved?.second ?: (100 * context.resources.displayMetrics.density).toInt()
+        params.y = saved?.second ?: (100 * appCtx.resources.displayMetrics.density).toInt()
 
         layoutParams = params
         capsuleView = view

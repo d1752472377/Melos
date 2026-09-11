@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -364,10 +365,16 @@ object AudioCacheService {
         }
     }
 
+    /**
+     * 文件大小格式化。
+     * 固定 Locale.US：大小是机器可读格式，不应跟随系统语言——
+     * 此前隐式使用默认 Locale，在阿拉伯语/印地语等语系下会输出非拉丁数字或
+     * 逗号小数点（如 "1,5 MB"），缓存页显示异常。
+     */
     fun formatSize(bytes: Long): String = when {
         bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
-        bytes < 1024L * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024))
-        else -> String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024))
+        bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
+        bytes < 1024L * 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024))
+        else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024 * 1024))
     }
 }

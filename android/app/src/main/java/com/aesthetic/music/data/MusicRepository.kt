@@ -27,10 +27,6 @@ import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.userapi.UserApiEngine
 import kotlinx.coroutines.CancellationException
-import java.io.IOException
-import java.net.ConnectException
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
 
 /**
  * 音乐数据仓库：
@@ -44,16 +40,10 @@ class MusicRepository(
     private suspend fun <T> apiCatching(block: suspend () -> T): Result<T> = try {
         Result.success(block())
     } catch (e: CancellationException) {
+        // 协程取消不是业务失败，必须原样抛出，否则会吞掉取消信号
         throw e
     } catch (e: Exception) {
-        Result.failure(friendly(e))
-    }
-
-    private fun friendly(e: Exception): Exception {
-        val networkError = e is IOException || e is ConnectException ||
-            e is SocketTimeoutException || e is UnknownHostException ||
-            e.message?.contains("Unable to resolve host") == true
-        return if (networkError) Exception("网络连接失败，请检查网络后重试") else e
+        Result.failure(friendlyError(e))
     }
 
     // ==================== 音乐（直连公共平台协议，客户端独立自治） ====================

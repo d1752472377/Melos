@@ -32,4 +32,7 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
 
     implementation(libs.kotlinx.serialization.json)
+
+    // 纯逻辑单元测试（歌词解析器全部无 Android 依赖，JVM 上可直接跑）
+    testImplementation(libs.junit)
 }

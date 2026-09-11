@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import com.aesthetic.music.BuildConfig
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +21,10 @@ data class UpdateInfo(
     val versionCode: Int,
     val apkUrl: String,
     val apkSize: Long,
+    /** 旧字段，保留用于兼容历史 update.json；有 [sha256] 时不再使用 */
     val md5: String,
+    /** 首选摘要算法；服务端未下发时为空，此时回退 [md5] */
+    val sha256: String,
     val forceUpdate: Boolean,
     val updateLog: String,
     val publishTime: String,
@@ -62,6 +64,7 @@ object UpdateService {
                     apkUrl = json.optString("apkUrl"),
                     apkSize = json.optLong("apkSize"),
                     md5 = json.optString("md5"),
+                    sha256 = json.optString("sha256"),
                     forceUpdate = json.optBoolean("forceUpdate"),
                     updateLog = json.optString("updateLog"),
                     publishTime = json.optString("publishTime"),
@@ -76,7 +79,6 @@ object UpdateService {
     }
 
     /** 下载 APK 到外部存储 updates 目录，返回本地路径 */
-    @RequiresApi(Build.VERSION_CODES.FROYO)
     suspend fun downloadApk(
         context: Context,
         info: UpdateInfo,
@@ -111,26 +113,17 @@ object UpdateService {
                 }
             }
 
-            // 大小 + MD5 双重校验，避免坏包/半包进入系统安装器（会表现为“解析软件包时出现问题”）
+            // 大小 + 摘要双重校验，避免坏包/半包进入系统安装器（会表现为“解析软件包时出现问题”）
             if (info.apkSize > 0 && received != info.apkSize) {
                 file.delete()
                 throw Exception("安装包大小校验失败（$received / ${info.apkSize}），请重新检查更新")
             }
-            if (info.md5.isNotBlank()) {
-                // 流式计算摘要：整包 readBytes 会把几十上百 MB APK 读进内存，低内存设备 OOM
-                val digest = java.security.MessageDigest.getInstance("MD5")
-                file.inputStream().use { input ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        digest.update(buf, 0, n)
-                    }
-                }
-                val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                if (!actual.equals(info.md5, ignoreCase = true)) {
+            // 优先 SHA-256；服务端未下发时回退 MD5（兼容历史 update.json）
+            selectDigestSpec(sha256 = info.sha256, md5 = info.md5)?.let { spec ->
+                val actual = computeFileDigest(file, spec.algorithm)
+                if (!actual.equals(spec.expected, ignoreCase = true)) {
                     file.delete()
-                    throw Exception("安装包校验失败，请重新检查更新")
+                    throw Exception("安装包校验失败（${spec.algorithm}），请重新检查更新")
                 }
             }
             // 签名一致性校验：防服务端/更新通道被攻陷后分发伪造 APK
@@ -206,9 +199,6 @@ object UpdateService {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(intent)
         return true

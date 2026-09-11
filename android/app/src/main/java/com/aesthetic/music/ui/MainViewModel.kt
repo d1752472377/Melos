@@ -1585,7 +1585,6 @@ class MainViewModel : ViewModel() {
         showRanks.value = false
         showSheet.value = false
         _fmActive.value = (tab == AppTab.SHEET)
-        if (tab == AppTab.SHEET) ensureFmStarted()
         if (tab == AppTab.PROFILE) refreshStats()
     }
 

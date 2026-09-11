@@ -27,7 +27,8 @@ object UserStore {
     fun save(token: String, user: UserInfo) {
         try {
             prefs?.edit()
-                ?.putString(KEY_TOKEN, token)
+                // 加密失败时退回明文，保证功能可用（加密失败属设备级异常，此时优先不让用户掉登录）
+                ?.putString(KEY_TOKEN, TokenCipher.encryptToStored(token) ?: token)
                 ?.putString(KEY_USER, gson.toJson(user))
                 ?.apply()
         } catch (_: Exception) {
@@ -41,8 +42,22 @@ object UserStore {
         }
     }
 
+    /**
+     * 读取登录 token。
+     *
+     * 兼容历史明文值：老版本直接把 token 明文写入 SharedPreferences，
+     * 这里在读到明文时顺带就地升级为密文（一次性，之后 `isEncrypted` 即为 true），
+     * 避免老用户永远停留在明文状态。解密失败返回 null，等价于登录态失效。
+     */
     fun token(): String? = try {
-        prefs?.getString(KEY_TOKEN, null)?.takeIf { it.isNotBlank() }
+        val stored = prefs?.getString(KEY_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return null
+        val plain = TokenCipher.unwrap(stored)?.takeIf { it.isNotBlank() } ?: return null
+        if (!TokenFormat.isEncrypted(stored)) {
+            TokenCipher.encryptToStored(plain)?.let {
+                prefs?.edit()?.putString(KEY_TOKEN, it)?.apply()
+            }
+        }
+        plain
     } catch (_: Exception) {
         null
     }

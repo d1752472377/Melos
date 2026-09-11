@@ -4,6 +4,9 @@ on:
   # 打 tag（v*）自动构建正式包并发布 GitHub Release
   push:
     tags: ['v*']
+    branches: [main, master]
+  # 分支 / PR 只跑质量门禁（见 quality job），不产出签名包
+  pull_request:
   # 手动触发：不创建 Release，只产出 APK + update.json 供下载
   workflow_dispatch:
     inputs:
@@ -16,7 +19,48 @@ permissions:
   contents: write   # 创建 Release / 上传资产
 
 jobs:
+  # ---------------- 质量门禁 ----------------
+  # 只读、不需要任何签名密钥，因此在分支与 PR 上都能跑。
+  # 目的：把 lint 与单元测试变成"合并前必须通过"的检查，避免回归悄悄进主干。
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Lint
+        run: cd android && ./gradlew :app:lintDebug
+
+      - name: Unit tests
+        run: cd android && ./gradlew :app:testDebugUnitTest :lyrics:testDebugUnitTest
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: android/app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: '**/build/reports/tests/**'
+          if-no-files-found: ignore
+
   build:
+    # 仅在打 tag 或手动触发时产出签名包；普通分支 push / PR 不进入此 job
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +108,8 @@ jobs:
           echo "verName=$VERNAME" >> "$GITHUB_OUTPUT"
           echo "verCode=$VERCODE" >> "$GITHUB_OUTPUT"
           echo "size=$(stat -c%s "$APK")" >> "$GITHUB_OUTPUT"
+          # sha256 为首选摘要；md5 保留仅供仍在读旧格式的历史版本回退使用
+          echo "sha256=$(sha256sum "$APK" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "md5=$(md5sum "$APK" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           # release-proxy 要求固定资产名 latest.apk；另留版本化副本
           cp "$APK" android/app/build/outputs/apk/release/latest.apk
@@ -80,12 +126,13 @@ jobs:
             --arg v "${{ steps.meta.outputs.verName }}" \
             --argjson c "${{ steps.meta.outputs.verCode }}" \
             --argjson s "${{ steps.meta.outputs.size }}" \
+            --arg sha "${{ steps.meta.outputs.sha256 }}" \
             --arg m "${{ steps.meta.outputs.md5 }}" \
             --arg t "$(date '+%Y-%m-%d %H:%M')" \
             --arg l "$LOG" \
             '{versionName:$v, versionCode:$c,
               apkUrl:"https://music.dovislab.com/latest.apk",
-              apkSize:$s, md5:$m, forceUpdate:false,
+              apkSize:$s, sha256:$sha, md5:$m, forceUpdate:false,
               publishTime:$t, updateLog:$l}' > update.json
           cat update.json
 
@@ -99,7 +146,8 @@ jobs:
           name: Melos v${{ steps.meta.outputs.verName }}
           body: |
             版本 ${{ steps.meta.outputs.verName }}（code ${{ steps.meta.outputs.verCode }}）
-            MD5: ${{ steps.meta.outputs.md5 }}
+            SHA-256: ${{ steps.meta.outputs.sha256 }}
+            MD5（历史字段，兼容旧版本）: ${{ steps.meta.outputs.md5 }}
             更新日志：
             ${{ github.event.inputs.update_log != '' && github.event.inputs.update_log || '见提交记录' }}
           files: |

@@ -204,10 +204,9 @@ fun rememberDominantColors(
             extractedColorInt = cached
             return@LaunchedEffect
         }
-        withContext(Dispatchers.IO) {
+        // 在 IO 线程只做计算，返回结果；写 State 回到主线程
+        val color: Int? = withContext(Dispatchers.IO) {
             try {
-                // 复用 Coil 进程级单例：此前每次取色 new 一个完整 ImageLoader，
-                // 各自带内存/磁盘缓存与线程池且从不 shutdown，内存翻倍还滞留 Context
                 val loader = coil.Coil.imageLoader(context)
                 val request = ImageRequest.Builder(context)
                     .data(url)
@@ -220,42 +219,51 @@ fun rememberDominantColors(
                     val bitmap = drawable.bitmap
                     if (bitmap != null && !bitmap.isRecycled) {
                         val sampleBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 16, 16, false)
-                        var totalR = 0L
-                        var totalG = 0L
-                        var totalB = 0L
-                        var count = 0
-                        val width = sampleBitmap.width
-                        val height = sampleBitmap.height
-                        val pixels = IntArray(width * height)
-                        sampleBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-                        for (pixel in pixels) {
-                            val alpha = android.graphics.Color.alpha(pixel)
-                            if (alpha > 128) {
-                                val r = android.graphics.Color.red(pixel)
-                                val g = android.graphics.Color.green(pixel)
-                                val b = android.graphics.Color.blue(pixel)
-                                val max = maxOf(r, maxOf(g, b))
-                                val min = minOf(r, minOf(g, b))
-                                if (max - min > 15 || (max < 240 && min > 20)) {
-                                    totalR += r
-                                    totalG += g
-                                    totalB += b
-                                    count++
+                        try {
+                            var totalR = 0L
+                            var totalG = 0L
+                            var totalB = 0L
+                            var count = 0
+                            val width = sampleBitmap.width
+                            val height = sampleBitmap.height
+                            val pixels = IntArray(width * height)
+                            sampleBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+                            for (pixel in pixels) {
+                                val alpha = android.graphics.Color.alpha(pixel)
+                                if (alpha > 128) {
+                                    val r = android.graphics.Color.red(pixel)
+                                    val g = android.graphics.Color.green(pixel)
+                                    val b = android.graphics.Color.blue(pixel)
+                                    val max = maxOf(r, maxOf(g, b))
+                                    val min = minOf(r, minOf(g, b))
+                                    if (max - min > 15 || (max < 240 && min > 20)) {
+                                        totalR += r
+                                        totalG += g
+                                        totalB += b
+                                        count++
+                                    }
                                 }
                             }
+                            if (count > 0) {
+                                val avgR = (totalR / count).toInt()
+                                val avgG = (totalG / count).toInt()
+                                val avgB = (totalB / count).toInt()
+                                val colorInt = android.graphics.Color.rgb(avgR, avgG, avgB)
+                                colorExtractionCache.put(url, colorInt)
+                                colorInt
+                            } else null
+                        } finally {
+                            // 释放自己创建的缩放 bitmap，防止累积泄漏
+                            sampleBitmap.recycle()
                         }
-                        if (count > 0) {
-                            val avgR = (totalR / count).toInt()
-                            val avgG = (totalG / count).toInt()
-                            val avgB = (totalB / count).toInt()
-                            val color = android.graphics.Color.rgb(avgR, avgG, avgB)
-                            colorExtractionCache.put(url, color)
-                            extractedColorInt = color
-                        }
-                    }
-                }
+                    } else null
+                } else null
             } catch (_: Exception) {
+                null
             }
+        }
+        if (color != null) {
+            extractedColorInt = color  // 回到主线程写 State
         }
     }
 
@@ -280,10 +288,8 @@ fun rememberDominantColors(
             val accentColor = Color.hsv(hue, sat, 0.85f)
             ExtractedThemeColors(bgStart, bgEnd, buttonColor, accentColor)
         } else {
-            // 浅色系：卡片为浅色清新左右渐变
             val bgStart = Color.hsv(hue, (sat * 0.22f).coerceIn(0.06f, 0.18f), 0.98f)
             val bgEnd = Color.hsv((hue + 12f) % 360f, (sat * 0.10f).coerceIn(0.02f, 0.10f), 0.99f)
-            // 按钮同色系深色
             val buttonColor = Color.hsv(hue, (sat * 1.1f).coerceIn(0.65f, 0.95f), 0.52f)
             val accentColor = Color.hsv(hue, sat, 0.60f)
             ExtractedThemeColors(bgStart, bgEnd, buttonColor, accentColor)

@@ -28,9 +28,11 @@ object SyncServerStore {
 
     fun save(serverUrl: String, syncToken: String) {
         val cleanUrl = serverUrl.trim().trimEnd('/')
+        val cleanToken = syncToken.trim()
         prefs?.edit()
             ?.putString(KEY_SERVER_URL, cleanUrl)
-            ?.putString(KEY_SYNC_TOKEN, syncToken.trim())
+            // 加密失败时退回明文，保证同步功能可用
+            ?.putString(KEY_SYNC_TOKEN, TokenCipher.encryptToStored(cleanToken) ?: cleanToken)
             ?.apply()
     }
 
@@ -45,8 +47,23 @@ object SyncServerStore {
         return prefs?.getString(KEY_SERVER_URL, "")?.trim()?.trimEnd('/').orEmpty()
     }
 
+    /**
+     * 读取同步密钥。
+     *
+     * 兼容历史明文值：读到明文时顺带就地升级为密文（一次性）。
+     * 该方法会被 OkHttp 拦截器在**每个请求**上调用，因此
+     * [TokenCipher] 内部对解密结果做了内存缓存，避免每次请求都走 Keystore。
+     */
     fun getSyncToken(): String {
-        return prefs?.getString(KEY_SYNC_TOKEN, "")?.trim().orEmpty()
+        val stored = prefs?.getString(KEY_SYNC_TOKEN, "")?.trim().orEmpty()
+        if (stored.isBlank()) return ""
+        val plain = TokenCipher.unwrap(stored) ?: return ""
+        if (!TokenFormat.isEncrypted(stored)) {
+            TokenCipher.encryptToStored(plain)?.let {
+                prefs?.edit()?.putString(KEY_SYNC_TOKEN, it)?.apply()
+            }
+        }
+        return plain
     }
 
     fun getLastSyncedAt(): Long {
