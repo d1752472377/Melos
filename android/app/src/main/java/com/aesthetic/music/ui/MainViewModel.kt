@@ -15,6 +15,7 @@ import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.script.ScriptController
+import com.aesthetic.music.ui.sheet.SheetController
 import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
@@ -57,6 +58,9 @@ class MainViewModel : ViewModel() {
 
     // 首页内容体系：已抽到 ContentController（见 ui/home/ContentController.kt）
     private val content = ContentController(repository, viewModelScope)
+
+    // 歌单广场：已抽到 SheetController（见 ui/sheet/SheetController.kt）
+    private val sheet = SheetController(repository, viewModelScope)
 
     // 页面/弹层状态
     private val _currentTab = MutableStateFlow(AppTab.HOME)
@@ -130,18 +134,13 @@ class MainViewModel : ViewModel() {
     val isLoadingContent get() = content.isLoadingContent
     val contentError get() = content.contentError
 
-    // 歌单广场（覆盖层，从首页分类歌单进入）：标签 + 最新/最热 + 方块歌单
-    val sheetTags: List<String> = repository.sheetTags()
-    private val _sheetCat = MutableStateFlow("全部")
-    val sheetCat = _sheetCat.asStateFlow()
-    private val _sheetOrder = MutableStateFlow("hot") // "hot"=最热 / "new"=最新
-    val sheetOrder = _sheetOrder.asStateFlow()
-    private val _sheetPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
-    val sheetPlaylists: StateFlow<List<PlaylistItem>> = _sheetPlaylists.asStateFlow()
-    private val _isLoadingSheets = MutableStateFlow(false)
-    val isLoadingSheets = _isLoadingSheets.asStateFlow()
-    private val _sheetError = MutableStateFlow<String?>(null)
-    val sheetError = _sheetError.asStateFlow()
+    // 歌单广场（覆盖层，从首页分类歌单进入）：已抽到 SheetController，保留同名只读委托
+    val sheetTags get() = sheet.tags
+    val sheetCat get() = sheet.cat
+    val sheetOrder get() = sheet.order
+    val sheetPlaylists get() = sheet.playlists
+    val isLoadingSheets get() = sheet.isLoading
+    val sheetError get() = sheet.error
     private val _showSheet = MutableStateFlow(false)
     val showSheet = _showSheet.asStateFlow()
 
@@ -192,9 +191,6 @@ class MainViewModel : ViewModel() {
     /** 歌手详情请求令牌（openArtist 用，同上） */
     @Volatile
     private var artistRequestId = 0L
-    /** 歌单广场请求令牌（快速切标签或顺序时丢弃旧响应） */
-    @Volatile
-    private var sheetRequestId = 0L
 
     /**
      * 云同步串行互斥锁 + 待发标记：
@@ -708,37 +704,17 @@ class MainViewModel : ViewModel() {
     /** 用户点"重试"时强制重新拉取内容 */
     fun refreshContent() = content.refreshContent()
 
-    // ==================== 歌单广场 ====================
+    // ==================== 歌单广场（委托 SheetController） ====================
 
-    fun setSheetCat(cat: String) {
-        if (_sheetCat.value == cat) return
-        _sheetCat.value = cat
-        loadSheetPlaylists(force = true)
-    }
+    fun setSheetCat(cat: String) = sheet.setCat(cat)
 
-    fun setSheetOrder(order: String) {
-        if (_sheetOrder.value == order) return
-        _sheetOrder.value = order
-        loadSheetPlaylists(force = true)
-    }
+    fun setSheetOrder(order: String) = sheet.setOrder(order)
 
-    fun loadSheetPlaylists(force: Boolean = false) {
-        if (!force && _sheetPlaylists.value.isNotEmpty()) return
-        if (!force && isLoadingSheets.value) return
-        val req = ++sheetRequestId
-        viewModelScope.launch {
-            _isLoadingSheets.value = true
-            _sheetError.value = null
-            repository.sheetPlaylists(sheetCat.value, sheetOrder.value)
-                .onSuccess { list -> if (req == sheetRequestId) _sheetPlaylists.value = list }
-                .onFailure { e -> if (req == sheetRequestId) _sheetError.value = e.message ?: "获取歌单失败" }
-            if (req == sheetRequestId) _isLoadingSheets.value = false
-        }
-    }
+    fun loadSheetPlaylists(force: Boolean = false) = sheet.load(force)
 
     fun openSheet() {
         _showSheet.value = true
-        loadSheetPlaylists()
+        sheet.load()
     }
 
     fun closeSheet() { _showSheet.value = false }
