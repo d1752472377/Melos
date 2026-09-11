@@ -152,6 +152,36 @@
 <section>
   <h2><span class="n">0</span>本轮修复进展</h2>
   <p>以下条目已在本次会话中实际修改并验证（<code>BUILD SUCCESSFUL</code>、Lint 0 Error、84 项单元测试全绿）。</p>
+  <h3>第六批 · 拆分 MainViewModel（进行中）</h3>
+  <div class="road">
+    <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已完成 FM 域</span><div>
+      <b>P1-1（部分）· FM 电台抽出为 <code>FmController</code></b> — FM 是自成一体的一个域：自带完整状态（当前频道/风格/队列/索引/加载态/宝藏歌单）与算法（种子池开拉 → 漂移歌手补池 → 去重入队），此前混在 1600 余行 ViewModel 里，改一行都要通读全文确认影响面。<br>
+      <code>MainViewModel</code> <strong>1686 → 1561 行</strong>，新增 <code>ui/fm/FmController.kt</code> 231 行。<code>FmChannel</code> 随域迁到 <code>ui.fm</code> 包。<br>
+      <strong>视图层零改动</strong>：MainViewModel 保留同名只读委托（<code>val fmQueue get() = fm.queue</code> 等），AppShell 的 20 处 <code>viewModel.fm*</code> 调用全部原样可用。这属于"绞杀者模式"的中间态，后续可让 FM 页直接持有控制器。
+    </div></div>
+    <div class="step"><span class="tag" style="background:var(--amber-bg);color:var(--amber);border-color:var(--amber-bd)">抽取要点</span><div>
+      <b>一个必须保住的隐藏语义</b> — <code>fmToggleLike</code> 判断"是否已收藏"时，检查的是 <code>platform:id</code> <strong>或裸 <code>song.id</code></strong>；而 ViewModel 的 <code>isFavorite()</code> 只认前者。这个额外的裸 id 分支是历史数据兼容（旧版本只存了 id）。抽取时若图省事直接注入 <code>isFavorite()</code>，老用户在 FM 里的收藏状态会被判为未收藏——所以注入的是等价谓词，并在代码里写明原因。
+    </div></div>
+  </div>
+
+  <h3>第五批 · 可观测性</h3>
+  <div class="road">
+    <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已修复</span><div>
+      <b>P2-1 · 16 处静默吞异常全部消除</b> — 新增 <code>bestEffort(tag, what) { ... }</code> 辅助函数：保留"本地写入失败不打断主流程"的降级策略，但写入失败必定留下带堆栈的 <code>Log.w</code>。<br>
+      应用到 <code>SettingsStore</code>（5 处写入）、<code>UserStore</code>（9 处个人资料写入，含 <code>restoreProfileDefaults</code>），并把 <code>MusicRepository</code> 的平台直连兜底、<code>PlatformMusicService</code> 的分类预览、<code>MainViewModel</code> 的服务端登出三处也补上日志。<br>
+      <strong>为什么值得做</strong>：此前用户反馈"设置改了重启又变回去""收藏莫名其妙少了"时，排查既没有堆栈也没有时间点。写入失败通常意味着存储空间不足、prefs 损坏或初始化时序错误——这些信号此前被完全丢弃。服务端登出失败尤其需要留痕，因为那意味着服务端 token 可能仍然有效。
+    </div></div>
+  </div>
+
+  <h3>第四批 · 状态封装</h3>
+  <div class="road">
+    <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已修复</span><div>
+      <b>P1-5 · 56 处可变状态全部封装</b> — <code>MainViewModel</code> 里 <code>val x = MutableStateFlow(...)</code> 改为 <code>private val _x</code> + <code>val x = _x.asStateFlow()</code>，类内 141 处赋值同步改写。全项目<strong>公开可变状态由 56 降至 0</strong>，97 处状态统一为标准范式。<br>
+      视图层原有的 7 处直接写入（<code>viewModel.showPlayer.value = true</code> 之类）改为调用新方法 <code>openPlayer()</code> / <code>closePlayer()</code> / <code>openImportDialog()</code> / <code>closeImportDialog()</code> / <code>closePlaylistDetail()</code>，与既有 <code>openSearch()</code> / <code>closeSheet()</code> 命名约定一致。<br>
+      价值：状态变更不再散落在视图层，"谁在什么时候改了什么"可追溯；同时把 ViewModel 的公开面收敛为只读状态 + 显式方法，为后续拆分 MainViewModel 划出了清晰的边界。
+    </div></div>
+  </div>
+
   <h3>第三批 · 可测性与已知问题归档</h3>
   <div class="road">
     <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已处理</span><div>
@@ -212,11 +242,17 @@
       <tr><td>测试是否会被提交</td><td><span class="b b-p0">被 .gitignore 吞掉</span></td><td><span class="b b-ok">正常纳入版本控制</span></td></tr>
       <tr><td>token 存储</td><td>明文</td><td><span class="b b-ok">AES-256-GCM 加密</span></td></tr>
       <tr><td>升级包摘要</td><td>MD5</td><td><span class="b b-ok">SHA-256（保留 MD5 回退）</span></td></tr>
+      <tr><td>MainViewModel 行数</td><td>1,612</td><td><span class="b b-ok">1,561（FM 域已抽出）</span></td></tr>
+      <tr><td>静默吞异常</td><td>16 处</td><td><span class="b b-ok">0 处（保留降级 + 留日志）</span></td></tr>
+      <tr><td>公开可变状态（MutableStateFlow）</td><td>56 处</td><td><span class="b b-ok">0 处（97 处统一封装）</span></td></tr>
+      <tr><td>视图层直接写 ViewModel 状态</td><td>7 处</td><td><span class="b b-ok">0 处（改为方法调用）</span></td></tr>
     </tbody>
   </table>
 
   <h3>仍未处理</h3>
-  <p>P1-1（MainViewModel 拆分）、P1-2（AppShell 拆分）、P1-5（StateFlow 封装，实测仅 7 处 UI 写入点且都在 AppShell）均未动——这三项涉及的文件当前正被并行修改，此时重构会产生冲突。<code>MainViewModel</code> 的请求令牌逻辑仍缺测试覆盖，需要先做可测性提取。</p>
+  <p><strong>P1-1 剩余部分</strong>：<code>MainViewModel</code> 仍有 1,561 行，尚待抽出「音源脚本」「私有云同步」「搜索」「歌单」等域。云同步那块最复杂（互斥锁 + 待发标记 + LWW 合并 + 已删歌单重放 + 请求令牌），建议单独一次会话处理。<br>
+  <strong>P1-2</strong>：AppShell 的 942 行单 Composable 未动——该文件当前有未提交的并行改动，此时重构会冲突。<br>
+  <code>MainViewModel</code> 的请求令牌逻辑仍缺测试覆盖。</p>
   <p><strong>待你确认的一项</strong>：方括号逐字格式（见「第三批」）究竟是 bug 还是 KDoc 示例写错了。若能提供一份真实的该格式歌词样本，即可定论。</p>
 </section>
 
@@ -279,11 +315,11 @@
     <div class="m"><div class="k">Lint Error</div><div class="v ok">0</div></div>
     <div class="m"><div class="k">Lint 警告 / 提示</div><div class="v warn">79<small> 现</small></div></div>
     <div class="m"><div class="k">单元测试</div><div class="v ok">84<small> 项通过</small></div></div>
-    <div class="m"><div class="k">最大单文件</div><div class="v bad">1,612<small> 行</small></div></div>
+    <div class="m"><div class="k">最大单文件</div><div class="v warn">1,561<small> 行</small></div></div>
     <div class="m"><div class="k">最大单 Composable</div><div class="v bad">942<small> 行</small></div></div>
     <div class="m"><div class="k">硬编码中文串</div><div class="v warn">816<small> 处</small></div></div>
     <div class="m"><div class="k">string 资源</div><div class="v bad">1<small> 条</small></div></div>
-    <div class="m"><div class="k">静默吞异常</div><div class="v warn">16<small> 处</small></div></div>
+    <div class="m"><div class="k">静默吞异常</div><div class="v ok">0<small> 处</small></div></div>
   </div>
 
   <h3>Lint 问题分布（按类型）</h3>
@@ -390,7 +426,7 @@
   <h3><span class="b b-p2">P2</span> 改进项 — 技术债与规范性</h3>
 
   <div class="issue p2">
-    <div class="issue-h"><span class="b b-p2">P2-1</span><b>16 处静默吞异常</b></div>
+    <div class="issue-h"><span class="b b-ok">已修复</span><b>16 处静默吞异常</b></div>
     <p>全项目 120 个 <code>try</code> 块中有 16 处 <code>catch (_: Exception) {}</code> 完全空实现，另有 27 处宽泛的 <code>catch (Exception)</code>。多数出现在持久化写入（<code>SettingsStore</code>、<code>UserStore</code>）与缓存清理中，从"不影响主流程"的角度可以理解，但一旦用户反馈"设置不生效/收藏丢失"，将没有任何线索可查。</p>
     <div class="fix"><b>建议</b> 保留静默降级策略，但在 catch 内至少加一行 <code>Log.w(TAG, "…failed", e)</code>。对确实预期的失败可改为显式捕获具体异常类型。</div>
   </div>
@@ -416,8 +452,17 @@
 
   <div class="issue p2">
     <div class="issue-h"><span class="b b-p2">P2-4</span><b>未配置任何静态分析工具链</b></div>
-    <p>项目没有 ktlint / detekt / spotless 配置，Lint 也没有 baseline 或自定义规则，且 CI 不跑 Lint。当前的 92 项 Lint 结果完全依赖手动触发。</p>
-    <div class="fix"><b>建议</b> 引入 ktlint 做格式化（可直接 <code>--auto-correct</code> 消化 42 处 <code>UseKtx</code> 之类的风格问题），detekt 做复杂度门禁（例如禁止单函数超过 150 行、单类超过 800 行——正好能兜住 P1-1/P1-2 这类问题再次发生）。</div>
+    <p>项目没有 ktlint / detekt / spotless 配置，Lint 也没有 baseline 或自定义规则。CI 现在会跑 Lint（见「第一批」），但缺少复杂度类门禁。</p>
+    <p><strong>⚠ 本条目初版建议"引入 detekt 做复杂度门禁"，实测该建议在本项目当前版本组合下不可行：</strong></p>
+    <table>
+      <thead><tr><th>detekt 版本</th><th>构建所用 Gradle</th><th>Kotlin</th><th>AGP</th></tr></thead>
+      <tbody>
+        <tr><td>1.23.8（最新稳定）</td><td>8.12.1</td><td>2.0.21</td><td>8.8.1</td></tr>
+        <tr><td>2.0.0-alpha.6</td><td>9.6.1</td><td>2.4.10</td><td>9.3.1</td></tr>
+      </tbody>
+    </table>
+    <p>本项目为 Gradle 9.5.0 / Kotlin 2.0.21 / AGP 9.1.0：稳定版 detekt 早于 Gradle 9（其 Gradle 插件大量使用 Gradle 9 已移除的 API），唯一支持 Gradle 9 的是 <strong>alpha</strong> 分支。为发布流水线引入 alpha 版静态分析工具，与报告中另一条批评（<code>baselineprofile = "1.5.0-alpha07"</code> 使用 alpha 依赖）自相矛盾，因此<strong>不建议引入</strong>。</p>
+    <div class="fix"><b>可行替代</b> 等 detekt 2.0.0 转正式版后再接入；在那之前，若要立刻获得门禁，可写一个几十行的 Gradle 校验任务，只硬性拦截零歧义的坏味道（例如"出现公开 <code>MutableStateFlow</code>"——本次已全部清零，因此零误报），复杂度过大的文件仅作信息性输出不阻断构建。</div>
   </div>
 
   <div class="issue p2">
@@ -466,7 +511,7 @@
   <div class="road">
     <div class="step"><span class="tag">第一批</span><div><b>解阻断项</b> — 升级 QuickJS 解决 16KB 页对齐（P0-2）；给 lyrics 解析器与 MusicRepository 补上第一批 JVM 单元测试（P0-1），并在 CI 加入 <code>lint + test</code> 门禁。这两项做完，项目就具备了可持续迭代的基本盘。</div></div>
     <div class="step"><span class="tag">第二批</span><div><b>收安全口子</b> — token 迁移到加密存储（P1-3）；升级包校验换 SHA-256（P1-4）；顺带处理 P2-9 的网络层可测试性。</div></div>
-    <div class="step"><span class="tag">第三批</span><div><b>拆大类</b> — 拆分 MainViewModel（P1-1）与 AppShell（P1-2）。建议先引入 detekt 的复杂度门禁（P2-4），让重构有量化目标，也防止拆完再次膨胀。</div></div>
+    <div class="step"><span class="tag">第三批</span><div><b>拆大类</b> — 拆分 MainViewModel（P1-1）与 AppShell（P1-2）。P1-5 状态封装已完成，公开面收敛为"只读状态 + 显式方法"，切割边界已清晰。（原建议的"先引入 detekt 门禁"经查证不可行，理由见 P2-4。）</div></div>
     <div class="step"><span class="tag">第四批</span><div><b>清技术债</b> — 统一 StateFlow 封装（P1-5）、消除静默 catch（P2-1）、修 Locale 与无障碍问题（P2-5 / P2-7）、更新 README 与 LICENSE（P2-3 / P2-8）。</div></div>
   </div>
 </section>
