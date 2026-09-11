@@ -17,6 +17,8 @@ import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.script.ScriptController
+import com.aesthetic.music.ui.search.SearchController
+import com.aesthetic.music.ui.search.SearchType
 import com.aesthetic.music.ui.sheet.SheetController
 import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
@@ -25,7 +27,6 @@ import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.QualityLevel
-import com.aesthetic.music.data.settings.RecentSearchStore
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.StatsStore
@@ -40,10 +41,8 @@ import com.aesthetic.music.data.api.SyncPushPayload
 import com.aesthetic.music.data.api.PlayEventDto
 import com.aesthetic.music.service.StatsTracker
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,6 +68,9 @@ class MainViewModel : ViewModel() {
 
     // 专辑详情：已抽到 AlbumController（见 ui/album/AlbumController.kt）
     private val albumPage = AlbumController(repository, viewModelScope)
+
+    // 全局搜索：已抽到 SearchController（见 ui/search/SearchController.kt）
+    private val search = SearchController(repository, viewModelScope)
 
     // 页面/弹层状态
     private val _currentTab = MutableStateFlow(AppTab.HOME)
@@ -298,11 +300,6 @@ class MainViewModel : ViewModel() {
                 }
             }
         }
-        // 最近搜索词（本地持久化）
-        viewModelScope.launch(Dispatchers.IO) {
-            val words = RecentSearchStore.load()
-            withContext(Dispatchers.Main) { _recentSearches.value = words }
-        }
         // 登录态失效（401）：清登录态并提示。此前 token 过期/被吊销后界面仍显示"已登录"，
         // 收藏/历史/歌单云同步全部静默失败，用户只看到"同步没生效"
         com.aesthetic.music.data.api.ApiClient.setOnAuthFailed {
@@ -312,66 +309,28 @@ class MainViewModel : ViewModel() {
                 _appToast.value = "登录已过期，请重新登录"
             }
         }
-        // 热门搜索词（netease 官方；失败用本地兜底词）
-        viewModelScope.launch(Dispatchers.IO) {
-            val hot = repository.hotSearchWords().getOrNull().orEmpty()
-                .ifEmpty { defaultHotWords }
-            withContext(Dispatchers.Main) { _hotSearchWords.value = hot }
-        }
+        // 最近搜索 + 热门搜索词（委托 SearchController 异步回填）
+        search.hydrate()
     }
 
-    // ==================== 全局搜索 ====================
-
-    /** 搜索页结果类型 */
-    enum class SearchType(val label: String) {
-        SONG("单曲"), ARTIST("歌手"), PLAYLIST("歌单"), ALBUM("专辑"), LYRIC("歌词")
-    }
+    // ==================== 全局搜索（委托 SearchController） ====================
 
     private val _showSearch = MutableStateFlow(false)
     val showSearch = _showSearch.asStateFlow()
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery = _searchQuery.asStateFlow()
-    private val _searchType = MutableStateFlow(SearchType.SONG)
-    val searchType = _searchType.asStateFlow()
-    /** 平台过滤（仅单曲 Tab 生效）：null = 全部平台聚合；否则为音源 id（netease/kugou/qq/kuwo） */
-    private val _searchPlatform = MutableStateFlow<String?>(null)
-    val searchPlatform = _searchPlatform.asStateFlow()
 
-    private val _songResults = MutableStateFlow<List<Song>>(emptyList())
-    val songResults: StateFlow<List<Song>> = _songResults.asStateFlow()
-
-    private val _lyricResults = MutableStateFlow<List<Song>>(emptyList())
-    val lyricResults: StateFlow<List<Song>> = _lyricResults.asStateFlow()
-
-    private val _artistResults = MutableStateFlow<List<ArtistItem>>(emptyList())
-    val artistResults: StateFlow<List<ArtistItem>> = _artistResults.asStateFlow()
-
-    private val _playlistResults = MutableStateFlow<List<PlaylistItem>>(emptyList())
-    val playlistResults: StateFlow<List<PlaylistItem>> = _playlistResults.asStateFlow()
-
-    private val _albumResults = MutableStateFlow<List<AlbumItem>>(emptyList())
-    val albumResults: StateFlow<List<AlbumItem>> = _albumResults.asStateFlow()
-
-    private val _isSearching = MutableStateFlow(false)
-    val isSearching = _isSearching.asStateFlow()
-    private val _searchError = MutableStateFlow<String?>(null)
-    val searchError = _searchError.asStateFlow()
-
-    /** 最近搜索（持久化，最多 10 条，新的在前） */
-    private val _recentSearches = MutableStateFlow<List<String>>(emptyList())
-    val recentSearches: StateFlow<List<String>> = _recentSearches.asStateFlow()
-
-    /** 热门搜索词（netease 官方热搜；不可用时本地兜底） */
-    private val _hotSearchWords = MutableStateFlow<List<String>>(emptyList())
-    val hotSearchWords: StateFlow<List<String>> = _hotSearchWords.asStateFlow()
-
-    private var searchJob: Job? = null
-    /** 各类型上次已执行的搜索签名（keyword|platform），切换类型时命中则不重复请求 */
-    private val executedSearchKeys = mutableMapOf<SearchType, String>()
-
-    /** 热搜兜底词：后端无 netease 源或网络失败时展示 */
-    private val defaultHotWords =
-        listOf("周杰伦", "热歌", "经典老歌", "抖音热门", "粤语经典", "华语流行", "民谣", "轻音乐")
+    // 搜索状态与逻辑已抽到 SearchController（见 ui/search/SearchController.kt），保留同名只读委托
+    val searchQuery get() = search.query
+    val searchType get() = search.type
+    val searchPlatform get() = search.platform
+    val songResults get() = search.songResults
+    val lyricResults get() = search.lyricResults
+    val artistResults get() = search.artistResults
+    val playlistResults get() = search.playlistResults
+    val albumResults get() = search.albumResults
+    val isSearching get() = search.isSearching
+    val searchError get() = search.searchError
+    val recentSearches get() = search.recentSearches
+    val hotSearchWords get() = search.hotSearchWords
 
     fun openSearch() { _showSearch.value = true }
     fun closeSearch() { _showSearch.value = false }
@@ -386,136 +345,16 @@ class MainViewModel : ViewModel() {
 
     fun closeAlbum() = albumPage.close()
 
-    /** 输入框内容变化：清空即复位；否则 400ms 防抖后自动搜索当前类型 */
-    fun onSearchQueryChanged(q: String) {
-        _searchQuery.value = q
-        searchJob?.cancel()
-        val kw = q.trim()
-        if (kw.isEmpty()) {
-            resetSearchResults()
-            _isSearching.value = false
-            _searchError.value = null
-            return
-        }
-        searchJob = viewModelScope.launch {
-            delay(400)
-            runSearch(kw, force = false)
-        }
-    }
+    // 搜索操作：委托 SearchController
+    fun onSearchQueryChanged(q: String) = search.onQueryChanged(q)
 
-    /** 提交搜索（IME 搜索键 / 点最近搜索、热搜词）：立即执行并记入最近搜索 */
-    fun submitSearch(word: String? = null) {
-        val kw = (word ?: searchQuery.value).trim()
-        if (kw.isEmpty()) return
-        if (word != null && searchQuery.value != word) {
-            _searchQuery.value = word
-        }
-        recordRecentSearch(kw)
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch { runSearch(kw, force = true) }
-    }
+    fun submitSearch(word: String? = null) = search.submit(word)
 
-    /** 切换结果类型：有未执行的组合就补一次请求 */
-    fun setSearchType(type: SearchType) {
-        if (_searchType.value == type) return
-        _searchType.value = type
-        val kw = searchQuery.value.trim()
-        if (kw.isNotEmpty()) {
-            searchJob?.cancel()
-            searchJob = viewModelScope.launch { runSearch(kw, force = false) }
-        }
-    }
+    fun setSearchType(type: SearchType) = search.setType(type)
 
-    /** 切换平台（仅单曲生效）：重新搜索 */
-    fun setSearchPlatform(platform: String?) {
-        if (_searchPlatform.value == platform) return
-        _searchPlatform.value = platform
-        val kw = searchQuery.value.trim()
-        if (_searchType.value == SearchType.SONG && kw.isNotEmpty()) {
-            searchJob?.cancel()
-            searchJob = viewModelScope.launch { runSearch(kw, force = false) }
-        }
-    }
+    fun setSearchPlatform(platform: String?) = search.setPlatform(platform)
 
-    fun clearRecentSearches() {
-        _recentSearches.value = emptyList()
-        RecentSearchStore.clear()
-    }
-
-    private fun resetSearchResults() {
-        _songResults.value = emptyList()
-        _lyricResults.value = emptyList()
-        _artistResults.value = emptyList()
-        _playlistResults.value = emptyList()
-        _albumResults.value = emptyList()
-        executedSearchKeys.clear()
-    }
-
-    private fun recordRecentSearch(word: String) {
-        val w = word.trim()
-        if (w.isEmpty()) return
-        val next = (listOf(w) + _recentSearches.value)
-            .distinctBy { it.lowercase() }
-            .take(10)
-        _recentSearches.value = next
-        RecentSearchStore.save(next)
-    }
-
-    /**
-     * 执行当前类型的搜索。
-     * - 单曲：走聚合接口，platform 非空时只搜指定源；
-     * - 歌手/歌单/专辑/歌词：走 netease 官方接口（后端能力所限，与所选平台无关）。
-     * 已执行过相同 keyword|platform 且非强制的请求直接跳过（切 Tab 不重复打接口）。
-     */
-    private suspend fun runSearch(kw: String, force: Boolean) {
-        val type = searchType.value
-        val platform = if (type == SearchType.SONG) searchPlatform.value else null
-        val key = "$kw|${platform ?: "*"}"
-        if (!force && executedSearchKeys[type] == key) return
-
-        // 先清空当前类型的旧结果：此前失败时旧平台/旧类型的结果仍留在列表里，
-        // 被静默当作本次搜索结果展示（用户切"酷狗"失败后看到的还是"全部平台"的曲目）
-        when (type) {
-            SearchType.SONG -> _songResults.value = emptyList()
-            SearchType.ARTIST -> _artistResults.value = emptyList()
-            SearchType.PLAYLIST -> _playlistResults.value = emptyList()
-            SearchType.ALBUM -> _albumResults.value = emptyList()
-            SearchType.LYRIC -> _lyricResults.value = emptyList()
-        }
-
-        _isSearching.value = true
-        _searchError.value = null
-        try {
-            when (type) {
-                SearchType.SONG -> repository.search(kw, 30, platform).onSuccess {
-                    _songResults.value = it
-                    executedSearchKeys[type] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "搜索失败" }
-
-                SearchType.ARTIST -> repository.searchArtists(kw, 12).onSuccess {
-                    _artistResults.value = it
-                    executedSearchKeys[type] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "歌手搜索失败" }
-
-                SearchType.PLAYLIST -> repository.searchPlaylists(kw, 20).onSuccess {
-                    _playlistResults.value = it
-                    executedSearchKeys[type] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "歌单搜索失败" }
-
-                SearchType.ALBUM -> repository.searchAlbums(kw, 20).onSuccess {
-                    _albumResults.value = it
-                    executedSearchKeys[type] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "专辑搜索失败" }
-
-                SearchType.LYRIC -> repository.searchByLyric(kw, 30).onSuccess {
-                    _lyricResults.value = it
-                    executedSearchKeys[type] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "歌词搜索失败" }
-            }
-        } finally {
-            _isSearching.value = false
-        }
-    }
+    fun clearRecentSearches() = search.clearRecent()
 
     // ==================== 歌手页（委托 ArtistController） ====================
 

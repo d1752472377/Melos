@@ -18,7 +18,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
@@ -26,15 +25,15 @@ import com.aesthetic.music.ui.theme.TextMuted
 /** 类型筛选行：单曲 / 歌手 / 歌单 / 专辑 / 歌词 */
 @Composable
 fun SearchFilterTabs(
-    selected: MainViewModel.SearchType,
-    onSelect: (MainViewModel.SearchType) -> Unit,
+    selected: SearchType,
+    onSelect: (SearchType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        MainViewModel.SearchType.entries.forEach { type ->
+        SearchType.entries.forEach { type ->
             TypeTag(
                 label = type.label,
                 selected = selected == type,

@@ -128,7 +128,7 @@ fun SearchScreen(
             )
 
             // 非单曲类型不涉及平台切换（平台选择器在搜索框内，仅影响单曲）
-            if (searchType != MainViewModel.SearchType.SONG && query.isNotBlank()) {
+            if (searchType != SearchType.SONG && query.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "该类型结果来自公共平台官方接口",
@@ -173,31 +173,31 @@ fun SearchScreen(
                         }
 
                         else -> when (searchType) {
-                            MainViewModel.SearchType.SONG -> SongResultList(
+                            SearchType.SONG -> SongResultList(
                                 songs = songResults,
                                 currentSong = currentSong,
                                 emptyHint = searchError ?: "没有找到相关的单曲",
                                 onPlay = { song -> onPlaySong(song, songResults) },
                                 onMore = { song -> songForActionMenu = song },
                             )
-                            MainViewModel.SearchType.LYRIC -> SongResultList(
+                            SearchType.LYRIC -> SongResultList(
                                 songs = lyricResults,
                                 currentSong = currentSong,
                                 emptyHint = searchError ?: "没有匹配歌词的歌曲",
                                 onPlay = { song -> onPlaySong(song, lyricResults) },
                                 onMore = { song -> songForActionMenu = song },
                             )
-                            MainViewModel.SearchType.ARTIST -> ArtistResultList(
+                            SearchType.ARTIST -> ArtistResultList(
                                 artists = artistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌手",
                                 onOpen = onOpenArtist,
                             )
-                            MainViewModel.SearchType.PLAYLIST -> PlaylistResultList(
+                            SearchType.PLAYLIST -> PlaylistResultList(
                                 playlists = playlistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌单",
                                 onOpen = onOpenPlaylist,
                             )
-                            MainViewModel.SearchType.ALBUM -> AlbumResultList(
+                            SearchType.ALBUM -> AlbumResultList(
                                 albums = albumResults,
                                 emptyHint = searchError ?: "没有找到相关的专辑",
                                 onOpen = onOpenAlbum,
@@ -259,16 +259,16 @@ fun SearchScreen(
 
 /** 当前类型下结果是否全部为空：用于「搜索中」加载态的判定 */
 private fun allResultsEmpty(
-    type: MainViewModel.SearchType,
+    type: SearchType,
     songs: List<Song>,
     lyrics: List<Song>,
     artists: List<ArtistItem>,
     playlists: List<PlaylistItem>,
     albums: List<AlbumItem>,
 ): Boolean = when (type) {
-    MainViewModel.SearchType.SONG -> songs.isEmpty()
-    MainViewModel.SearchType.LYRIC -> lyrics.isEmpty()
-    MainViewModel.SearchType.ARTIST -> artists.isEmpty()
-    MainViewModel.SearchType.PLAYLIST -> playlists.isEmpty()
-    MainViewModel.SearchType.ALBUM -> albums.isEmpty()
+    SearchType.SONG -> songs.isEmpty()
+    SearchType.LYRIC -> lyrics.isEmpty()
+    SearchType.ARTIST -> artists.isEmpty()
+    SearchType.PLAYLIST -> playlists.isEmpty()
+    SearchType.ALBUM -> albums.isEmpty()
 }
