@@ -1,6 +1,5 @@
 package com.aesthetic.music.ui
 
-import android.util.Log
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,7 +7,6 @@ import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
-import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.album.AlbumController
 import com.aesthetic.music.ui.artist.ArtistController
@@ -23,35 +21,16 @@ import com.aesthetic.music.ui.script.ScriptController
 import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
 import com.aesthetic.music.ui.sheet.SheetController
-import com.aesthetic.music.data.settings.FavoritePlaylistStore
-import com.aesthetic.music.data.settings.FavoriteStore
-import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.LocalStats
-import com.aesthetic.music.data.settings.MyPlaylist
-import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.StatsStore
-import com.aesthetic.music.data.settings.UserStore
-import com.aesthetic.music.data.settings.SyncServerStore
-import com.aesthetic.music.data.api.CloudSyncPullData
-import com.aesthetic.music.data.api.SyncCollection
-import com.aesthetic.music.data.api.SyncHistoryUpsert
-import com.aesthetic.music.data.api.SyncPlaylistSongUpsert
-import com.aesthetic.music.data.api.SyncPlaylistUpsert
-import com.aesthetic.music.data.api.SyncPushPayload
-import com.aesthetic.music.data.api.PlayEventDto
-import com.aesthetic.music.service.StatsTracker
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 enum class AppTab { HOME, SHEET, PLAYLIST, PROFILE }
@@ -95,24 +74,12 @@ class MainViewModel : ViewModel() {
     val currentTab = _currentTab.asStateFlow()
     private val _showPlayer = MutableStateFlow(false)
     val showPlayer = _showPlayer.asStateFlow()
-    private val _showThemeSheet = MutableStateFlow(false)
-    val showThemeSheet = _showThemeSheet.asStateFlow()
-    private val _showSettings = MutableStateFlow(false)
-    val showSettings = _showSettings.asStateFlow()
     val showPlaylistDetail get() = playlistDetail.showDetail
     private val _showImportDialog = MutableStateFlow(false)
     val showImportDialog = _showImportDialog.asStateFlow()
-    private val _showFavorites = MutableStateFlow(false)
-    val showFavorites = _showFavorites.asStateFlow()
-    private val _showCacheList = MutableStateFlow(false)
-    val showCacheList = _showCacheList.asStateFlow()
     /** 最近播放独立页（从"我的"页进入；不再跳转到歌单 Tab） */
     private val _showHistory = MutableStateFlow(false)
     val showHistory = _showHistory.asStateFlow()
-    private val _showMyPlaylists = MutableStateFlow(false)
-    val showMyPlaylists = _showMyPlaylists.asStateFlow()
-    private val _showCreatePlaylistDialog = MutableStateFlow(false)
-    val showCreatePlaylistDialog = _showCreatePlaylistDialog.asStateFlow()
 
     // 弹层/播放器的显式开关。
     // 这些状态对外只读（暴露 StateFlow 而非 MutableStateFlow），外部只能经这些方法变更，
@@ -131,7 +98,6 @@ class MainViewModel : ViewModel() {
     val favoriteSongs get() = library.favoriteSongs
     val favorites get() = library.favorites
     val favoritePlaylists get() = library.favoritePlaylists
-    val favoritePlaylistIds get() = library.favoritePlaylistIds
 
     // （全局搜索相关状态见下方「==================== 全局搜索 ====================」区块）
 
@@ -154,8 +120,6 @@ class MainViewModel : ViewModel() {
     val sheetPlaylists get() = sheet.playlists
     val isLoadingSheets get() = sheet.isLoading
     val sheetError get() = sheet.error
-    private val _showSheet = MutableStateFlow(false)
-    val showSheet = _showSheet.asStateFlow()
 
     // FM 电台：逻辑与状态已抽到 FmController（见 ui/fm/FmController.kt）。
     // 这里保留同名的只读委托，视图层无需改动；后续可让 FM 页直接持有控制器。
@@ -171,17 +135,12 @@ class MainViewModel : ViewModel() {
     val fmChannels get() = fm.channels
     val fmStyles get() = fm.styles
     val currentFmChannel get() = fm.currentChannel
-    val fmActive get() = fm.active
     val fmStyle get() = fm.style
     val fmQueue get() = fm.queue
     val fmIndex get() = fm.index
     val fmLoading get() = fm.loading
     val fmError get() = fm.error
     val fmTreasure get() = fm.treasure
-
-    // 排行榜页（覆盖层）
-    private val _showRanks = MutableStateFlow(false)
-    val showRanks = _showRanks.asStateFlow()
 
     // 歌单详情：已抽到 PlaylistDetailController，保留同名只读委托
     val playlistSongs get() = playlistDetail.songs
@@ -239,9 +198,6 @@ class MainViewModel : ViewModel() {
 
     // ==================== 全局搜索（委托 SearchController） ====================
 
-    private val _showSearch = MutableStateFlow(false)
-    val showSearch = _showSearch.asStateFlow()
-
     // 搜索状态与逻辑已抽到 SearchController（见 ui/search/SearchController.kt），保留同名只读委托
     val searchQuery get() = search.query
     val searchType get() = search.type
@@ -255,9 +211,6 @@ class MainViewModel : ViewModel() {
     val searchError get() = search.searchError
     val recentSearches get() = search.recentSearches
     val hotSearchWords get() = search.hotSearchWords
-
-    fun openSearch() { _showSearch.value = true }
-    fun closeSearch() { _showSearch.value = false }
 
     /** 专辑详情覆盖层（搜索页专辑 Tab 点击进入）：已抽到 AlbumController，保留同名只读委托 */
     val showAlbumDetail get() = albumPage.showAlbumDetail
@@ -366,13 +319,6 @@ class MainViewModel : ViewModel() {
 
     fun loadSheetPlaylists(force: Boolean = false) = sheet.load(force)
 
-    fun openSheet() {
-        _showSheet.value = true
-        sheet.load()
-    }
-
-    fun closeSheet() { _showSheet.value = false }
-
     // ==================== FM 电台（委托 FmController） ====================
 
     fun fmStart(channel: FmChannel = fm.channels[0], onReady: ((Song, List<Song>) -> Unit)? = null) =
@@ -393,11 +339,6 @@ class MainViewModel : ViewModel() {
 
     fun fmStopDrift() = fm.stopDrift()
 
-    // ==================== 排行榜页 ====================
-
-    fun openRanks() { _showRanks.value = true }
-    fun closeRanks() { _showRanks.value = false }
-
     // ==================== 歌单（委托 PlaylistDetailController） ====================
 
     fun openPlaylistDetail(item: PlaylistItem) = playlistDetail.open(item)
@@ -408,10 +349,8 @@ class MainViewModel : ViewModel() {
 
     // ==================== 我的歌单（委托 LibraryController） ====================
 
-    fun createPlaylist(name: String, initialSongs: List<Song> = emptyList()) {
+    fun createPlaylist(name: String, initialSongs: List<Song> = emptyList()) =
         library.createPlaylist(name, initialSongs)
-        _showCreatePlaylistDialog.value = false
-    }
 
     fun renamePlaylist(id: String, name: String) = library.renamePlaylist(id, name)
 
@@ -433,20 +372,6 @@ class MainViewModel : ViewModel() {
         )
     }
 
-    fun addCurrentToPlaylist(song: Song) {
-        _showCreatePlaylistDialog.value = true
-        pendingSongForNewPlaylist = song
-    }
-
-    private var pendingSongForNewPlaylist: Song? = null
-
-    fun consumePendingSong(): Song? = pendingSongForNewPlaylist.also { pendingSongForNewPlaylist = null }
-
-    fun createPlaylistWithPendingSong(name: String) {
-        val song = pendingSongForNewPlaylist
-        createPlaylist(name, listOfNotNull(song))
-    }
-
     // ==================== 音源脚本与私有云同步 ====================
 
     // 音源脚本：逻辑与状态已抽到 ScriptController（见 ui/script/ScriptController.kt）。
@@ -465,7 +390,6 @@ class MainViewModel : ViewModel() {
     val lastSyncedAt get() = library.lastSyncedAt
     val lastSyncStatus get() = library.lastSyncStatus
     val isSyncing get() = library.isSyncing
-    val isTestingSync get() = library.isTestingSync
 
     fun saveSyncConfig(serverUrl: String, token: String) = library.saveSyncConfig(serverUrl, token)
 
@@ -533,24 +457,16 @@ class MainViewModel : ViewModel() {
 
     fun switchTab(tab: AppTab) {
         _currentTab.value = tab
-        // 切 Tab 时关闭二级页面（搜索/歌单详情/歌手页/收藏页/最近播放等覆盖层），否则会盖住新 Tab 内容
+        // 切 Tab 时关闭二级页面（歌单详情/歌手页/专辑详情/最近播放等），否则会盖住新 Tab 内容
         playlistDetail.close()
         artistPage.close()
-        _showFavorites.value = false
-        _showCacheList.value = false
-        _showMyPlaylists.value = false
-        _showHistory.value = false
-        _showSearch.value = false
         albumPage.close()
-        _showRanks.value = false
-        _showSheet.value = false
+        _showHistory.value = false
         // FM 漂移开关由 FmController 持有（切走 FM 页即暂停漂移）
         fm.setDriftActive(tab == AppTab.SHEET)
         if (tab == AppTab.PROFILE) refreshStats()
     }
 
-    // 在 MainViewModel 类中添加
-    // 在 MainViewModel 中添加
     private val _currentPageBackground = MutableStateFlow<Color?>(null)
     val currentPageBackground: StateFlow<Color?> = _currentPageBackground.asStateFlow()
     private val _isDarkPage = MutableStateFlow(false)
@@ -559,16 +475,5 @@ class MainViewModel : ViewModel() {
     fun updatePageBackground(color: Color?, isDark: Boolean) {
         _currentPageBackground.value = color
         _isDarkPage.value = isDark
-    }
-
-    companion object {
-        private const val TAG = "MainViewModel"
-        private const val HISTORY_LIMIT = 100
-        /** 收藏上限：SharedPreferences 存整组 JSON，无上限会随使用无限膨胀 */
-        private const val MAX_FAVORITES = 1000
-        /** 单个歌单曲目数上限 */
-        private const val MAX_PLAYLIST_SONGS = 1000
-        /** FM 默认风格：当前无风格选择 UI，进入 FM 页直接用这个开拉 */
-        private const val DEFAULT_FM_STYLE = "推荐新歌"
     }
 }
