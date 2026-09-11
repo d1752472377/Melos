@@ -18,6 +18,7 @@ import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.playlist.PlaylistDetailController
+import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.script.ScriptController
 import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
@@ -81,6 +82,14 @@ class MainViewModel : ViewModel() {
     private val playlistDetail =
         PlaylistDetailController(repository, viewModelScope, onToast = { _appToast.value = it })
 
+    // 用户 / 个人中心：已抽到 ProfileController（见 ui/profile/ProfileController.kt）
+    private val profile = ProfileController(
+        repository = repository,
+        scope = viewModelScope,
+        onToast = { _appToast.value = it },
+        onLoggedOut = { library.resetSyncState() },
+    )
+
     // 页面/弹层状态
     private val _currentTab = MutableStateFlow(AppTab.HOME)
     val currentTab = _currentTab.asStateFlow()
@@ -100,8 +109,6 @@ class MainViewModel : ViewModel() {
     /** 最近播放独立页（从"我的"页进入；不再跳转到歌单 Tab） */
     private val _showHistory = MutableStateFlow(false)
     val showHistory = _showHistory.asStateFlow()
-    private val _showLogin = MutableStateFlow(false)
-    val showLogin = _showLogin.asStateFlow()
     private val _showMyPlaylists = MutableStateFlow(false)
     val showMyPlaylists = _showMyPlaylists.asStateFlow()
     private val _showCreatePlaylistDialog = MutableStateFlow(false)
@@ -181,31 +188,16 @@ class MainViewModel : ViewModel() {
     val isLoadingPlaylist get() = playlistDetail.isLoading
     val playlistError get() = playlistDetail.error
 
-    // 用户体系
-    private val _user = MutableStateFlow(UserStore.user())
-    val user: StateFlow<UserInfo?> = _user.asStateFlow()
-    private val _authBusy = MutableStateFlow(false)
-    val authBusy = _authBusy.asStateFlow()
-    private val _authError = MutableStateFlow<String?>(null)
-    val authError = _authError.asStateFlow()
-
-    // 个人中心个性化状态
-    private val _profileAvatar = MutableStateFlow(UserStore.getAvatarPath())
-    val profileAvatar = _profileAvatar.asStateFlow()
-    private val _profileBackground = MutableStateFlow(UserStore.getBackgroundPath())
-    val profileBackground = _profileBackground.asStateFlow()
-    private val _isProfileBgBlur = MutableStateFlow(UserStore.isBackgroundBlur())
-    val isProfileBgBlur = _isProfileBgBlur.asStateFlow()
-    private val _profileNickname = MutableStateFlow(UserStore.getNickname())
-    val profileNickname = _profileNickname.asStateFlow()
-    private val _profileBio = MutableStateFlow(UserStore.getBio())
-    val profileBio = _profileBio.asStateFlow()
-    private val _profileGender = MutableStateFlow(UserStore.getGender())
-    val profileGender = _profileGender.asStateFlow()
-    private val _profileBirthday = MutableStateFlow(UserStore.getBirthday())
-    val profileBirthday = _profileBirthday.asStateFlow()
-    private val _profileUserId = MutableStateFlow(UserStore.getUserId())
-    val profileUserId = _profileUserId.asStateFlow()
+    // 用户 / 个人中心状态：已抽到 ProfileController，保留同名只读委托
+    val user get() = profile.user
+    val profileAvatar get() = profile.profileAvatar
+    val profileBackground get() = profile.profileBackground
+    val isProfileBgBlur get() = profile.isProfileBgBlur
+    val profileNickname get() = profile.profileNickname
+    val profileBio get() = profile.profileBio
+    val profileGender get() = profile.profileGender
+    val profileBirthday get() = profile.profileBirthday
+    val profileUserId get() = profile.profileUserId
 
     /** 一次性全局提示（导入歌单失败、改昵称失败、登录态过期等）：
      *  此前这些场景的错误要么写进没人消费的状态（albumError），要么复用只被登录弹窗读的
@@ -239,15 +231,8 @@ class MainViewModel : ViewModel() {
     init {
         // 冷启动异步回填历史/收藏/歌单（与窗口期内已发生的变更合并），委托 LibraryController
         library.hydrate()
-        // 登录态失效（401）：清登录态并提示。此前 token 过期/被吊销后界面仍显示"已登录"，
-        // 收藏/历史/歌单云同步全部静默失败，用户只看到"同步没生效"
-        com.aesthetic.music.data.api.ApiClient.setOnAuthFailed {
-            if (UserStore.isLoggedIn()) {
-                UserStore.logout()
-                _user.value = null
-                _appToast.value = "登录已过期，请重新登录"
-            }
-        }
+        // 登录态失效（401）处理委托 ProfileController
+        profile.installAuthFailedHook()
         // 最近搜索 + 热门搜索词（委托 SearchController 异步回填）
         search.hydrate()
     }
@@ -502,147 +487,28 @@ class MainViewModel : ViewModel() {
 
     fun switchScript(id: String) = script.switchTo(id)
 
-    // ==================== 用户体系 (Auth) ====================
+    // ==================== 用户体系 / 个人中心（委托 ProfileController） ====================
 
-    fun showLoginSheet() { _showLogin.value = true }
-    fun clearAuthError() { _authError.value = null }
-    fun dismissLogin() { _showLogin.value = false; _authError.value = null }
+    fun logout() = profile.logout()
 
-    fun login(u: String, p: String) {
-        if (u.isBlank() || p.isBlank()) {
-            _authError.value = "用户名与密码不能为空"
-            return
-        }
-        viewModelScope.launch {
-            _authBusy.value = true
-            _authError.value = null
-            repository.login(u, p).onSuccess { data ->
-                UserStore.save(data.token, data.user)
-                _user.value = data.user
-                _authBusy.value = false
-                _showLogin.value = false
-                _appToast.value = "登录成功"
-                // 登录成功后触发一次增量同步
-                performCloudSync()
-            }.onFailure { e ->
-                _authBusy.value = false
-                _authError.value = e.message ?: "登录失败"
-            }
-        }
-    }
+    fun updateNickname(nickname: String) = profile.updateNickname(nickname)
 
-    fun register(u: String, p: String, n: String) {
-        if (u.isBlank() || p.isBlank()) {
-            _authError.value = "用户名与密码不能为空"
-            return
-        }
-        viewModelScope.launch {
-            _authBusy.value = true
-            _authError.value = null
-            repository.register(u, p, n).onSuccess { data ->
-                UserStore.save(data.token, data.user)
-                _user.value = data.user
-                _authBusy.value = false
-                _showLogin.value = false
-                _appToast.value = "注册成功并已登录"
-                performCloudSync()
-            }.onFailure { e ->
-                _authBusy.value = false
-                _authError.value = e.message ?: "注册失败"
-            }
-        }
-    }
+    fun setProfileAvatar(path: String?) = profile.setProfileAvatar(path)
 
-    fun logout() {
-        viewModelScope.launch {
-            try {
-                repository.logout()
-            } catch (e: Exception) {
-                // 服务端登出失败：本地仍继续登出（用户体验优先），但必须留痕——
-                // 否则服务端 token 可能仍然有效，属于需要被发现的鉴权残留。
-                Log.w(TAG, "服务端登出失败，已继续本地登出", e)
-            }
-            UserStore.logout()
-            library.resetSyncState()
-            _user.value = null
-            _profileNickname.value = UserStore.getNickname()
-            _profileUserId.value = UserStore.getUserId()
-            _appToast.value = "已退出登录并清空私有服务器配置"
-        }
-    }
+    fun setProfileBackground(path: String?) = profile.setProfileBackground(path)
 
-    fun updateNickname(nickname: String) {
-        if (nickname.isBlank()) return
-        viewModelScope.launch {
-            repository.updateProfile(nickname = nickname).onSuccess { updated ->
-                _user.value = updated
-                UserStore.updateUser(updated)
-                _profileNickname.value = updated.nickname.ifBlank { updated.username }
-                _appToast.value = "昵称已更新"
-            }.onFailure { e ->
-                _appToast.value = "更新失败: ${e.message ?: "网络异常"}"
-            }
-        }
-    }
+    fun toggleProfileBgBlur() = profile.toggleProfileBgBlur()
 
-    // ===== 个人中心个性化管理 =====
-
-    fun setProfileAvatar(path: String?) {
-        UserStore.setAvatarPath(path)
-        _profileAvatar.value = path
-    }
-
-    fun setProfileBackground(path: String?) {
-        UserStore.setBackgroundPath(path)
-        _profileBackground.value = path
-    }
-
-    fun toggleProfileBgBlur() {
-        val next = !isProfileBgBlur.value
-        UserStore.setBackgroundBlur(next)
-        _isProfileBgBlur.value = next
-    }
-
-    fun restoreProfileDefaults(context: android.content.Context) {
-        UserStore.restoreProfileDefaults(context)
-        _profileAvatar.value = null
-        _profileBackground.value = null
-        _isProfileBgBlur.value = false
-        _profileNickname.value = UserStore.getNickname()
-        _profileBio.value = ""
-        _profileGender.value = "保密"
-        _profileBirthday.value = ""
-        _profileUserId.value = UserStore.getUserId()
-        _appToast.value = "已恢复默认设置"
-    }
+    fun restoreProfileDefaults(context: android.content.Context) =
+        profile.restoreProfileDefaults(context)
 
     fun saveProfileInfo(
         nickname: String,
         bio: String,
         gender: String,
         birthday: String,
-        avatarPath: String? = null
-    ) {
-        if (nickname.isNotBlank()) {
-            UserStore.setNickname(nickname)
-            _profileNickname.value = nickname
-        }
-        UserStore.setBio(bio)
-        _profileBio.value = bio
-        UserStore.setGender(gender)
-        _profileGender.value = gender
-        UserStore.setBirthday(birthday)
-        _profileBirthday.value = birthday
-        if (avatarPath != null) {
-            UserStore.setAvatarPath(avatarPath)
-            _profileAvatar.value = avatarPath
-        }
-        if (UserStore.isLoggedIn() && nickname.isNotBlank()) {
-            updateNickname(nickname)
-        } else {
-            _appToast.value = "个人信息已保存"
-        }
-    }
+        avatarPath: String? = null,
+    ) = profile.saveProfileInfo(nickname, bio, gender, birthday, avatarPath)
 
     // ==================== 统计 ====================
 
