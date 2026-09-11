@@ -1,15 +1,27 @@
 import { useState, useEffect } from "react";
 import { Card, Col, Row, Statistic } from "antd";
-import { UserOutlined, DatabaseOutlined, SyncOutlined, PlayCircleOutlined } from "@ant-design/icons";
+import { UserOutlined, DatabaseOutlined, SyncOutlined, PlayCircleOutlined, TeamOutlined } from "@ant-design/icons";
 import { request } from "../../providers/api";
 
 export const DashboardPage = () => {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncData, setSyncData] = useState<any>(null);
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
     setSyncLoading(true);
+
+    // 获取系统总用户数
+    request<{ items: any[]; total: number }>("/admin/users?limit=1")
+      .then((res) => {
+        if (active && res.code === 200 && res.data) {
+          setTotalUsers(res.data.total ?? 0);
+        }
+      })
+      .catch(() => {});
+
+    // 获取当前管理员自身同步数据
     request("/sync/pull?since=0&eventSince=0")
       .then((res) => {
         if (active && res.code === 200 && res.data) {
@@ -32,7 +44,6 @@ export const DashboardPage = () => {
     (syncData?.history?.length || 0) +
     (syncData?.playlists?.length || 0) +
     (syncData?.playlistSongs?.length || 0);
-  const eventCount = syncData?.playEvents?.length || 0;
 
   return (
     <div style={{ padding: 24 }}>
@@ -41,7 +52,16 @@ export const DashboardPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="当前用户"
+              title="系统总用户数"
+              value={totalUsers !== null ? totalUsers : "-"}
+              prefix={<TeamOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="当前管理员"
               value={user?.nickname || user?.username || "未登录"}
               prefix={<UserOutlined />}
             />
@@ -50,19 +70,9 @@ export const DashboardPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="数据记录数"
+              title="当前账号同步记录数"
               value={dataCount}
               prefix={<DatabaseOutlined />}
-              loading={syncLoading}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="同步事件数"
-              value={eventCount}
-              prefix={<SyncOutlined />}
               loading={syncLoading}
             />
           </Card>
@@ -79,7 +89,7 @@ export const DashboardPage = () => {
       </Row>
       <Row style={{ marginTop: 24 }}>
         <Col span={24}>
-          <Card title="📋 最近同步数据预览">
+          <Card title="📋 当前管理员同步数据预览（/api/sync/pull）">
             {syncLoading ? (
               <p>加载中...</p>
             ) : syncData ? (

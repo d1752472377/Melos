@@ -7,7 +7,6 @@ import {
   useNotificationProvider,
   ThemedLayout,
   ThemedSider,
-  AuthPage,
 } from "@refinedev/antd";
 import "@refinedev/antd/dist/reset.css";
 
@@ -24,7 +23,6 @@ import { ColorModeContextProvider } from "./contexts/color-mode";
 import { Header } from "./components/header";
 import { authProvider } from "./providers/auth";
 import { DashboardPage } from "./pages/dashboard";
-import { Register } from "./pages/register";
 import { Login } from "./pages/login";
 import { SyncPage } from "./pages/sync";
 import { UsersPage } from "./pages/users";
@@ -92,8 +90,6 @@ function App() {
                       }
                     >
                       <Route path="/login" element={<Login />} />
-                      <Route path="/register" element={<Register />} />
-                      <Route path="/forgot-password" element={<AuthPage type="forgotPassword" />} />
                     </Route>
 
                     <Route

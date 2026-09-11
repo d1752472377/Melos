@@ -61,3 +61,4 @@ Thumbs.db
 # ---- Vercel CLI 本地元数据 ----
 .vercel/
 .env*
+!**/.env.example

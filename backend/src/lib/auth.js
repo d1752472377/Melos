@@ -67,6 +67,8 @@ export function requireUser(config, client) {
       nickname: session.nickname,
       avatar: session.avatar,
       role: session.role || 'user',
+      created_at: session.created_at != null ? Number(session.created_at) : undefined,
+      updated_at: session.updated_at != null ? Number(session.updated_at) : undefined,
     };
     req.session = session;
     req.tokenHash = tokenHash;

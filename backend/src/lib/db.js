@@ -280,6 +280,8 @@ export function publicUser(row) {
     nickname: row.nickname || row.username,
     avatar: row.avatar || '',
     role: row.role || 'user',
+    created_at: row.created_at != null ? Number(row.created_at) : undefined,
+    updated_at: row.updated_at != null ? Number(row.updated_at) : undefined,
   };
 }
 
@@ -305,7 +307,7 @@ export async function createSession(client, { userId, tokenHash, deviceName, ttl
 
 export async function findSessionByTokenHash(client, tokenHash) {
   return first(client,
-    `SELECT s.*, u.username, u.nickname, u.avatar, u.role
+    `SELECT s.*, u.username, u.nickname, u.avatar, u.role, u.created_at, u.updated_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ?`, [tokenHash]);
 }
