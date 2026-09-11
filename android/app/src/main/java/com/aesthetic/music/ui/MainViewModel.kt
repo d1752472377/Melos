@@ -10,6 +10,7 @@ import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.album.AlbumController
 import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.artist.ArtistRef
 import com.aesthetic.music.ui.fm.FmChannel
@@ -65,6 +66,9 @@ class MainViewModel : ViewModel() {
 
     // 歌手页：已抽到 ArtistController（见 ui/artist/ArtistController.kt）
     private val artistPage = ArtistController(repository, viewModelScope)
+
+    // 专辑详情：已抽到 AlbumController（见 ui/album/AlbumController.kt）
+    private val albumPage = AlbumController(repository, viewModelScope)
 
     // 页面/弹层状态
     private val _currentTab = MutableStateFlow(AppTab.HOME)
@@ -189,9 +193,6 @@ class MainViewModel : ViewModel() {
     /** 歌单详情请求令牌：快速连开两个歌单时丢弃慢的旧响应，防止串台 */
     @Volatile
     private var playlistRequestId = 0L
-    /** 专辑详情请求令牌（openAlbum 用，防快速切换专辑时旧响应覆盖新数据） */
-    @Volatile
-    private var albumRequestId = 0L
 
     /**
      * 云同步串行互斥锁 + 待发标记：
@@ -375,44 +376,15 @@ class MainViewModel : ViewModel() {
     fun openSearch() { _showSearch.value = true }
     fun closeSearch() { _showSearch.value = false }
 
-    /** 专辑详情覆盖层（搜索页专辑 Tab 点击进入） */
-    private val _showAlbumDetail = MutableStateFlow<com.aesthetic.music.data.api.AlbumItem?>(null)
-    val showAlbumDetail = _showAlbumDetail.asStateFlow()
-    private val _albumDetailSongs = MutableStateFlow<List<Song>>(emptyList())
-    val albumDetailSongs: StateFlow<List<Song>> = _albumDetailSongs.asStateFlow()
-    private val _isLoadingAlbum = MutableStateFlow(false)
-    val isLoadingAlbum = _isLoadingAlbum.asStateFlow()
-    private val _albumError = MutableStateFlow<String?>(null)
-    val albumError = _albumError.asStateFlow()
+    /** 专辑详情覆盖层（搜索页专辑 Tab 点击进入）：已抽到 AlbumController，保留同名只读委托 */
+    val showAlbumDetail get() = albumPage.showAlbumDetail
+    val albumDetailSongs get() = albumPage.albumDetailSongs
+    val isLoadingAlbum get() = albumPage.isLoading
+    val albumError get() = albumPage.error
 
-    fun openAlbum(album: com.aesthetic.music.data.api.AlbumItem) {
-        _showAlbumDetail.value = album
-        _albumDetailSongs.value = emptyList()
-        _albumError.value = null
-        _isLoadingAlbum.value = true
-        val req = ++albumRequestId
-        viewModelScope.launch {
-            repository.getAlbum(album.id).onSuccess { detail ->
-                // 请求在途期间用户已打开别的专辑：丢弃过期响应，防止串台
-                if (req != albumRequestId) return@launch
-                _albumDetailSongs.value = detail.songs
-                // 详情返回的 info 更完整（封面/曲目数），同 id 时替换占位数据
-                if (detail.info != null && showAlbumDetail.value?.id == album.id) {
-                    _showAlbumDetail.value = detail.info
-                }
-            }.onFailure { e ->
-                if (req != albumRequestId) return@launch
-                _albumError.value = e.message ?: "获取专辑失败"
-            }
-            if (req == albumRequestId) _isLoadingAlbum.value = false
-        }
-    }
+    fun openAlbum(album: AlbumItem) = albumPage.open(album)
 
-    fun closeAlbum() {
-        _showAlbumDetail.value = null
-        _albumDetailSongs.value = emptyList()
-        _albumError.value = null
-    }
+    fun closeAlbum() = albumPage.close()
 
     /** 输入框内容变化：清空即复位；否则 400ms 防抖后自动搜索当前类型 */
     fun onSearchQueryChanged(q: String) {
@@ -1276,7 +1248,7 @@ class MainViewModel : ViewModel() {
         _showMyPlaylists.value = false
         _showHistory.value = false
         _showSearch.value = false
-        _showAlbumDetail.value = null
+        albumPage.close()
         _showRanks.value = false
         _showSheet.value = false
         // FM 漂移开关由 FmController 持有（切走 FM 页即暂停漂移）
