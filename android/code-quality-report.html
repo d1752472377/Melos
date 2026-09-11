@@ -151,7 +151,17 @@
 
 <section>
   <h2><span class="n">0</span>本轮修复进展</h2>
-  <p>以下条目已在本次会话中实际修改并验证（<code>BUILD SUCCESSFUL</code>、Lint 0 Error、70 项单元测试全绿）。</p>
+  <p>以下条目已在本次会话中实际修改并验证（<code>BUILD SUCCESSFUL</code>、Lint 0 Error、84 项单元测试全绿）。</p>
+  <h3>第三批 · 可测性与已知问题归档</h3>
+  <div class="road">
+    <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已处理</span><div>
+      <b>网络异常归一化提取为纯函数</b> — 把 <code>MusicRepository</code> 里的私有 <code>friendly()</code> 提取为 <code>data/ApiErrors.kt</code> 的 <code>isNetworkError</code> / <code>friendlyError</code>。这是全仓库唯一决定"什么算网络失败"的地方，判宽了会把后端业务错误吞成"网络连接失败"（用户按提示查网络，永远解决不了），判窄了会把 <code>UnknownHostException</code> 直接抛到 UI。补 12 项测试覆盖。
+    </div></div>
+    <div class="step"><span class="tag" style="background:var(--amber-bg);color:var(--amber);border-color:var(--amber-bd)">已归档</span><div>
+      <b>方括号逐字格式的疑似 bug 已用测试锁定</b> — <code>EnhancedLrcParser</code> 的 KDoc 声明支持 <code>[00:12.34][00:12.34]Hel[00:12.60]lo</code>，实测首个音节文本 <code>Hel</code> 会丢失、同一行被展开成两条。<strong>未贸然修改</strong>：该输入与 LRC 中真实存在的 <code>[00:12.34][00:15.00]同一句副歌</code>（一行文本配多个播放时间）语法上无法区分，改错方向会弄坏后者。已用两条测试分别锁定两种行为，并在测试注释中写明待确认事项。
+    </div></div>
+  </div>
+
   <h3>第二批 · 安全加固</h3>
   <div class="road">
     <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已修复</span><div>
@@ -165,10 +175,14 @@
   <h3>第一批 · 阻断项与清理</h3>
   <div class="road">
     <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已修复</span><div>
+      <b>P0-3 · <code>.gitignore</code> 静默吞掉了全部单元测试</b> — 仓库根 <code>.gitignore</code> 第 52 行是裸写的 <code>test/</code>，而 gitignore 中不带前导 <code>/</code> 的模式会匹配**任意层级**的同名目录。结果是 <code>android/app/src/test/</code> 与 <code>android/lyrics/src/test/</code> 被整体忽略：测试文件不会进仓库，而 CI 上 <code>testDebugUnitTest</code> 会因 <code>NO-SOURCE</code> **静默通过**——看起来是绿色的质量门禁，实际一个测试都没跑。<br>
+      该规则本意是忽略仓库根的临时目录（同组的 <code>reference/</code>、<code>research/</code>、<code>音源/</code>），已全部锚定为前导 <code>/</code>。<strong>这类"配置写宽了导致门禁空转"的问题比测试本身更容易被漏掉。</strong>
+    </div></div>
+    <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已修复</span><div>
       <b>P0-2 · 16KB 页对齐</b> — 升级 <code>quickjs</code> <code>2.4.0 → 3.2.3</code>。查证 CHANGELOG 确认 <code>3.1.0</code> 与 <code>2.4.5</code> 功能完全一致（仅版本号对齐），<code>3.2.0</code> 正式加入 16KB 页支持，<strong>无破坏性变更</strong>；顺带获得字符串泄漏、异步崩溃、引用泄漏三项修复。Lint <code>Aligned16KB</code> 由 3 项降为 <strong>0</strong>。
     </div></div>
     <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已修复</span><div>
-      <b>P0-1 · 建立测试基线</b> — 新建 <code>lyrics/src/test</code> 与 <code>app/src/test</code> 两个源集，共 <strong>70 项测试全部通过</strong>：时间戳解析、Enhanced LRC（行级/逐字/背景和声/元数据）、网易云 YRC（绝对与相对时间两种语义）、格式自动识别、歌词高亮二分查找、<code>Song</code> 的 JSON 持久化契约（Gson 字段名即落盘契约，字段重命名会静默清空用户收藏）、token 存储格式判定、APK 摘要校验。CI 新增 <code>quality</code> job，在分支 push 与 PR 上强制执行 lint + 单元测试。
+      <b>P0-1 · 建立测试基线</b> — 新建 <code>lyrics/src/test</code> 与 <code>app/src/test</code> 两个源集，共 <strong>84 项测试全部通过</strong>：时间戳解析、Enhanced LRC（行级/逐字/背景和声/元数据）、网易云 YRC（绝对与相对时间两种语义）、格式自动识别、歌词高亮二分查找、<code>Song</code> 的 JSON 持久化契约（Gson 字段名即落盘契约，字段重命名会静默清空用户收藏）、token 存储格式判定、APK 摘要校验、网络异常归一化。CI 新增 <code>quality</code> job，在分支 push 与 PR 上强制执行 lint + 单元测试。
     </div></div>
     <div class="step"><span class="tag" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd)">已修复</span><div>
       <b>P2-5 · Locale 隐患</b> — <code>AudioCacheService.formatSize()</code> 三处改为 <code>Locale.US</code>，Lint <code>DefaultLocale</code> 归零。
@@ -194,14 +208,16 @@
       <tr><td><code>Aligned16KB</code></td><td>3（上架阻断）</td><td><span class="b b-ok">0</span></td></tr>
       <tr><td><code>DefaultLocale</code></td><td>3</td><td><span class="b b-ok">0</span></td></tr>
       <tr><td><code>ObsoleteSdkInt</code></td><td>2</td><td><span class="b b-ok">0</span></td></tr>
-      <tr><td>单元测试</td><td>0</td><td><span class="b b-ok">70 项全通过</span></td></tr>
+      <tr><td>单元测试</td><td>0</td><td><span class="b b-ok">84 项全通过</span></td></tr>
+      <tr><td>测试是否会被提交</td><td><span class="b b-p0">被 .gitignore 吞掉</span></td><td><span class="b b-ok">正常纳入版本控制</span></td></tr>
       <tr><td>token 存储</td><td>明文</td><td><span class="b b-ok">AES-256-GCM 加密</span></td></tr>
       <tr><td>升级包摘要</td><td>MD5</td><td><span class="b b-ok">SHA-256（保留 MD5 回退）</span></td></tr>
     </tbody>
   </table>
 
   <h3>仍未处理</h3>
-  <p>P1-1（MainViewModel 拆分）、P1-2（AppShell 拆分）、P1-5（StateFlow 封装）均未动。测试方面，<code>MusicRepository</code> 的错误归一化与 <code>MainViewModel</code> 的请求令牌逻辑仍缺覆盖——这两处需要引入 <code>MockWebServer</code>，或先把逻辑从私有方法中提取为可测的纯函数。</p>
+  <p>P1-1（MainViewModel 拆分）、P1-2（AppShell 拆分）、P1-5（StateFlow 封装，实测仅 7 处 UI 写入点且都在 AppShell）均未动——这三项涉及的文件当前正被并行修改，此时重构会产生冲突。<code>MainViewModel</code> 的请求令牌逻辑仍缺测试覆盖，需要先做可测性提取。</p>
+  <p><strong>待你确认的一项</strong>：方括号逐字格式（见「第三批」）究竟是 bug 还是 KDoc 示例写错了。若能提供一份真实的该格式歌词样本，即可定论。</p>
 </section>
 
 <section>
@@ -262,7 +278,7 @@
     <div class="m"><div class="k">编译错误</div><div class="v ok">0</div></div>
     <div class="m"><div class="k">Lint Error</div><div class="v ok">0</div></div>
     <div class="m"><div class="k">Lint 警告 / 提示</div><div class="v warn">79<small> 现</small></div></div>
-    <div class="m"><div class="k">单元测试</div><div class="v ok">70<small> 项通过</small></div></div>
+    <div class="m"><div class="k">单元测试</div><div class="v ok">84<small> 项通过</small></div></div>
     <div class="m"><div class="k">最大单文件</div><div class="v bad">1,612<small> 行</small></div></div>
     <div class="m"><div class="k">最大单 Composable</div><div class="v bad">942<small> 行</small></div></div>
     <div class="m"><div class="k">硬编码中文串</div><div class="v warn">816<small> 处</small></div></div>
