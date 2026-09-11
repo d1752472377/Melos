@@ -14,6 +14,7 @@ import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
+import com.aesthetic.music.ui.script.ScriptController
 import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
@@ -27,11 +28,6 @@ import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.settings.SyncServerStore
-import com.aesthetic.music.data.settings.ScriptCatalogStore
-import com.aesthetic.music.data.settings.ScriptCatalogEntry
-import com.aesthetic.music.data.userapi.UserApiEngine
-import com.aesthetic.music.data.userapi.UserApiStore
-import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.data.api.CloudSyncPullData
 import com.aesthetic.music.data.api.SyncCollection
 import com.aesthetic.music.data.api.SyncHistoryUpsert
@@ -1028,9 +1024,14 @@ class MainViewModel : ViewModel() {
 
     // ==================== 音源脚本与私有云同步 ====================
 
-    val activeScriptInfo: StateFlow<ScriptMetadata?> = UserApiEngine.activeMetadata
-    val isEngineReady: StateFlow<Boolean> = UserApiEngine.isEngineReady
-    val engineError: StateFlow<String?> = UserApiEngine.engineError
+    // 音源脚本：逻辑与状态已抽到 ScriptController（见 ui/script/ScriptController.kt）。
+    // 提示文案经 _appToast 通道走全局 Snackbar，因此这里注入回调而非让控制器依赖 ViewModel。
+    private val script = ScriptController(scope = viewModelScope, onToast = { _appToast.value = it })
+
+    val activeScriptInfo get() = script.activeScriptInfo
+    val isEngineReady get() = script.isEngineReady
+    val engineError get() = script.engineError
+    val scriptCatalog get() = script.catalog
 
     private val _syncServerUrl = MutableStateFlow(SyncServerStore.getServerUrl())
     val syncServerUrl = _syncServerUrl.asStateFlow()
@@ -1046,10 +1047,6 @@ class MainViewModel : ViewModel() {
     val isSyncing = _isSyncing.asStateFlow()
     private val _isTestingSync = MutableStateFlow(false)
     val isTestingSync = _isTestingSync.asStateFlow()
-
-    /** 云端下发的全部音源脚本目录（本地可切换，无需回服务端修改激活项） */
-    private val _scriptCatalog = MutableStateFlow<List<ScriptCatalogEntry>>(ScriptCatalogStore.list())
-    val scriptCatalog = _scriptCatalog.asStateFlow()
 
     fun saveSyncConfig(serverUrl: String, token: String) {
         val cleanUrl = serverUrl.trim().trimEnd('/')
@@ -1224,132 +1221,18 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 直接导入 JS 脚本源码
-     */
-    fun importScriptFromText(content: String, name: String? = null) {
-        if (content.isBlank()) {
-            _appToast.value = "脚本代码不能为空"
-            return
-        }
-        viewModelScope.launch {
-            val meta = UserApiStore.saveScript(content, customName = name)
-            val res = UserApiEngine.loadScript(content, meta)
-            if (res.isSuccess) {
-                _appToast.value = "已成功导入并激活音源脚本: [${meta.name}]"
-            } else {
-                val err = res.exceptionOrNull()?.message ?: "执行异常"
-                _appToast.value = "脚本已保存，但沙箱初始化异常: $err"
-            }
-        }
-    }
+    // ==================== 音源脚本（委托 ScriptController） ====================
 
-    /**
-     * 从 URL 抓取并导入音源脚本
-     */
-    fun importScriptFromUrl(url: String, onFinished: (Boolean, String) -> Unit) {
-        val cleanUrl = url.trim()
-        if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
-            onFinished(false, "URL 格式不正确")
-            return
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val client = okhttp3.OkHttpClient()
-                val req = okhttp3.Request.Builder()
-                    .url(cleanUrl)
-                    .header("User-Agent", "Mozilla/5.0")
-                    .build()
-                val resp = client.newCall(req).execute()
-                if (!resp.isSuccessful) {
-                    withContext(Dispatchers.Main) {
-                        onFinished(false, "HTTP ${resp.code}: 下载失败")
-                    }
-                    return@launch
-                }
-                val text = resp.body?.string().orEmpty()
-                if (text.isBlank()) {
-                    withContext(Dispatchers.Main) {
-                        onFinished(false, "下载的脚本内容为空")
-                    }
-                    return@launch
-                }
-                val meta = UserApiStore.saveScript(text)
-                val res = UserApiEngine.loadScript(text, meta)
-                withContext(Dispatchers.Main) {
-                    if (res.isSuccess) {
-                        _appToast.value = "已成功导入并激活音源脚本: [${meta.name}]"
-                        onFinished(true, "导入成功")
-                    } else {
-                        val err = res.exceptionOrNull()?.message ?: "执行异常"
-                        _appToast.value = "脚本已下载，但沙箱执行异常: $err"
-                        onFinished(false, "脚本执行异常: $err")
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    onFinished(false, "下载失败: ${e.message}")
-                }
-            }
-        }
-    }
+    fun importScriptFromText(content: String, name: String? = null) = script.importFromText(content, name)
 
-    /**
-     * 重新尝试加载当前已保存在本地的音源脚本
-     */
-    fun retryLoadScript() {
-        val script = UserApiStore.getScriptContent()
-        val meta = UserApiStore.getMetadata()
-        if (script.isNullOrBlank() || meta == null) {
-            _appToast.value = "未找到已保存的脚本"
-            return
-        }
-        viewModelScope.launch {
-            _appToast.value = "正在重新在沙箱中加载脚本…"
-            val res = UserApiEngine.loadScript(script, meta)
-            if (res.isSuccess) {
-                _appToast.value = "音源脚本已成功激活: [${meta.name}]"
-            } else {
-                val err = res.exceptionOrNull()?.message ?: "执行异常"
-                _appToast.value = "加载依然异常: $err"
-            }
-        }
-    }
+    fun importScriptFromUrl(url: String, onFinished: (Boolean, String) -> Unit) =
+        script.importFromUrl(url, onFinished)
 
-    fun unloadScript() {
-        UserApiEngine.unloadScript()
-        _appToast.value = "已卸载自定义音源脚本"
-    }
+    fun retryLoadScript() = script.retryLoad()
 
-    /**
-     * 从已同步的脚本目录中本地切换音源（不回服务端修改激活项）。
-     */
-    fun switchScript(id: String) {
-        val entry = scriptCatalog.value.firstOrNull { it.id == id }
-        if (entry == null) {
-            _appToast.value = "未找到该音源脚本，请先执行一次云同步"
-            return
-        }
-        val content = ScriptCatalogStore.getContent(id)
-        if (content.isNullOrBlank()) {
-            _appToast.value = "脚本源码缺失，请重新同步"
-            return
-        }
-        viewModelScope.launch {
-            val meta = UserApiStore.saveScript(
-                content = content,
-                customName = entry.name,
-                customVersion = entry.version,
-                customId = entry.id
-            )
-            val res = UserApiEngine.loadScript(content, meta)
-            if (res.isSuccess) {
-                _appToast.value = "已本地切换到音源: [${entry.name}]"
-            } else {
-                _appToast.value = "切换失败: ${res.exceptionOrNull()?.message ?: "沙箱执行异常"}"
-            }
-        }
-    }
+    fun unloadScript() = script.unload()
+
+    fun switchScript(id: String) = script.switchTo(id)
 
     // ==================== 用户体系 (Auth) ====================
 
