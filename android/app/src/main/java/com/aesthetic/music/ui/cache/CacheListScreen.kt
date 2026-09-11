@@ -42,6 +42,7 @@ import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.DangerCapsuleButton
 import com.aesthetic.music.ui.components.EmptyBox
+import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.Palette
@@ -196,25 +197,14 @@ fun CacheListScreen(
 
     // 清空确认对话框：注明将释放的空间大小
     if (showClearConfirm) {
-        androidx.compose.material3.AlertDialog(
+        AppConfirmDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("清空全部缓存") },
-            text = {
-                Text(
-                    "将删除已缓存的 ${songs.size} 首歌曲（共 $totalSizeText）。\n下次播放这些歌曲时需要重新联网加载。",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    showClearConfirm = false
-                    onClearAll()
-                }) { Text("清空", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {
-                    Text("取消")
-                }
+            title = "清空全部缓存",
+            message = "将删除已缓存的 ${songs.size} 首歌曲（共 $totalSizeText）。\n下次播放这些歌曲时需要重新联网加载。",
+            confirmText = "清空",
+            onConfirm = {
+                showClearConfirm = false
+                onClearAll()
             },
         )
     }

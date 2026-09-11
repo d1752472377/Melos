@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Widgets
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -63,6 +62,8 @@ import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.ScriptCatalogEntry
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.userapi.ScriptMetadata
+import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
@@ -546,21 +547,12 @@ fun SettingsScreen(
 
     // ===== 音质选择弹窗 =====
     if (showQualityDialog) {
-        AlertDialog(
+        AppDialog(
             onDismissRequest = { showQualityDialog = false },
-            containerColor = Surface,
-            shape = RoundedCornerShape(14.dp),
-            title = {
-                Text(
-                    text = "选择播放音质",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = TextPrimary
-                )
-            },
-            text = {
+            title = "选择播放音质",
+            confirmText = null,
+            cancelText = "取消",
+            content = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     QualityLevel.entries.forEach { level ->
                         val isSelected = quality == level
@@ -600,11 +592,6 @@ fun SettingsScreen(
                     )
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showQualityDialog = false }) {
-                    Text("取消", color = TextMuted, fontWeight = FontWeight.Bold)
-                }
-            },
         )
     }
 
@@ -640,23 +627,16 @@ fun SettingsScreen(
 
     // ===== 卸载脚本确认弹窗 =====
     if (showUnloadConfirm) {
-        AlertDialog(
+        AppConfirmDialog(
             onDismissRequest = { showUnloadConfirm = false },
-            title = { Text("卸载音源脚本") },
-            text = { Text("确定要卸载当前音源脚本吗？卸载后在线歌曲将无法直接解析播放。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showUnloadConfirm = false
-                    onUnloadScript()
-                }) {
-                    Text("卸载", color = MaterialTheme.colorScheme.error)
-                }
+            title = "卸载音源脚本",
+            message = "确定要卸载当前音源脚本吗？卸载后在线歌曲将无法直接解析播放。",
+            confirmText = "卸载",
+            onConfirm = {
+                showUnloadConfirm = false
+                onUnloadScript()
             },
-            dismissButton = {
-                TextButton(onClick = { showUnloadConfirm = false }) {
-                    Text("取消")
-                }
-            }
+            destructive = true,
         )
     }
 
@@ -687,10 +667,12 @@ private fun ScriptImportDialog(
     var downloading by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("导入音源脚本", fontWeight = FontWeight.Bold) },
-        text = {
+        title = "导入音源脚本",
+        confirmText = if (downloading) "正在抓取…" else "确认导入",
+        confirmEnabled = !downloading,
+        content = {
             Column(Modifier.fillMaxWidth()) {
                 // Tab 切换
                 Row(
@@ -765,41 +747,28 @@ private fun ScriptImportDialog(
                 }
             }
         },
-        confirmButton = {
-            Button(
-                onClick = {
-                    errorMsg = null
-                    if (mode == 0) {
-                        if (scriptText.isBlank()) {
-                            errorMsg = "请先粘贴脚本代码"
-                            return@Button
-                        }
-                        onImportText(scriptText, customName.ifBlank { null })
+        onConfirm = confirm@{
+            errorMsg = null
+            if (mode == 0) {
+                if (scriptText.isBlank()) {
+                    errorMsg = "请先粘贴脚本代码"
+                    return@confirm
+                }
+                onImportText(scriptText, customName.ifBlank { null })
+            } else {
+                if (scriptUrl.isBlank()) {
+                    errorMsg = "请输入下载链接"
+                    return@confirm
+                }
+                downloading = true
+                onImportUrl(scriptUrl) { ok, msg ->
+                    downloading = false
+                    if (!ok) {
+                        errorMsg = msg
                     } else {
-                        if (scriptUrl.isBlank()) {
-                            errorMsg = "请输入下载链接"
-                            return@Button
-                        }
-                        downloading = true
-                        onImportUrl(scriptUrl) { ok, msg ->
-                            downloading = false
-                            if (!ok) {
-                                errorMsg = msg
-                            } else {
-                                onDismiss()
-                            }
-                        }
+                        onDismiss()
                     }
-                },
-                enabled = !downloading,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrown)
-            ) {
-                Text(if (downloading) "正在抓取…" else "确认导入")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
+                }
             }
         }
     )
@@ -818,10 +787,10 @@ private fun SyncConfigDialog(
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("配置私有服务器", fontWeight = FontWeight.Bold) },
-        text = {
+        title = "配置私有服务器",
+        content = {
             Column(Modifier.fillMaxWidth()) {
                 Text(
                     text = "填入您的 Melos 私有后端地址与同步密钥，即可一键在手机和电脑之间同步已激活的音源脚本及歌单：",
@@ -853,33 +822,29 @@ private fun SyncConfigDialog(
                 }
             }
         },
-        confirmButton = {
+        actions = {
+            TextButton(
+                onClick = {
+                    if (testing) return@TextButton
+                    testing = true
+                    testResult = "测试中…"
+                    onSave(url, token) // 先临时保存
+                    onTest { ok, msg ->
+                        testing = false
+                        testResult = if (ok) "✅ $msg" else "❌ $msg"
+                    }
+                }
+            ) {
+                Text("测试连接")
+            }
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
             Button(
                 onClick = { onSave(url, token) },
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrown)
             ) {
                 Text("保存配置")
-            }
-        },
-        dismissButton = {
-            Row {
-                TextButton(
-                    onClick = {
-                        if (testing) return@TextButton
-                        testing = true
-                        testResult = "测试中…"
-                        onSave(url, token) // 先临时保存
-                        onTest { ok, msg ->
-                            testing = false
-                            testResult = if (ok) "✅ $msg" else "❌ $msg"
-                        }
-                    }
-                ) {
-                    Text("测试连接")
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("取消")
-                }
             }
         }
     )
@@ -973,21 +938,13 @@ private fun ScriptCatalogDialog(
     onDismiss: () -> Unit,
     onSwitch: (String) -> Unit,
 ) {
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        containerColor = Surface,
-        shape = RoundedCornerShape(16.dp),
-        title = {
-            Text(
-                text = "音源脚本目录",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = TextPrimary
-            )
-        },
-        text = {
+        title = "音源脚本目录",
+        confirmText = "关闭",
+        onConfirm = onDismiss,
+        cancelText = null,
+        content = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1055,11 +1012,6 @@ private fun ScriptCatalogDialog(
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = TextMuted)
             }
         },
     )

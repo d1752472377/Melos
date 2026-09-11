@@ -50,17 +50,14 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -102,6 +99,8 @@ import com.aesthetic.music.player.PlayMode
 import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.PlayerState
 import com.aesthetic.music.player.currentLyricIndex
+import com.aesthetic.music.ui.components.AppBottomSheet
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.sheet.ThemeSheet
 import com.aesthetic.music.ui.theme.AmberLight
@@ -363,9 +362,8 @@ fun PlayerScreen(
     }
 
     if (showQueueSheet) {
-        ModalBottomSheet(
+        AppBottomSheet(
             onDismissRequest = { showQueueSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = PlayerBg,
         ) {
             Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -430,7 +428,7 @@ fun PlayerScreen(
     }
 
     if (showThemeSheet) {
-        ModalBottomSheet(
+        AppBottomSheet(
             onDismissRequest = { showThemeSheet = false },
             containerColor = PlayerBgDark,
         ) {
@@ -447,65 +445,59 @@ fun PlayerScreen(
     }
 
     if (showSpeedDialog) {
-        AlertDialog(
+        AppDialog(
             onDismissRequest = { showSpeedDialog = false },
-            title = { Text("播放倍速", color = Color.White) },
-            text = {
-                Column {
-                    listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
-                        TextButton(onClick = {
-                            onSpeedChange(speed)
-                            showSpeedDialog = false
-                        }) {
-                            Text(
-                                "${speed}x${if (speed == state.speed) "  ✓" else ""}",
-                                color = if (speed == state.speed) AmberLight else Color.White.copy(alpha = 0.8f),
-                            )
-                        }
+            title = "播放倍速",
+            containerColor = PlayerBg,
+            confirmText = null,
+            cancelText = "取消",
+        ) {
+            Column {
+                listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
+                    TextButton(onClick = {
+                        onSpeedChange(speed)
+                        showSpeedDialog = false
+                    }) {
+                        Text(
+                            "${speed}x${if (speed == state.speed) "  ✓" else ""}",
+                            color = if (speed == state.speed) AmberLight else Color.White.copy(alpha = 0.8f),
+                        )
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showSpeedDialog = false }) { Text("取消") }
-            },
-            containerColor = PlayerBg,
-        )
+            }
+        }
     }
 
     if (showSleepDialog) {
-        AlertDialog(
+        AppDialog(
             onDismissRequest = { showSleepDialog = false },
-            title = { Text("睡眠定时", color = Color.White) },
-            text = {
-                Column {
-                    listOf(5, 10, 15, 30, 60).forEach { minutes ->
-                        TextButton(onClick = {
-                            onSleepTimer(minutes)
-                            showSleepDialog = false
-                        }) {
-                            Text(
-                                "$minutes 分钟后停止",
-                                color = Color.White.copy(alpha = 0.85f),
-                            )
-                        }
-                    }
-                    if (state.sleepRemainingMs > 0) {
-                        TextButton(onClick = {
-                            onCancelSleepTimer()
-                            showSleepDialog = false
-                        }) {
-                            Text("关闭定时", color = Rose)
-                        }
+            title = "睡眠定时",
+            containerColor = PlayerBg,
+            confirmText = null,
+            cancelText = "取消",
+        ) {
+            Column {
+                listOf(5, 10, 15, 30, 60).forEach { minutes ->
+                    TextButton(onClick = {
+                        onSleepTimer(minutes)
+                        showSleepDialog = false
+                    }) {
+                        Text(
+                            "$minutes 分钟后停止",
+                            color = Color.White.copy(alpha = 0.85f),
+                        )
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showSleepDialog = false }) { Text("取消") }
-            },
-            containerColor = PlayerBg,
-        )
+                if (state.sleepRemainingMs > 0) {
+                    TextButton(onClick = {
+                        onCancelSleepTimer()
+                        showSleepDialog = false
+                    }) {
+                        Text("关闭定时", color = Rose)
+                    }
+                }
+            }
+        }
     }
 }
 

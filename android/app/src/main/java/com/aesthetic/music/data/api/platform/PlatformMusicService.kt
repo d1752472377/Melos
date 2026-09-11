@@ -20,6 +20,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -38,6 +39,9 @@ object PlatformMusicService {
 
     private const val TAG = "PlatformMusicService"
 
+    private const val BROWSER_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(12, TimeUnit.SECONDS)
@@ -49,11 +53,18 @@ object PlatformMusicService {
 
     private val gson = AppJson.gson
 
+    private fun parseJson(url: String, body: String): JsonObject = try {
+        gson.fromJson(body, JsonObject::class.java) ?: JsonObject()
+    } catch (e: Exception) {
+        Log.e(TAG, "Parse JSON failed for url: $url, body: ${body.take(100)}", e)
+        JsonObject()
+    }
+
     private suspend fun getJson(url: String, headers: Map<String, String> = emptyMap()): JsonObject =
         withContext(Dispatchers.IO) {
             val reqBuilder = Request.Builder()
                 .url(url)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("User-Agent", BROWSER_UA)
                 .header("Referer", "https://music.163.com")
 
             headers.forEach { (k, v) -> reqBuilder.header(k, v) }
@@ -62,25 +73,52 @@ object PlatformMusicService {
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code}: ${response.message}")
             }
-            val body = response.body?.string().orEmpty()
-            try {
-                gson.fromJson(body, JsonObject::class.java) ?: JsonObject()
-            } catch (e: Exception) {
-                Log.e(TAG, "Parse JSON failed for url: $url, body: ${body.take(100)}", e)
-                JsonObject()
-            }
+            parseJson(url, response.body?.string().orEmpty())
         }
+
+    private suspend fun postJson(url: String, form: FormBody): JsonObject =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", BROWSER_UA)
+                .header("Referer", "https://music.163.com")
+                // CloudSearch 必须带 os=pc，否则被网关拒绝
+                .header("Cookie", "os=pc; appver=2.9.7")
+                .post(form)
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                throw IOException("HTTP ${response.code}: ${response.message}")
+            }
+            parseJson(url, response.body?.string().orEmpty())
+        }
+
+    /**
+     * 网易云 CloudSearch 搜索。
+     *
+     * 此前用的是老接口 GET /api/search/get：它返回的专辑对象只有数字 `picId`、**没有 `picUrl`**，
+     * 因此 parseNeteaseSong 取封面恒为 null，搜索结果全都没有图片。
+     * 该接口返回完整的 `al.picUrl`，且 parseNeteaseSong 本来就兼容 `al`/`ar` 字段。
+     *
+     * @param type 1=单曲 10=专辑 100=歌手 1000=歌单 1006=歌词，与老接口一致
+     */
+    private suspend fun cloudSearch(keyword: String, type: Int, limit: Int): JsonObject =
+        postJson(
+            "https://music.163.com/api/cloudsearch/pc",
+            FormBody.Builder()
+                .add("s", keyword)
+                .add("type", type.toString())
+                .add("limit", limit.coerceIn(1, 50).toString())
+                .add("offset", "0")
+                .build(),
+        )
 
     // ==================== 搜索 ====================
 
     suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): List<Song> {
-        val safeLimit = limit.coerceIn(1, 50)
-        val encoded = URLEncoder.encode(keyword, "UTF-8")
-        val url = "https://music.163.com/api/search/get/?s=$encoded&type=1&limit=$safeLimit&offset=0"
-        val root = getJson(url)
-        val result = root.getAsJsonObject("result") ?: return emptyList()
-        val songsArr = result.getAsJsonArray("songs") ?: return emptyList()
-
+        val root = cloudSearch(keyword, type = 1, limit = limit)
+        val songsArr = root.getAsJsonObject("result")?.getAsJsonArray("songs") ?: return emptyList()
         return songsArr.mapNotNull { parseNeteaseSong(it) }
     }
 
@@ -105,12 +143,8 @@ object PlatformMusicService {
     }
 
     suspend fun searchPlaylists(keyword: String, limit: Int = 20): List<PlaylistItem> {
-        val safeLimit = limit.coerceIn(1, 50)
-        val encoded = URLEncoder.encode(keyword, "UTF-8")
-        val url = "https://music.163.com/api/search/get/?s=$encoded&type=1000&limit=$safeLimit&offset=0"
-        val root = getJson(url)
-        val result = root.getAsJsonObject("result") ?: return emptyList()
-        val playlists = result.getAsJsonArray("playlists") ?: return emptyList()
+        val root = cloudSearch(keyword, type = 1000, limit = limit)
+        val playlists = root.getAsJsonObject("result")?.getAsJsonArray("playlists") ?: return emptyList()
 
         return playlists.mapNotNull { elem ->
             val obj = elem.asJsonObject ?: return@mapNotNull null
@@ -131,20 +165,18 @@ object PlatformMusicService {
     }
 
     suspend fun searchAlbums(keyword: String, limit: Int = 20): List<AlbumItem> {
-        val safeLimit = limit.coerceIn(1, 50)
-        val encoded = URLEncoder.encode(keyword, "UTF-8")
-        val url = "https://music.163.com/api/search/get/?s=$encoded&type=10&limit=$safeLimit&offset=0"
-        val root = getJson(url)
-        val result = root.getAsJsonObject("result") ?: return emptyList()
-        val albums = result.getAsJsonArray("albums") ?: return emptyList()
+        val root = cloudSearch(keyword, type = 10, limit = limit)
+        val albums = root.getAsJsonObject("result")?.getAsJsonArray("albums") ?: return emptyList()
 
         return albums.mapNotNull { elem ->
             val obj = elem.asJsonObject ?: return@mapNotNull null
             val id = obj.get("id")?.asString ?: return@mapNotNull null
             val name = obj.get("name")?.asString.orEmpty()
-            val cover = obj.get("picUrl")?.asString
+            val cover = obj.get("picUrl")?.asString ?: obj.get("blurPicUrl")?.asString
             val size = obj.get("size")?.asLong
-            val artistName = obj.getAsJsonArray("artists")?.firstOrNull()?.asJsonObject?.get("name")?.asString.orEmpty()
+            // CloudSearch 返回 artist 对象；老接口返回 artists 数组
+            val artistName = obj.getAsJsonArray("artists")?.firstOrNull()?.asJsonObject?.get("name")?.asString
+                ?: obj.getAsJsonObject("artist")?.get("name")?.asString.orEmpty()
             AlbumItem(
                 id = id,
                 name = name,
@@ -157,29 +189,21 @@ object PlatformMusicService {
     }
 
     suspend fun searchByLyric(keyword: String, limit: Int = 20): List<Song> {
-        val safeLimit = limit.coerceIn(1, 50)
-        val encoded = URLEncoder.encode(keyword, "UTF-8")
-        val url = "https://music.163.com/api/search/get/?s=$encoded&type=1006&limit=$safeLimit&offset=0"
-        val root = getJson(url)
-        val result = root.getAsJsonObject("result") ?: return emptyList()
-        val songsArr = result.getAsJsonArray("songs") ?: return emptyList()
-
+        val root = cloudSearch(keyword, type = 1006, limit = limit)
+        val songsArr = root.getAsJsonObject("result")?.getAsJsonArray("songs") ?: return emptyList()
         return songsArr.mapNotNull { parseNeteaseSong(it) }
     }
 
     suspend fun searchArtists(keyword: String, limit: Int = 8, platform: String? = null): List<ArtistItem> {
-        val safeLimit = limit.coerceIn(1, 30)
-        val encoded = URLEncoder.encode(keyword, "UTF-8")
-        val url = "https://music.163.com/api/search/get/?s=$encoded&type=100&limit=$safeLimit&offset=0"
-        val root = getJson(url)
-        val result = root.getAsJsonObject("result") ?: return emptyList()
-        val artistsArr = result.getAsJsonArray("artists") ?: return emptyList()
+        val root = cloudSearch(keyword, type = 100, limit = limit)
+        val artistsArr = root.getAsJsonObject("result")?.getAsJsonArray("artists") ?: return emptyList()
 
         return artistsArr.mapNotNull { elem ->
             val obj = elem.asJsonObject ?: return@mapNotNull null
             val id = obj.get("id")?.asString ?: return@mapNotNull null
             val name = obj.get("name")?.asString.orEmpty()
-            val avatar = obj.get("img1v1Url")?.asString ?: obj.get("picUrl")?.asString
+            // picUrl 是完整头像；img1v1Url 是方形小图，仅在缺 picUrl 时兜底
+            val avatar = obj.get("picUrl")?.asString ?: obj.get("img1v1Url")?.asString
             val alias = obj.getAsJsonArray("alias")?.mapNotNull { it.asString }?.joinToString("/")
             ArtistItem(
                 id = id,
@@ -625,8 +649,13 @@ object PlatformMusicService {
         )
     }
 
+    /** 封面 URL 归一：网易云会混着返回 `//x`、`http://x`、`https://x` 三种前缀，统一到 https */
     private fun fixPicUrl(url: String?): String? {
         if (url.isNullOrBlank()) return null
-        return if (url.startsWith("//")) "https:$url" else url
+        return when {
+            url.startsWith("//") -> "https:$url"
+            url.startsWith("http://") -> "https://" + url.removePrefix("http://")
+            else -> url
+        }
     }
 }

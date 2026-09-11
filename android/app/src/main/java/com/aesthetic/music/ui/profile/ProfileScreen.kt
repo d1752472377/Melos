@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -77,6 +76,8 @@ import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.service.UpdateInfo
 import com.aesthetic.music.service.UpdateService
+import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
@@ -439,44 +440,28 @@ fun ProfileScreen(
 
     // ===== 恢复默认确认弹窗 =====
     if (showRestoreConfirm) {
-        AlertDialog(
+        AppConfirmDialog(
             onDismissRequest = { showRestoreConfirm = false },
-            title = { Text("恢复默认") },
-            text = { Text("将清除您自定义的头像、背景图，并重置个人界面显示偏好。确认恢复吗？") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showRestoreConfirm = false
-                    onRestoreDefaults()
-                }) {
-                    Text("恢复默认", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestoreConfirm = false }) {
-                    Text("取消")
-                }
+            title = "恢复默认",
+            message = "将清除您自定义的头像、背景图，并重置个人界面显示偏好。确认恢复吗？",
+            confirmText = "恢复默认",
+            onConfirm = {
+                showRestoreConfirm = false
+                onRestoreDefaults()
             },
         )
     }
 
     // ===== 退出登录确认弹窗 =====
     if (showLogoutConfirm) {
-        AlertDialog(
+        AppConfirmDialog(
             onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("退出登录") },
-            text = { Text("退出登录后将清空私有云同步配置与当前会话。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLogoutConfirm = false
-                    onLogout()
-                }) {
-                    Text("退出", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text("取消")
-                }
+            title = "退出登录",
+            message = "退出登录后将清空私有云同步配置与当前会话。",
+            confirmText = "退出",
+            onConfirm = {
+                showLogoutConfirm = false
+                onLogout()
             },
         )
     }
@@ -484,71 +469,60 @@ fun ProfileScreen(
     // ===== 发现新版本更新弹窗 =====
     val updateInfo = updateAvailableInfo
     if (updateInfo != null) {
-        AlertDialog(
+        AppDialog(
             onDismissRequest = {
                 if (updateProgressText == null) updateAvailableInfo = null
             },
-            title = { Text("发现新版本 ${updateInfo.versionName}") },
-            text = {
-                Column {
-                    if (updateProgressText != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Text(updateProgressText ?: "正在下载…", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    } else {
-                        Text(
-                            text = if (updateInfo.updateLog.isNotBlank()) updateInfo.updateLog else "修复已知问题，提升使用体验。",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "大小: ${AudioCacheService.formatSize(updateInfo.apkSize)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSoft,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                if (updateProgressText == null) {
-                    TextButton(onClick = {
-                        scope.launch {
-                            updateProgressText = "准备下载…"
-                            try {
-                                val path = UpdateService.downloadApk(context, updateInfo) { received, total ->
-                                    if (total > 0) {
-                                        updateProgressText = "下载中 ${received * 100 / total}%"
-                                    }
-                                }
-                                updateProgressText = "正在打开安装程序…"
-                                if (UpdateService.installApk(context, path)) {
-                                    updateAvailableInfo = null
-                                    updateProgressText = null
-                                } else {
-                                    onShowToast("请允许「安装未知应用」后重新安装")
-                                    updateProgressText = null
-                                }
-                            } catch (e: Exception) {
-                                onShowToast("更新失败: ${e.message ?: "未知错误"}")
-                                updateProgressText = null
-                                updateAvailableInfo = null
+            title = "发现新版本 ${updateInfo.versionName}",
+            confirmText = if (updateProgressText == null) "立即更新" else null,
+            onConfirm = {
+                scope.launch {
+                    updateProgressText = "准备下载…"
+                    try {
+                        val path = UpdateService.downloadApk(context, updateInfo) { received, total ->
+                            if (total > 0) {
+                                updateProgressText = "下载中 ${received * 100 / total}%"
                             }
                         }
-                    }) {
-                        Text("立即更新", fontWeight = FontWeight.Bold, color = PrimaryBrown)
+                        updateProgressText = "正在打开安装程序…"
+                        if (UpdateService.installApk(context, path)) {
+                            updateAvailableInfo = null
+                            updateProgressText = null
+                        } else {
+                            onShowToast("请允许「安装未知应用」后重新安装")
+                            updateProgressText = null
+                        }
+                    } catch (e: Exception) {
+                        onShowToast("更新失败: ${e.message ?: "未知错误"}")
+                        updateProgressText = null
+                        updateAvailableInfo = null
                     }
                 }
             },
-            dismissButton = {
-                if (updateProgressText == null && !updateInfo.forceUpdate) {
-                    TextButton(onClick = { updateAvailableInfo = null }) {
-                        Text("稍后再说")
+            cancelText = if (updateProgressText == null && !updateInfo.forceUpdate) "稍后再说" else null,
+            onCancel = { updateAvailableInfo = null },
+        ) {
+            Column {
+                if (updateProgressText != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(updateProgressText ?: "正在下载…", style = MaterialTheme.typography.bodyMedium)
                     }
+                } else {
+                    Text(
+                        text = if (updateInfo.updateLog.isNotBlank()) updateInfo.updateLog else "修复已知问题，提升使用体验。",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "大小: ${AudioCacheService.formatSize(updateInfo.apkSize)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSoft,
+                    )
                 }
-            },
-        )
+            }
+        }
     }
 }
 

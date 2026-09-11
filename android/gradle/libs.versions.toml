@@ -16,7 +16,6 @@ baselineprofile = "1.5.0-alpha07"
 uiautomator = "2.3.0"
 androidxTestExtJunit = "1.2.1"
 quickjs = "2.4.0"
-uiGeometry = "1.12.0"
 kotlinxSerialization = "1.7.3"
 
 [libraries]
@@ -46,7 +45,7 @@ androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchm
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 quickjs-android = { group = "wang.harlon.quickjs", name = "wrapper-android", version.ref = "quickjs" }
-androidx-compose-ui-geometry = { group = "androidx.compose.ui", name = "ui-geometry", version.ref = "uiGeometry" }
+androidx-compose-ui-geometry = { group = "androidx.compose.ui", name = "ui-geometry" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 [plugins]

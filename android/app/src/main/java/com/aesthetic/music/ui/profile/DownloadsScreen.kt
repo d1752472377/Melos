@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.AudioCacheService
+import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.DangerCapsuleButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
@@ -274,27 +274,14 @@ fun DownloadsScreen(
     }
 
     if (showClearConfirm) {
-        AlertDialog(
+        AppConfirmDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("清空所有下载") },
-            text = {
-                Text(
-                    "将删除全部 ${songs.size} 首下载歌曲（释放 $totalSizeText 空间）。\n确认继续吗？",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showClearConfirm = false
-                    onClearAll()
-                }) {
-                    Text("清空", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearConfirm = false }) {
-                    Text("取消")
-                }
+            title = "清空所有下载",
+            message = "将删除全部 ${songs.size} 首下载歌曲（释放 $totalSizeText 空间）。\n确认继续吗？",
+            confirmText = "清空",
+            onConfirm = {
+                showClearConfirm = false
+                onClearAll()
             },
         )
     }

@@ -20,13 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -57,6 +55,7 @@ import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.artist.ArtistScreen
 import com.aesthetic.music.ui.cache.CacheListScreen
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.favorites.FavoritesScreen
@@ -481,7 +480,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         SearchScreen(
                             viewModel = viewModel,
                             currentSong = playerState.currentSong,
-                            onClose = { navController.popBackStack() },
                             onPlaySong = { song, list -> playSong(song, list) },
                             onOpenArtist = { artist ->
                                 viewModel.openArtist(artist)
@@ -494,6 +492,27 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onOpenAlbum = { album ->
                                 viewModel.openAlbum(album)
                                 navController.navigate(ScreenRoute.AlbumDetail.route)
+                            },
+                            myPlaylists = myPlaylists,
+                            isSongFavorite = viewModel::isFavorite,
+                            onToggleFavorite = viewModel::toggleFavorite,
+                            onPlayNext = { song ->
+                                playerManager.playNext(song)
+                                viewModel.showToast("已设为下一首播放")
+                            },
+                            onAddToQueue = { song ->
+                                playerManager.addToQueue(song)
+                                viewModel.showToast("已加入播放队列")
+                            },
+                            onDownloadSong = { song -> viewModel.downloadSong(context, song) },
+                            onAddToPlaylist = { playlistId, song ->
+                                viewModel.addSongsToPlaylist(playlistId, listOf(song))
+                                val target = myPlaylists.firstOrNull { it.id == playlistId }
+                                viewModel.showToast("已添加到「${target?.name ?: "歌单"}」")
+                            },
+                            onCreatePlaylist = { name, song ->
+                                viewModel.createPlaylist(name, listOf(song))
+                                viewModel.showToast("已创建并加入「$name」")
                             },
                         )
                     }
@@ -898,49 +917,46 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 if (showAddToPlaylist) {
                     val current = playerState.currentSong
                     if (current != null) {
-                        AlertDialog(
+                        AppDialog(
                             onDismissRequest = { showAddToPlaylist = false },
-                            title = { Text("加入歌单") },
-                            text = {
-                                Column {
-                                    Text(
-                                        "把「${current.title}」加入：",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = TextSoft,
-                                    )
-                                    Spacer(Modifier.size(10.dp))
-                                    if (myPlaylists.isEmpty()) {
-                                        Text("还没有歌单，先去「个人中心 - 我的歌单」新建一个吧", color = TextSoft)
-                                    } else {
-                                        LazyColumn {
-                                            myPlaylists.forEach { p ->
-                                                item {
-                                                    Row(
-                                                        Modifier
-                                                            .fillMaxWidth()
-                                                            .clickable {
-                                                                viewModel.addSongsToPlaylist(p.id, listOf(current))
-                                                                showAddToPlaylist = false
-                                                                scope.launch { snackbarHostState.showSnackbar("已加入「${p.name}」") }
-                                                            }
-                                                            .padding(vertical = 10.dp, horizontal = 6.dp),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                    ) {
-                                                        SongCover(p.coverUrl, Modifier.size(36.dp), corner = 0.dp)
-                                                        Spacer(Modifier.size(10.dp))
-                                                        Text(p.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
-                                                    }
+                            title = "加入歌单",
+                            confirmText = null,
+                            cancelText = "取消",
+                        ) {
+                            Column {
+                                Text(
+                                    "把「${current.title}」加入：",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSoft,
+                                )
+                                Spacer(Modifier.size(10.dp))
+                                if (myPlaylists.isEmpty()) {
+                                    Text("还没有歌单，先去「个人中心 - 我的歌单」新建一个吧", color = TextSoft)
+                                } else {
+                                    LazyColumn {
+                                        myPlaylists.forEach { p ->
+                                            item {
+                                                Row(
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            viewModel.addSongsToPlaylist(p.id, listOf(current))
+                                                            showAddToPlaylist = false
+                                                            scope.launch { snackbarHostState.showSnackbar("已加入「${p.name}」") }
+                                                        }
+                                                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                ) {
+                                                    SongCover(p.coverUrl, Modifier.size(36.dp), corner = 0.dp)
+                                                    Spacer(Modifier.size(10.dp))
+                                                    Text(p.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            },
-                            confirmButton = {},
-                            dismissButton = {
-                                TextButton(onClick = { showAddToPlaylist = false }) { Text("取消") }
-                            },
-                        )
+                            }
+                        }
                     }
                 }
 
@@ -1022,42 +1038,38 @@ private fun ImportPlaylistDialog(
     onImport: (String) -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("导入歌单") },
-        text = {
-            Column {
-                Text(
-                    "粘贴网易云歌单链接或直接输入歌单 ID\n如: https://music.163.com/#/playlist?id=5202687076",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSoft,
-                )
-                Spacer(Modifier.size(10.dp))
-                BasicTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Stone100, RoundedCornerShape(0.dp))
-                        .padding(12.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                    decorationBox = { inner ->
-                        if (input.isEmpty()) {
-                            Text("歌单链接 / ID", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                        }
-                        inner()
-                    },
-                )
-            }
+        title = "导入歌单",
+        confirmText = "导入",
+        onConfirm = {
+            val id = Regex("""\d{5,}""").find(input.trim())?.value ?: input.trim()
+            if (id.isNotEmpty()) onImport(id)
         },
-        confirmButton = {
-            TextButton(onClick = {
-                val id = Regex("""\d{5,}""").find(input.trim())?.value ?: input.trim()
-                if (id.isNotEmpty()) onImport(id)
-            }) { Text("导入") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
+        cancelText = "取消",
+    ) {
+        Column {
+            Text(
+                "粘贴网易云歌单链接或直接输入歌单 ID\n如: https://music.163.com/#/playlist?id=5202687076",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSoft,
+            )
+            Spacer(Modifier.size(10.dp))
+            BasicTextField(
+                value = input,
+                onValueChange = { input = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Stone100, RoundedCornerShape(0.dp))
+                    .padding(12.dp),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
+                decorationBox = { inner ->
+                    if (input.isEmpty()) {
+                        Text("歌单链接 / ID", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    inner()
+                },
+            )
+        }
+    }
 }

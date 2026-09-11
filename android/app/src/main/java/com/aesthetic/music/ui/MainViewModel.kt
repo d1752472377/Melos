@@ -1585,6 +1585,7 @@ class MainViewModel : ViewModel() {
         showRanks.value = false
         showSheet.value = false
         _fmActive.value = (tab == AppTab.SHEET)
+        if (tab == AppTab.SHEET) ensureFmStarted()
         if (tab == AppTab.PROFILE) refreshStats()
     }
 
@@ -1606,5 +1607,7 @@ class MainViewModel : ViewModel() {
         private const val MAX_FAVORITES = 1000
         /** 单个歌单曲目数上限 */
         private const val MAX_PLAYLIST_SONGS = 1000
+        /** FM 默认风格：当前无风格选择 UI，进入 FM 页直接用这个开拉 */
+        private const val DEFAULT_FM_STYLE = "推荐新歌"
     }
 }

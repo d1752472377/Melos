@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
+import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.DangerTextButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
@@ -175,18 +175,14 @@ fun HistoryScreen(
     }
 
     if (showClearConfirm) {
-        AlertDialog(
+        AppConfirmDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("清空最近播放") },
-            text = { Text("将删除全部 ${songs.size} 条播放记录（含云端），此操作不可恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showClearConfirm = false
-                    onClearAll()
-                }) { Text("清空", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
+            title = "清空最近播放",
+            message = "将删除全部 ${songs.size} 条播放记录（含云端），此操作不可恢复。",
+            confirmText = "清空",
+            onConfirm = {
+                showClearConfirm = false
+                onClearAll()
             },
         )
     }
