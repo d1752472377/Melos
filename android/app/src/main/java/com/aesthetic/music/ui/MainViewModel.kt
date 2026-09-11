@@ -1,5 +1,6 @@
 package com.aesthetic.music.ui
 
+import android.util.Log
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,8 @@ import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.fm.FmChannel
+import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
@@ -52,33 +55,48 @@ import kotlinx.coroutines.withContext
 
 enum class AppTab { HOME, SHEET, PLAYLIST, PROFILE }
 
-/** FM 电台频道定义 */
-data class FmChannel(
-    val id: String,
-    val name: String,
-    val subtitle: String,
-    val tag: String,
-    val icon: String = "📻"
-)
-
 class MainViewModel : ViewModel() {
 
     private val repository = MusicRepository()
 
     // 页面/弹层状态
-    val currentTab = MutableStateFlow(AppTab.HOME)
-    val showPlayer = MutableStateFlow(false)
-    val showThemeSheet = MutableStateFlow(false)
-    val showSettings = MutableStateFlow(false)
-    val showPlaylistDetail = MutableStateFlow<PlaylistItem?>(null)
-    val showImportDialog = MutableStateFlow(false)
-    val showFavorites = MutableStateFlow(false)
-    val showCacheList = MutableStateFlow(false)
+    private val _currentTab = MutableStateFlow(AppTab.HOME)
+    val currentTab = _currentTab.asStateFlow()
+    private val _showPlayer = MutableStateFlow(false)
+    val showPlayer = _showPlayer.asStateFlow()
+    private val _showThemeSheet = MutableStateFlow(false)
+    val showThemeSheet = _showThemeSheet.asStateFlow()
+    private val _showSettings = MutableStateFlow(false)
+    val showSettings = _showSettings.asStateFlow()
+    private val _showPlaylistDetail = MutableStateFlow<PlaylistItem?>(null)
+    val showPlaylistDetail = _showPlaylistDetail.asStateFlow()
+    private val _showImportDialog = MutableStateFlow(false)
+    val showImportDialog = _showImportDialog.asStateFlow()
+    private val _showFavorites = MutableStateFlow(false)
+    val showFavorites = _showFavorites.asStateFlow()
+    private val _showCacheList = MutableStateFlow(false)
+    val showCacheList = _showCacheList.asStateFlow()
     /** 最近播放独立页（从"我的"页进入；不再跳转到歌单 Tab） */
-    val showHistory = MutableStateFlow(false)
-    val showLogin = MutableStateFlow(false)
-    val showMyPlaylists = MutableStateFlow(false)
-    val showCreatePlaylistDialog = MutableStateFlow(false)
+    private val _showHistory = MutableStateFlow(false)
+    val showHistory = _showHistory.asStateFlow()
+    private val _showLogin = MutableStateFlow(false)
+    val showLogin = _showLogin.asStateFlow()
+    private val _showMyPlaylists = MutableStateFlow(false)
+    val showMyPlaylists = _showMyPlaylists.asStateFlow()
+    private val _showCreatePlaylistDialog = MutableStateFlow(false)
+    val showCreatePlaylistDialog = _showCreatePlaylistDialog.asStateFlow()
+
+    // 弹层/播放器的显式开关。
+    // 这些状态对外只读（暴露 StateFlow 而非 MutableStateFlow），外部只能经这些方法变更，
+    // 保证"谁在什么时候改了什么"可追溯——此前 UI 可直接对 MutableStateFlow 赋值，
+    // 状态变更散落在视图层，排查问题时无法确定来源。
+    fun openPlayer() { _showPlayer.value = true }
+    fun closePlayer() { _showPlayer.value = false }
+    fun openImportDialog() { _showImportDialog.value = true }
+    fun closeImportDialog() { _showImportDialog.value = false }
+    fun closePlaylistDetail() { _showPlaylistDetail.value = null }
+
+
 
     // 历史记录（最近播放，持久化：重启不丢失）。
     // 初始为空、由 init 异步回填：避免冷启动在主线程解析可能达 MB 级的 JSON。
@@ -104,9 +122,11 @@ class MainViewModel : ViewModel() {
     // 内容体系（首页 / 分类页 / 排行榜页共用）：热门歌单、每日、新歌、榜单、分类
     private val _hotPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val hotPlaylists: StateFlow<List<PlaylistItem>> = _hotPlaylists.asStateFlow()
-    val isLoadingHot = MutableStateFlow(false)
+    private val _isLoadingHot = MutableStateFlow(false)
+    val isLoadingHot = _isLoadingHot.asStateFlow()
     /** 热门歌单加载失败信息（此前失败静默，区块直接消失） */
-    val hotPlaylistsError = MutableStateFlow<String?>(null)
+    private val _hotPlaylistsError = MutableStateFlow<String?>(null)
+    val hotPlaylistsError = _hotPlaylistsError.asStateFlow()
 
     private val _dailyPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val dailyPlaylists: StateFlow<List<PlaylistItem>> = _dailyPlaylists.asStateFlow()
@@ -118,69 +138,67 @@ class MainViewModel : ViewModel() {
     val hotSongs: StateFlow<List<Song>> = _hotSongs.asStateFlow()
     private val _homeCategories = MutableStateFlow<List<HomeCategoryDto>>(emptyList())
     val homeCategories: StateFlow<List<HomeCategoryDto>> = _homeCategories.asStateFlow()
-    val isLoadingContent = MutableStateFlow(false)
-    val contentError = MutableStateFlow<String?>(null)
+    private val _isLoadingContent = MutableStateFlow(false)
+    val isLoadingContent = _isLoadingContent.asStateFlow()
+    private val _contentError = MutableStateFlow<String?>(null)
+    val contentError = _contentError.asStateFlow()
     /** 内容已成功加载过一次：切 Tab 重入不再全量重拉（重试用 refreshContent） */
     @Volatile
     private var contentLoaded = false
 
     // 歌单广场（覆盖层，从首页分类歌单进入）：标签 + 最新/最热 + 方块歌单
     val sheetTags: List<String> = repository.sheetTags()
-    val sheetCat = MutableStateFlow("全部")
-    val sheetOrder = MutableStateFlow("hot") // "hot"=最热 / "new"=最新
+    private val _sheetCat = MutableStateFlow("全部")
+    val sheetCat = _sheetCat.asStateFlow()
+    private val _sheetOrder = MutableStateFlow("hot") // "hot"=最热 / "new"=最新
+    val sheetOrder = _sheetOrder.asStateFlow()
     private val _sheetPlaylists = MutableStateFlow<List<PlaylistItem>>(emptyList())
     val sheetPlaylists: StateFlow<List<PlaylistItem>> = _sheetPlaylists.asStateFlow()
-    val isLoadingSheets = MutableStateFlow(false)
-    val sheetError = MutableStateFlow<String?>(null)
-    val showSheet = MutableStateFlow(false)
+    private val _isLoadingSheets = MutableStateFlow(false)
+    val isLoadingSheets = _isLoadingSheets.asStateFlow()
+    private val _sheetError = MutableStateFlow<String?>(null)
+    val sheetError = _sheetError.asStateFlow()
+    private val _showSheet = MutableStateFlow(false)
+    val showSheet = _showSheet.asStateFlow()
 
-    // FM 电台（免登录会话级推荐）：SHEET Tab 全屏刷歌
-    val fmChannels = listOf(
-        FmChannel("heart", "私人心动", "根据你的音乐偏好实时漫游", "心动模式", "💖"),
-        FmChannel("new", "推荐新歌", "发现全网新鲜出炉的优质单曲", "推荐新歌", "✨"),
-        FmChannel("pop", "热门流行", "热度霸榜，耳熟能详的动感旋律", "流行", "🔥"),
-        FmChannel("folk", "清新民谣", "一把木吉他，唱出温暖与远方", "民谣", "🌿"),
-        FmChannel("rock", "燃系摇滚", "节奏轰鸣，释放热血与激情", "摇滚", "🎸"),
-        FmChannel("elec", "迷幻电音", "重低音与未来声场的感官盛宴", "电子", "⚡"),
-        FmChannel("heal", "深夜治愈", "伴你入眠，安静温柔的情绪避难所", "治愈", "🌙"),
-        FmChannel("acg", "动漫二次元", "燃曲与物语，穿越异次元时空", "ACG", "🌸"),
-        FmChannel("gufeng", "唯美国风", "江南烟雨，墨染古韵悠扬", "古风", "📜"),
-        FmChannel("jazz", "慵懒爵士", "黑胶微醺，随性摇摆的午后时光", "全部", "☕"),
-        FmChannel("soundtrack", "影视原声", "经典荧幕声画，重温光影记忆", "影视原声", "🎬")
+    // FM 电台：逻辑与状态已抽到 FmController（见 ui/fm/FmController.kt）。
+    // 这里保留同名的只读委托，视图层无需改动；后续可让 FM 页直接持有控制器。
+    private val fm = FmController(
+        repository = repository,
+        scope = viewModelScope,
+        onToggleFavorite = { toggleFavorite(it) },
+        // 注意：与 isFavorite() 不同——这里额外接受裸 song.id，
+        // 用于兼容历史数据（旧版本只存了 id 未存 platform:id）。
+        // 抽取时必须保持与原实现完全一致，否则老用户的收藏在 FM 里会被判为未收藏。
+        isFavorite = { song ->
+            val key = song.platform + ":" + song.id
+            key in _favoriteKeys.value || song.id in _favoriteKeys.value
+        },
     )
-    private val _currentFmChannel = MutableStateFlow(fmChannels[0])
-    val currentFmChannel: StateFlow<FmChannel> = _currentFmChannel.asStateFlow()
-    private val _fmActive = MutableStateFlow(false)
-    val fmActive: StateFlow<Boolean> = _fmActive.asStateFlow()
-    /** FM 可选风格：推荐新歌 + 歌单广场全部标签 */
-    val fmStyles: List<String> = listOf("推荐新歌") + repository.sheetTags()
-    private val _fmStyle = MutableStateFlow<String?>(fmChannels[0].tag)
-    val fmStyle: StateFlow<String?> = _fmStyle.asStateFlow()
-    private val _fmQueue = MutableStateFlow<List<Song>>(emptyList())
-    val fmQueue: StateFlow<List<Song>> = _fmQueue.asStateFlow()
-    private val _fmIndex = MutableStateFlow(0)
-    val fmIndex: StateFlow<Int> = _fmIndex.asStateFlow()
-    private val _fmLoading = MutableStateFlow(false)
-    val fmLoading: StateFlow<Boolean> = _fmLoading.asStateFlow()
-    private val _fmError = MutableStateFlow<String?>(null)
-    val fmError: StateFlow<String?> = _fmError.asStateFlow()
-    private val _fmTreasure = MutableStateFlow<List<Song>>(emptyList())
-    val fmTreasure: StateFlow<List<Song>> = _fmTreasure.asStateFlow()
-    /** FM 漂移歌手池（点赞/听完收集；「歌手ID to 歌手名」） */
-    private val fmDriftArtists = ArrayDeque<Pair<String,String>>()
-    /** FM 已入队曲目 id（去重补充） */
-    private val fmQueuedIds = hashSetOf<String>()
-    /** FM 已标记不喜欢的歌曲 id（跳过且不再推荐） */
-    private val fmDislikedIds = hashSetOf<String>()
+
+    val fmChannels get() = fm.channels
+    val fmStyles get() = fm.styles
+    val currentFmChannel get() = fm.currentChannel
+    val fmActive get() = fm.active
+    val fmStyle get() = fm.style
+    val fmQueue get() = fm.queue
+    val fmIndex get() = fm.index
+    val fmLoading get() = fm.loading
+    val fmError get() = fm.error
+    val fmTreasure get() = fm.treasure
+
     // 排行榜页（覆盖层）
-    val showRanks = MutableStateFlow(false)
+    private val _showRanks = MutableStateFlow(false)
+    val showRanks = _showRanks.asStateFlow()
 
     // 歌单详情
     private val _playlistSongs = MutableStateFlow<List<Song>>(emptyList())
     val playlistSongs: StateFlow<List<Song>> = _playlistSongs.asStateFlow()
-    val isLoadingPlaylist = MutableStateFlow(false)
+    private val _isLoadingPlaylist = MutableStateFlow(false)
+    val isLoadingPlaylist = _isLoadingPlaylist.asStateFlow()
     /** 歌单/榜单详情加载失败信息：此前失败静默成空白列表页，无文案无重试 */
-    val playlistError = MutableStateFlow<String?>(null)
+    private val _playlistError = MutableStateFlow<String?>(null)
+    val playlistError = _playlistError.asStateFlow()
     /** 歌单详情请求令牌：快速连开两个歌单时丢弃慢的旧响应，防止串台 */
     @Volatile
     private var playlistRequestId = 0L
@@ -214,18 +232,28 @@ class MainViewModel : ViewModel() {
     // 用户体系
     private val _user = MutableStateFlow(UserStore.user())
     val user: StateFlow<UserInfo?> = _user.asStateFlow()
-    val authBusy = MutableStateFlow(false)
-    val authError = MutableStateFlow<String?>(null)
+    private val _authBusy = MutableStateFlow(false)
+    val authBusy = _authBusy.asStateFlow()
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError = _authError.asStateFlow()
 
     // 个人中心个性化状态
-    val profileAvatar = MutableStateFlow(UserStore.getAvatarPath())
-    val profileBackground = MutableStateFlow(UserStore.getBackgroundPath())
-    val isProfileBgBlur = MutableStateFlow(UserStore.isBackgroundBlur())
-    val profileNickname = MutableStateFlow(UserStore.getNickname())
-    val profileBio = MutableStateFlow(UserStore.getBio())
-    val profileGender = MutableStateFlow(UserStore.getGender())
-    val profileBirthday = MutableStateFlow(UserStore.getBirthday())
-    val profileUserId = MutableStateFlow(UserStore.getUserId())
+    private val _profileAvatar = MutableStateFlow(UserStore.getAvatarPath())
+    val profileAvatar = _profileAvatar.asStateFlow()
+    private val _profileBackground = MutableStateFlow(UserStore.getBackgroundPath())
+    val profileBackground = _profileBackground.asStateFlow()
+    private val _isProfileBgBlur = MutableStateFlow(UserStore.isBackgroundBlur())
+    val isProfileBgBlur = _isProfileBgBlur.asStateFlow()
+    private val _profileNickname = MutableStateFlow(UserStore.getNickname())
+    val profileNickname = _profileNickname.asStateFlow()
+    private val _profileBio = MutableStateFlow(UserStore.getBio())
+    val profileBio = _profileBio.asStateFlow()
+    private val _profileGender = MutableStateFlow(UserStore.getGender())
+    val profileGender = _profileGender.asStateFlow()
+    private val _profileBirthday = MutableStateFlow(UserStore.getBirthday())
+    val profileBirthday = _profileBirthday.asStateFlow()
+    private val _profileUserId = MutableStateFlow(UserStore.getUserId())
+    val profileUserId = _profileUserId.asStateFlow()
 
     /** 一次性全局提示（导入歌单失败、改昵称失败、登录态过期等）：
      *  此前这些场景的错误要么写进没人消费的状态（albumError），要么复用只被登录弹窗读的
@@ -254,17 +282,22 @@ class MainViewModel : ViewModel() {
     }
 
     // 主题模式
-    val themeMode = MutableStateFlow(SettingsStore.getThemeMode())
+    private val _themeMode = MutableStateFlow(SettingsStore.getThemeMode())
+    val themeMode = _themeMode.asStateFlow()
 
     // 音质等级
-    val quality = MutableStateFlow(SettingsStore.getQuality())
+    private val _quality = MutableStateFlow(SettingsStore.getQuality())
+    val quality = _quality.asStateFlow()
 
     // 歌手页
-    val showArtist = MutableStateFlow<ArtistRef?>(null)
+    private val _showArtist = MutableStateFlow<ArtistRef?>(null)
+    val showArtist = _showArtist.asStateFlow()
     private val _artistDetail = MutableStateFlow<ArtistDetailData?>(null)
     val artistDetail: StateFlow<ArtistDetailData?> = _artistDetail.asStateFlow()
-    val isLoadingArtist = MutableStateFlow(false)
-    val artistError = MutableStateFlow<String?>(null)
+    private val _isLoadingArtist = MutableStateFlow(false)
+    val isLoadingArtist = _isLoadingArtist.asStateFlow()
+    private val _artistError = MutableStateFlow<String?>(null)
+    val artistError = _artistError.asStateFlow()
 
     /** 歌手页定位信息（平台内标识） */
     data class ArtistRef(val platform: String, val id: String, val name: String)
@@ -319,11 +352,15 @@ class MainViewModel : ViewModel() {
         SONG("单曲"), ARTIST("歌手"), PLAYLIST("歌单"), ALBUM("专辑"), LYRIC("歌词")
     }
 
-    val showSearch = MutableStateFlow(false)
-    val searchQuery = MutableStateFlow("")
-    val searchType = MutableStateFlow(SearchType.SONG)
+    private val _showSearch = MutableStateFlow(false)
+    val showSearch = _showSearch.asStateFlow()
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+    private val _searchType = MutableStateFlow(SearchType.SONG)
+    val searchType = _searchType.asStateFlow()
     /** 平台过滤（仅单曲 Tab 生效）：null = 全部平台聚合；否则为音源 id（netease/kugou/qq/kuwo） */
-    val searchPlatform = MutableStateFlow<String?>(null)
+    private val _searchPlatform = MutableStateFlow<String?>(null)
+    val searchPlatform = _searchPlatform.asStateFlow()
 
     private val _songResults = MutableStateFlow<List<Song>>(emptyList())
     val songResults: StateFlow<List<Song>> = _songResults.asStateFlow()
@@ -340,8 +377,10 @@ class MainViewModel : ViewModel() {
     private val _albumResults = MutableStateFlow<List<AlbumItem>>(emptyList())
     val albumResults: StateFlow<List<AlbumItem>> = _albumResults.asStateFlow()
 
-    val isSearching = MutableStateFlow(false)
-    val searchError = MutableStateFlow<String?>(null)
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching = _isSearching.asStateFlow()
+    private val _searchError = MutableStateFlow<String?>(null)
+    val searchError = _searchError.asStateFlow()
 
     /** 最近搜索（持久化，最多 10 条，新的在前） */
     private val _recentSearches = MutableStateFlow<List<String>>(emptyList())
@@ -359,21 +398,24 @@ class MainViewModel : ViewModel() {
     private val defaultHotWords =
         listOf("周杰伦", "热歌", "经典老歌", "抖音热门", "粤语经典", "华语流行", "民谣", "轻音乐")
 
-    fun openSearch() { showSearch.value = true }
-    fun closeSearch() { showSearch.value = false }
+    fun openSearch() { _showSearch.value = true }
+    fun closeSearch() { _showSearch.value = false }
 
     /** 专辑详情覆盖层（搜索页专辑 Tab 点击进入） */
-    val showAlbumDetail = MutableStateFlow<com.aesthetic.music.data.api.AlbumItem?>(null)
+    private val _showAlbumDetail = MutableStateFlow<com.aesthetic.music.data.api.AlbumItem?>(null)
+    val showAlbumDetail = _showAlbumDetail.asStateFlow()
     private val _albumDetailSongs = MutableStateFlow<List<Song>>(emptyList())
     val albumDetailSongs: StateFlow<List<Song>> = _albumDetailSongs.asStateFlow()
-    val isLoadingAlbum = MutableStateFlow(false)
-    val albumError = MutableStateFlow<String?>(null)
+    private val _isLoadingAlbum = MutableStateFlow(false)
+    val isLoadingAlbum = _isLoadingAlbum.asStateFlow()
+    private val _albumError = MutableStateFlow<String?>(null)
+    val albumError = _albumError.asStateFlow()
 
     fun openAlbum(album: com.aesthetic.music.data.api.AlbumItem) {
-        showAlbumDetail.value = album
+        _showAlbumDetail.value = album
         _albumDetailSongs.value = emptyList()
-        albumError.value = null
-        isLoadingAlbum.value = true
+        _albumError.value = null
+        _isLoadingAlbum.value = true
         val req = ++albumRequestId
         viewModelScope.launch {
             repository.getAlbum(album.id).onSuccess { detail ->
@@ -382,31 +424,31 @@ class MainViewModel : ViewModel() {
                 _albumDetailSongs.value = detail.songs
                 // 详情返回的 info 更完整（封面/曲目数），同 id 时替换占位数据
                 if (detail.info != null && showAlbumDetail.value?.id == album.id) {
-                    showAlbumDetail.value = detail.info
+                    _showAlbumDetail.value = detail.info
                 }
             }.onFailure { e ->
                 if (req != albumRequestId) return@launch
-                albumError.value = e.message ?: "获取专辑失败"
+                _albumError.value = e.message ?: "获取专辑失败"
             }
-            if (req == albumRequestId) isLoadingAlbum.value = false
+            if (req == albumRequestId) _isLoadingAlbum.value = false
         }
     }
 
     fun closeAlbum() {
-        showAlbumDetail.value = null
+        _showAlbumDetail.value = null
         _albumDetailSongs.value = emptyList()
-        albumError.value = null
+        _albumError.value = null
     }
 
     /** 输入框内容变化：清空即复位；否则 400ms 防抖后自动搜索当前类型 */
     fun onSearchQueryChanged(q: String) {
-        searchQuery.value = q
+        _searchQuery.value = q
         searchJob?.cancel()
         val kw = q.trim()
         if (kw.isEmpty()) {
             resetSearchResults()
-            isSearching.value = false
-            searchError.value = null
+            _isSearching.value = false
+            _searchError.value = null
             return
         }
         searchJob = viewModelScope.launch {
@@ -420,7 +462,7 @@ class MainViewModel : ViewModel() {
         val kw = (word ?: searchQuery.value).trim()
         if (kw.isEmpty()) return
         if (word != null && searchQuery.value != word) {
-            searchQuery.value = word
+            _searchQuery.value = word
         }
         recordRecentSearch(kw)
         searchJob?.cancel()
@@ -429,8 +471,8 @@ class MainViewModel : ViewModel() {
 
     /** 切换结果类型：有未执行的组合就补一次请求 */
     fun setSearchType(type: SearchType) {
-        if (searchType.value == type) return
-        searchType.value = type
+        if (_searchType.value == type) return
+        _searchType.value = type
         val kw = searchQuery.value.trim()
         if (kw.isNotEmpty()) {
             searchJob?.cancel()
@@ -440,10 +482,10 @@ class MainViewModel : ViewModel() {
 
     /** 切换平台（仅单曲生效）：重新搜索 */
     fun setSearchPlatform(platform: String?) {
-        if (searchPlatform.value == platform) return
-        searchPlatform.value = platform
+        if (_searchPlatform.value == platform) return
+        _searchPlatform.value = platform
         val kw = searchQuery.value.trim()
-        if (searchType.value == SearchType.SONG && kw.isNotEmpty()) {
+        if (_searchType.value == SearchType.SONG && kw.isNotEmpty()) {
             searchJob?.cancel()
             searchJob = viewModelScope.launch { runSearch(kw, force = false) }
         }
@@ -495,37 +537,37 @@ class MainViewModel : ViewModel() {
             SearchType.LYRIC -> _lyricResults.value = emptyList()
         }
 
-        isSearching.value = true
-        searchError.value = null
+        _isSearching.value = true
+        _searchError.value = null
         try {
             when (type) {
                 SearchType.SONG -> repository.search(kw, 30, platform).onSuccess {
                     _songResults.value = it
                     executedSearchKeys[type] = key
-                }.onFailure { e -> searchError.value = e.message ?: "搜索失败" }
+                }.onFailure { e -> _searchError.value = e.message ?: "搜索失败" }
 
                 SearchType.ARTIST -> repository.searchArtists(kw, 12).onSuccess {
                     _artistResults.value = it
                     executedSearchKeys[type] = key
-                }.onFailure { e -> searchError.value = e.message ?: "歌手搜索失败" }
+                }.onFailure { e -> _searchError.value = e.message ?: "歌手搜索失败" }
 
                 SearchType.PLAYLIST -> repository.searchPlaylists(kw, 20).onSuccess {
                     _playlistResults.value = it
                     executedSearchKeys[type] = key
-                }.onFailure { e -> searchError.value = e.message ?: "歌单搜索失败" }
+                }.onFailure { e -> _searchError.value = e.message ?: "歌单搜索失败" }
 
                 SearchType.ALBUM -> repository.searchAlbums(kw, 20).onSuccess {
                     _albumResults.value = it
                     executedSearchKeys[type] = key
-                }.onFailure { e -> searchError.value = e.message ?: "专辑搜索失败" }
+                }.onFailure { e -> _searchError.value = e.message ?: "专辑搜索失败" }
 
                 SearchType.LYRIC -> repository.searchByLyric(kw, 30).onSuccess {
                     _lyricResults.value = it
                     executedSearchKeys[type] = key
-                }.onFailure { e -> searchError.value = e.message ?: "歌词搜索失败" }
+                }.onFailure { e -> _searchError.value = e.message ?: "歌词搜索失败" }
             }
         } finally {
-            isSearching.value = false
+            _isSearching.value = false
         }
     }
 
@@ -542,12 +584,12 @@ class MainViewModel : ViewModel() {
     }
 
     fun openArtist(ref: ArtistRef) {
-        showArtist.value = ref
+        _showArtist.value = ref
         val req = ++artistRequestId
         viewModelScope.launch {
-            isLoadingArtist.value = true
+            _isLoadingArtist.value = true
             _artistDetail.value = null
-            artistError.value = null
+            _artistError.value = null
             repository.getArtist(ref.platform, ref.id).onSuccess { detail ->
                 // 请求在途期间用户已打开别的歌手：丢弃过期响应
                 if (req != artistRequestId) return@launch
@@ -555,16 +597,16 @@ class MainViewModel : ViewModel() {
             }.onFailure { e ->
                 if (req != artistRequestId) return@launch
                 // 失败要可见：否则页面显示"暂无相关歌曲"，把网络错误伪装成歌手无作品
-                artistError.value = e.message ?: "获取歌手失败"
+                _artistError.value = e.message ?: "获取歌手失败"
             }
-            if (req == artistRequestId) isLoadingArtist.value = false
+            if (req == artistRequestId) _isLoadingArtist.value = false
         }
     }
 
     fun closeArtist() {
-        showArtist.value = null
+        _showArtist.value = null
         _artistDetail.value = null
-        artistError.value = null
+        _artistError.value = null
     }
 
     fun addToHistory(song: Song) {
@@ -592,8 +634,8 @@ class MainViewModel : ViewModel() {
         scheduleSyncPush()
     }
 
-    fun openHistory() { showHistory.value = true }
-    fun closeHistory() { showHistory.value = false }
+    fun openHistory() { _showHistory.value = true }
+    fun closeHistory() { _showHistory.value = false }
 
     // ==================== 收藏 ====================
 
@@ -680,15 +722,15 @@ class MainViewModel : ViewModel() {
         // 在途防重：此前首个请求在途时值为空，快速切 Tab 会并发打出多个相同请求
         if (!force && isLoadingHot.value) return
         viewModelScope.launch {
-            isLoadingHot.value = true
+            _isLoadingHot.value = true
             repository.getHotPlaylists(20).onSuccess { list ->
                 _hotPlaylists.value = list
-                hotPlaylistsError.value = null
+                _hotPlaylistsError.value = null
             }.onFailure { e ->
                 // 失败要可见：此前静默，"热门歌单"区块直接消失且无法重试
-                hotPlaylistsError.value = e.message ?: "获取热门歌单失败"
+                _hotPlaylistsError.value = e.message ?: "获取热门歌单失败"
             }
-            isLoadingHot.value = false
+            _isLoadingHot.value = false
         }
     }
 
@@ -700,8 +742,8 @@ class MainViewModel : ViewModel() {
         if (isLoadingContent.value) return
         if (!force && contentLoaded) return
         viewModelScope.launch {
-            isLoadingContent.value = true
-            contentError.value = null
+            _isLoadingContent.value = true
+            _contentError.value = null
             var failures = 0
             var failureMsg = ""
             val dailyD = async { repository.getDaily(8) }
@@ -730,14 +772,14 @@ class MainViewModel : ViewModel() {
                 }
             }.onFailure { failures++; failureMsg = "排行榜" }
             if (failures == 4) {
-                contentError.value = "内容加载失败，请检查网络"
+                _contentError.value = "内容加载失败，请检查网络"
             } else if (failures > 0) {
                 // 部分失败也要可见：此前只有全挂才报错，单个区块（如排行榜）失败后
                 // 永久消失且无提示（contentLoaded=true 还拦截了重拉）
-                contentError.value = "部分内容加载失败（$failureMsg），可点重试"
+                _contentError.value = "部分内容加载失败（$failureMsg），可点重试"
             }
             contentLoaded = true
-            isLoadingContent.value = false
+            _isLoadingContent.value = false
         }
     }
 
@@ -747,14 +789,14 @@ class MainViewModel : ViewModel() {
     // ==================== 歌单广场 ====================
 
     fun setSheetCat(cat: String) {
-        if (sheetCat.value == cat) return
-        sheetCat.value = cat
+        if (_sheetCat.value == cat) return
+        _sheetCat.value = cat
         loadSheetPlaylists(force = true)
     }
 
     fun setSheetOrder(order: String) {
-        if (sheetOrder.value == order) return
-        sheetOrder.value = order
+        if (_sheetOrder.value == order) return
+        _sheetOrder.value = order
         loadSheetPlaylists(force = true)
     }
 
@@ -763,207 +805,98 @@ class MainViewModel : ViewModel() {
         if (!force && isLoadingSheets.value) return
         val req = ++sheetRequestId
         viewModelScope.launch {
-            isLoadingSheets.value = true
-            sheetError.value = null
+            _isLoadingSheets.value = true
+            _sheetError.value = null
             repository.sheetPlaylists(sheetCat.value, sheetOrder.value)
                 .onSuccess { list -> if (req == sheetRequestId) _sheetPlaylists.value = list }
-                .onFailure { e -> if (req == sheetRequestId) sheetError.value = e.message ?: "获取歌单失败" }
-            if (req == sheetRequestId) isLoadingSheets.value = false
+                .onFailure { e -> if (req == sheetRequestId) _sheetError.value = e.message ?: "获取歌单失败" }
+            if (req == sheetRequestId) _isLoadingSheets.value = false
         }
     }
 
     fun openSheet() {
-        showSheet.value = true
+        _showSheet.value = true
         loadSheetPlaylists()
     }
 
-    fun closeSheet() { showSheet.value = false }
+    fun closeSheet() { _showSheet.value = false }
 
-    // ==================== FM 电台（会话级推荐逻辑） ====================
+    // ==================== FM 电台（委托 FmController） ====================
 
-    /** 进入 FM / 切换频道（开拉种子池，拉取完成后可自动触发播放） */
-    fun fmStart( channel : FmChannel = fmChannels[0], onReady : ((Song, List<Song>) -> Unit)? = null ) {
-        _currentFmChannel.value = channel
-        _fmStyle.value = channel.tag
-        fmDriftArtists.clear()
-        fmQueuedIds.clear()
-        _fmQueue.value = emptyList()
-        _fmIndex.value = 0
-        _fmError.value = null
-        _fmActive.value = true
-        _fmLoading.value = true
-        viewModelScope.launch {
-            repository.fmSeedSongs(channel.tag,  120).onSuccess { rawSongs ->
-                val songs = rawSongs.filterNot { fmDislikedIds.contains(it.id) }
-                fmQueuedIds.addAll(songs.map { it.id })
-                _fmQueue.value = songs
-                _fmLoading.value = false
-                if (songs.isNotEmpty()) {
-                    onReady?.invoke(songs.first(), songs)
-                }
-            }.onFailure { e ->
-                _fmError.value = e.message ?: "电台调频失败，请点击重新调频"
-                _fmLoading.value = false
-            }
-        }
-    }
+    fun fmStart(channel: FmChannel = fm.channels[0], onReady: ((Song, List<Song>) -> Unit)? = null) =
+        fm.start(channel, onReady)
 
-    /** 兼容旧版调用：按风格名称开拉 */
-    fun fmStart( style : String ) {
-        val ch = fmChannels.find { it.tag == style || it.name == style }
-            ?: FmChannel(style, style, "定制电台风格", style, "🎵")
-        fmStart(ch)
-    }
+    fun fmStart(style: String) = fm.start(style)
 
-    /** 重新调频当前频道 */
-    fun fmRefresh( onReady : ((Song, List<Song>) -> Unit)? = null ) {
-        fmStart(_currentFmChannel.value, onReady)
-    }
+    fun fmRefresh(onReady: ((Song, List<Song>) -> Unit)? = null) = fm.refresh(onReady)
 
-    /** FM 切歌（拖动/自动续播同步索引；近队尾触发补池） */
-    fun fmSelect( index : Int ) {
-        val q = _fmQueue.value
-        if (index < 0 || index >= q.size) return
-        _fmIndex.value = index
-        maybeFmFill( index )
-    }
+    fun fmSelect(index: Int) = fm.select(index)
 
-    /** FM 不感兴趣（垃圾桶 / 讨厌）：标记丢弃，移出队列并立即切至下一首 */
-    fun fmDislike( song : Song, onPlayNext : ((Song, List<Song>) -> Unit)? = null ) {
-        fmDislikedIds.add(song.id)
-        val curr = _fmQueue.value.toMutableList()
-        val idx = curr.indexOfFirst { it.id == song.id }
-        if (idx >= 0) {
-            curr.removeAt(idx)
-            _fmQueue.value = curr
-            val nextSong = curr.getOrNull(idx) ?: curr.firstOrNull()
-            if (nextSong != null) {
-                _fmIndex.value = idx.coerceAtMost(curr.size - 1)
-                onPlayNext?.invoke(nextSong, curr)
-            }
-        }
-        maybeFmFill( _fmIndex.value )
-    }
+    fun fmDislike(song: Song, onPlayNext: ((Song, List<Song>) -> Unit)? = null) =
+        fm.dislike(song, onPlayNext)
 
-    /** FM 点赞/取消：点赞 → 收藏（我喜欢的音乐）+ 本次宝藏歌单；取消 → 一并移除 */
-    fun fmToggleLike( song : Song ) {
-        toggleFavorite( song )
-        val key = song.platform + ":" + song.id
-        val isFav = _favoriteKeys.value.contains(key) || _favoriteKeys.value.contains(song.id)
-        val trea = _fmTreasure.value.toMutableList()
-        if (isFav) {
-            if (trea.none { it.id == song.id }) {
-                trea.add( song )
-                _fmTreasure.value = trea
-                fmOnSignal( song )
-            }
-        } else {
-            _fmTreasure.value = trea.filterNot { it.id == song.id }
-        }
-    }
+    fun fmToggleLike(song: Song) = fm.toggleLike(song)
 
-    /** FM 漂移信号：点赞/听完某曲 → 收集其歌手 → 补池优先拉该歌手（无需登录，本次会话越刷越准） */
-    fun fmOnSignal( song : Song ) {
-        if (!_fmActive.value) return
-        val artistId = song.artistId ?: return
-        val artistName = song.artist.substringBefore("/").trim()
-        if (artistId.isBlank() || artistName.isBlank()) return
-        if (fmDriftArtists.none { it.first == artistId }) {
-            fmDriftArtists.addLast( artistId to artistName )
-        }
-        maybeFmFill( _fmIndex.value )
-    }
+    fun fmOnSignal(song: Song) = fm.onSignal(song)
 
-    /** 接近队尾或收到信号时补充：优先漂移歌手，否则同风格再补池 */
-    private fun maybeFmFill( index : Int ) {
-        val q = _fmQueue.value
-        if (q.size - index >= 6) return
-        if (_fmLoading.value) return
-        val style = _fmStyle.value ?: return
-        _fmLoading.value = true
-        viewModelScope.launch {
-            val added = mutableListOf<Song>()
-            val drift = fmDriftArtists.removeFirstOrNull()
-            if ( drift != null ) {
-                repository.artistTopSongs(drift.first,  50).onSuccess { songs ->
-                    added += songs.filter { it.id.isNotBlank() && !fmDislikedIds.contains(it.id) && fmQueuedIds.add( it.id ) }
-                }
-                repository.searchSongs( drift.second ,  20 ).onSuccess { songs ->
-                    added += songs.filter { it.id.isNotBlank() && !fmDislikedIds.contains(it.id) && fmQueuedIds.add( it.id ) }
-                }
-            }
-            if (added.isEmpty()) {
-                repository.fmSeedSongs(style,  80).onSuccess { songs ->
-                    added += songs.filter { it.id.isNotBlank() && !fmDislikedIds.contains(it.id) && fmQueuedIds.add( it.id ) }
-                }
-            }
-            if (added.isNotEmpty()) {
-                val curr = _fmQueue.value
-                _fmQueue.value = curr + added
-            }
-            _fmLoading.value = false
-        }
-    }
-
-    /** FM 暂停漂移（切走 Tab 时；队列与宝藏歌单保留，本次 Session 仍可导出） */
-    fun fmStopDrift() { _fmActive.value = false }
+    fun fmStopDrift() = fm.stopDrift()
 
     // ==================== 排行榜页 ====================
 
-    fun openRanks() { showRanks.value = true }
-    fun closeRanks() { showRanks.value = false }
+    fun openRanks() { _showRanks.value = true }
+    fun closeRanks() { _showRanks.value = false }
 
     // ==================== 歌单 ====================
 
     fun openPlaylistDetail(item: PlaylistItem) {
-        showPlaylistDetail.value = item
+        _showPlaylistDetail.value = item
         _playlistSongs.value = emptyList()
-        playlistError.value = null
+        _playlistError.value = null
         val req = ++playlistRequestId
         viewModelScope.launch {
-            isLoadingPlaylist.value = true
+            _isLoadingPlaylist.value = true
             repository.getPlaylist(item.id).onSuccess { list ->
                 if (req == playlistRequestId) _playlistSongs.value = list
             }.onFailure { e ->
                 // 失败要可见：此前只写 onSuccess，失败后列表空 + 无 loading，
                 // Overlay 渲染 0 项 LazyColumn 白页，无文案无重试
-                if (req == playlistRequestId) playlistError.value = e.message ?: "歌单加载失败"
+                if (req == playlistRequestId) _playlistError.value = e.message ?: "歌单加载失败"
             }
-            if (req == playlistRequestId) isLoadingPlaylist.value = false
+            if (req == playlistRequestId) _isLoadingPlaylist.value = false
         }
     }
 
     fun openRankDetail(item: PlaylistItem) {
-        showPlaylistDetail.value = item
+        _showPlaylistDetail.value = item
         _playlistSongs.value = emptyList()
-        playlistError.value = null
+        _playlistError.value = null
         val req = ++playlistRequestId
         viewModelScope.launch {
-            isLoadingPlaylist.value = true
+            _isLoadingPlaylist.value = true
             repository.getRankSongs(item.id).onSuccess { list ->
                 if (req == playlistRequestId) _playlistSongs.value = list
             }.onFailure { e ->
-                if (req == playlistRequestId) playlistError.value = e.message ?: "榜单加载失败"
+                if (req == playlistRequestId) _playlistError.value = e.message ?: "榜单加载失败"
             }
-            if (req == playlistRequestId) isLoadingPlaylist.value = false
+            if (req == playlistRequestId) _isLoadingPlaylist.value = false
         }
     }
 
     fun importPlaylist(id: String) {
         val req = ++playlistRequestId
         viewModelScope.launch {
-            isLoadingPlaylist.value = true
+            _isLoadingPlaylist.value = true
             repository.getPlaylist(id).onSuccess { list ->
                 if (req != playlistRequestId) return@launch
                 _playlistSongs.value = list
-                showPlaylistDetail.value = PlaylistItem(id = id, name = "导入的歌单")
+                _showPlaylistDetail.value = PlaylistItem(id = id, name = "导入的歌单")
             }.onFailure { e ->
                 // 此前失败静默：弹窗关闭后"什么都没发生"
                 if (req == playlistRequestId) {
                     _appToast.value = "导入歌单失败：${e.message ?: "网络异常"}"
                 }
             }
-            if (req == playlistRequestId) isLoadingPlaylist.value = false
+            if (req == playlistRequestId) _isLoadingPlaylist.value = false
         }
     }
 
@@ -975,7 +908,7 @@ class MainViewModel : ViewModel() {
         val p = MyPlaylist(id = PlaylistStore.newId(), name = n, songs = initialSongs)
         _myPlaylists.value = listOf(p) + _myPlaylists.value
         saveMyPlaylists()
-        showCreatePlaylistDialog.value = false
+        _showCreatePlaylistDialog.value = false
         scheduleSyncPush()
     }
 
@@ -1009,9 +942,9 @@ class MainViewModel : ViewModel() {
     fun openMyPlaylist(id: String) {
         val p = _myPlaylists.value.firstOrNull { it.id == id } ?: return
         ++playlistRequestId
-        playlistError.value = null
+        _playlistError.value = null
         _playlistSongs.value = p.songs
-        showPlaylistDetail.value = PlaylistItem(
+        _showPlaylistDetail.value = PlaylistItem(
             id = p.id,
             name = p.name,
             coverUrl = p.coverUrl,
@@ -1021,7 +954,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun addCurrentToPlaylist(song: Song) {
-        showCreatePlaylistDialog.value = true
+        _showCreatePlaylistDialog.value = true
         pendingSongForNewPlaylist = song
     }
 
@@ -1052,8 +985,8 @@ class MainViewModel : ViewModel() {
                         SyncServerStore.setLastSyncVersion(result.version)
                         val now = System.currentTimeMillis()
                         SyncServerStore.updateSyncStatus("同步成功", now)
-                        lastSyncedAt.value = now
-                        lastSyncStatus.value = "同步成功"
+                        _lastSyncedAt.value = now
+                        _lastSyncStatus.value = "同步成功"
                     }
                 } catch (_: Exception) {
                     // 后台静默重试，不打扰用户
@@ -1099,24 +1032,32 @@ class MainViewModel : ViewModel() {
     val isEngineReady: StateFlow<Boolean> = UserApiEngine.isEngineReady
     val engineError: StateFlow<String?> = UserApiEngine.engineError
 
-    val syncServerUrl = MutableStateFlow(SyncServerStore.getServerUrl())
-    val syncToken = MutableStateFlow(SyncServerStore.getSyncToken())
-    val isSyncConfigured = MutableStateFlow(SyncServerStore.isConfigured())
-    val lastSyncedAt = MutableStateFlow(SyncServerStore.getLastSyncedAt())
-    val lastSyncStatus = MutableStateFlow(SyncServerStore.getLastSyncStatus())
-    val isSyncing = MutableStateFlow(false)
-    val isTestingSync = MutableStateFlow(false)
+    private val _syncServerUrl = MutableStateFlow(SyncServerStore.getServerUrl())
+    val syncServerUrl = _syncServerUrl.asStateFlow()
+    private val _syncToken = MutableStateFlow(SyncServerStore.getSyncToken())
+    val syncToken = _syncToken.asStateFlow()
+    private val _isSyncConfigured = MutableStateFlow(SyncServerStore.isConfigured())
+    val isSyncConfigured = _isSyncConfigured.asStateFlow()
+    private val _lastSyncedAt = MutableStateFlow(SyncServerStore.getLastSyncedAt())
+    val lastSyncedAt = _lastSyncedAt.asStateFlow()
+    private val _lastSyncStatus = MutableStateFlow(SyncServerStore.getLastSyncStatus())
+    val lastSyncStatus = _lastSyncStatus.asStateFlow()
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing = _isSyncing.asStateFlow()
+    private val _isTestingSync = MutableStateFlow(false)
+    val isTestingSync = _isTestingSync.asStateFlow()
 
     /** 云端下发的全部音源脚本目录（本地可切换，无需回服务端修改激活项） */
-    val scriptCatalog = MutableStateFlow<List<ScriptCatalogEntry>>(ScriptCatalogStore.list())
+    private val _scriptCatalog = MutableStateFlow<List<ScriptCatalogEntry>>(ScriptCatalogStore.list())
+    val scriptCatalog = _scriptCatalog.asStateFlow()
 
     fun saveSyncConfig(serverUrl: String, token: String) {
         val cleanUrl = serverUrl.trim().trimEnd('/')
         val cleanToken = token.trim()
         SyncServerStore.save(cleanUrl, cleanToken)
-        syncServerUrl.value = cleanUrl
-        syncToken.value = cleanToken
-        isSyncConfigured.value = SyncServerStore.isConfigured()
+        _syncServerUrl.value = cleanUrl
+        _syncToken.value = cleanToken
+        _isSyncConfigured.value = SyncServerStore.isConfigured()
         _appToast.value = "私有云同步配置已保存"
     }
 
@@ -1128,7 +1069,7 @@ class MainViewModel : ViewModel() {
             return
         }
         viewModelScope.launch {
-            isTestingSync.value = true
+            _isTestingSync.value = true
             repository.testConnection().onSuccess {
                 val msg = "连接正常！服务器同步功能就绪"
                 _appToast.value = msg
@@ -1138,7 +1079,7 @@ class MainViewModel : ViewModel() {
                 _appToast.value = msg
                 onResult?.invoke(false, msg)
             }
-            isTestingSync.value = false
+            _isTestingSync.value = false
         }
     }
 
@@ -1157,7 +1098,7 @@ class MainViewModel : ViewModel() {
         if (isSyncing.value) return
 
         viewModelScope.launch {
-            isSyncing.value = true
+            _isSyncing.value = true
             syncMutex.withLock {
                 var takenEvents: List<PlayEventDto> = emptyList()
                 try {
@@ -1167,9 +1108,9 @@ class MainViewModel : ViewModel() {
                     if (pullResult.isFailure) {
                         val err = pullResult.exceptionOrNull()?.message ?: "拉取失败"
                         SyncServerStore.updateSyncStatus("同步失败: $err")
-                        lastSyncStatus.value = "同步失败: $err"
+                        _lastSyncStatus.value = "同步失败: $err"
                         _appToast.value = "云同步失败：$err"
-                        isSyncing.value = false
+                        _isSyncing.value = false
                         return@withLock
                     }
 
@@ -1265,8 +1206,8 @@ class MainViewModel : ViewModel() {
 
                     val now = System.currentTimeMillis()
                     SyncServerStore.updateSyncStatus("同步成功", now)
-                    lastSyncedAt.value = now
-                    lastSyncStatus.value = "同步成功"
+                    _lastSyncedAt.value = now
+                    _lastSyncStatus.value = "同步成功"
                     _appToast.value = "云端双向同步成功！数据已更新"
                 } catch (e: Exception) {
                     if (takenEvents.isNotEmpty()) {
@@ -1274,10 +1215,10 @@ class MainViewModel : ViewModel() {
                     }
                     val err = e.message ?: "未知错误"
                     SyncServerStore.updateSyncStatus("同步失败: $err")
-                    lastSyncStatus.value = "同步失败: $err"
+                    _lastSyncStatus.value = "同步失败: $err"
                     _appToast.value = "同步异常：$err"
                 } finally {
-                    isSyncing.value = false
+                    _isSyncing.value = false
                 }
             }
         }
@@ -1412,66 +1353,72 @@ class MainViewModel : ViewModel() {
 
     // ==================== 用户体系 (Auth) ====================
 
-    fun showLoginSheet() { showLogin.value = true }
-    fun clearAuthError() { authError.value = null }
-    fun dismissLogin() { showLogin.value = false; authError.value = null }
+    fun showLoginSheet() { _showLogin.value = true }
+    fun clearAuthError() { _authError.value = null }
+    fun dismissLogin() { _showLogin.value = false; _authError.value = null }
 
     fun login(u: String, p: String) {
         if (u.isBlank() || p.isBlank()) {
-            authError.value = "用户名与密码不能为空"
+            _authError.value = "用户名与密码不能为空"
             return
         }
         viewModelScope.launch {
-            authBusy.value = true
-            authError.value = null
+            _authBusy.value = true
+            _authError.value = null
             repository.login(u, p).onSuccess { data ->
                 UserStore.save(data.token, data.user)
                 _user.value = data.user
-                authBusy.value = false
-                showLogin.value = false
+                _authBusy.value = false
+                _showLogin.value = false
                 _appToast.value = "登录成功"
                 // 登录成功后触发一次增量同步
                 performCloudSync()
             }.onFailure { e ->
-                authBusy.value = false
-                authError.value = e.message ?: "登录失败"
+                _authBusy.value = false
+                _authError.value = e.message ?: "登录失败"
             }
         }
     }
 
     fun register(u: String, p: String, n: String) {
         if (u.isBlank() || p.isBlank()) {
-            authError.value = "用户名与密码不能为空"
+            _authError.value = "用户名与密码不能为空"
             return
         }
         viewModelScope.launch {
-            authBusy.value = true
-            authError.value = null
+            _authBusy.value = true
+            _authError.value = null
             repository.register(u, p, n).onSuccess { data ->
                 UserStore.save(data.token, data.user)
                 _user.value = data.user
-                authBusy.value = false
-                showLogin.value = false
+                _authBusy.value = false
+                _showLogin.value = false
                 _appToast.value = "注册成功并已登录"
                 performCloudSync()
             }.onFailure { e ->
-                authBusy.value = false
-                authError.value = e.message ?: "注册失败"
+                _authBusy.value = false
+                _authError.value = e.message ?: "注册失败"
             }
         }
     }
 
     fun logout() {
         viewModelScope.launch {
-            try { repository.logout() } catch (_: Exception) {}
+            try {
+                repository.logout()
+            } catch (e: Exception) {
+                // 服务端登出失败：本地仍继续登出（用户体验优先），但必须留痕——
+                // 否则服务端 token 可能仍然有效，属于需要被发现的鉴权残留。
+                Log.w(TAG, "服务端登出失败，已继续本地登出", e)
+            }
             UserStore.logout()
             SyncServerStore.clear()
             _user.value = null
-            syncServerUrl.value = ""
-            syncToken.value = ""
-            isSyncConfigured.value = false
-            profileNickname.value = UserStore.getNickname()
-            profileUserId.value = UserStore.getUserId()
+            _syncServerUrl.value = ""
+            _syncToken.value = ""
+            _isSyncConfigured.value = false
+            _profileNickname.value = UserStore.getNickname()
+            _profileUserId.value = UserStore.getUserId()
             _appToast.value = "已退出登录并清空私有服务器配置"
         }
     }
@@ -1482,7 +1429,7 @@ class MainViewModel : ViewModel() {
             repository.updateProfile(nickname = nickname).onSuccess { updated ->
                 _user.value = updated
                 UserStore.updateUser(updated)
-                profileNickname.value = updated.nickname.ifBlank { updated.username }
+                _profileNickname.value = updated.nickname.ifBlank { updated.username }
                 _appToast.value = "昵称已更新"
             }.onFailure { e ->
                 _appToast.value = "更新失败: ${e.message ?: "网络异常"}"
@@ -1494,30 +1441,30 @@ class MainViewModel : ViewModel() {
 
     fun setProfileAvatar(path: String?) {
         UserStore.setAvatarPath(path)
-        profileAvatar.value = path
+        _profileAvatar.value = path
     }
 
     fun setProfileBackground(path: String?) {
         UserStore.setBackgroundPath(path)
-        profileBackground.value = path
+        _profileBackground.value = path
     }
 
     fun toggleProfileBgBlur() {
         val next = !isProfileBgBlur.value
         UserStore.setBackgroundBlur(next)
-        isProfileBgBlur.value = next
+        _isProfileBgBlur.value = next
     }
 
     fun restoreProfileDefaults(context: android.content.Context) {
         UserStore.restoreProfileDefaults(context)
-        profileAvatar.value = null
-        profileBackground.value = null
-        isProfileBgBlur.value = false
-        profileNickname.value = UserStore.getNickname()
-        profileBio.value = ""
-        profileGender.value = "保密"
-        profileBirthday.value = ""
-        profileUserId.value = UserStore.getUserId()
+        _profileAvatar.value = null
+        _profileBackground.value = null
+        _isProfileBgBlur.value = false
+        _profileNickname.value = UserStore.getNickname()
+        _profileBio.value = ""
+        _profileGender.value = "保密"
+        _profileBirthday.value = ""
+        _profileUserId.value = UserStore.getUserId()
         _appToast.value = "已恢复默认设置"
     }
 
@@ -1530,17 +1477,17 @@ class MainViewModel : ViewModel() {
     ) {
         if (nickname.isNotBlank()) {
             UserStore.setNickname(nickname)
-            profileNickname.value = nickname
+            _profileNickname.value = nickname
         }
         UserStore.setBio(bio)
-        profileBio.value = bio
+        _profileBio.value = bio
         UserStore.setGender(gender)
-        profileGender.value = gender
+        _profileGender.value = gender
         UserStore.setBirthday(birthday)
-        profileBirthday.value = birthday
+        _profileBirthday.value = birthday
         if (avatarPath != null) {
             UserStore.setAvatarPath(avatarPath)
-            profileAvatar.value = avatarPath
+            _profileAvatar.value = avatarPath
         }
         if (UserStore.isLoggedIn() && nickname.isNotBlank()) {
             updateNickname(nickname)
@@ -1558,33 +1505,34 @@ class MainViewModel : ViewModel() {
     // ==================== 主题 ====================
 
     fun setThemeMode(mode: ThemeMode, systemDark: Boolean) {
-        themeMode.value = mode
+        _themeMode.value = mode
         SettingsStore.setThemeMode(mode)
         com.aesthetic.music.ui.theme.applyThemeMode(mode, systemDark)
     }
 
     fun setQuality(level: QualityLevel) {
-        quality.value = level
+        _quality.value = level
         SettingsStore.setQuality(level)
     }
 
     // ==================== 导航 ====================
 
     fun switchTab(tab: AppTab) {
-        currentTab.value = tab
+        _currentTab.value = tab
         // 切 Tab 时关闭二级页面（搜索/歌单详情/歌手页/收藏页/最近播放等覆盖层），否则会盖住新 Tab 内容
-        showPlaylistDetail.value = null
-        showArtist.value = null
+        _showPlaylistDetail.value = null
+        _showArtist.value = null
         _artistDetail.value = null
-        showFavorites.value = false
-        showCacheList.value = false
-        showMyPlaylists.value = false
-        showHistory.value = false
-        showSearch.value = false
-        showAlbumDetail.value = null
-        showRanks.value = false
-        showSheet.value = false
-        _fmActive.value = (tab == AppTab.SHEET)
+        _showFavorites.value = false
+        _showCacheList.value = false
+        _showMyPlaylists.value = false
+        _showHistory.value = false
+        _showSearch.value = false
+        _showAlbumDetail.value = null
+        _showRanks.value = false
+        _showSheet.value = false
+        // FM 漂移开关由 FmController 持有（切走 FM 页即暂停漂移）
+        fm.setDriftActive(tab == AppTab.SHEET)
         if (tab == AppTab.PROFILE) refreshStats()
     }
 
@@ -1601,6 +1549,7 @@ class MainViewModel : ViewModel() {
     }
 
     companion object {
+        private const val TAG = "MainViewModel"
         private const val HISTORY_LIMIT = 100
         /** 收藏上限：SharedPreferences 存整组 JSON，无上限会随使用无限膨胀 */
         private const val MAX_FAVORITES = 1000

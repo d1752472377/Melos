@@ -424,7 +424,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
                             onRenamePlaylist = viewModel::renamePlaylist,
                             onDeletePlaylist = viewModel::deletePlaylist,
-                            onOpenImport = { viewModel.showImportDialog.value = true },
+                            onOpenImport = { viewModel.openImportDialog() },
                             onPlayPlaylist = { songs ->
                                 if (songs.isNotEmpty()) {
                                     playSong(songs.first(), songs)
@@ -563,7 +563,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                                 myPlaylists = myPlaylists,
                                 currentSong = playerState.currentSong,
                                 onBack = {
-                                    viewModel.showPlaylistDetail.value = null
+                                    viewModel.closePlaylistDetail()
                                     viewModel.updatePageBackground(null, false)
                                     navController.popBackStack()
                                 },
@@ -973,7 +973,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     onProfile = { navigateToTab(ScreenRoute.Profile.route, AppTab.PROFILE) },
                     onOpenPlayer = {
                         playerManager.startProgress()
-                        viewModel.showPlayer.value = true
+                        viewModel.openPlayer()
                     },
                     isDarkBackground = isDarkPage,
                     containerColor = pageBackground as? Color ?: Color.White,
@@ -989,7 +989,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         state = playerState,
                         progressFlow = playerManager.progress,
                         isFavorite = playerState.currentSong?.let { viewModel.isFavorite(it) } == true,
-                        onClose = { viewModel.showPlayer.value = false },
+                        onClose = { viewModel.closePlayer() },
                         onToggle = playerManager::toggle,
                         onNext = playerManager::next,
                         onPrevious = playerManager::previous,
@@ -1008,9 +1008,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 // ===== 歌单导入弹窗 =====
                 if (showImportDialog) {
                     ImportPlaylistDialog(
-                        onDismiss = { viewModel.showImportDialog.value = false },
+                        onDismiss = { viewModel.closeImportDialog() },
                         onImport = { id ->
-                            viewModel.showImportDialog.value = false
+                            viewModel.closeImportDialog()
                             viewModel.importPlaylist(id)
                         },
                     )
@@ -1019,7 +1019,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 // ===== 系统返回键处理 =====
                 // 仅需处理全屏浮层播放器：其余所有页面回退统一由 NavController 回退栈原生全自动接管！
                 BackHandler(enabled = showPlayer) {
-                    viewModel.showPlayer.value = false
+                    viewModel.closePlayer()
                 }
 
                 // ===== 品牌开屏 =====

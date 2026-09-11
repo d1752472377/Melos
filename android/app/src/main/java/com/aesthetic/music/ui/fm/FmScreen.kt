@@ -117,7 +117,6 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.LyricLine
 import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.currentLyricIndex
-import com.aesthetic.music.ui.FmChannel
 
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.WaveBars
