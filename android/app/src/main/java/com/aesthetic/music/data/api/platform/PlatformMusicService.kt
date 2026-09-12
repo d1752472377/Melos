@@ -1,4 +1,4 @@
-﻿package com.aesthetic.music.data.api.platform
+package com.aesthetic.music.data.api.platform
 
 import android.util.Log
 import com.aesthetic.music.data.AppJson
@@ -49,6 +49,48 @@ object PlatformMusicService {
     }
 
     private val gson = AppJson.gson
+
+    private fun JsonObject.optString(key: String): String? {
+        val elem = get(key) ?: return null
+        if (elem.isJsonNull) return null
+        return try {
+            elem.asString.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun JsonObject.optLong(key: String): Long? {
+        val elem = get(key) ?: return null
+        if (elem.isJsonNull) return null
+        return try {
+            elem.asLong
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 清洗酷我返回字符串中的 unicode 转义 (\\u0026 -> &) 及 HTML 实体 (&nbsp;) */
+    private fun cleanKuwoText(text: String?): String {
+        if (text.isNullOrBlank()) return ""
+        var s = text
+        val unicodeRegex = Regex("""(?:\\+u)([0-9a-fA-F]{4})""")
+        s = unicodeRegex.replace(s) { m ->
+            try {
+                m.groupValues[1].toInt(16).toChar().toString()
+            } catch (_: Exception) {
+                m.value
+            }
+        }
+        s = s.replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+        return s.replace(Regex("""\s+"""), " ").trim()
+    }
 
     private fun parseJson(url: String, body: String): JsonObject = try {
         gson.fromJson(body, JsonObject::class.java) ?: JsonObject()
@@ -114,7 +156,7 @@ object PlatformMusicService {
 
     suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): List<Song> {
         val plats = platformsOf(platform)
-        if (plats.size == 1) return rankSongs(searchSongsOn(plats[0], keyword, limit), keyword)
+        if (plats.size == 1) return searchSongsOn(plats[0], keyword, limit)
         return coroutineScope {
             val merged = plats.map { p ->
                 async(Dispatchers.IO) {
@@ -301,12 +343,24 @@ object PlatformMusicService {
 
     private fun parseNeteaseArtist(e: JsonElement): ArtistItem? {
         val o = e.asJsonObject ?: return null
-        val id = o.get("id")?.asString ?: return null
+        val id = o.optString("id") ?: return null
+        val aliasList = try {
+            val arr = if (o.has("alias") && o.get("alias").isJsonArray) o.getAsJsonArray("alias")
+            else if (o.has("alia") && o.get("alia").isJsonArray) o.getAsJsonArray("alia")
+            else null
+            arr?.mapNotNull { elem ->
+                if (elem != null && !elem.isJsonNull) runCatching { elem.asString }.getOrNull() else null
+            }?.filter { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
         return ArtistItem(
             id = id,
-            name = o.get("name")?.asString.orEmpty(),
-            avatar = fixPicUrl(o.get("picUrl")?.asString ?: o.get("img1v1Url")?.asString),
-            alias = o.getAsJsonArray("alias")?.mapNotNull { it.asString }?.joinToString("/"),
+            name = o.optString("name").orEmpty(),
+            avatar = fixPicUrl(o.optString("picUrl") ?: o.optString("img1v1Url")),
+            alias = aliasList?.joinToString("/"),
+            albumSize = o.optLong("albumSize"),
+            musicSize = o.optLong("musicSize"),
             platform = P_NETEASE,
         )
     }
@@ -368,21 +422,23 @@ object PlatformMusicService {
             ?: return emptyList()
         return list.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val mid = o.get("mid")?.asString
-                ?: o.get("singerMid")?.asString
-                ?: o.get("singerMID")?.asString
+            val mid = o.optString("mid")
+                ?: o.optString("singerMid")
+                ?: o.optString("singerMID")
                 ?: return@mapNotNull null
-            val name = o.get("name")?.asString
-                ?: o.get("singerName")?.asString
-                ?: o.get("title")?.asString.orEmpty()
-            val pic = o.get("pic")?.asString
-                ?: o.get("singerPic")?.asString
-                ?: o.get("mid")?.asString?.let { "https://y.qq.com/music/photo_new/T001R300x300M000$it.jpg" }
+            val name = o.optString("name")
+                ?: o.optString("singerName")
+                ?: o.optString("title").orEmpty()
+            val pic = o.optString("pic")
+                ?: o.optString("singerPic")
+                ?: o.optString("mid")?.let { "https://y.qq.com/music/photo_new/T001R300x300M000$it.jpg" }
             ArtistItem(
                 id = mid,
                 name = name,
-                avatar = pic,
+                avatar = fixPicUrl(pic),
                 alias = null,
+                musicSize = o.optLong("songNum") ?: o.optLong("song_count"),
+                albumSize = o.optLong("albumNum") ?: o.optLong("album_count"),
                 platform = P_QQ,
             )
         }
@@ -396,20 +452,23 @@ object PlatformMusicService {
             ?: return emptyList()
         return list.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val mid = o.get("mid")?.asString
-                ?: o.get("albumMid")?.asString
-                ?: o.get("albumMID")?.asString
+            val mid = o.optString("albumMID")
+                ?: o.optString("mid")
+                ?: o.optString("albumMid")
                 ?: return@mapNotNull null
-            val name = o.get("name")?.asString
-                ?: o.get("albumName")?.asString.orEmpty()
-            val singer = o.getAsJsonArray("singer")
-                ?.mapNotNull { it.asJsonObject?.get("name")?.asString }?.joinToString("/").orEmpty()
+            val name = o.optString("albumName")
+                ?: o.optString("name").orEmpty()
+            val singer = o.optString("singerName")
+                ?: o.getAsJsonArray("singer_list")
+                    ?.mapNotNull { it.asJsonObject?.optString("name") }?.joinToString("/").orEmpty()
+            val pic = o.optString("albumPic")
+                ?: "https://y.gtimg.cn/music/photo_new/T002R300x300M000$mid.jpg"
             AlbumItem(
                 id = mid,
                 name = name,
-                artist = singer.ifBlank { o.get("singerName")?.asString.orEmpty() },
-                coverUrl = "https://y.qq.com/music/photo_new/T002R300x300M000$mid.jpg",
-                size = o.get("song_count")?.asLong ?: o.get("songnum")?.asLong,
+                artist = singer,
+                coverUrl = fixPicUrl(pic),
+                size = o.optLong("song_count") ?: o.optLong("songnum"),
                 platform = P_QQ,
             )
         }
@@ -445,21 +504,46 @@ object PlatformMusicService {
     }
 
     private suspend fun searchSongsKugou(kw: String, limit: Int): List<Song> {
-        // 用 bj 节点：info[] 里 album_id 有效，能拼出封面
-        val url = "http://mobilecdnbj.kugou.com/api/v3/search/song" +
-                "?format=json&keyword=${URLEncoder.encode(kw, "UTF-8")}&page=1&pagesize=$limit&showtype=1"
-        val list = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
-        return list.mapNotNull { e ->
-            val o = e.asJsonObject ?: return@mapNotNull null
-            val hash = o.get("hash")?.asString ?: return@mapNotNull null
-            Song(
-                id = hash,
-                title = o.get("songname")?.asString.orEmpty(),
-                artist = o.get("singername")?.asString.orEmpty(),
-                album = o.get("album_name")?.asString.orEmpty(),
-                artwork = kugouCover(o),
-                platform = P_KUGOU,
-            )
+        return try {
+            // 优先使用官方 WebFilter song_search_v2 接口：Image 字段含真实专辑封面
+            val url = "http://songsearch.kugou.com/song_search_v2?keyword=${URLEncoder.encode(kw, "UTF-8")}&page=1&pagesize=$limit&clientver=&platform=WebFilter"
+            val root = kugouJson(url)
+            val list = root.getAsJsonObject("data")?.getAsJsonArray("lists")
+                ?: throw IOException("kugou song_search_v2 empty")
+            list.mapNotNull { e ->
+                val o = e.asJsonObject ?: return@mapNotNull null
+                val hash = o.optString("FileHash")
+                    ?: o.optString("HQFileHash")
+                    ?: o.optString("SQFileHash")
+                    ?: return@mapNotNull null
+                val rawImg = o.optString("Image") ?: o.optString("AlbumImage")
+                val cover = rawImg?.replace("{size}", "240")?.let { fixPicUrl(it) }
+                Song(
+                    id = hash,
+                    title = o.optString("SongName").orEmpty(),
+                    artist = o.optString("SingerName").orEmpty(),
+                    album = o.optString("AlbumName").orEmpty(),
+                    artwork = cover,
+                    platform = P_KUGOU,
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "kugou song_search_v2 failed, fallback mobilecdn: ${e.message}")
+            val url = "http://mobilecdnbj.kugou.com/api/v3/search/song" +
+                    "?format=json&keyword=${URLEncoder.encode(kw, "UTF-8")}&page=1&pagesize=$limit&showtype=1"
+            val list = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
+            list.mapNotNull { e ->
+                val o = e.asJsonObject ?: return@mapNotNull null
+                val hash = o.optString("hash") ?: return@mapNotNull null
+                Song(
+                    id = hash,
+                    title = o.optString("songname").orEmpty(),
+                    artist = o.optString("singername").orEmpty(),
+                    album = o.optString("album_name").orEmpty(),
+                    artwork = kugouCover(o),
+                    platform = P_KUGOU,
+                )
+            }
         }
     }
 
@@ -491,18 +575,48 @@ object PlatformMusicService {
         val url = "http://mobilecdnbj.kugou.com/api/v3/search/singer" +
                 "?format=json&keyword=${URLEncoder.encode(kw, "UTF-8")}&page=1&pagesize=$limit"
         val data = kugouJson(url).getAsJsonArray("data") ?: return emptyList()
-        return data.mapNotNull { e ->
+        val basicSingers = data.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val id = o.get("singerid")?.asString ?: return@mapNotNull null
-            ArtistItem(
-                id = id,
-                name = o.get("singername")?.asString.orEmpty(),
-                avatar = kugouArtistAvatar(o),
-                alias = o.get("remark")?.asString?.takeIf { it.isNotBlank() },
-                musicSize = o.get("songcount")?.asLong,
-                albumSize = o.get("albumcount")?.asLong,
-                platform = P_KUGOU,
-            )
+            val id = o.optString("singerid") ?: return@mapNotNull null
+            val name = o.optString("singername").orEmpty()
+            Pair(id, name)
+        }
+        if (basicSingers.isEmpty()) return emptyList()
+
+        return coroutineScope {
+            basicSingers.map { (singerId, defaultName) ->
+                async(Dispatchers.IO) {
+                    try {
+                        val detailUrl = "http://mobilecdn.kugou.com/api/v3/singer/info?singerid=$singerId"
+                        val detailRoot = kugouJson(detailUrl)
+                        val d = detailRoot.getAsJsonObject("data")
+                        val singerName = d?.optString("singername") ?: defaultName
+                        val rawImg = d?.optString("imgurl")
+                        val avatar = rawImg?.replace("{size}", "240")?.let { fixPicUrl(it) }
+                        val songCount = d?.optLong("songcount")
+                        val albumCount = d?.optLong("albumcount")
+                        val alias = d?.optString("alias")
+                        ArtistItem(
+                            id = singerId,
+                            name = singerName,
+                            avatar = avatar,
+                            alias = alias,
+                            musicSize = songCount,
+                            albumSize = albumCount,
+                            platform = P_KUGOU,
+                        )
+                    } catch (e: Exception) {
+                        Log.w(TAG, "kugou singer detail failed for $singerId: ${e.message}")
+                        ArtistItem(
+                            id = singerId,
+                            name = defaultName,
+                            avatar = null,
+                            alias = null,
+                            platform = P_KUGOU,
+                        )
+                    }
+                }
+            }.awaitAll()
         }
     }
 
@@ -512,13 +626,13 @@ object PlatformMusicService {
         val list = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
         return list.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val id = o.get("specialid")?.asString ?: return@mapNotNull null
+            val id = o.optString("specialid") ?: return@mapNotNull null
             PlaylistItem(
                 id = id,
-                name = o.get("specialname")?.asString.orEmpty(),
-                coverUrl = o.get("imgurl")?.asString?.replace("{size}", "240")?.takeIf { it.isNotBlank() },
-                playCount = o.get("playcount")?.asLong,
-                trackCount = o.get("songcount")?.asLong,
+                name = o.optString("specialname").orEmpty(),
+                coverUrl = o.optString("imgurl")?.replace("{size}", "240")?.takeIf { it.isNotBlank() },
+                playCount = o.optLong("playcount"),
+                trackCount = o.optLong("songcount"),
                 platform = P_KUGOU,
             )
         }
@@ -530,13 +644,13 @@ object PlatformMusicService {
         val list = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
         return list.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val id = o.get("albumid")?.asString ?: return@mapNotNull null
+            val id = o.optString("albumid") ?: return@mapNotNull null
             AlbumItem(
                 id = id,
-                name = o.get("albumname")?.asString.orEmpty(),
-                artist = o.get("singername")?.asString.orEmpty(),
-                coverUrl = o.get("imgurl")?.asString?.replace("{size}", "240")?.takeIf { it.isNotBlank() },
-                size = o.get("songcount")?.asLong ?: o.get("song_count")?.asLong,
+                name = o.optString("albumname").orEmpty(),
+                artist = o.optString("singername").orEmpty(),
+                coverUrl = o.optString("imgurl")?.replace("{size}", "240")?.let { fixPicUrl(it) },
+                size = o.optLong("songcount") ?: o.optLong("song_count"),
                 platform = P_KUGOU,
             )
         }
@@ -586,73 +700,28 @@ object PlatformMusicService {
     }
 
     private suspend fun searchSongsKuwo(kw: String, limit: Int): List<Song> {
+        val url = "http://search.kuwo.cn/r.s?all=${URLEncoder.encode(kw, "UTF-8")}" +
+                "&ft=music&newsearch=1&alflac=1&itemset=web_2013&client=kt&cluster=0&vermerge=1&rformat=json&encoding=utf8&show_copyright_off=1&pcmp4=1&ver=merge&plat=pc&vipver=1&pn=0&rn=$limit"
         return try {
-            val token = kuwoToken()
-            val url = "https://www.kuwo.cn/api/www/search/searchMusicBykeyWord" +
-                    "?key=${URLEncoder.encode(kw, "UTF-8")}&pn=1&rn=$limit&httpsStatus=1"
-            val req = Request.Builder().url(url)
-                .header("User-Agent", BROWSER_UA)
-                .header("Referer", "https://www.kuwo.cn/search/list?key=${URLEncoder.encode(kw, "UTF-8")}")
-                .header("Accept", "application/json, text/plain, */*")
-                .header("Cookie", "kw_token=$token")
-                .header("csrf", token)
-                .build()
-            val resp = httpClient.newCall(req).execute()
-            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-            val root = parseJson(url, resp.body?.string().orEmpty())
-            val list = root.getAsJsonObject("data")?.getAsJsonArray("list")
-                ?: throw IOException("kuwo www empty")
-            list.mapNotNull { e ->
-                val o = e.asJsonObject ?: return@mapNotNull null
-                val rid = o.get("rid")?.asString ?: return@mapNotNull null
-                val artist = o.get("artist")?.asString
-                    ?: o.getAsJsonArray("artists")?.firstOrNull()?.asJsonObject?.get("name")?.asString.orEmpty()
-                Song(
-                    id = rid,
-                    title = o.get("name")?.asString.orEmpty(),
-                    artist = artist,
-                    album = o.get("album")?.asString.orEmpty(),
-                    artwork = o.get("pic")?.asString?.takeIf { it.isNotBlank() },
-                    platform = P_KUWO,
-                )
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "kuwo www failed, fallback r.s: ${e.message}")
-            val url = "http://search.kuwo.cn/r.s?all=${URLEncoder.encode(kw, "UTF-8")}" +
-                    "&ft=music&itemset=web_2013&client=kt&pn=0&rn=$limit&rformat=json&encoding=utf8"
             val arr = kuwoRaw(url).getAsJsonArray("abslist") ?: return emptyList()
             arr.mapNotNull { e2 ->
                 val o = e2.asJsonObject ?: return@mapNotNull null
-                val rid = o.get("MUSICRID")?.asString?.removePrefix("MUSIC_") ?: return@mapNotNull null
+                val rid = o.optString("MUSICRID")?.removePrefix("MUSIC_") ?: return@mapNotNull null
+                val rawTitle = o.optString("SONGNAME") ?: o.optString("name").orEmpty()
+                val rawArtist = o.optString("ARTIST") ?: o.optString("artist").orEmpty()
+                val rawAlbum = o.optString("ALBUM") ?: o.optString("album").orEmpty()
                 Song(
                     id = rid,
-                    title = o.get("SONGNAME")?.asString.orEmpty(),
-                    artist = o.get("ARTIST")?.asString.orEmpty(),
-                    album = o.get("ALBUM")?.asString.orEmpty(),
-                    artwork = kuwoCover(o.get("web_albumpic_short")?.asString),
+                    title = cleanKuwoText(rawTitle),
+                    artist = cleanKuwoText(rawArtist),
+                    album = cleanKuwoText(rawAlbum),
+                    artwork = kuwoCover(o.optString("web_albumpic_short") ?: o.optString("hts_web_albumpic_short")),
                     platform = P_KUWO,
                 )
             }
-        }
-    }
-
-    // [新增] 获取酷我 www 接口所需真 token
-    private suspend fun kuwoToken(): String = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder()
-                .url("https://www.kuwo.cn/")
-                .header("User-Agent", BROWSER_UA)
-                .build()
-            val resp = httpClient.newCall(req).execute()
-            val setCookie = resp.headers("Set-Cookie")
-            resp.close()
-            setCookie.firstOrNull { it.contains("kw_token=") }
-                ?.substringAfter("kw_token=")
-                ?.substringBefore(";")
-                ?.takeIf { it.isNotBlank() }
-                ?: "AAAA"
         } catch (e: Exception) {
-            "AAAA"
+            Log.w(TAG, "kuwo search failed: ${e.message}")
+            emptyList()
         }
     }
 
@@ -662,14 +731,17 @@ object PlatformMusicService {
         val arr = kuwoRaw(url).getAsJsonArray("abslist") ?: return emptyList()
         return arr.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val id = o.get("ARTISTID")?.asString
-                ?: o.get("DC_TARGETID")?.asString
+            val id = o.optString("ARTISTID")
+                ?: o.optString("DC_TARGETID")
                 ?: return@mapNotNull null
+            val rawName = o.optString("ARTIST").orEmpty()
             ArtistItem(
                 id = id,
-                name = o.get("ARTIST")?.asString.orEmpty(),
-                avatar = kuwoHead(o.get("hts_PICPATH")?.asString ?: o.get("PICPATH")?.asString),
+                name = cleanKuwoText(rawName),
+                avatar = kuwoHead(o.optString("hts_PICPATH") ?: o.optString("PICPATH")),
                 alias = null,
+                musicSize = o.optLong("SONGNUM"),
+                albumSize = o.optLong("ALBUMNUM"),
                 platform = P_KUWO,
             )
         }
@@ -682,17 +754,16 @@ object PlatformMusicService {
         val arr = kuwoRaw(url).getAsJsonArray("abslist") ?: return emptyList()
         return arr.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val id = o.get("playlistid")?.asString
-                ?: o.get("DC_TARGETID")?.asString
+            val id = o.optString("playlistid")
+                ?: o.optString("DC_TARGETID")
                 ?: return@mapNotNull null
-            val name = o.get("name")?.asString ?: return@mapNotNull null
+            val name = o.optString("name") ?: return@mapNotNull null
             PlaylistItem(
                 id = id,
-                name = name,
-                coverUrl = o.get("hts_pic")?.asString?.takeIf { it.isNotBlank() }
-                    ?: o.get("pic")?.asString?.takeIf { it.isNotBlank() },
-                playCount = o.get("playcnt")?.asLong,
-                trackCount = o.get("songnum")?.asLong,
+                name = cleanKuwoText(name),
+                coverUrl = o.optString("hts_pic") ?: o.optString("pic"),
+                playCount = o.optLong("playcnt"),
+                trackCount = o.optLong("songnum"),
                 platform = P_KUWO,
             )
         }
@@ -705,17 +776,17 @@ object PlatformMusicService {
         val arr = kuwoRaw(url).getAsJsonArray("albumlist") ?: return emptyList()
         return arr.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val id = o.get("albumid")?.asString ?: return@mapNotNull null
-            val name = o.get("name")?.asString
-                ?: o.get("title")?.asString
+            val id = o.optString("albumid") ?: return@mapNotNull null
+            val name = o.optString("name")
+                ?: o.optString("title")
                 ?: return@mapNotNull null
+            val artist = o.optString("artist") ?: o.optString("aartist").orEmpty()
             AlbumItem(
                 id = id,
-                name = name,
-                artist = o.get("artist")?.asString ?: o.get("aartist")?.asString.orEmpty(),
-                coverUrl = o.get("hts_img")?.asString?.takeIf { it.isNotBlank() }
-                    ?: o.get("img")?.asString?.takeIf { it.isNotBlank() },
-                size = o.get("musiccnt")?.asLong,
+                name = cleanKuwoText(name),
+                artist = cleanKuwoText(artist),
+                coverUrl = o.optString("hts_img") ?: o.optString("img"),
+                size = o.optLong("musiccnt"),
                 platform = P_KUWO,
             )
         }

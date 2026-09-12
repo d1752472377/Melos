@@ -56,8 +56,10 @@ class SearchController(
     private val _recentSearches = MutableStateFlow<List<String>>(emptyList())
     val recentSearches: StateFlow<List<String>> = _recentSearches.asStateFlow()
 
-    private var searchJob: Job? = null
+    private var debounceJob: Job? = null
+    private val searchJobs = mutableMapOf<SearchType, Job>()
     private val executedSearchKeys = mutableMapOf<SearchType, String>()
+    private var lastSearchedKeyword: String = ""
 
     /** 冷启动回填最近搜索 */
     fun hydrate() {
@@ -69,17 +71,24 @@ class SearchController(
 
     fun onQueryChanged(q: String) {
         _query.value = q
-        searchJob?.cancel()
+        debounceJob?.cancel()
         val kw = q.trim()
         if (kw.isEmpty()) {
+            cancelAllJobs()
             resetResults()
+            lastSearchedKeyword = ""
             _isSearching.value = false
             _searchError.value = null
             return
         }
-        searchJob = scope.launch {
+        if (kw != lastSearchedKeyword) {
+            cancelAllJobs()
+            resetResults()
+            lastSearchedKeyword = kw
+        }
+        debounceJob = scope.launch {
             delay(400)
-            runSearch(kw, force = false)
+            triggerSearch(kw, force = false)
         }
     }
 
@@ -90,8 +99,13 @@ class SearchController(
             _query.value = word
         }
         recordRecent(kw)
-        searchJob?.cancel()
-        searchJob = scope.launch { runSearch(kw, force = true) }
+        debounceJob?.cancel()
+        if (kw != lastSearchedKeyword) {
+            cancelAllJobs()
+            resetResults()
+            lastSearchedKeyword = kw
+        }
+        triggerSearch(kw, force = true)
     }
 
     fun setType(type: SearchType) {
@@ -99,25 +113,30 @@ class SearchController(
         _type.value = type
         val kw = _query.value.trim()
         if (kw.isNotEmpty()) {
-            searchJob?.cancel()
-            searchJob = scope.launch { runSearch(kw, force = false) }
+            triggerSearch(kw, force = false)
         }
     }
 
-    /** 切换平台：四类都重新搜 */
+    /** 切换平台：重搜当前类型，并使其它类型的平台缓存失效 */
     fun setPlatform(platform: String?) {
         if (_platform.value == platform) return
         _platform.value = platform
+        executedSearchKeys.clear()
         val kw = _query.value.trim()
         if (kw.isNotEmpty()) {
-            searchJob?.cancel()
-            searchJob = scope.launch { runSearch(kw, force = false) }
+            triggerSearch(kw, force = true)
         }
     }
 
     fun clearRecent() {
         _recentSearches.value = emptyList()
         RecentSearchStore.clear()
+    }
+
+    private fun cancelAllJobs() {
+        debounceJob?.cancel()
+        searchJobs.values.forEach { it.cancel() }
+        searchJobs.clear()
     }
 
     private fun resetResults() {
@@ -138,45 +157,44 @@ class SearchController(
         RecentSearchStore.save(next)
     }
 
-    private suspend fun runSearch(kw: String, force: Boolean) {
+    private fun triggerSearch(kw: String, force: Boolean) {
         val searchType = _type.value
         val plat = _platform.value
         val key = "$kw|${plat ?: "*"}"
+
+        // 如果已有当前条件的有效缓存且非强制刷新，直接使用已有结果，不提前置空
         if (!force && executedSearchKeys[searchType] == key) return
 
-        when (searchType) {
-            SearchType.SONG -> _songResults.value = emptyList()
-            SearchType.ARTIST -> _artistResults.value = emptyList()
-            SearchType.PLAYLIST -> _playlistResults.value = emptyList()
-            SearchType.ALBUM -> _albumResults.value = emptyList()
-        }
+        searchJobs[searchType]?.cancel()
+        searchJobs[searchType] = scope.launch {
+            _isSearching.value = true
+            _searchError.value = null
+            try {
+                when (searchType) {
+                    SearchType.SONG -> repository.search(kw, 30, plat).onSuccess {
+                        _songResults.value = it
+                        executedSearchKeys[searchType] = key
+                    }.onFailure { e -> _searchError.value = e.message ?: "搜索失败" }
 
-        _isSearching.value = true
-        _searchError.value = null
-        try {
-            when (searchType) {
-                SearchType.SONG -> repository.search(kw, 30, plat).onSuccess {
-                    _songResults.value = it
-                    executedSearchKeys[searchType] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "搜索失败" }
+                    SearchType.ARTIST -> repository.searchArtists(kw, 12, plat).onSuccess {
+                        _artistResults.value = it
+                        executedSearchKeys[searchType] = key
+                    }.onFailure { e -> _searchError.value = e.message ?: "歌手搜索失败" }
 
-                SearchType.ARTIST -> repository.searchArtists(kw, 12, plat).onSuccess {
-                    _artistResults.value = it
-                    executedSearchKeys[searchType] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "歌手搜索失败" }
+                    SearchType.PLAYLIST -> repository.searchPlaylists(kw, 20, plat).onSuccess {
+                        _playlistResults.value = it
+                        executedSearchKeys[searchType] = key
+                    }.onFailure { e -> _searchError.value = e.message ?: "歌单搜索失败" }
 
-                SearchType.PLAYLIST -> repository.searchPlaylists(kw, 20, plat).onSuccess {
-                    _playlistResults.value = it
-                    executedSearchKeys[searchType] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "歌单搜索失败" }
-
-                SearchType.ALBUM -> repository.searchAlbums(kw, 20, plat).onSuccess {
-                    _albumResults.value = it
-                    executedSearchKeys[searchType] = key
-                }.onFailure { e -> _searchError.value = e.message ?: "专辑搜索失败" }
+                    SearchType.ALBUM -> repository.searchAlbums(kw, 20, plat).onSuccess {
+                        _albumResults.value = it
+                        executedSearchKeys[searchType] = key
+                    }.onFailure { e -> _searchError.value = e.message ?: "专辑搜索失败" }
+                }
+            } finally {
+                val anyActive = searchJobs.values.any { it.isActive }
+                _isSearching.value = anyActive
             }
-        } finally {
-            _isSearching.value = false
         }
     }
 }

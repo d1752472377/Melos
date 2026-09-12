@@ -129,9 +129,23 @@ fun ArtistResultList(artists: List<ArtistItem>, emptyHint: String, onOpen: (Arti
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (!artist.alias.isNullOrBlank()) {
+                    val subtitle = buildString {
+                        if (!artist.alias.isNullOrBlank()) {
+                            append(artist.alias)
+                        }
+                        val counts = listOfNotNull(
+                            artist.musicSize?.takeIf { it > 0 }?.let { "${it}首歌" },
+                            artist.albumSize?.takeIf { it > 0 }?.let { "${it}张专辑" },
+                        ).joinToString(" · ")
+                        if (counts.isNotBlank()) {
+                            if (isNotEmpty()) append(" · ")
+                            append(counts)
+                        }
+                    }
+                    if (subtitle.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            artist.alias!!,
+                            subtitle,
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = TextSoft,
                             maxLines = 1,
