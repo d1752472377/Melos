@@ -1,11 +1,6 @@
 package com.aesthetic.music.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -18,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -62,7 +55,6 @@ import com.aesthetic.music.ui.favorites.FavoritesScreen
 import com.aesthetic.music.ui.fm.FmScreen
 import com.aesthetic.music.ui.home.HomeScreen
 import com.aesthetic.music.ui.navigation.ScreenRoute
-import com.aesthetic.music.ui.player.PlayerScreen
 import com.aesthetic.music.ui.playlist.PlaylistDetailScreen
 import com.aesthetic.music.ui.playlist.PlaylistScreen
 import com.aesthetic.music.ui.profile.CloudManageScreen
@@ -76,8 +68,10 @@ import com.aesthetic.music.ui.profile.ProfileScreen
 import com.aesthetic.music.ui.rank.RankPage
 import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
+import com.aesthetic.music.ui.shell.PlayerOverlay
 import com.aesthetic.music.ui.shell.ShellActions
 import com.aesthetic.music.ui.shell.ShellNav
+import com.aesthetic.music.ui.shell.dialogs.ImportPlaylistDialog
 import com.aesthetic.music.ui.shell.rememberCacheState
 import com.aesthetic.music.ui.sheet.PlaylistPage
 import com.aesthetic.music.ui.theme.Background
@@ -984,30 +978,12 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 )
 
                 // ===== 全屏播放器 Drawer =====
-                AnimatedVisibility(
+                PlayerOverlay(
                     visible = showPlayer,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                ) {
-                    PlayerScreen(
-                        state = playerState,
-                        progressFlow = playerManager.progress,
-                        isFavorite = playerState.currentSong?.let { viewModel.isFavorite(it) } == true,
-                        onClose = { viewModel.closePlayer() },
-                        onToggle = playerManager::toggle,
-                        onNext = playerManager::next,
-                        onPrevious = playerManager::previous,
-                        onSeek = playerManager::seekTo,
-                        onSeekToLyric = playerManager::seekToLyric,
-                        onTogglePlayMode = playerManager::togglePlayMode,
-                        onToggleFavorite = { playerState.currentSong?.let { viewModel.toggleFavorite(it) } },
-                        onPlayQueueItem = playerManager::playQueueItem,
-                        onRemoveFromQueue = playerManager::removeFromQueue,
-                        onSpeedChange = playerManager::setSpeed,
-                        onSleepTimer = playerManager::startSleepTimer,
-                        onCancelSleepTimer = playerManager::cancelSleepTimer,
-                    )
-                }
+                    playerState = playerState,
+                    playerManager = playerManager,
+                    viewModel = viewModel,
+                )
 
                 // ===== 歌单导入弹窗 =====
                 if (showImportDialog) {
@@ -1031,49 +1007,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     SplashScreen(onFinished = { splashFinished = true })
                 }
             }
-        }
-    }
-}
-
-/** 歌单导入弹窗 */
-@Composable
-private fun ImportPlaylistDialog(
-    onDismiss: () -> Unit,
-    onImport: (String) -> Unit,
-) {
-    var input by remember { mutableStateOf("") }
-    AppDialog(
-        onDismissRequest = onDismiss,
-        title = "导入歌单",
-        confirmText = "导入",
-        onConfirm = {
-            val id = Regex("""\d{5,}""").find(input.trim())?.value ?: input.trim()
-            if (id.isNotEmpty()) onImport(id)
-        },
-        cancelText = "取消",
-    ) {
-        Column {
-            Text(
-                "粘贴网易云歌单链接或直接输入歌单 ID\n如: https://music.163.com/#/playlist?id=5202687076",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSoft,
-            )
-            Spacer(Modifier.size(10.dp))
-            BasicTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Stone100, RoundedCornerShape(0.dp))
-                    .padding(12.dp),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                decorationBox = { inner ->
-                    if (input.isEmpty()) {
-                        Text("歌单链接 / ID", color = TextSoft, style = MaterialTheme.typography.bodyMedium)
-                    }
-                    inner()
-                },
-            )
         }
     }
 }
