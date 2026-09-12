@@ -112,10 +112,16 @@ class PlayerManager private constructor(private val appContext: Context) {
      *
      * 为什么不能直接把 [player] 交给 MediaSession：ExoPlayer 的 timeline 里永远只有当前这一首，
      * 系统据此认为"没有下一首"，于是通知栏/锁屏/超级岛/蓝牙上的"下一首"被静默禁用。
-     * 包装后按 App 自己的队列（[PlayerState.queue]）对系统声明可切歌。
+     * 包装后按 App 自己的队列（[PlayerState.queue]）对系统声明可切歌，
+     * 并且**切歌动作本身也由它执行**（命令一定会落到 player 上，不依赖已废弃的会话回调）。
      */
     val sessionPlayer: Player by lazy {
-        MelosSessionPlayer(player) { _state.value.queue.size > 1 }
+        MelosSessionPlayer(
+            player,
+            hasQueueNavigation = { _state.value.queue.size > 1 },
+            onNext = { next() },
+            onPrevious = { previous() },
+        )
     }
 
     private val _state = MutableStateFlow(
@@ -314,7 +320,7 @@ class PlayerManager private constructor(private val appContext: Context) {
             runCatching {
                 if (userPrefs.lyricOnline) {
                     repository.getLyric(song).getOrNull()?.let { d ->
-                        MediaCardFavorites.saveLocalLyric(appContext, song, d.lyric)
+                        LocalLyricStore.saveLocalLyric(appContext, song, d.lyric)
                     }
                 }
                 SongSidecarStore.saveCover(appContext, song)
@@ -722,7 +728,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                 val cached = AudioCacheService.getCachedPath(
                     appContext, song.platform, song.id, SettingsStore.getQuality().value,
                 )
-                MediaCardFavorites.loadLocalLyric(appContext, song, cached)
+                LocalLyricStore.loadLocalLyric(appContext, song, cached)
             }
             if (!local.isNullOrBlank()) {
                 applyLyrics(local, null, gen)

@@ -54,6 +54,7 @@ fun HomeCategorySection(
     poolSongs: List<Song>,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
     onOpenSheet: () -> Unit,
+    onOpenSheetCategory: (String) -> Unit,
 ) {
     Column {
         SectionHeader(
@@ -86,7 +87,10 @@ fun HomeCategorySection(
                         if (category.playlistItem != null) {
                             onOpenPlaylistDetail(category.playlistItem)
                         } else {
-                            onOpenSheet()
+                            // 没有可直达的歌单时，进「该分类」的歌单广场：
+                            // 直接 onOpenSheet() 会落在"全部"，与卡片上写的分类名不符，
+                            // 而且（修复前）进页面根本不联网，用户只看到"该分类下暂无歌单"
+                            onOpenSheetCategory(category.title)
                         }
                     }
                 )

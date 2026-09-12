@@ -15,17 +15,17 @@ import com.aesthetic.music.ui.settings.CacheClearConfirmDialog
 import com.aesthetic.music.ui.settings.CacheManageScreen
 import com.aesthetic.music.ui.settings.DownloadSettingsScreen
 import com.aesthetic.music.ui.settings.LyricSettingsScreen
-import com.aesthetic.music.ui.settings.MediaCardSettingsScreen
+import com.aesthetic.music.ui.settings.SettingsScreen
 import com.aesthetic.music.ui.settings.PlaybackSettingsScreen
 import com.aesthetic.music.ui.settings.QualitySettingsScreen
 import kotlinx.coroutines.CoroutineScope
 
 /**
- * 设置子页面（主题与外观 / 音质 / 播放 / 歌词 / 媒体卡片 / 下载 / 缓存）的目的地。
+ * 设置子页面（主题与外观 / 音质 / 播放 / 歌词 / 下载 / 缓存 / 音源插件）的目的地。
  *
- * 七个页面集中在一个文件：它们的职责都是"绑定 MainViewModel 的 SettingsController + 返回"，
- * 每个页面单独一个文件只会制造 7 份同样的样板。页面本身在 ui/settings/ 下各自独立。
- */
+ * 这些页面集中在一个文件：它们的职责都是"绑定 MainViewModel 的 SettingsController + 返回"，
+ * 每个页面单独一个文件只会制造一份份同样的样板。页面本身在 ui/settings/ 下各自独立。
+ * （原「媒体卡片」页已删除，卡片没有可配置项。） */
 
 /** 主题与外观 */
 @Composable
@@ -89,27 +89,6 @@ fun SettingsLyricsDestination(viewModel: MainViewModel, nav: ShellNav) {
         onRomanizationChange = viewModel.settings::setLyricRomanization,
         onOnlineChange = viewModel.settings::setLyricOnline,
         onLocalChange = viewModel.settings::setLyricLocal,
-    )
-}
-
-/** 媒体卡片 */
-@Composable
-fun SettingsMediaCardDestination(viewModel: MainViewModel, nav: ShellNav) {
-    val prefs by viewModel.settings.prefs.collectAsState()
-    MediaCardSettingsScreen(
-        prefs = prefs,
-        onBack = {
-            viewModel.updatePageBackground(null, false)
-            nav.popBack()
-        },
-        onFavoriteChange = viewModel.settings::setMediaCardFavorite,
-        onShowLyricChange = viewModel.settings::setMediaCardShowLyric,
-        onLyricPositionChange = viewModel.settings::setMediaCardLyricPosition,
-        onCoverChange = viewModel.settings::setMediaCardCover,
-        onAlbumChange = viewModel.settings::setMediaCardAlbum,
-        onProgressChange = viewModel.settings::setMediaCardProgress,
-        onColorizedChange = viewModel.settings::setMediaCardColorized,
-        onLiveUpdateChange = viewModel.settings::setMediaCardLiveUpdate,
     )
 }
 

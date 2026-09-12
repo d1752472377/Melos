@@ -63,7 +63,6 @@ fun SettingsDestination(
                     SettingsPage.QUALITY -> ScreenRoute.SettingsQuality
                     SettingsPage.PLAYBACK -> ScreenRoute.SettingsPlayback
                     SettingsPage.LYRICS -> ScreenRoute.SettingsLyrics
-                    SettingsPage.MEDIA_CARD -> ScreenRoute.SettingsMediaCard
                     SettingsPage.DOWNLOAD -> ScreenRoute.SettingsDownload
                     SettingsPage.CACHE -> ScreenRoute.SettingsCache
                 }.route

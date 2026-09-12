@@ -58,11 +58,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- 通知栏媒体卡片按钮（收藏/切歌）：只接受本应用 PendingIntent 触发的广播，不导出 -->
-        <receiver
-            android:name=".service.MediaCardActionReceiver"
-            android:exported="false" />
-
         <!-- APK 安装 FileProvider -->
         <provider
             android:name="androidx.core.content.FileProvider"

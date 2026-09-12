@@ -62,4 +62,13 @@ class SheetController(
             if (req == requestId) _isLoading.value = false
         }
     }
+
+    /**
+     * 进入歌单广场时调用：没数据就拉一次，已有数据不重复联网。
+     *
+     * 这个方法是「进页面显示'该分类下暂无歌单'」那个 bug 的正面修复：
+     * 之前只有切标签（[setCat]）和点重试才会联网，直接进页面时列表一直是空的，
+     * 于是"没加载过"被渲染成了"这个分类没有歌单"——两者是完全不同的事实。
+     */
+    fun ensureLoaded() = load(force = false)
 }

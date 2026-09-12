@@ -7,25 +7,21 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.media3.common.Player
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import androidx.media3.session.SessionResult
 import com.aesthetic.music.R
-import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.player.currentLyricIndex
 import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -39,12 +35,15 @@ import kotlinx.coroutines.launch
  *    这里先上一个小通知进入前台（幂等，Media3 会覆盖），从根上消除该崩溃。
  *  - MediaButtonReceiver 已在 AndroidManifest 注册，保证 media button 能绑定到本服务。
  *
- * 本次新增（设置 → 媒体卡片）：
- *  - 装配自定义 [MelosMediaNotificationProvider]：卡片带收藏按钮、按钮位置可选、可显示歌词；
- *  - 接管"上一首/下一首"播放命令（`onPlayerCommandRequest`，1.4.1 已标注 @Deprecated 但仍由
- *    MediaSessionImpl 派发）：本 App 的 timeline 只有一首（单曲 setMediaItem 模式），
- *    系统默认命令是 no-op，转发到 PlayerManager 的队列逻辑后，蓝牙/耳机线的切歌才真正可用；
- *  - 暴露 [refreshCard] 给设置页/卡片动作重建通知（改设置立即生效）。
+ * 本次修改（"卡片上所有控制都不好使"）：
+ *  - **删掉 `onPlayerCommandRequest` 覆写**。它是 media3 1.4 已 @Deprecated 的回调，而按媒体命令的
+ *    实际分发流程（`MediaSessionStub` / `MediaSessionLegacyStub`：回调返回 SUCCESS 只是"放行"，
+ *    命令随后仍会下发给 player），把切歌放在回调里执行等于多押一条随时可能不触发的路径。
+ *    现在切歌在 [com.aesthetic.music.player.MelosSessionPlayer] 里执行——命令到 player 就切，
+ *    与锁屏/蓝牙/超级岛/通知按钮共用同一条路径，且不会切两首。
+ *  - 删除歌词行与进度的定时轮询：它们每 500ms ~ 3s 重建一次通知，是"点了没反应"的常见外部成因
+ *    （通知被高频重建时，系统可能丢弃正在进行的点击），而系统媒体卡片的进度本来就来自会话状态。
+ *  - 卡片内容/按钮的构造见 [MelosMediaNotificationProvider]。
  *
  * 注意：不能 release 共享的 PlayerManager.player（应用级单例 App 还要用）。
  */
@@ -53,69 +52,22 @@ class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var foregroundedWithId = -1
 
-    /** 歌词行跟随播放滚动：定时比对当前歌词句，变了才重绘通知 */
     private val cardScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var lyricWatchJob: Job? = null
     private var cardStateJob: Job? = null
-    private var lastLyricLine: String? = null
 
     override fun onCreate() {
         // 先保证通知渠道存在，再走 Media3 前台逻辑，避免超时崩溃
         ensureChannelExists(this)
         super.onCreate()
         // 用 sessionPlayer（不是裸 ExoPlayer）：它会按 App 自己的队列向系统声明
-        // "还有上一首/下一首"，否则系统媒体控件里的"下一首"会被静默禁用（详见 MelosSessionPlayer）
+        // "还有上一首/下一首"，并在收到切歌命令时执行队列切歌（详见 MelosSessionPlayer）
         val player = PlayerManager.get(this).sessionPlayer
-        // media3 1.4.1 的 MediaSession.Builder 没有 (context, player, callback) 三参构造，
-        // MediaSession.Callback 也没有可覆写的 onSeekToNext/PreviousMediaItem（切歌命令
-        // 由 player 的 timeline 可用性决定，session 不提供拦截点）——此前那次"修复"编不过。
-        // 现解法：用 onPlayerCommandRequest 拦截"上一条/下一条"播放命令（卡片与蓝牙共用该命令），
-        // 转发到 PlayerManager 的队列逻辑，从而让卡片/蓝牙的切歌真正可用。
-        mediaSession = MediaSession.Builder(this, player)
-            .setCallback(object : MediaSession.Callback {
-                /**
-                 * 接管"上一条/下一条"播放命令。
-                 *
-                 * 本 App 的 timeline 只有一首（单曲 setMediaItem 模式），系统看到的
-                 * hasNextMediaItem() 恒为 false。命令能走到这里，是因为 [MelosSessionPlayer]
-                 * 以 App 队列为准对外声明了 next/previous 可用；这里再把它转发给 PlayerManager 的
-                 * 队列逻辑（顺序/循环/随机都在那边），卡片/锁屏/超级岛/蓝牙的切歌由此真正生效。
-                 *
-                 * 队列只有一首时明确回"不支持"：以前会重播同一首，用户感受是"切歌坏了"。
-                 */
-                override fun onPlayerCommandRequest(
-                    session: MediaSession,
-                    controller: MediaSession.ControllerInfo,
-                    playerCommand: Int,
-                ): Int {
-                    val manager = PlayerManager.get(this@PlaybackService)
-                    if (manager.state.value.queue.size <= 1) {
-                        return super.onPlayerCommandRequest(session, controller, playerCommand)
-                    }
-                    when (playerCommand) {
-                        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
-                        Player.COMMAND_SEEK_TO_NEXT,
-                        -> {
-                            manager.next()
-                            return SessionResult.RESULT_SUCCESS
-                        }
-                        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-                        Player.COMMAND_SEEK_TO_PREVIOUS,
-                        -> {
-                            manager.previous()
-                            return SessionResult.RESULT_SUCCESS
-                        }
-                    }
-                    return super.onPlayerCommandRequest(session, controller, playerCommand)
-                }
-            })
-            .build()
+        mediaSession = MediaSession.Builder(this, player).build()
 
-        // 自定义媒体卡片（收藏按钮 / 按钮位置 / 歌词显示）
+        // 自定义媒体卡片（封面 / 歌名 / 歌手 / 专辑·音质·音源）
         runCatching { setMediaNotificationProvider(MelosMediaNotificationProvider(this)) }
 
         instance = this
-        startLyricWatcher()
         startCardStateWatcher()
     }
 
@@ -125,7 +77,7 @@ class PlaybackService : MediaSessionService() {
      * 后续 Media3 的 MediaNotificationProvider 会在此基础上更新为完整媒体通知。
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
                 if (foregroundedWithId != NOTIFICATION_ID) {
                     startForeground(NOTIFICATION_ID, buildIdleNotification())
@@ -166,7 +118,6 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        lyricWatchJob?.cancel()
         cardStateJob?.cancel()
         // 作用域整体取消：否则协程（含封面加载回调）会在服务销毁后继续持有引用
         cardScope.cancel()
@@ -184,9 +135,11 @@ class PlaybackService : MediaSessionService() {
      * `currentIndex 立刻变 → isLoading=true → 解析直链 → 真正 setMediaItem`，
      * 前半段没有任何媒体条目变化，卡片会一直停在上一首（用户感受：切歌没反应）。
      * 这里监听 PlayerManager 的状态流，切歌瞬间就重绘（标题换成新歌 + "正在加载…"），
-     * 加载完成后再重绘一次（替换成歌词/信息行）。
+     * 加载完成后再重绘一次（换成信息行）。
      *
      * 顺带做封面预加载：新歌封面解码完成后回调重绘，避免"先出文字、封面几秒后才蹦出来"。
+     *
+     * 注意签名只含"歌 + 加载态 + 播放态"：进度变化不参与，否则 500ms 一次的状态流会把通知重建打成刷屏。
      */
     private fun startCardStateWatcher() {
         cardStateJob?.cancel()
@@ -195,8 +148,6 @@ class PlaybackService : MediaSessionService() {
             var lastSignature: String? = null
             manager.state.collect { state ->
                 val song = state.currentSong
-                // 注意签名只含"歌 + 加载态 + 播放态"：进度变化不参与，
-                // 否则 500ms 一次的状态流会把通知重建打成刷屏
                 val signature = "${song?.platform}:${song?.id}|loading=${state.isLoading}|playing=${state.isPlaying}"
                 if (signature == lastSignature) return@collect
                 lastSignature = signature
@@ -210,64 +161,36 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    /** 每 500ms 检查当前歌词句，变化时重建通知（只在播放中轮询，暂停即停，不白耗电） */
-    private fun startLyricWatcher() {
-        lyricWatchJob?.cancel()
-        lyricWatchJob = cardScope.launch {
-            val manager = PlayerManager.get(this@PlaybackService)
-            var lastProgressTick = 0L
-            while (isActive) {
-                delay(LYRIC_WATCH_INTERVAL_MS)
-                val prefs = SettingsStore.readPrefs()
-                if (!manager.state.value.isPlaying) continue
-                if (!prefs.mediaCardShowLyric) continue
-                val line = currentLyricLine()
-                if (line != lastLyricLine) {
-                    lastLyricLine = line
-                    refreshCard(this@PlaybackService)
-                    continue
-                }
-                // 歌词没变时，若开了进度条，按 3 秒一次补刷：
-                // 通知自身的进度是静态快照，不重绘就一直停在按下播放那一刻的位置
-                if (prefs.mediaCardProgress) {
-                    val now = android.os.SystemClock.elapsedRealtime()
-                    if (now - lastProgressTick >= PROGRESS_REFRESH_INTERVAL_MS) {
-                        lastProgressTick = now
-                        refreshCard(this@PlaybackService)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun currentLyricLine(): String? {
-        val manager = PlayerManager.get(this)
-        val state = manager.state.value
-        if (state.lyrics.isEmpty()) return null
-        val idx = currentLyricIndex(state.lyrics, manager.progress.value.positionMs)
-        return state.lyrics.getOrNull(idx)?.text?.trim()?.takeIf { it.isNotEmpty() }
-    }
-
     companion object {
         const val CHANNEL_ID = "media_session"
         private const val CHANNEL_NAME = "媒体播放"
 
         /**
-         * 兜底通知 id = 1001，与 Media3 默认媒体通知 id 保持一致是设计意图：
-         * Media3 接管后会用完整媒体通知原地覆盖这个兜底通知。
-         * 注：media3 1.4.1 的 MediaSessionService.NOTIFICATION_ID 非 Kotlin 可见常量，
-         * 只能手写字面量（升级 media3 后应换回公开常量引用）。
+         * 通知 id：直接用 media3 默认媒体通知的 id（已核对源码：`DefaultMediaNotificationProvider`
+         * 里 `DEFAULT_NOTIFICATION_ID = 1001`，且 `MediaNotificationManager` 就是用
+         * `notification.notificationId` 去 `startForeground` / `notify` / `cancel`）。
+         *
+         * 两边同 id 才意味着"同一条通知"：我们的兜底通知（[buildIdleNotification]）会被 media3
+         * 建好的完整媒体通知**原地覆盖**，而不是多出一条；[refreshCard] 手动刷新时也是在原地更新。
          */
-        const val NOTIFICATION_ID: Int = 1001
-
-        private const val LYRIC_WATCH_INTERVAL_MS = 500L
-
-        /** 歌词行没变时的进度补刷间隔（仅当开启"显示播放进度"） */
-        private const val PROGRESS_REFRESH_INTERVAL_MS = 3_000L
+        const val NOTIFICATION_ID: Int = DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID
 
         /** 当前服务实例（未运行时为 null：此时没有通知需要刷新） */
         @Volatile
         private var instance: PlaybackService? = null
+
+        /**
+         * media3 传给 Provider 的 ActionFactory（**库自己实现**，没有公开类可直接 new）。
+         *
+         * 卡片上的上一首/播放暂停/下一首就是用它生成的：点击后作为播放命令派发给会话，
+         * 与锁屏/蓝牙/超级岛同一条路径。手动重建通知时必须复用同一个实例，
+         * 否则只能自己造 PendingIntent —— 那正是"控制全都不好使"的老实现。
+         */
+        @Volatile
+        private var actionFactory: MediaNotification.ActionFactory? = null
+
+        /** 主线程 Handler：refreshCard 的线程兜底（见那里的说明） */
+        private val mainHandler = android.os.Handler(Looper.getMainLooper())
 
         /** 幂等地创建媒体通知渠道，避免与时序竞态导致 startForeground 失败 */
         @JvmStatic
@@ -290,20 +213,30 @@ class PlaybackService : MediaSessionService() {
         }
 
         /**
-         * 按最新设置重建媒体卡片。
+         * 按最新播放状态重建媒体卡片。
          *
-         * 由设置页（改收藏按钮/歌词/按钮位置）与卡片收藏动作后调用；
          * 服务没在跑就什么都不做（没有通知就没有需要更新的东西）。
+         * ActionFactory 还没拿到时也直接返回：宁可用 media3 刚发的那条通知，
+         * 也不要发一条没有按钮（或按钮是自家广播）的通知——那等于把控制弄没。
+         *
+         * **必须在主线程调用**：`MediaSession` / `Player` 只在创建它们的线程（这里是主线程）上可访问，
+         * 跨线程读 `currentMediaItem` 会抛异常。调用方分布在播放状态流、封面解码回调、设置项变更三处，
+         * 与其要求每个调用方记住这条规则，不如在这里统一兜住：不在主线程就 post 回主线程。
          */
         @JvmStatic
         fun refreshCard(context: Context) {
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                mainHandler.post { refreshCard(context.applicationContext) }
+                return
+            }
             val service = instance ?: return
             val session = service.mediaSession ?: return
+            val factory = actionFactory ?: return
             runCatching {
                 val notification = MelosMediaNotificationProvider(service).createNotification(
                     session,
                     ImmutableList.of(),
-                    MelosCardActionFactory(service),
+                    factory,
                     MediaNotification.Provider.Callback { },
                 )
                 // 与服务前台通知同 id：等于原地更新这条通知，不会多出一条
@@ -313,5 +246,10 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
+    }
+
+    /** 由 [MelosMediaNotificationProvider] 在 media3 调用时登记（见那里的说明） */
+    fun rememberActionFactory(factory: MediaNotification.ActionFactory) {
+        actionFactory = factory
     }
 }

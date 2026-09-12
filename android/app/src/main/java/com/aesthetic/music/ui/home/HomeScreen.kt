@@ -49,6 +49,7 @@ fun HomeScreen(
     onSearchBarClick: () -> Unit,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
     onOpenSheet: () -> Unit,
+    onOpenSheetCategory: (String) -> Unit,
     onOpenRanksPage: () -> Unit,
     onToggleFavorite: (Song) -> Unit,
 ) {
@@ -168,6 +169,7 @@ fun HomeScreen(
                 poolSongs = poolSongs,
                 onOpenPlaylistDetail = onOpenPlaylistDetail,
                 onOpenSheet = onOpenSheet,
+                onOpenSheetCategory = onOpenSheetCategory,
             )
         }
 

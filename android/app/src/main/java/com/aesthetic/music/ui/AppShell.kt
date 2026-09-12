@@ -62,7 +62,7 @@ import com.aesthetic.music.ui.shell.SettingsAppearanceDestination
 import com.aesthetic.music.ui.shell.SettingsCacheDestination
 import com.aesthetic.music.ui.shell.SettingsDownloadDestination
 import com.aesthetic.music.ui.shell.SettingsLyricsDestination
-import com.aesthetic.music.ui.shell.SettingsMediaCardDestination
+import com.aesthetic.music.ui.shell.SettingsDownloadDestination
 import com.aesthetic.music.ui.shell.SettingsPlaybackDestination
 import com.aesthetic.music.ui.shell.SettingsQualityDestination
 import com.aesthetic.music.ui.shell.rememberCacheState
@@ -311,10 +311,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     composable(ScreenRoute.SettingsLyrics.route) {
                         SettingsLyricsDestination(viewModel, nav)
-                    }
-
-                    composable(ScreenRoute.SettingsMediaCard.route) {
-                        SettingsMediaCardDestination(viewModel, nav)
                     }
 
                     composable(ScreenRoute.SettingsDownload.route) {

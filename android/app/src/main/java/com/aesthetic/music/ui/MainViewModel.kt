@@ -9,7 +9,7 @@ import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.player.MediaCardFavorites
+import com.aesthetic.music.player.LocalLyricStore
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.service.PlaybackService
 import com.aesthetic.music.ui.album.AlbumController
@@ -28,6 +28,7 @@ import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
 import com.aesthetic.music.ui.settings.SettingsController
 import com.aesthetic.music.ui.sheet.SheetController
+import com.aesthetic.music.ui.sheet.SheetTags
 import com.aesthetic.music.data.settings.ListeningStats
 import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.data.settings.QualityLevel
@@ -66,9 +67,9 @@ class MainViewModel : ViewModel() {
     private val content = ContentController(repository, viewModelScope)
 
     /**
-     * 设置项（主题与外观/播放/歌词/媒体卡片/下载）：已抽到 SettingsController。
+     * 设置项（主题与外观/播放/歌词/下载）：已抽到 SettingsController。
      *
-     * 变更后立刻推给播放器与通知卡片，避免"改了设置要重启 App 才生效"。
+     * 变更后立刻推给播放器，避免"改了设置要重启 App 才生效"。
      */
     val settings = SettingsController(
         onApplied = { prefs ->
@@ -251,14 +252,9 @@ class MainViewModel : ViewModel() {
         profile.installAuthFailedHook()
         // 最近搜索 + 热门搜索词（委托 SearchController 异步回填）
         search.hydrate()
-        // 通知栏媒体卡片的收藏按钮：交给 LibraryController，保证与 App 内 ♡ 同步
-        MediaCardFavorites.register(
-            read = { song -> library.isFavorite(song) },
-            toggle = { song ->
-                library.toggleFavorite(song)
-                library.isFavorite(song)
-            },
-        )
+        // 注：原先这里给"通知栏卡片的收藏按钮"注册过 LocalLyricStore 回调桥。
+        // 卡片上的收藏按钮已删除（卡片控制整体不可用，只保留 media3 官方支持的播放控制），
+        // 桥没有任何调用方，因此连同实现一起删了 —— 留着只会让人以为卡片收藏还活着。
         // 底层（缓存失败提示等）没有 UI 通道：统一接到全局 Snackbar
         UserNotice.register { msg -> _appToast.value = msg }
     }
@@ -382,7 +378,7 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching {
                 repository.getLyric(song).getOrNull()?.let { d ->
-                    MediaCardFavorites.saveLocalLyric(context, song, d.lyric)
+                    LocalLyricStore.saveLocalLyric(context, song, d.lyric)
                 }
                 com.aesthetic.music.player.SongSidecarStore.saveCover(context, song)
             }
@@ -405,6 +401,19 @@ class MainViewModel : ViewModel() {
     fun setSheetOrder(order: String) = sheet.setOrder(order)
 
     fun loadSheetPlaylists(force: Boolean = false) = sheet.load(force)
+
+    /** 进入歌单广场时调用（幂等）：没有数据才联网，避免"空列表被当成空分类" */
+    fun ensureSheetPlaylistsLoaded() = sheet.ensureLoaded()
+
+    /**
+     * 首页分类卡片 → 歌单广场：先把分类归一到广场认识的标签再进页面。
+     *
+     * 归一化交给 [SheetTags]（有单测）：卡片上叫"电音"，广场标签是"电子"，
+     * 直接拿卡片名当 cat 去请求只会得到空结果。
+     */
+    fun openSheetCategory(cardTitle: String?) {
+        sheet.setCat(SheetTags.normalize(cardTitle, sheet.tags))
+    }
 
     // ==================== FM 电台（委托 FmController） ====================
 

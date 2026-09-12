@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.shell
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.aesthetic.music.ui.MainViewModel
@@ -15,6 +16,11 @@ fun SheetSquareDestination(viewModel: MainViewModel, nav: ShellNav) {
     val playlists by viewModel.sheetPlaylists.collectAsState()
     val isLoading by viewModel.isLoadingSheets.collectAsState()
     val error by viewModel.sheetError.collectAsState()
+
+    // 进页面就加载（幂等：已有数据/正在加载时不会重复请求）。
+    // 少了这一句，从首页进来看到的就是"该分类下暂无歌单"——列表其实是空的，不是真的没有。
+    LaunchedEffect(Unit) { viewModel.ensureSheetPlaylistsLoaded() }
+
     PlaylistPage(
         sheetTags = viewModel.sheetTags,
         sheetCat = sheetCat,

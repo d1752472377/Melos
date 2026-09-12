@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Storage
@@ -87,7 +86,7 @@ private val ThemeMode.label: String
 
 /** 设置主页可跳转的子页面 */
 enum class SettingsPage {
-    APPEARANCE, QUALITY, PLAYBACK, LYRICS, MEDIA_CARD, DOWNLOAD, CACHE
+    APPEARANCE, QUALITY, PLAYBACK, LYRICS, DOWNLOAD, CACHE
 }
 
 /**
@@ -269,16 +268,6 @@ fun SettingsScreen(
                     if (userPrefs.lyricLocal) append(" · 本地优先")
                 },
                 onClick = { onOpenPage(SettingsPage.LYRICS) }
-            )
-            SettingRow(
-                icon = Icons.Filled.Notifications,
-                iconTint = PrimaryBrown,
-                label = "媒体卡片",
-                subtitle = buildString {
-                    append(if (userPrefs.mediaCardFavorite) "含收藏按钮" else "仅播放控制")
-                    if (userPrefs.mediaCardShowLyric) append(" · 显示歌词")
-                },
-                onClick = { onOpenPage(SettingsPage.MEDIA_CARD) }
             )
             SettingRow(
                 icon = Icons.Filled.CloudDownload,

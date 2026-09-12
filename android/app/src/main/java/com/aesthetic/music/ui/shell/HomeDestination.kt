@@ -41,6 +41,11 @@ fun HomeDestination(
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
         onOpenSheet = { nav.navigate(ScreenRoute.SheetSquare.route) },
+        onOpenSheetCategory = { title ->
+            // 先归一并选中分类（会拉起该分类的歌单），再进歌单广场
+            viewModel.openSheetCategory(title)
+            nav.navigate(ScreenRoute.SheetSquare.route)
+        },
         onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
         onToggleFavorite = viewModel::toggleFavorite,
     )

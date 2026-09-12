@@ -39,23 +39,6 @@ enum class StatusBarMode(val value: String, val label: String, val desc: String)
     }
 }
 
-/**
- * 媒体卡片歌词位置
- *
- * 注：原先还有一个「收藏按钮位置（左/右）」设置，已删除。
- * 它会允许收藏按钮排到播放控制前面，而系统媒体卡片只渲染前几个按钮，
- * 结果"下一首"被静默挤掉（用户实测反馈）。播放控制优先于收藏按钮的摆放偏好。
- */
-enum class MediaCardLyricPosition(val value: String, val label: String, val desc: String) {
-    ABOVE("above", "歌名上方", "歌词显示在歌名上方一行"),
-    BELOW("below", "歌名下方", "歌词替换歌手名显示在歌名下方");
-
-    companion object {
-        fun fromValue(v: String?): MediaCardLyricPosition =
-            entries.firstOrNull { it.value == v } ?: BELOW
-    }
-}
-
 /** 下载/缓存文件命名规则 */
 enum class DownloadNaming(val value: String, val label: String, val example: String) {
     TITLE_ARTIST("title_artist", "歌名 - 歌手", "夜曲 - 周杰伦.mp3"),
@@ -98,21 +81,6 @@ data class UserPrefs(
     val lyricRomanization: Boolean = false,
     val lyricOnline: Boolean = true,
     val lyricLocal: Boolean = false,
-    // ===== 媒体卡片 =====
-    val mediaCardFavorite: Boolean = true,
-    val mediaCardShowLyric: Boolean = true,
-    val mediaCardLyricPosition: MediaCardLyricPosition = MediaCardLyricPosition.BELOW,
-    // ===== 卡片内容（封面/信息/进度）=====
-    /** 显示大封面：系统媒体卡片、锁屏、超级岛读的都是它，关掉后卡片只剩文字 */
-    val mediaCardCover: Boolean = true,
-    /** 显示专辑与音源信息行（专辑名 · 音质 · 音源） */
-    val mediaCardAlbum: Boolean = true,
-    /** 显示播放进度：通知里的进度条 + 每 3 秒刷新一次位置 */
-    val mediaCardProgress: Boolean = true,
-    /** 用封面取色作为卡片底色（Android 10+ 支持，部分 ROM 不渲染） */
-    val mediaCardColorized: Boolean = false,
-    /** Android 16+「实时活动」：把正在播放提升为状态栏胶囊/强调卡，点击可展开 */
-    val mediaCardLiveUpdate: Boolean = true,
     // ===== 下载与缓存 =====
     val downloadWhilePlaying: Boolean = true,
     val downloadNaming: DownloadNaming = DownloadNaming.TITLE_ARTIST,
@@ -214,7 +182,7 @@ object SettingsStore {
         p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
     }
 
-    // ==================== 设置页（主题与外观 / 播放 / 歌词 / 媒体卡片 / 下载） ====================
+    // ==================== 设置页（主题与外观 / 播放 / 歌词 / 下载） ====================
 
     private const val KEY_STATUS_BAR = "status_bar_mode"
     private const val KEY_PRELOAD_NEXT = "play_preload_next"
@@ -225,14 +193,8 @@ object SettingsStore {
     private const val KEY_LYRIC_ROMANIZATION = "lyric_romanization"
     private const val KEY_LYRIC_ONLINE = "lyric_online"
     private const val KEY_LYRIC_LOCAL = "lyric_local"
-    private const val KEY_CARD_FAVORITE = "media_card_favorite"
-    private const val KEY_CARD_SHOW_LYRIC = "media_card_show_lyric"
-    private const val KEY_CARD_LYRIC_POSITION = "media_card_lyric_position"
-    private const val KEY_CARD_COVER = "media_card_cover"
-    private const val KEY_CARD_ALBUM = "media_card_album"
-    private const val KEY_CARD_PROGRESS = "media_card_progress"
-    private const val KEY_CARD_COLORIZED = "media_card_colorized"
-    private const val KEY_CARD_LIVE_UPDATE = "media_card_live_update"
+    // 媒体卡片的 8 个 key 已随「设置 → 媒体卡片」整页删除（卡片不再有可配置项）：
+    // 旧版本写进 SharedPreferences 的值会被忽略，不影响任何逻辑，也不需要清理。
     private const val KEY_DL_WHILE_PLAYING = "download_while_playing"
     private const val KEY_DL_NAMING = "download_naming"
     private const val KEY_DL_COVER_LYRICS = "download_cover_lyrics"
@@ -278,14 +240,6 @@ object SettingsStore {
                 lyricRomanization = getBool(KEY_LYRIC_ROMANIZATION, d.lyricRomanization),
                 lyricOnline = getBool(KEY_LYRIC_ONLINE, d.lyricOnline),
                 lyricLocal = getBool(KEY_LYRIC_LOCAL, d.lyricLocal),
-                mediaCardFavorite = getBool(KEY_CARD_FAVORITE, d.mediaCardFavorite),
-                mediaCardShowLyric = getBool(KEY_CARD_SHOW_LYRIC, d.mediaCardShowLyric),
-                mediaCardLyricPosition = MediaCardLyricPosition.fromValue(getStr(KEY_CARD_LYRIC_POSITION)),
-                mediaCardCover = getBool(KEY_CARD_COVER, d.mediaCardCover),
-                mediaCardAlbum = getBool(KEY_CARD_ALBUM, d.mediaCardAlbum),
-                mediaCardProgress = getBool(KEY_CARD_PROGRESS, d.mediaCardProgress),
-                mediaCardColorized = getBool(KEY_CARD_COLORIZED, d.mediaCardColorized),
-                mediaCardLiveUpdate = getBool(KEY_CARD_LIVE_UPDATE, d.mediaCardLiveUpdate),
                 downloadWhilePlaying = getBool(KEY_DL_WHILE_PLAYING, d.downloadWhilePlaying),
                 downloadNaming = DownloadNaming.fromValue(getStr(KEY_DL_NAMING)),
                 downloadCoverLyrics = getBool(KEY_DL_COVER_LYRICS, d.downloadCoverLyrics),
@@ -314,14 +268,6 @@ object SettingsStore {
             putBoolean(KEY_LYRIC_ROMANIZATION, prefs.lyricRomanization)
             putBoolean(KEY_LYRIC_ONLINE, prefs.lyricOnline)
             putBoolean(KEY_LYRIC_LOCAL, prefs.lyricLocal)
-            putBoolean(KEY_CARD_FAVORITE, prefs.mediaCardFavorite)
-            putBoolean(KEY_CARD_SHOW_LYRIC, prefs.mediaCardShowLyric)
-            putString(KEY_CARD_LYRIC_POSITION, prefs.mediaCardLyricPosition.value)
-            putBoolean(KEY_CARD_COVER, prefs.mediaCardCover)
-            putBoolean(KEY_CARD_ALBUM, prefs.mediaCardAlbum)
-            putBoolean(KEY_CARD_PROGRESS, prefs.mediaCardProgress)
-            putBoolean(KEY_CARD_COLORIZED, prefs.mediaCardColorized)
-            putBoolean(KEY_CARD_LIVE_UPDATE, prefs.mediaCardLiveUpdate)
             putBoolean(KEY_DL_WHILE_PLAYING, prefs.downloadWhilePlaying)
             putString(KEY_DL_NAMING, prefs.downloadNaming.value)
             putBoolean(KEY_DL_COVER_LYRICS, prefs.downloadCoverLyrics)

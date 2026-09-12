@@ -12,7 +12,7 @@ import okhttp3.Request
  *
  * 对应设置项「下载与缓存 → 封面与歌词」。
  * - 封面：与音频同目录、同基础名的 `.jpg`（`<基础名>.jpg`，基础名 = 音频文件名去掉扩展名）；
- * - 歌词：由 [MediaCardFavorites.saveLocalLyric] 写入 filesDir/lyrics（同时会尝试写同目录 .lrc）。
+ * - 歌词：由 [LocalLyricStore.saveLocalLyric] 写入 filesDir/lyrics（同时会尝试写同目录 .lrc）。
  *
  * 单独放一个对象的理由：AudioCacheService 只管音频字节流（它是纯下载器，没有仓库/歌词解析），
  * 封面与歌词是"带业务语义"的补齐动作，放在这里调用方（PlayerManager / 手动下载）更清楚。

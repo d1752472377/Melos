@@ -29,7 +29,6 @@ sealed class ScreenRoute(val route: String) {
     data object SettingsQuality : ScreenRoute("settings_quality")
     data object SettingsPlayback : ScreenRoute("settings_playback")
     data object SettingsLyrics : ScreenRoute("settings_lyrics")
-    data object SettingsMediaCard : ScreenRoute("settings_media_card")
     data object SettingsDownload : ScreenRoute("settings_download")
     data object SettingsCache : ScreenRoute("settings_cache")
     data object ProfileEdit : ScreenRoute("profile_edit")
