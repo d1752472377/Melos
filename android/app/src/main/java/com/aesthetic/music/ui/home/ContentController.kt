@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.home
 
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
@@ -98,9 +99,10 @@ class ContentController(
                     // 独立协程：此前是 coroutineScope 的子协程，会把 isLoadingContent=false
                     // 拖到热歌请求结束，拉长整页 loading 窗口
                     scope.launch {
-                        repository.getRankSongs(hotRank.id).onSuccess { songs ->
-                            _hotSongs.value = songs
-                        }
+                        repository.getRankSongs(hotRank.platform ?: RankCatalog.DEFAULT, hotRank.id)
+                            .onSuccess { songs ->
+                                _hotSongs.value = songs
+                            }
                     }
                 }
             }.onFailure { failures++; failureMsg = "排行榜" }

@@ -24,6 +24,7 @@ import com.aesthetic.music.data.api.SyncPushPayload
 import com.aesthetic.music.data.api.SyncPushResult
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.api.platform.PlatformMusicService
+import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.settings.UserStore
@@ -135,12 +136,14 @@ class MusicRepository(
         PlatformMusicService.getNewSongs(limit)
     }
 
-    suspend fun getRanks(): Result<RanksData> = apiCatching {
-        PlatformMusicService.getRanks()
+    /** 榜单列表：平台由 [RankCatalog] 定义（网易云 / QQ / 酷狗 / 酷我），默认网易云 */
+    suspend fun getRanks(platform: String = RankCatalog.DEFAULT): Result<RanksData> = apiCatching {
+        PlatformMusicService.getRanks(platform)
     }
 
-    suspend fun getRankSongs(id: String): Result<List<Song>> = apiCatching {
-        PlatformMusicService.getRankSongs(id)
+    /** 榜单曲目：榜单 id 必须与平台配套使用（各平台 id 语义不同，混用会查到别的榜单或空） */
+    suspend fun getRankSongs(platform: String, id: String): Result<List<Song>> = apiCatching {
+        PlatformMusicService.getRankSongs(platform, id)
     }
 
     suspend fun getCategories(): Result<CategoriesData> = apiCatching {
@@ -214,8 +217,18 @@ class MusicRepository(
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "获取个人信息失败")
     }
 
-    suspend fun updateProfile(nickname: String? = null, avatar: String? = null): Result<UserInfo> = apiCatching {
-        val resp = api.updateProfile(ProfileBody(nickname = nickname, avatar = avatar))
+    /**
+     * 更新资料。字段为 null = 不改动该项（后端按「缺省即不改」处理）。
+     *
+     * [email] 传空串表示解绑；服务端若尚未支持该字段会被忽略，
+     * 因此调用方必须以**响应体**为准刷新界面，不能假设本地输入已经生效。
+     */
+    suspend fun updateProfile(
+        nickname: String? = null,
+        avatar: String? = null,
+        email: String? = null,
+    ): Result<UserInfo> = apiCatching {
+        val resp = api.updateProfile(ProfileBody(nickname = nickname, avatar = avatar, email = email))
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "更新资料失败")
     }
 

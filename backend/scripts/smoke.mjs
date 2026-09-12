@@ -54,6 +54,48 @@ try {
 
   const me = await j('GET', '/api/me', { token: tokenA });
   ok('带 token 取 /me', me.statusCode === 200 && me.json().data.username === 'alice');
+  const meData = me.json().data;
+  ok('/me 返回注册日期 createdAt(毫秒) 且与 created_at 同值',
+    Number.isFinite(meData.createdAt) && meData.createdAt > 0 && meData.createdAt === meData.created_at);
+  ok('/me 初始未绑定邮箱(email 为空串)', meData.email === '');
+
+  console.log('== 邮箱绑定（仅登记，无邮件验证） ==');
+  const bind = await j('PUT', '/api/me', { token: tokenA, payload: { email: '  Alice@Example.COM  ' } });
+  ok('绑定邮箱成功且归一化(trim+小写)', bind.statusCode === 200 && bind.json().data.email === 'alice@example.com');
+
+  const badEmail = await j('PUT', '/api/me', { token: tokenA, payload: { email: 'not-an-email' } });
+  ok('非法邮箱格式返回 400', badEmail.statusCode === 400);
+  const longEmail = await j('PUT', '/api/me', { token: tokenA, payload: { email: 'a'.repeat(118) + '@x.io' } });
+  ok('超长邮箱(>120)返回 400', longEmail.statusCode === 400);
+
+  const emailKept = await j('PUT', '/api/me', { token: tokenA, payload: { nickname: '爱丽丝' } });
+  ok('不传 email 时邮箱不受影响', emailKept.statusCode === 200 && emailKept.json().data.email === 'alice@example.com');
+
+  const regDupEmail = await j('POST', '/api/auth/register', { payload: { username: 'mallory', password: 'secret999', email: 'alice@example.com' } });
+  ok('注册时占用他人邮箱返回 409', regDupEmail.statusCode === 409);
+
+  const regCarol = await j('POST', '/api/auth/register', { payload: { username: 'carol', password: 'secret999' } });
+  const tokenC = regCarol.json().data.token;
+  const carolId = regCarol.json().data.user.id;
+  const steal = await j('PUT', '/api/me', { token: tokenC, payload: { email: 'alice@example.com' } });
+  ok('绑定他人已占用的邮箱返回 409', steal.statusCode === 409 && String(steal.json().msg).includes('其它账号'));
+
+  const regWithEmail = await j('POST', '/api/auth/register', { payload: { username: 'dave', password: 'secret999', email: 'Dave@Example.com' } });
+  ok('注册时直接绑定邮箱成功(归一化)', regWithEmail.statusCode === 200 && regWithEmail.json().data.user.email === 'dave@example.com');
+
+  const unbind = await j('PUT', '/api/me', { token: tokenA, payload: { email: '' } });
+  ok('传空串解绑邮箱', unbind.statusCode === 200 && unbind.json().data.email === '');
+
+  const carolBind = await j('PUT', '/api/me', { token: tokenC, payload: { email: 'alice@example.com' } });
+  ok('解绑后该邮箱可被他人绑定', carolBind.statusCode === 200 && carolBind.json().data.email === 'alice@example.com');
+
+  const rebind = await j('PUT', '/api/me', { token: tokenC, payload: { email: 'alice@example.com' } });
+  ok('重复提交自己的邮箱不算冲突', rebind.statusCode === 200);
+
+  const meC = await j('GET', '/api/me', { token: tokenC });
+  const meCData = meC.json().data;
+  ok('GET /api/me 返回 email/username/createdAt 三字段',
+    meCData.email === 'alice@example.com' && meCData.username === 'carol' && Number.isFinite(meCData.createdAt));
 
   console.log('== 同步：push 与增量 pull ==');
   let push = await j('POST', '/api/sync/push', {
@@ -153,6 +195,9 @@ try {
   // 管理员查看用户列表
   const adminList = await j('GET', '/api/admin/users', { token: adminToken });
   ok('管理员获取用户列表成功 (200)', adminList.statusCode === 200 && adminList.json().data.total >= 2);
+  ok('管理员用户列表每项均含 email 字段', adminList.json().data.items.every((u) => typeof u.email === 'string'));
+  const adminCarol = await j('GET', `/api/admin/users/${carolId}`, { token: adminToken });
+  ok('管理员用户详情可见绑定邮箱', adminCarol.statusCode === 200 && adminCarol.json().data.email === 'alice@example.com');
 
   // 管理员创建用户
   const createdBob = await j('POST', '/api/admin/users', {

@@ -25,6 +25,8 @@ const SCHEMA = `
       nickname      TEXT NOT NULL DEFAULT '',
       avatar        TEXT NOT NULL DEFAULT '',
       role          TEXT NOT NULL DEFAULT 'user',
+      -- 邮箱仅「登记/绑定」，未做邮件验证（本后端无 SMTP 配置）；空串 = 未绑定
+      email         TEXT NOT NULL DEFAULT '',
       created_at    INTEGER NOT NULL,
       updated_at    INTEGER NOT NULL
     );
@@ -147,11 +149,24 @@ export async function initDb(dbUrl, authToken) {
       await client.execute(stmt);
     }
   }
-  // 平滑升级老数据库：确保 users 表有 role 字段
+  // 平滑升级老数据库：确保 users 表有 role / email 字段
   try {
     await client.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
   } catch {
     // 字段已存在时忽略错误
+  }
+  try {
+    await client.execute("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''");
+  } catch {
+    // 字段已存在时忽略错误
+  }
+  // 邮箱唯一性：用「部分索引」只约束非空邮箱，让多个未绑定用户（email=''）互不冲突。
+  // 若底层引擎不支持部分索引（极老版本），退化为「应用层查重 + 无唯一索引」：
+  // 常规并发下应用层查重已足够，只是失去数据库级的兜底（见 README「邮箱绑定」一节）。
+  try {
+    await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email != ''");
+  } catch {
+    // 不支持部分索引：依赖路由层 findUserByEmail 查重
   }
   return client;
 }
@@ -179,19 +194,25 @@ export async function findUserById(client, id) {
   return first(client, 'SELECT * FROM users WHERE id = ?', [id]);
 }
 
-export async function createUser(client, { username, passwordHash, salt, nickname, role = 'user', nowMs }) {
+/** 按邮箱查用户（用于绑定前查重）；调用方保证 email 已归一化（trim+小写）且非空。 */
+export async function findUserByEmail(client, email) {
+  return first(client, "SELECT * FROM users WHERE email = ? AND email != ''", [email]);
+}
+
+export async function createUser(client, { username, passwordHash, salt, nickname, role = 'user', email = '', nowMs }) {
   const r = await run(client,
-    'INSERT INTO users (username, password_hash, salt, nickname, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [username, passwordHash, salt, nickname || username, role || 'user', nowMs, nowMs],
+    'INSERT INTO users (username, password_hash, salt, nickname, role, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [username, passwordHash, salt, nickname || username, role || 'user', email || '', nowMs, nowMs],
   );
   return findUserById(client, r.lastId);
 }
 
-export async function updateUserProfile(client, id, { nickname, avatar, nowMs }) {
+export async function updateUserProfile(client, id, { nickname, avatar, email, nowMs }) {
   const cur = await findUserById(client, id);
   if (!cur) return null;
-  await run(client, 'UPDATE users SET nickname = ?, avatar = ?, updated_at = ? WHERE id = ?',
-    [nickname ?? cur.nickname, avatar ?? cur.avatar, nowMs, id]);
+  // email 与 nickname/avatar 同款语义：undefined = 不改动；'' = 显式解绑
+  await run(client, 'UPDATE users SET nickname = ?, avatar = ?, email = ?, updated_at = ? WHERE id = ?',
+    [nickname ?? cur.nickname, avatar ?? cur.avatar, email ?? cur.email ?? '', nowMs, id]);
   return findUserById(client, id);
 }
 
@@ -201,11 +222,11 @@ export async function updateUserPassword(client, id, { passwordHash, salt, nowMs
 }
 
 export async function listUsers(client, { offset = 0, limit = 10, search = '', role = '' } = {}) {
-  let sql = 'SELECT id, username, nickname, avatar, role, created_at, updated_at FROM users WHERE 1=1';
+  let sql = 'SELECT id, username, nickname, avatar, role, email, created_at, updated_at FROM users WHERE 1=1';
   const args = [];
   if (search) {
-    sql += ' AND (username LIKE ? OR nickname LIKE ?)';
-    args.push(`%${search}%`, `%${search}%`);
+    sql += ' AND (username LIKE ? OR nickname LIKE ? OR email LIKE ?)';
+    args.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
   if (role) {
     sql += ' AND role = ?';
@@ -220,8 +241,8 @@ export async function countUsers(client, { search = '', role = '' } = {}) {
   let sql = 'SELECT COUNT(*) AS total FROM users WHERE 1=1';
   const args = [];
   if (search) {
-    sql += ' AND (username LIKE ? OR nickname LIKE ?)';
-    args.push(`%${search}%`, `%${search}%`);
+    sql += ' AND (username LIKE ? OR nickname LIKE ? OR email LIKE ?)';
+    args.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
   if (role) {
     sql += ' AND role = ?';
@@ -280,8 +301,12 @@ export function publicUser(row) {
     nickname: row.nickname || row.username,
     avatar: row.avatar || '',
     role: row.role || 'user',
+    email: row.email || '',
     created_at: row.created_at != null ? Number(row.created_at) : undefined,
     updated_at: row.updated_at != null ? Number(row.updated_at) : undefined,
+    // createdAt 驼峰别名：Android 客户端按 camelCase 反序列化注册时间；
+    // created_at 保留给 music-admin（snake_case），两键同值避免破坏既有对接。
+    createdAt: row.created_at != null ? Number(row.created_at) : undefined,
   };
 }
 
@@ -307,7 +332,7 @@ export async function createSession(client, { userId, tokenHash, deviceName, ttl
 
 export async function findSessionByTokenHash(client, tokenHash) {
   return first(client,
-    `SELECT s.*, u.username, u.nickname, u.avatar, u.role, u.created_at, u.updated_at
+    `SELECT s.*, u.username, u.nickname, u.avatar, u.role, u.email, u.created_at, u.updated_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ?`, [tokenHash]);
 }

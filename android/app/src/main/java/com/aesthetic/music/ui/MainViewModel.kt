@@ -21,6 +21,7 @@ import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.library.PlaylistImportController
 import com.aesthetic.music.ui.playlist.PlaylistDetailController
+import com.aesthetic.music.ui.rank.RankController
 import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.source.SourceController
 import com.aesthetic.music.ui.search.SearchController
@@ -92,6 +93,9 @@ class MainViewModel : ViewModel() {
 
     // 歌单/榜单详情：已抽到 PlaylistDetailController（见 ui/playlist/PlaylistDetailController.kt）
     private val playlistDetail = PlaylistDetailController(repository, viewModelScope)
+
+    // 排行榜页（平台 tag + 各平台榜单）：已抽到 RankController（见 ui/rank/RankController.kt）
+    private val rank = RankController(repository, viewModelScope)
 
     // 用户 / 个人中心：已抽到 ProfileController（见 ui/profile/ProfileController.kt）
     private val profile = ProfileController(
@@ -179,6 +183,12 @@ class MainViewModel : ViewModel() {
     val isLoadingPlaylist get() = playlistDetail.isLoading
     val playlistError get() = playlistDetail.error
 
+    // 排行榜页（平台 tag 切换）：已抽到 RankController，保留同名只读委托
+    val rankPlatform get() = rank.platform
+    val rankList get() = rank.ranks
+    val isLoadingRanks get() = rank.isLoading
+    val rankError get() = rank.error
+
     // 用户 / 个人中心状态：已抽到 ProfileController，保留同名只读委托
     val user get() = profile.user
     val profileAvatar get() = profile.profileAvatar
@@ -186,9 +196,11 @@ class MainViewModel : ViewModel() {
     val isProfileBgBlur get() = profile.isProfileBgBlur
     val profileNickname get() = profile.profileNickname
     val profileBio get() = profile.profileBio
-    val profileGender get() = profile.profileGender
-    val profileBirthday get() = profile.profileBirthday
     val profileUserId get() = profile.profileUserId
+    /** 登录用户名（账号名，非昵称）/ 已绑定邮箱 / 注册时间：只读，来自服务端 */
+    val profileUsername get() = profile.username
+    val profileEmail get() = profile.email
+    val profileCreatedAt get() = profile.createdAt
 
     /** 一次性全局提示（导入歌单失败、改昵称失败、登录态过期等）：
      *  此前这些场景的错误要么写进没人消费的状态（albumError），要么复用只被登录弹窗读的
@@ -420,6 +432,16 @@ class MainViewModel : ViewModel() {
 
     fun openRankDetail(item: PlaylistItem) = playlistDetail.openRank(item)
 
+    // ==================== 排行榜页（委托 RankController） ====================
+
+    /** 切平台 tag；命中缓存立即出结果，未命中才联网 */
+    fun selectRankPlatform(platform: String) = rank.select(platform)
+
+    /** 进入排行榜页：无数据才拉一次，已有数据不重复请求 */
+    fun ensureRanksLoaded() = rank.ensureLoaded()
+
+    fun retryRanks() = rank.retry()
+
     // ==================== 外部歌单导入（委托 PlaylistImportController） ====================
 
     /** 「新建歌单」表单里的可选导入：解析结果仅用于回填，不落库 */
@@ -581,10 +603,11 @@ class MainViewModel : ViewModel() {
     fun saveProfileInfo(
         nickname: String,
         bio: String,
-        gender: String,
-        birthday: String,
         avatarPath: String? = null,
-    ) = profile.saveProfileInfo(nickname, bio, gender, birthday, avatarPath)
+    ) = profile.saveProfileInfo(nickname, bio, avatarPath)
+
+    /** 绑定 / 解绑邮箱（空串 = 解绑），走服务端并以响应体回写本地状态 */
+    fun bindEmail(email: String) = profile.bindEmail(email)
 
     // ==================== 统计 ====================
 

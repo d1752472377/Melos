@@ -150,25 +150,9 @@ object UserStore {
             prefs?.edit()?.putString(KEY_CUSTOM_BIO, bio)?.apply()
     }
 
-    fun getGender(): String = try {
-        prefs?.getString(KEY_CUSTOM_GENDER, "保密") ?: "保密"
-    } catch (_: Exception) {
-        "保密"
-    }
-
-    fun setGender(gender: String) = bestEffort(TAG, "保存性别") {
-            prefs?.edit()?.putString(KEY_CUSTOM_GENDER, gender)?.apply()
-    }
-
-    fun getBirthday(): String = try {
-        prefs?.getString(KEY_CUSTOM_BIRTHDAY, "") ?: ""
-    } catch (_: Exception) {
-        ""
-    }
-
-    fun setBirthday(birthday: String) = bestEffort(TAG, "保存生日") {
-            prefs?.edit()?.putString(KEY_CUSTOM_BIRTHDAY, birthday)?.apply()
-    }
+    // 性别 / 出生日期已随「个人资料页去掉这两项」一起移除：它们只存在本地、服务端没有对应字段，
+    // 填了也不会跟着账号走（换设备就丢），属于看起来正式但其实是假的字段。
+    // 旧版本写入的键仍在 restoreProfileDefaults 里清理，避免残留脏数据。
 
     fun getUserId(): String = try {
         user()?.id?.takeIf { it > 0 }?.toString()
@@ -182,14 +166,22 @@ object UserStore {
             prefs?.edit()?.putString(KEY_CUSTOM_ID, id)?.apply()
     }
 
-    /** 恢复默认头像、背景、模糊开关及个性化偏好 */
+    /**
+     * 恢复默认背景、模糊开关与个性化偏好。
+     *
+     * **头像刻意保留**：用户实测反馈「恢复默认不该顺手把头像清掉」——头像属于账号身份的一部分，
+     * 重选一次的成本远高于切一次背景。因此这里只删掉背景图文件（`background_` 前缀），
+     * 头像文件（`avatar_` 前缀）与 `KEY_CUSTOM_AVATAR` 都留着。
+     *
+     * 用户名/注册日期这些来自服务端账号的字段本来就不在这里，无需处理。
+     */
     fun restoreProfileDefaults(context: Context) = bestEffort(TAG, "恢复个人资料默认值") {
         val dir = java.io.File(context.filesDir, "profile")
-        if (dir.exists()) {
-            dir.deleteRecursively()
+        // 只删背景：以前是 dir.deleteRecursively()，会把头像一起删掉
+        dir.listFiles()?.forEach { file ->
+            if (file.name.startsWith(BG_FILE_PREFIX)) file.delete()
         }
         prefs?.edit()
-            ?.remove(KEY_CUSTOM_AVATAR)
             ?.remove(KEY_CUSTOM_BG)
             ?.remove(KEY_BG_BLUR)
             ?.remove(KEY_CUSTOM_NICKNAME)
@@ -198,4 +190,7 @@ object UserStore {
             ?.remove(KEY_CUSTOM_BIRTHDAY)
             ?.apply()
     }
+
+    /** 背景图文件前缀（见 ProfileUtils.saveImageToInternal 的 prefix 参数；头像用 "avatar"，不删） */
+    private const val BG_FILE_PREFIX = "background"
 }

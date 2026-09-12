@@ -46,12 +46,22 @@ class ProfileController(
     val profileNickname = _profileNickname.asStateFlow()
     private val _profileBio = MutableStateFlow(UserStore.getBio())
     val profileBio = _profileBio.asStateFlow()
-    private val _profileGender = MutableStateFlow(UserStore.getGender())
-    val profileGender = _profileGender.asStateFlow()
-    private val _profileBirthday = MutableStateFlow(UserStore.getBirthday())
-    val profileBirthday = _profileBirthday.asStateFlow()
     private val _profileUserId = MutableStateFlow(UserStore.getUserId())
     val profileUserId = _profileUserId.asStateFlow()
+
+    /**
+     * 资料页只读展示项（登录用户名 / 注册时间 / 已绑定邮箱）。
+     *
+     * 全部来自服务端返回的 [UserInfo]，本地不做二次加工：用户名与注册时间是服务端事实，
+     * 邮箱的最终状态也以服务端为准——如果后端版本较旧、忽略了 email 字段，
+     * 这里读到的仍然是"未绑定"，界面不会出现"本地显示已绑定、服务端其实没有"的假象。
+     */
+    private val _username = MutableStateFlow(UserStore.user()?.username.orEmpty())
+    val username: StateFlow<String> = _username.asStateFlow()
+    private val _email = MutableStateFlow(UserStore.user()?.email)
+    val email: StateFlow<String?> = _email.asStateFlow()
+    private val _createdAt = MutableStateFlow(UserStore.user()?.createdAt ?: 0L)
+    val createdAt: StateFlow<Long> = _createdAt.asStateFlow()
 
     /**
      * 登录态失效（401）：清登录态并提示。此前 token 过期/被吊销后界面仍显示"已登录"，
@@ -62,6 +72,9 @@ class ProfileController(
             if (UserStore.isLoggedIn()) {
                 UserStore.logout()
                 _user.value = null
+                _username.value = ""
+                _email.value = null
+                _createdAt.value = 0L
                 onToast("登录已过期，请重新登录")
             }
         }
@@ -81,6 +94,10 @@ class ProfileController(
             _user.value = null
             _profileNickname.value = UserStore.getNickname()
             _profileUserId.value = UserStore.getUserId()
+            // 账号级信息必须一起清空：登出后还显示上一个账号的用户名/邮箱会直接泄露隐私
+            _username.value = ""
+            _email.value = null
+            _createdAt.value = 0L
             onToast("已退出登录并清空私有服务器配置")
         }
     }
@@ -89,14 +106,59 @@ class ProfileController(
         if (nickname.isBlank()) return
         scope.launch {
             repository.updateProfile(nickname = nickname).onSuccess { updated ->
-                _user.value = updated
-                UserStore.updateUser(updated)
-                _profileNickname.value = updated.nickname.ifBlank { updated.username }
+                applyUser(updated)
                 onToast("昵称已更新")
             }.onFailure { e ->
                 onToast("更新失败: ${e.message ?: "网络异常"}")
             }
         }
+    }
+
+    /**
+     * 绑定 / 解绑邮箱。[email] 传空串表示解绑。
+     *
+     * 与昵称一样走服务端（`PUT /api/me`），并以**响应体**为准回写本地状态：
+     * 后端若还没有 email 字段，接口会静默忽略，此时界面必须仍然显示"未绑定"，
+     * 否则用户会以为绑定成功，直到某天需要邮箱找回密码时才发现是空的。
+     */
+    fun bindEmail(email: String) {
+        if (!UserStore.isLoggedIn()) {
+            onToast("请先登录后再绑定邮箱")
+            return
+        }
+        val target = email.trim()
+        if (target.isNotEmpty() && !ProfileFormat.isValidEmail(target)) {
+            onToast("邮箱格式不正确")
+            return
+        }
+        scope.launch {
+            repository.updateProfile(email = target).onSuccess { updated ->
+                applyUser(updated)
+                val bound = updated.email?.trim().orEmpty()
+                when {
+                    target.isEmpty() && bound.isEmpty() -> onToast("邮箱已解绑")
+                    bound.equals(target, ignoreCase = true) -> onToast("邮箱已绑定")
+                    // 服务端返回的邮箱与我们提交的不一致：只可能是后端没实现这个字段
+                    else -> onToast("服务端未保存邮箱（后端版本较旧）")
+                }
+            }.onFailure { e ->
+                onToast("邮箱操作失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
+    /**
+     * 服务端返回的用户信息是唯一事实来源：本地展示项与 [UserStore] 缓存一起更新，
+     * 避免出现"页面刷新后昵称/邮箱又变回去了"（UserStore 里还是旧的）。
+     */
+    private fun applyUser(updated: UserInfo) {
+        _user.value = updated
+        UserStore.updateUser(updated)
+        _profileNickname.value = updated.nickname.ifBlank { updated.username }
+        _username.value = updated.username
+        _email.value = updated.email
+        _createdAt.value = updated.createdAt
+        _profileUserId.value = UserStore.getUserId()
     }
 
     // ===== 个人中心个性化管理 =====
@@ -119,22 +181,20 @@ class ProfileController(
 
     fun restoreProfileDefaults(context: android.content.Context) {
         UserStore.restoreProfileDefaults(context)
-        _profileAvatar.value = null
+        // 头像不在恢复范围内（UserStore 里也只删背景文件）：这里保持原值，不回写 null
+        _profileAvatar.value = UserStore.getAvatarPath()
         _profileBackground.value = null
         _isProfileBgBlur.value = false
         _profileNickname.value = UserStore.getNickname()
         _profileBio.value = ""
-        _profileGender.value = "保密"
-        _profileBirthday.value = ""
         _profileUserId.value = UserStore.getUserId()
-        onToast("已恢复默认设置")
+        onToast("已恢复默认（头像已保留）")
     }
 
+    /** 保存可编辑资料（昵称/签名/头像）。用户名、注册日期、邮箱是账号属性，不在这里改 */
     fun saveProfileInfo(
         nickname: String,
         bio: String,
-        gender: String,
-        birthday: String,
         avatarPath: String? = null,
     ) {
         if (nickname.isNotBlank()) {
@@ -143,10 +203,6 @@ class ProfileController(
         }
         UserStore.setBio(bio)
         _profileBio.value = bio
-        UserStore.setGender(gender)
-        _profileGender.value = gender
-        UserStore.setBirthday(birthday)
-        _profileBirthday.value = birthday
         if (avatarPath != null) {
             UserStore.setAvatarPath(avatarPath)
             _profileAvatar.value = avatarPath

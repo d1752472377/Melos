@@ -1247,6 +1247,28 @@ object PlatformMusicService {
         return PlaylistDetailData(info = info, songs = songs)
     }
 
+    /**
+     * 酷狗曲目统一解析：歌单（special/song）与榜单（rank/song）两个接口的字段同构，
+     * 抽成一份避免两处漂移——此前只有歌单做过 "filename 兜底" 处理，榜单曲目没有，
+     * 结果部分榜单会出现空歌名。
+     */
+    private fun kugouSongFrom(o: JsonObject): Song? {
+        val hash = o.optString("hash") ?: return null
+        // filename 形如 "歌手 - 歌名"，作为缺失字段的兜底
+        val fileName = o.optString("filename").orEmpty()
+        val hasSeparator = fileName.contains(" - ")
+        return Song(
+            id = hash,
+            title = o.optString("songname")
+                ?: if (hasSeparator) fileName.substringAfter(" - ") else fileName,
+            artist = o.optString("singername")
+                ?: if (hasSeparator) fileName.substringBefore(" - ") else "",
+            album = o.optString("album_name").orEmpty(),
+            artwork = kugouCover(o),
+            platform = P_KUGOU,
+        )
+    }
+
     /** 酷狗歌单曲目分页拉取（每页 100，最多 5 页，避免超大歌单打满内存） */
     private suspend fun kugouPlaylistSongs(id: String): List<Song> {
         val out = mutableListOf<Song>()
@@ -1260,21 +1282,7 @@ object PlatformMusicService {
             }.getOrNull() ?: break
             if (info.size() == 0) break
             info.forEach { e ->
-                val o = e.asJsonObject ?: return@forEach
-                val hash = o.optString("hash") ?: return@forEach
-                // filename 形如 "歌手 - 歌名"，作为缺失字段的兜底
-                val fileName = o.optString("filename").orEmpty()
-                val hasSeparator = fileName.contains(" - ")
-                out += Song(
-                    id = hash,
-                    title = o.optString("songname")
-                        ?: if (hasSeparator) fileName.substringAfter(" - ") else fileName,
-                    artist = o.optString("singername")
-                        ?: if (hasSeparator) fileName.substringBefore(" - ") else "",
-                    album = o.optString("album_name").orEmpty(),
-                    artwork = kugouCover(o),
-                    platform = P_KUGOU,
-                )
+                e.asJsonObject?.let { kugouSongFrom(it) }?.let { out += it }
             }
             if (info.size() < 100) break
             page++
@@ -1447,45 +1455,185 @@ object PlatformMusicService {
         return out.shuffled()
     }
 
-    suspend fun getRanks(): RanksData {
+    // ==================== 排行榜（四平台） ====================
+
+    /**
+     * 拉取指定平台的榜单列表。
+     *
+     * 与旧实现的区别：以前只认网易云（`getRanks()` 写死 `/api/toplist/detail`），
+     * 现在按平台分派。失败**不吞异常**——由上层展示「加载失败 + 重试」，
+     * 否则用户看到的是「暂无排行榜」，会误以为该平台真的没有榜单。
+     */
+    suspend fun getRanks(platform: String = RankCatalog.DEFAULT): RanksData {
+        val p = RankCatalog.normalize(platform)
+        val ranks = when (p) {
+            RankCatalog.QQ -> ranksQq()
+            RankCatalog.KUGOU -> ranksKugou()
+            RankCatalog.KUWO -> ranksKuwo()
+            else -> ranksNetease()
+        }
+        return RanksData(title = RankCatalog.label(p), ranks = RankCatalog.sortRanks(ranks))
+    }
+
+    /** 拉取某个榜单的曲目（榜单 id 由对应平台的 [getRanks] 返回，各平台 id 语义不同） */
+    suspend fun getRankSongs(platform: String, id: String): List<Song> =
+        when (RankCatalog.normalize(platform)) {
+            RankCatalog.QQ -> qqRankSongs(id)
+            RankCatalog.KUGOU -> kugouRankSongs(id)
+            // 酷我的「新式榜单 id」就是一个歌单 id，直接复用歌单曲目接口（已实测可用），
+            // 这样封面/专辑字段与歌单完全一致，也不用再维护一套解析
+            RankCatalog.KUWO -> kuwoPlaylistDetail(id).songs
+            else -> getPlaylist(id, limit = RankCatalog.songLimit(RankCatalog.NETEASE))
+        }
+
+    private suspend fun ranksNetease(): List<PlaylistItem> {
         val url = "https://music.163.com/api/toplist/detail"
         val root = getJson(url)
-        val listArr = root.getAsJsonArray("list") ?: return RanksData()
-        val ranks = listArr.mapNotNull { elem ->
+        val listArr = root.getAsJsonArray("list") ?: return emptyList()
+        return listArr.mapNotNull { elem ->
             val obj = elem.asJsonObject ?: return@mapNotNull null
             val id = obj.get("id")?.asString ?: return@mapNotNull null
             val name = obj.get("name")?.asString.orEmpty()
             val cover = obj.get("coverImgUrl")?.asString ?: obj.get("picUrl")?.asString
-            val kind = when {
-                name.contains("热歌") -> "hot"
-                name.contains("新歌") -> "new"
-                name.contains("飙升") -> "rising"
-                name.contains("原创") -> "original"
-                else -> "other"
-            }
             PlaylistItem(
                 id = id,
                 name = name,
+                // 网易云榜单封面字段是双写：coverImgUrl（新旧接口都有）/ picUrl（部分榜单才有）
                 coverUrl = fixPicUrl(cover),
                 playCount = obj.get("playCount")?.asLong,
                 trackCount = obj.get("trackCount")?.asLong,
-                platform = "netease",
-                kind = kind
+                platform = P_NETEASE,
+                kind = RankCatalog.kindOf(name),
             )
         }
-        val sorted = ranks.sortedBy {
-            when (it.kind) {
-                "hot" -> 0
-                "new" -> 1
-                "rising" -> 2
-                "original" -> 3
-                else -> 9
-            }
-        }
-        return RanksData(title = "排行榜", ranks = sorted)
     }
 
-    suspend fun getRankSongs(id: String): List<Song> = getPlaylist(id)
+    /** QQ 榜单：musicu.fcg 的 GetAll 一次返回「巅峰榜 / 地区榜 / 特色榜 / 全球榜」四组 */
+    private suspend fun ranksQq(): List<PlaylistItem> {
+        val payload = """{"comm":{"ct":24,"cv":0},"toplist":{"module":"musicToplist.ToplistInfoServer","method":"GetAll","param":{}}}"""
+        val root = qqPost(payload)
+        val groups = root.getAsJsonObject("toplist")
+            ?.getAsJsonObject("data")
+            ?.getAsJsonArray("group")
+            ?: return emptyList()
+        val out = mutableListOf<PlaylistItem>()
+        groups.forEach { ge ->
+            val group = ge.asJsonObject ?: return@forEach
+            val groupName = group.optString("groupName")?.takeIf { it.isNotBlank() }
+            group.getAsJsonArray("toplist")?.forEach { te ->
+                val o = te.asJsonObject ?: return@forEach
+                // topId 是数字，asString 会得到 "26" —— 与 fcg_v8_toplist_cp.fcg 的 topid 参数一致
+                val id = o.get("topId")?.asString ?: return@forEach
+                val name = o.optString("title").orEmpty()
+                out += PlaylistItem(
+                    id = id,
+                    name = name,
+                    // picUrl 在这个接口里恒为空，真实封面在 frontPicUrl(300) / headPicUrl(500)
+                    coverUrl = fixPicUrl(o.optString("frontPicUrl") ?: o.optString("headPicUrl")),
+                    playCount = o.optLong("listenNum"),
+                    trackCount = o.optLong("totalNum"),
+                    platform = P_QQ,
+                    kind = RankCatalog.kindOf(name),
+                    group = groupName,
+                )
+            }
+        }
+        return out
+    }
+
+    /** 酷狗榜单：rank/list 一页给全（实测 55 个榜单，无分组） */
+    private suspend fun ranksKugou(): List<PlaylistItem> {
+        val url = "http://mobilecdnbj.kugou.com/api/v3/rank/list?version=9108&plat=0&pagesize=100&page=1"
+        val info = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
+        return info.mapNotNull { e ->
+            val o = e.asJsonObject ?: return@mapNotNull null
+            val id = o.optString("rankid") ?: return@mapNotNull null
+            val name = o.optString("rankname").orEmpty()
+            PlaylistItem(
+                id = id,
+                name = name,
+                // 酷狗封面 URL 里带 {size} 占位符，不替换会直接 404
+                coverUrl = fixPicUrl(o.optString("imgurl")?.replace("{size}", "480")),
+                playCount = o.optLong("play_times"),
+                platform = P_KUGOU,
+                kind = RankCatalog.kindOf(name),
+            )
+        }
+    }
+
+    /** 酷我榜单：bang/list 是「分组 → 榜单」两层树；榜单 id 即歌单 id */
+    private suspend fun ranksKuwo(): List<PlaylistItem> {
+        val root = kuwoRaw("http://wapi.kuwo.cn/api/pc/bang/list")
+        val groups = root.getAsJsonArray("child") ?: return emptyList()
+        val out = mutableListOf<PlaylistItem>()
+        groups.forEach { ge ->
+            val group = ge.asJsonObject ?: return@forEach
+            val groupName = cleanKuwoText(group.optString("name")).takeIf { it.isNotBlank() }
+            group.getAsJsonArray("child")?.forEach { be ->
+                val o = be.asJsonObject ?: return@forEach
+                val id = o.optString("id") ?: return@forEach
+                val name = cleanKuwoText(o.optString("disname") ?: o.optString("name"))
+                if (name.isBlank()) return@forEach
+                out += PlaylistItem(
+                    id = id,
+                    name = name,
+                    coverUrl = fixPicUrl(o.optString("pic") ?: o.optString("pic2")),
+                    playCount = o.optLong("listen"),
+                    platform = P_KUWO,
+                    kind = RankCatalog.kindOf(name),
+                    group = groupName,
+                )
+            }
+        }
+        return out
+    }
+
+    /** QQ 榜单曲目：h5 的 toplist_cp 接口，字段在 songlist[].data 里 */
+    private suspend fun qqRankSongs(topId: String): List<Song> {
+        val num = RankCatalog.songLimit(RankCatalog.QQ)
+        val url = "https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?topid=$topId" +
+                "&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1" +
+                "&tpl=3&page=detail&type=top&song_begin=0&song_num=$num"
+        val body = withContext(Dispatchers.IO) {
+            val req = Request.Builder().url(url)
+                .header("User-Agent", BROWSER_UA)
+                .header("Referer", "https://y.qq.com/n/yqq/toplist/$topId.html")
+                .build()
+            val resp = httpClient.newCall(req).execute()
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+            resp.body?.string().orEmpty()
+        }
+        val root = parseJson(url, stripJsonp(body))
+        val list = root.getAsJsonArray("songlist") ?: return emptyList()
+        return list.mapNotNull { e ->
+            val o = e.asJsonObject?.getAsJsonObject("data") ?: return@mapNotNull null
+            val mid = o.optString("songmid")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val singer = o.getAsJsonArray("singer")
+                ?.mapNotNull { it.asJsonObject?.get("name")?.asString }
+                ?.joinToString("/").orEmpty()
+            val albMid = o.optString("albummid")?.takeIf { it.isNotBlank() }
+            Song(
+                id = mid,
+                title = o.optString("songname").orEmpty(),
+                artist = singer,
+                album = o.optString("albumname").orEmpty(),
+                // 与搜索保持一致：QQ 封面由专辑 mid 拼固定前缀
+                artwork = albMid?.let { "https://y.qq.com/music/photo_new/T002R300x300M000$it.jpg" },
+                platform = P_QQ,
+            )
+        }
+    }
+
+    /**
+     * 酷狗榜单曲目：rank/song 的字段与歌单曲目接口同构，复用 [kugouSongFrom]。
+     * 只取第一页（前 100 首）：榜单的看点在前列，没必要为第 2-5 页多打 4 次请求。
+     */
+    private suspend fun kugouRankSongs(rankId: String): List<Song> {
+        val url = "http://mobilecdnbj.kugou.com/api/v3/rank/song" +
+                "?version=9108&plat=0&pagesize=${RankCatalog.songLimit(RankCatalog.KUGOU)}&page=1&rankid=$rankId"
+        val info = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
+        return info.mapNotNull { e -> e.asJsonObject?.let { kugouSongFrom(it) } }
+    }
 
     val defaultSheetTags = listOf(
         "全部", "华语", "欧美", "日语", "韩语", "粤语", "流行",

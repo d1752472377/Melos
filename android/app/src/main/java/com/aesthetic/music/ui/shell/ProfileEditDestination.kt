@@ -6,7 +6,7 @@ import androidx.compose.runtime.getValue
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.profile.ProfileEditScreen
 
-/** 编辑个人资料页 */
+/** 个人资料页（注册日期 / 登录用户名 / 邮箱绑定 / 昵称签名） */
 @Composable
 fun ProfileEditDestination(
     viewModel: MainViewModel,
@@ -15,21 +15,22 @@ fun ProfileEditDestination(
 ) {
     val profileNickname by viewModel.profileNickname.collectAsState()
     val profileBio by viewModel.profileBio.collectAsState()
-    val profileGender by viewModel.profileGender.collectAsState()
-    val profileBirthday by viewModel.profileBirthday.collectAsState()
     val profileAvatar by viewModel.profileAvatar.collectAsState()
     val profileUserId by viewModel.profileUserId.collectAsState()
+    val profileUsername by viewModel.profileUsername.collectAsState()
+    val profileEmail by viewModel.profileEmail.collectAsState()
+    val profileCreatedAt by viewModel.profileCreatedAt.collectAsState()
     ProfileEditScreen(
         initialNickname = profileNickname,
         initialBio = profileBio,
-        initialGender = profileGender,
-        initialBirthday = profileBirthday,
         initialAvatarPath = profileAvatar,
+        username = profileUsername,
         userId = profileUserId,
+        email = profileEmail,
+        createdAt = profileCreatedAt,
         onBack = nav.popBack,
-        onSave = { nick, bio, gender, bday, avatar ->
-            viewModel.saveProfileInfo(nick, bio, gender, bday, avatar)
-        },
+        onSave = { nick, bio, avatar -> viewModel.saveProfileInfo(nick, bio, avatar) },
+        onBindEmail = { viewModel.bindEmail(it) },
         onShowToast = actions.toast,
     )
 }

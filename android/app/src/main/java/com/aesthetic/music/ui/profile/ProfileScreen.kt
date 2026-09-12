@@ -1,4 +1,4 @@
-﻿package com.aesthetic.music.ui.profile
+package com.aesthetic.music.ui.profile
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
@@ -94,15 +95,22 @@ import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.launch
 
 /**
- * 个人界面（重写版）：
- * 1. 顶部个性化卡片：头像（点击上传更换）、用户名、Melos ID、编辑资料按钮、右上角三点下拉菜单（更换背景/背景模糊/恢复默认/退出登录）；
+ * 个人界面：
+ * 1. 顶部个性化卡片：头像（点击上传更换）、昵称、登录用户名、注册日期、编辑资料按钮、右上角三点下拉菜单（更换背景/背景模糊/恢复默认/退出登录）；
  * 2. 快捷入口：收藏、歌单、下载（跳转新建独立下载页）；
  * 3. 详细功能列表：播放历史、听歌时长、云端管理、设置、插件管理、检查更新。
+ *
+ * 卡片上的身份标签（"注册用户"/"解锁赞助版"）已按要求移除：它们不对应任何真实权限，
+ * 换成账号的真实信息——登录用户名与注册日期。
  */
 @Composable
 fun ProfileScreen(
     nickname: String,
     userId: String,
+    /** 登录用户名（账号名，不是昵称）：与昵称并列显示，用户才知道自己登的是哪个账号 */
+    username: String,
+    /** 注册时间（服务端 createdAt，0 表示未知 → 不显示该行，而不是显示 1970 年） */
+    createdAt: Long,
     avatarPath: String?,
     backgroundPath: String?,
     isBackgroundBlur: Boolean,
@@ -215,6 +223,8 @@ fun ProfileScreen(
                 TopProfileCard(
                     nickname = nickname,
                     userId = userId,
+                    username = username,
+                    createdAt = createdAt,
                     avatarPath = avatarPath,
                     backgroundPath = backgroundPath,
                     isBackgroundBlur = isBackgroundBlur,
@@ -443,7 +453,9 @@ fun ProfileScreen(
         AppConfirmDialog(
             onDismissRequest = { showRestoreConfirm = false },
             title = "恢复默认",
-            message = "将清除您自定义的头像、背景图，并重置个人界面显示偏好。确认恢复吗？",
+            // 头像属于账号身份的一部分，不在"恢复默认"范围内：以前这里会连带删掉头像文件，
+            // 用户要重选一次头像才能恢复，属于误伤。文案同步说明，避免用户以为头像也会被清掉。
+            message = "将清除自定义背景图、背景模糊、个性签名与昵称显示偏好（头像会保留）。确认恢复吗？",
             confirmText = "恢复默认",
             onConfirm = {
                 showRestoreConfirm = false
@@ -533,6 +545,8 @@ fun ProfileScreen(
 private fun TopProfileCard(
     nickname: String,
     userId: String,
+    username: String,
+    createdAt: Long,
     avatarPath: String?,
     backgroundPath: String?,
     isBackgroundBlur: Boolean,
@@ -688,17 +702,31 @@ private fun TopProfileCard(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "@$userId",
+                        text = "@${ProfileFormat.usernameDisplay(username)}",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = Color.White.copy(alpha = 0.6f),
                     )
 
-                    Spacer(Modifier.height(8.dp))
-
-                    // 身份 Badge 标签排版
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ProfileTag(text = "注册用户")
-                        ProfileTag(text = "解锁赞助版", isHighlight = true)
+                    // 这里原本是「注册用户 / 解锁赞助版」两个身份标签：前者是所有登录用户都成立的废话，
+                    // 后者根本没有对应的真实权益（App 里没有任何付费墙），属于用假标签撑场面的写法，
+                    // 按要求去掉。空出来的位置放账号真实信息：注册日期（来自服务端 createdAt）。
+                    val joined = ProfileFormat.registerDate(createdAt)
+                    if (joined != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.DateRange,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.75f),
+                                modifier = Modifier.size(13.dp),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = "$joined 注册",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = Color.White.copy(alpha = 0.8f),
+                            )
+                        }
                     }
                 }
             }
@@ -754,29 +782,6 @@ private fun TopProfileCard(
     }
 }
 
-@Composable
-private fun ProfileTag(text: String, isHighlight: Boolean = false) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(
-                if (isHighlight) Color.Black.copy(alpha = 0.4f)
-                else Color.White.copy(alpha = 0.15f)
-            )
-            .border(
-                width = 0.5.dp,
-                color = if (isHighlight) Color.White.copy(alpha = 0.3f) else Color.Transparent,
-                shape = RoundedCornerShape(6.dp),
-            )
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-            color = Color.White.copy(alpha = 0.9f),
-        )
-    }
-}
 @Composable
 private fun QuickActionsCard(
     favoritesCount: Int,

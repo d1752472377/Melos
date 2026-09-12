@@ -60,18 +60,31 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 个人资料编辑页（独立新建二级页面）
+ * 个人资料页（重写）。
+ *
+ * 与旧版的差异（都来自用户反馈）：
+ * 1. **显示注册日期**：账号是什么时候注册的，是资料页最该有的信息之一；
+ * 2. **去掉性别与出生日期**：这两项此前只存在本地、服务端根本没有对应字段，
+ *    填了也不会跟着账号走，属于"看起来很正式但其实是假的"的字段，直接移除；
+ * 3. **增加邮箱绑定**：绑定/解绑走服务端 `PUT /api/me`，并以服务端返回为准显示；
+ * 4. **增加登录用户名**：用户名（账号）与昵称是两个东西——昵称可改、用户名不可改，
+ *    旧版只显示昵称，用户换设备后根本认不出自己登的是哪个账号。
+ *
+ * 布局：顶部身份卡（头像 + 昵称 + 用户名）→ 账号信息（只读：用户名/Melos ID/注册日期）
+ * → 邮箱绑定（可编辑）→ 可编辑资料（昵称/签名）。
  */
 @Composable
 fun ProfileEditScreen(
     initialNickname: String,
     initialBio: String,
-    initialGender: String,
-    initialBirthday: String,
     initialAvatarPath: String?,
+    username: String,
     userId: String,
+    email: String?,
+    createdAt: Long,
     onBack: () -> Unit,
-    onSave: (nickname: String, bio: String, gender: String, birthday: String, avatarPath: String?) -> Unit,
+    onSave: (nickname: String, bio: String, avatarPath: String?) -> Unit,
+    onBindEmail: (String) -> Unit,
     onShowToast: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -79,9 +92,10 @@ fun ProfileEditScreen(
 
     var nickname by remember { mutableStateOf(initialNickname) }
     var bio by remember { mutableStateOf(initialBio) }
-    var gender by remember { mutableStateOf(if (initialGender.isNotBlank()) initialGender else "保密") }
-    var birthday by remember { mutableStateOf(initialBirthday) }
     var avatarPath by remember { mutableStateOf(initialAvatarPath) }
+    // 邮箱输入框单独一份草稿：点"绑定"才提交，服务端返回后由外层以新值重进页面刷新
+    var emailDraft by remember(email) { mutableStateOf(email.orEmpty()) }
+    val bound = ProfileFormat.isEmailBound(email)
 
     val avatarPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -135,7 +149,7 @@ fun ProfileEditScreen(
                     }
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        text = "编辑个人资料",
+                        text = "个人资料",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
@@ -144,7 +158,7 @@ fun ProfileEditScreen(
                     )
                 }
 
-                // 保存按钮
+                // 保存按钮（只提交昵称/签名/头像；邮箱有自己的绑定按钮）
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
@@ -154,7 +168,7 @@ fun ProfileEditScreen(
                                 onShowToast("昵称不能为空")
                                 return@clickable
                             }
-                            onSave(nickname.trim(), bio.trim(), gender, birthday.trim(), avatarPath)
+                            onSave(nickname.trim(), bio.trim(), avatarPath)
                             onBack()
                         }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -171,9 +185,9 @@ fun ProfileEditScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // ===== 头像编辑区域 =====
+            // ===== 头像 + 身份 =====
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -212,7 +226,6 @@ fun ProfileEditScreen(
                         }
                     }
 
-                    // 覆盖在右下角的拍照图标
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -232,188 +245,280 @@ fun ProfileEditScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "点击更换头像",
+                    text = ProfileFormat.displayName(nickname, username),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = TextPrimary,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "@${ProfileFormat.usernameDisplay(username)}",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = TextMuted,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "点击头像更换",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = PrimaryBrown,
                     modifier = Modifier.clickable { avatarPickerLauncher.launch("image/*") },
                 )
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(22.dp))
 
-            // ===== 表单区域 =====
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Stone200, RoundedCornerShape(14.dp))
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Surface)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                // 用户 ID 展示
+            // ===== 账号信息（只读） =====
+            SectionCard(title = "账号信息") {
+                ReadOnlyRow(
+                    label = "登录用户名",
+                    value = ProfileFormat.usernameDisplay(username),
+                    hint = "登录账号，不可修改",
+                )
+                ReadOnlyRow(
+                    label = "Melos ID",
+                    value = userId,
+                    onCopy = {
+                        clipboardManager.setText(AnnotatedString(userId))
+                        onShowToast("已复制 ID 到剪贴板")
+                    },
+                )
+                ReadOnlyRow(
+                    label = "注册日期",
+                    value = ProfileFormat.registerDate(createdAt) ?: "未知",
+                    // 注册时间来自服务端 createdAt：拿不到就显示"未知"，绝不假造一个日期
+                    hint = ProfileFormat.joinedSummary(createdAt),
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ===== 邮箱绑定 =====
+            SectionCard(title = "邮箱绑定") {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Stone100)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column {
+                    Column(Modifier.weight(1f)) {
                         Text(
-                            text = "Melos ID",
+                            text = "当前状态",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = TextSoft,
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = userId,
+                            text = if (bound) ProfileFormat.maskEmail(email) else "未绑定",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                             ),
-                            color = TextPrimary,
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable {
-                                clipboardManager.setText(AnnotatedString(userId))
-                                onShowToast("已复制 ID 到剪贴板")
-                            }
-                            .padding(6.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = "复制 ID",
-                            tint = TextMuted,
-                            modifier = Modifier.size(16.dp),
+                            color = if (bound) PrimaryBrown else TextMuted,
                         )
                     }
                 }
-
-                // 昵称
-                Column {
-                    Text(
-                        text = "用户昵称",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = TextPrimary,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = nickname,
-                        onValueChange = { if (it.length <= 20) nickname = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryBrown,
-                            unfocusedBorderColor = Stone200,
-                        ),
-                        placeholder = { Text("输入您的昵称", color = TextMuted) },
-                    )
-                }
-
-                // 个性签名
-                Column {
-                    Text(
-                        text = "个性签名",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = TextPrimary,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = bio,
-                        onValueChange = { if (it.length <= 80) bio = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryBrown,
-                            unfocusedBorderColor = Stone200,
-                        ),
-                        placeholder = { Text("介绍一下你喜欢的音乐风格…", color = TextMuted) },
-                    )
-                }
-
-                // 性别选择
-                Column {
-                    Text(
-                        text = "性别",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = TextPrimary,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        listOf("保密", "男", "女").forEach { option ->
-                            val isSelected = gender == option
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) PrimaryBrown else Stone100)
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) PrimaryBrown else Stone200,
-                                        RoundedCornerShape(8.dp),
-                                    )
-                                    .clickable { gender = option }
-                                    .padding(vertical = 9.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = option,
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    ),
-                                    color = if (isSelected) Color.White else TextPrimary,
-                                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = emailDraft,
+                    onValueChange = { if (it.length <= 120) emailDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryBrown,
+                        unfocusedBorderColor = Stone200,
+                    ),
+                    placeholder = { Text("输入邮箱，例如 name@example.com", color = TextMuted) },
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PillButton(
+                        text = if (bound) "更换邮箱" else "绑定邮箱",
+                        primary = true,
+                        onClick = {
+                            val target = emailDraft.trim()
+                            if (!ProfileFormat.isValidEmail(target)) {
+                                onShowToast("请输入正确的邮箱地址")
+                                return@PillButton
                             }
-                        }
+                            onBindEmail(target)
+                        },
+                    )
+                    if (bound) {
+                        PillButton(
+                            text = "解绑",
+                            primary = false,
+                            onClick = {
+                                emailDraft = ""
+                                onBindEmail("")
+                            },
+                        )
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    // 诚实说明：后端只做登记/查重，没有发信验证；模板里写明限制，避免用户误以为已通过验证
+                    text = "当前仅登记绑定，未做邮件验证；换邮箱会覆盖原来的记录。",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = TextSoft,
+                )
+            }
 
-                // 生日
-                Column {
-                    Text(
-                        text = "出生日期",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = TextPrimary,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = birthday,
-                        onValueChange = { birthday = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryBrown,
-                            unfocusedBorderColor = Stone200,
-                        ),
-                        placeholder = { Text("格式如：2000-01-01", color = TextMuted) },
-                    )
-                }
+            Spacer(Modifier.height(16.dp))
+
+            // ===== 可编辑资料 =====
+            SectionCard(title = "个人资料") {
+                FieldLabel(text = "用户昵称")
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { if (it.length <= 20) nickname = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryBrown,
+                        unfocusedBorderColor = Stone200,
+                    ),
+                    placeholder = { Text("输入您的昵称", color = TextMuted) },
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                FieldLabel(text = "个性签名")
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = bio,
+                    onValueChange = { if (it.length <= 80) bio = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryBrown,
+                        unfocusedBorderColor = Stone200,
+                    ),
+                    placeholder = { Text("介绍一下你喜欢的音乐风格…", color = TextMuted) },
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun SectionCard(title: String, content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Stone200, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(Surface)
+            .padding(16.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = PrimaryBrown,
+        )
+        Spacer(Modifier.height(12.dp))
+        content()
+    }
+}
+
+@Composable
+private fun FieldLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium.copy(
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        ),
+        color = TextPrimary,
+    )
+}
+
+/** 只读一行的统一样式：左侧标签 + 右侧值（可复制），用于用户名 / ID / 注册日期 */
+@Composable
+private fun ReadOnlyRow(
+    label: String,
+    value: String,
+    hint: String? = null,
+    onCopy: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Stone100)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = TextSoft,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = TextPrimary,
+                maxLines = 1,
+            )
+            if (!hint.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = TextSoft,
+                )
+            }
+        }
+        if (onCopy != null) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onCopy)
+                    .padding(6.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ContentCopy,
+                    contentDescription = "复制$label",
+                    tint = TextMuted,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun PillButton(text: String, primary: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (primary) PrimaryBrown else Surface)
+            .border(1.dp, if (primary) PrimaryBrown else Stone200, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = if (primary) Color.White else TextPrimary,
+        )
     }
 }

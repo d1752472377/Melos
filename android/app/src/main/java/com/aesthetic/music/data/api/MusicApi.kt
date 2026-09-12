@@ -44,6 +44,11 @@ data class PlaylistItem(
     val platform: String? = null,
     /** 排行榜语义：hot / new / rising / original / other；非榜单为 null */
     val kind: String? = null,
+    /**
+     * 榜单分组名（QQ 的「巅峰榜/地区榜/特色榜/全球榜」、酷我的「官方/特色/场景/语言/全球」）。
+     * 只有榜单会用到，其它歌单恒为 null：榜单页据它分组显示，缺失时退化为平铺，不影响其它入口。
+     */
+    val group: String? = null,
 )
 
 /** 登录用户 */
@@ -53,6 +58,11 @@ data class UserInfo(
     val nickname: String = "",
     val avatar: String = "",
     val createdAt: Long = 0L,
+    /**
+     * 绑定邮箱。可空而不是空串：老服务端（或老版本的本地缓存 JSON）没有这个字段，
+     * Gson 反射反序列化遇到缺失字段会留下 null，声明成非空 String 会在读取时炸。
+     */
+    val email: String? = null,
 )
 
 /** 注册/登录返回数据 */
@@ -177,10 +187,12 @@ data class LoginBody(
     val deviceName: String? = null,
 )
 
-/** 请求体：修改资料 */
+/** 请求体：修改资料（字段为 null 表示不改动该项，与后端的「缺省即不改」约定一致） */
 data class ProfileBody(
     val nickname: String? = null,
     val avatar: String? = null,
+    /** 传空串表示解绑邮箱；服务端未支持该字段时会被忽略（响应里 email 仍为 null） */
+    val email: String? = null,
 )
 
 // ==================== 多端增量同步模型 (LWW + 墓碑) ====================

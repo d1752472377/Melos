@@ -28,9 +28,13 @@ fun ProfileTabDestination(
     val profileBackground by viewModel.profileBackground.collectAsState()
     val isProfileBgBlur by viewModel.isProfileBgBlur.collectAsState()
     val profileUserId by viewModel.profileUserId.collectAsState()
+    val profileUsername by viewModel.profileUsername.collectAsState()
+    val profileCreatedAt by viewModel.profileCreatedAt.collectAsState()
     ProfileScreen(
         nickname = profileNickname,
         userId = profileUserId,
+        username = profileUsername,
+        createdAt = profileCreatedAt,
         avatarPath = profileAvatar,
         backgroundPath = profileBackground,
         isBackgroundBlur = isProfileBgBlur,

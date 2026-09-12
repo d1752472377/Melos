@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.playlist
 
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import kotlinx.coroutines.CoroutineScope
@@ -73,7 +74,9 @@ class PlaylistDetailController(
         val req = ++requestId
         scope.launch {
             _isLoading.value = true
-            repository.getRankSongs(item.id).onSuccess { list ->
+            // 平台必须跟着榜单条目走：QQ/酷狗/酷我的榜单 id 与网易云完全不同，
+            // 写死平台会拿着 QQ 的 topId 去请求网易云，表现为"榜单打开是空的"
+            repository.getRankSongs(item.platform ?: RankCatalog.DEFAULT, item.id).onSuccess { list ->
                 if (req == requestId) _songs.value = list
             }.onFailure { e ->
                 if (req == requestId) _error.value = e.message ?: "榜单加载失败"
