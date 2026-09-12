@@ -373,10 +373,8 @@ object PlatformMusicService {
         return if (s in 0 until e) body.substring(s + 1, e) else body
     }
 
-    private suspend fun qqSearch(kw: String, searchType: Int, limit: Int): JsonObject =
+    private suspend fun qqPost(payload: String): JsonObject =
         withContext(Dispatchers.IO) {
-            val safeKw = kw.replace("\\", "\\\\").replace("\"", "\\\"")
-            val payload = """{"req_0":{"module":"music.search.SearchCgiService","method":"DoSearchForQQMusicDesktop","param":{"query":"$safeKw","search_type":$searchType,"num_per_page":$limit,"page_num":1}}}"""
             val url = "https://u.y.qq.com/cgi-bin/musicu.fcg"
             val req = Request.Builder()
                 .url(url)
@@ -389,6 +387,12 @@ object PlatformMusicService {
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             parseJson(url, resp.body?.string().orEmpty())
         }
+
+    private suspend fun qqSearch(kw: String, searchType: Int, limit: Int): JsonObject {
+        val safeKw = kw.replace("\\", "\\\\").replace("\"", "\\\"")
+        val payload = """{"req_0":{"module":"music.search.SearchCgiService","method":"DoSearchForQQMusicDesktop","param":{"query":"$safeKw","search_type":$searchType,"num_per_page":$limit,"page_num":1}}}"""
+        return qqPost(payload)
+    }
 
     private fun qqData(root: JsonObject): JsonObject? =
         root.getAsJsonObject("req_0")?.getAsJsonObject("data")?.getAsJsonObject("body")
@@ -812,32 +816,251 @@ object PlatformMusicService {
         }
     }
 
-    suspend fun getArtist(platform: String?, id: String, limit: Int = 50): ArtistDetailData {
-        val safeLimit = limit.coerceIn(1, 100)
-        val url = "https://music.163.com/api/artist/${URLEncoder.encode(id, "UTF-8")}"
+    suspend fun getNeteaseSingerSongs(artistId: String, offset: Int, limit: Int): Pair<Long, List<Song>> {
+        val url = "https://music.163.com/api/v1/artist/songs?id=${URLEncoder.encode(artistId, "UTF-8")}&offset=$offset&limit=$limit"
         val root = getJson(url)
-        val artistObj = root.getAsJsonObject("artist") ?: throw IOException("未找到歌手信息")
-        val artistId = artistObj.get("id")?.asString ?: id
-        val name = artistObj.get("name")?.asString.orEmpty()
-        val avatar = artistObj.get("img1v1Url")?.asString ?: artistObj.get("picUrl")?.asString
-        val alias = artistObj.getAsJsonArray("alias")?.mapNotNull { it.asString }?.joinToString("/")
-        val albumSize = artistObj.get("albumSize")?.asLong
-        val musicSize = artistObj.get("musicSize")?.asLong
-
-        val info = ArtistItem(
-            id = artistId,
-            name = name,
-            avatar = fixPicUrl(avatar),
-            alias = alias,
-            albumSize = albumSize,
-            musicSize = musicSize,
-            platform = "netease"
-        )
-
-        val hotSongsArr = root.getAsJsonArray("hotSongs") ?: JsonArray()
-        val songs = hotSongsArr.take(safeLimit).mapNotNull { parseNeteaseSong(it) }
-        return ArtistDetailData(info = info, songs = songs)
+        val total = root.optLong("total") ?: 0L
+        val list = root.getAsJsonArray("songs") ?: return total to emptyList()
+        val songs = list.mapNotNull { parseNeteaseSong(it) }
+        return total to songs
     }
+
+    suspend fun getQqSingerSongs(singerMid: String, begin: Int, num: Int): Pair<Long, List<Song>> {
+        val payload = """{"comm":{"ct":24,"cv":0},"singerSongList":{"method":"GetSingerSongList","param":{"order":1,"singerMid":"$singerMid","begin":$begin,"num":$num},"module":"musichall.song_list_server"}}"""
+        val root = qqPost(payload)
+        val data = root.getAsJsonObject("singerSongList")?.getAsJsonObject("data") ?: return 0L to emptyList()
+        val total = data.optLong("totalNum") ?: 0L
+        val list = data.getAsJsonArray("songList") ?: return total to emptyList()
+        val songs = list.mapNotNull { e ->
+            val songInfo = e.asJsonObject?.getAsJsonObject("songInfo") ?: return@mapNotNull null
+            val mid = songInfo.optString("mid") ?: return@mapNotNull null
+            val title = songInfo.optString("title") ?: songInfo.optString("name").orEmpty()
+            val singers = songInfo.getAsJsonArray("singer")
+                ?.mapNotNull { it.asJsonObject?.optString("name") }?.joinToString("/").orEmpty()
+            val albumObj = songInfo.getAsJsonObject("album")
+            val albumName = albumObj?.optString("name").orEmpty()
+            val albumMid = albumObj?.optString("mid")
+            val artwork = albumMid?.takeIf { it.isNotBlank() }?.let { "https://y.gtimg.cn/music/photo_new/T002R300x300M000$it.jpg" }
+            Song(
+                id = mid,
+                title = title,
+                artist = singers,
+                album = albumName,
+                artwork = artwork,
+                platform = P_QQ,
+                artistId = singerMid,
+                artistPlatform = P_QQ,
+            )
+        }
+        return total to songs
+    }
+
+    suspend fun getKugouSingerSongs(singerId: String, page: Int, pageSize: Int): Pair<Long, List<Song>> {
+        val url = "http://mobilecdn.kugou.com/api/v3/singer/song?singerid=${URLEncoder.encode(singerId, "UTF-8")}&page=$page&pagesize=$pageSize"
+        val root = kugouJson(url)
+        val data = root.getAsJsonObject("data") ?: return 0L to emptyList()
+        val total = data.optLong("total") ?: 0L
+        val list = data.getAsJsonArray("info") ?: return total to emptyList()
+        val songs = list.mapNotNull { e ->
+            val o = e.asJsonObject ?: return@mapNotNull null
+            val hash = o.optString("hash") ?: o.optString("audio_id") ?: return@mapNotNull null
+            val rawFilename = o.optString("filename").orEmpty()
+            val albumName = o.optString("album_name").orEmpty()
+            val parts = rawFilename.split(" - ", limit = 2)
+            val (artist, title) = if (parts.size == 2) parts[0].trim() to parts[1].trim() else "" to rawFilename
+            val cover = o.getAsJsonObject("trans_param")?.optString("union_cover")
+                ?.replace("{size}", "240")?.let { fixPicUrl(it) }
+                ?: kugouCover(o)
+            Song(
+                id = hash,
+                title = title.ifBlank { rawFilename },
+                artist = artist,
+                album = albumName,
+                artwork = cover,
+                platform = P_KUGOU,
+                artistId = singerId,
+                artistPlatform = P_KUGOU,
+            )
+        }
+        return total to songs
+    }
+
+    suspend fun getKuwoSingerSongs(singerId: String, pn: Int, rn: Int): Pair<Long, List<Song>> {
+        val url = "http://search.kuwo.cn/r.s?stype=artist2music&artistid=${URLEncoder.encode(singerId, "UTF-8")}&pn=$pn&rn=$rn"
+        val root = kuwoRaw(url)
+        val total = root.optLong("total") ?: 0L
+        val list = root.getAsJsonArray("musiclist") ?: return total to emptyList()
+        val songs = list.mapNotNull { e ->
+            val o = e.asJsonObject ?: return@mapNotNull null
+            val rid = o.optString("musicrid")?.removePrefix("MUSIC_") ?: return@mapNotNull null
+            val rawTitle = o.optString("name").orEmpty()
+            val rawArtist = o.optString("artist").orEmpty()
+            val rawAlbum = o.optString("album").orEmpty()
+            val coverPath = o.optString("hts_web_albumpic_short") ?: o.optString("web_albumpic_short")
+            Song(
+                id = rid,
+                title = cleanKuwoText(rawTitle),
+                artist = cleanKuwoText(rawArtist),
+                album = cleanKuwoText(rawAlbum),
+                artwork = kuwoCover(coverPath),
+                platform = P_KUWO,
+                artistId = singerId,
+                artistPlatform = P_KUWO,
+            )
+        }
+        return total to songs
+    }
+
+    suspend fun getArtist(platform: String?, id: String, limit: Int = 50): ArtistDetailData {
+        val plat = platform?.lowercase() ?: P_NETEASE
+        return when (plat) {
+            P_QQ -> {
+                val (total, songs) = getQqSingerSongs(id, begin = 0, num = limit)
+                val first = songs.firstOrNull()
+                val singerName = first?.artist?.split("/")?.firstOrNull().orEmpty().ifBlank { "QQ音乐歌手" }
+                val avatar = "https://y.gtimg.cn/music/photo_new/T001R300x300M000$id.jpg"
+                val info = ArtistItem(
+                    id = id,
+                    name = singerName,
+                    avatar = avatar,
+                    musicSize = total,
+                    platform = P_QQ,
+                )
+                ArtistDetailData(info = info, songs = songs)
+            }
+            P_KUGOU -> {
+                val detailUrl = "http://mobilecdn.kugou.com/api/v3/singer/info?singerid=${URLEncoder.encode(id, "UTF-8")}"
+                val detailRoot = runCatching { kugouJson(detailUrl) }.getOrNull()
+                val d = detailRoot?.getAsJsonObject("data")
+                val singerName = d?.optString("singername").orEmpty().ifBlank { "酷狗歌手" }
+                val avatar = d?.let { kugouArtistAvatar(it) }
+                val songCount = d?.optLong("songcount")
+                val albumCount = d?.optLong("albumcount")
+                val intro = d?.optString("intro")
+
+                val (_, songs) = getKugouSingerSongs(id, page = 1, pageSize = limit)
+                val info = ArtistItem(
+                    id = id,
+                    name = singerName,
+                    avatar = fixPicUrl(avatar),
+                    alias = intro?.takeIf { it.isNotBlank() },
+                    albumSize = albumCount,
+                    musicSize = songCount,
+                    platform = P_KUGOU,
+                )
+                ArtistDetailData(info = info, songs = songs)
+            }
+            P_KUWO -> {
+                val (total, songs) = getKuwoSingerSongs(id, pn = 0, rn = limit)
+                val first = songs.firstOrNull()
+                val singerName = first?.artist.orEmpty().ifBlank { "酷我歌手" }
+                val info = ArtistItem(
+                    id = id,
+                    name = cleanKuwoText(singerName),
+                    avatar = null,
+                    musicSize = total,
+                    platform = P_KUWO,
+                )
+                ArtistDetailData(info = info, songs = songs)
+            }
+            else -> {
+                val safeLimit = limit.coerceIn(1, 100)
+                val url = "https://music.163.com/api/artist/${URLEncoder.encode(id, "UTF-8")}"
+                val root = getJson(url)
+                val artistObj = root.getAsJsonObject("artist") ?: throw IOException("未找到歌手信息")
+                val artistId = artistObj.get("id")?.asString ?: id
+                val name = artistObj.get("name")?.asString.orEmpty()
+                val avatar = artistObj.get("img1v1Url")?.asString ?: artistObj.get("picUrl")?.asString
+                val alias = artistObj.getAsJsonArray("alias")?.mapNotNull { it.asString }?.joinToString("/")
+                val albumSize = artistObj.get("albumSize")?.asLong
+                val musicSize = artistObj.get("musicSize")?.asLong
+
+                val info = ArtistItem(
+                    id = artistId,
+                    name = name,
+                    avatar = fixPicUrl(avatar),
+                    alias = alias,
+                    albumSize = albumSize,
+                    musicSize = musicSize,
+                    platform = P_NETEASE,
+                )
+
+                val hotSongsArr = root.getAsJsonArray("hotSongs") ?: JsonArray()
+                val songs = hotSongsArr.take(safeLimit).mapNotNull { parseNeteaseSong(it) }
+                ArtistDetailData(info = info, songs = songs)
+            }
+        }
+    }
+
+    suspend fun getArtistAllSongs(platform: String?, id: String, maxCount: Int = 1000): List<Song> =
+        withContext(Dispatchers.IO) {
+            val plat = platform?.lowercase() ?: P_NETEASE
+            when (plat) {
+                P_NETEASE -> {
+                    val (total, firstPage) = getNeteaseSingerSongs(id, offset = 0, limit = 100)
+                    val allSongs = firstPage.toMutableList()
+                    val targetTotal = minOf(total.toInt(), maxCount)
+                    if (targetTotal > 100) {
+                        val offsets = (100 until targetTotal step 100).toList()
+                        val remaining = offsets.map { off ->
+                            async {
+                                runCatching { getNeteaseSingerSongs(id, offset = off, limit = 100).second }.getOrDefault(emptyList())
+                            }
+                        }.awaitAll().flatten()
+                        allSongs.addAll(remaining)
+                    }
+                    allSongs.distinctBy { it.id }
+                }
+                P_QQ -> {
+                    val (total, firstPage) = getQqSingerSongs(id, begin = 0, num = 100)
+                    val allSongs = firstPage.toMutableList()
+                    val targetTotal = minOf(total.toInt(), maxCount)
+                    if (targetTotal > 100) {
+                        val begins = (100 until targetTotal step 100).toList()
+                        val remaining = begins.map { bg ->
+                            async {
+                                runCatching { getQqSingerSongs(id, begin = bg, num = 100).second }.getOrDefault(emptyList())
+                            }
+                        }.awaitAll().flatten()
+                        allSongs.addAll(remaining)
+                    }
+                    allSongs.distinctBy { it.id }
+                }
+                P_KUGOU -> {
+                    val (total, firstPage) = getKugouSingerSongs(id, page = 1, pageSize = 100)
+                    val allSongs = firstPage.toMutableList()
+                    val targetTotal = minOf(total.toInt(), maxCount)
+                    val totalPages = (targetTotal + 99) / 100
+                    if (totalPages >= 2) {
+                        val pages = (2..totalPages).toList()
+                        val remaining = pages.map { p ->
+                            async {
+                                runCatching { getKugouSingerSongs(id, page = p, pageSize = 100).second }.getOrDefault(emptyList())
+                            }
+                        }.awaitAll().flatten()
+                        allSongs.addAll(remaining)
+                    }
+                    allSongs.distinctBy { it.id }
+                }
+                P_KUWO -> {
+                    val (total, firstPage) = getKuwoSingerSongs(id, pn = 0, rn = 100)
+                    val allSongs = firstPage.toMutableList()
+                    val targetTotal = minOf(total.toInt(), maxCount)
+                    val totalPages = (targetTotal + 99) / 100
+                    if (totalPages >= 2) {
+                        val pns = (1 until totalPages).toList()
+                        val remaining = pns.map { pn ->
+                            async {
+                                runCatching { getKuwoSingerSongs(id, pn = pn, rn = 100).second }.getOrDefault(emptyList())
+                            }
+                        }.awaitAll().flatten()
+                        allSongs.addAll(remaining)
+                    }
+                    allSongs.distinctBy { it.id }
+                }
+                else -> emptyList()
+            }
+        }
 
     suspend fun getAlbum(id: String): AlbumDetailData {
         val url = "https://music.163.com/api/album/${URLEncoder.encode(id, "UTF-8")}"

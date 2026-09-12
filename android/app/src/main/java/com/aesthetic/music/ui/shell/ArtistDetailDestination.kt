@@ -38,11 +38,12 @@ fun ArtistDetailDestination(
     val ref = artistRef ?: return
     val info = artistDetail?.info
     val artistSongs = artistDetail?.songs.orEmpty()
+    val allSongs by viewModel.allArtistSongs.collectAsState()
 
     ArtistScreen(
         name = info?.name?.takeIf { it.isNotBlank() } ?: ref.name,
-        alias = info?.alias,
-        avatar = info?.avatar,
+        alias = info?.alias ?: ref.alias,
+        avatar = info?.avatar ?: ref.avatar,
         songs = artistSongs,
         isLoading = isLoadingArtist,
         errorMessage = artistError,
@@ -54,8 +55,8 @@ fun ArtistDetailDestination(
             viewModel.updatePageBackground(null, false)
             nav.popBack()
         },
-        onPlaySong = { actions.playSong(it, artistSongs) },
-        onPlayAll = { actions.playAll(artistSongs) },
+        onPlaySong = { actions.playSong(it, if (allSongs.isNotEmpty()) allSongs else artistSongs) },
+        onPlayAll = { actions.playAll(if (allSongs.isNotEmpty()) allSongs else artistSongs) },
         onMoreSong = { song -> songForActionMenu = song },
         onOpenAllSongs = { nav.navigate(ScreenRoute.ArtistAllSongs.route) },
     )

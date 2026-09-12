@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.EmptyBox
+import com.aesthetic.music.ui.components.ErrorBox
+import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongRow
 import com.aesthetic.music.ui.theme.Background
@@ -55,8 +57,8 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
-/** 全部演唱：假分页（每次渲染 30 条，滚到底自动追加 30 条），数据为歌手全量歌曲。 */
-private const val PAGE_SIZE = 30
+/** 全部演唱：渐进渲染（每次渲染 50 条，滚到底自动追加 50 条），支持全量歌曲流畅播放与浏览。 */
+private const val PAGE_SIZE = 50
 
 @Composable
 fun ArtistAllSongsScreen(
@@ -70,6 +72,10 @@ fun ArtistAllSongsScreen(
     onToggleFavorite: (Song) -> Unit,
     onPlayNext: (Song) -> Unit,
     onMoreSong: (Song) -> Unit,
+    isLoading: Boolean = false,
+    isLoadingMore: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: (() -> Unit)? = null,
 ) {
     var visibleCount by remember(songs.size) {
         mutableIntStateOf(minOf(PAGE_SIZE, songs.size))
@@ -90,7 +96,7 @@ fun ArtistAllSongsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
@@ -113,7 +119,7 @@ fun ArtistAllSongsScreen(
                     text = "全部演唱",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Bold
                     ),
                     color = TextPrimary,
                     maxLines = 1,
@@ -121,13 +127,13 @@ fun ArtistAllSongsScreen(
                 )
             }
 
-            // 操作行：播放全部(N) + 管理（这里只做播放全部，管理留给你后续接）
+            // 操作行：播放全部(N) + 全量加载提示
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
                     .padding(top = 12.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     modifier = Modifier
@@ -152,6 +158,24 @@ fun ArtistAllSongsScreen(
                         color = TextPrimary,
                     )
                 }
+                if (isLoadingMore) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "(全量曲目加载中…)",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = TextMuted,
+                    )
+                }
+            }
+
+            if (isLoading && songs.isEmpty()) {
+                LoadingBox(message = "正在探索全量音乐库…")
+                return@Column
+            }
+
+            if (errorMessage != null && songs.isEmpty()) {
+                ErrorBox(message = errorMessage, onRetry = onRetry)
+                return@Column
             }
 
             if (songs.isEmpty()) {

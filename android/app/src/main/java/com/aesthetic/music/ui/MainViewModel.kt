@@ -186,6 +186,10 @@ class MainViewModel : ViewModel() {
     val artistDetail get() = artistPage.artistDetail
     val isLoadingArtist get() = artistPage.isLoading
     val artistError get() = artistPage.error
+    val allArtistSongs get() = artistPage.allSongs
+    val isLoadingArtistAllSongs get() = artistPage.isLoadingAllSongs
+    val artistAllSongsError get() = artistPage.allSongsError
+    fun loadArtistAllSongs() = artistPage.loadAllSongs()
 
     init {
         // 冷启动异步回填历史/收藏/歌单（与窗口期内已发生的变更合并），委托 LibraryController

@@ -24,6 +24,9 @@ fun ArtistAllSongsDestination(
 ) {
     val artistRef by viewModel.showArtist.collectAsState()
     val artistDetail by viewModel.artistDetail.collectAsState()
+    val allSongs by viewModel.allArtistSongs.collectAsState()
+    val isLoadingAllSongs by viewModel.isLoadingArtistAllSongs.collectAsState()
+    val allSongsError by viewModel.artistAllSongsError.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
     val myPlaylists by viewModel.myPlaylists.collectAsState()
 
@@ -36,11 +39,15 @@ fun ArtistAllSongsDestination(
     val name = artistDetail?.info?.name?.takeIf { it.isNotBlank() }
         ?: artistRef?.name
         ?: "歌手"
-    val songs = artistDetail?.songs.orEmpty()
+    val songs = if (allSongs.isNotEmpty()) allSongs else artistDetail?.songs.orEmpty()
 
     ArtistAllSongsScreen(
         artistName = name,
         songs = songs,
+        isLoading = isLoadingAllSongs && songs.isEmpty(),
+        isLoadingMore = isLoadingAllSongs && songs.isNotEmpty(),
+        errorMessage = if (songs.isEmpty()) allSongsError else null,
+        onRetry = { viewModel.loadArtistAllSongs() },
         favorites = favorites,
         currentSong = currentSong,
         onBack = { nav.popBack() },

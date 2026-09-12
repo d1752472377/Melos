@@ -85,6 +85,10 @@ class MusicRepository(
         PlatformMusicService.getArtist(platform, id, limit)
     }
 
+    suspend fun getArtistAllSongs(platform: String?, id: String, maxCount: Int = 1000): Result<List<Song>> = apiCatching {
+        PlatformMusicService.getArtistAllSongs(platform, id, maxCount)
+    }
+
     suspend fun getSongUrl(song: Song, quality: String = "lossless"): Result<SongUrlData> = apiCatching {
         // 1. 优先使用本地 QuickJS 音源脚本解析直链（完全在客户端沙箱独立执行）
         if (UserApiEngine.isAvailable()) {
