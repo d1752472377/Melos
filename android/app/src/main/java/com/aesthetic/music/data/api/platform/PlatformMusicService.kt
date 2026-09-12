@@ -238,20 +238,29 @@ object PlatformMusicService {
     }
 
     private suspend fun searchArtistsNetease(kw: String, limit: Int): List<ArtistItem> {
-        val root = postJson(
-            "https://music.163.com/api/search/get",
-            FormBody.Builder()
-                .add("s", kw)
-                .add("type", "100")
-                .add("limit", limit.coerceIn(1, 50).toString())
-                .add("offset", "0")
-                .build(),
-        )
+        val root = cloudSearch(kw, type = 100, limit = limit)
         val result = root.getAsJsonObject("result") ?: return emptyList()
-        val arr = result.getAsJsonArray("artists")
-        if (arr != null && arr.size() > 0) return arr.mapNotNull { parseNeteaseArtist(it) }
-        val single = result.getAsJsonObject("artist")
-        return if (single != null) listOfNotNull(parseNeteaseArtist(single)) else emptyList()
+
+        result.getAsJsonArray("artists")
+            ?.takeIf { it.size() > 0 }
+            ?.let { return it.mapNotNull { e -> parseNeteaseArtist(e) } }
+
+        result.getAsJsonObject("artist")
+            ?.let { return listOfNotNull(parseNeteaseArtist(it)) }
+
+        // 兜底：从 songs[].artists 去重提取
+        val songs = result.getAsJsonArray("songs")
+        if (songs != null && songs.size() > 0) {
+            val seen = LinkedHashMap<String, ArtistItem>()
+            songs.forEach { s ->
+                s.asJsonObject?.getAsJsonArray("artists")?.forEach { a ->
+                    val item = parseNeteaseArtist(a)
+                    if (item != null && !seen.containsKey(item.id)) seen[item.id] = item
+                }
+            }
+            if (seen.isNotEmpty()) return seen.values.take(limit).toList()
+        }
+        return emptyList()
     }
 
     private suspend fun searchPlaylistsNetease(kw: String, limit: Int): List<PlaylistItem> {
@@ -353,14 +362,26 @@ object PlatformMusicService {
 
     private suspend fun searchArtistsQq(kw: String, limit: Int): List<ArtistItem> {
         val root = qqSearch(kw, 1, limit)
-        val list = qqData(root)?.getAsJsonObject("singer")?.getAsJsonArray("list") ?: return emptyList()
+        val body = qqData(root)
+        val list = body?.getAsJsonObject("singer")?.getAsJsonArray("list")
+            ?: body?.getAsJsonObject("zhida")?.getAsJsonArray("list")
+            ?: return emptyList()
         return list.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val mid = o.get("mid")?.asString ?: o.get("singerMid")?.asString ?: return@mapNotNull null
+            val mid = o.get("mid")?.asString
+                ?: o.get("singerMid")?.asString
+                ?: o.get("singerMID")?.asString
+                ?: return@mapNotNull null
+            val name = o.get("name")?.asString
+                ?: o.get("singerName")?.asString
+                ?: o.get("title")?.asString.orEmpty()
+            val pic = o.get("pic")?.asString
+                ?: o.get("singerPic")?.asString
+                ?: o.get("mid")?.asString?.let { "https://y.qq.com/music/photo_new/T001R300x300M000$it.jpg" }
             ArtistItem(
                 id = mid,
-                name = o.get("name")?.asString ?: o.get("singerName")?.asString.orEmpty(),
-                avatar = o.get("pic")?.asString ?: o.get("singerPic")?.asString,
+                name = name,
+                avatar = pic,
                 alias = null,
                 platform = P_QQ,
             )
@@ -369,18 +390,26 @@ object PlatformMusicService {
 
     private suspend fun searchAlbumsQq(kw: String, limit: Int): List<AlbumItem> {
         val root = qqSearch(kw, 2, limit)
-        val list = qqData(root)?.getAsJsonObject("album")?.getAsJsonArray("list") ?: return emptyList()
+        val body = qqData(root) ?: return emptyList()
+        val list = body.getAsJsonObject("album")?.getAsJsonArray("list")
+            ?: body.getAsJsonArray("album")
+            ?: return emptyList()
         return list.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
-            val mid = o.get("mid")?.asString ?: o.get("albumMid")?.asString ?: return@mapNotNull null
+            val mid = o.get("mid")?.asString
+                ?: o.get("albumMid")?.asString
+                ?: o.get("albumMID")?.asString
+                ?: return@mapNotNull null
+            val name = o.get("name")?.asString
+                ?: o.get("albumName")?.asString.orEmpty()
             val singer = o.getAsJsonArray("singer")
                 ?.mapNotNull { it.asJsonObject?.get("name")?.asString }?.joinToString("/").orEmpty()
             AlbumItem(
                 id = mid,
-                name = o.get("name")?.asString ?: o.get("albumName")?.asString.orEmpty(),
+                name = name,
                 artist = singer.ifBlank { o.get("singerName")?.asString.orEmpty() },
                 coverUrl = "https://y.qq.com/music/photo_new/T002R300x300M000$mid.jpg",
-                size = o.get("song_count")?.asLong,
+                size = o.get("song_count")?.asLong ?: o.get("songnum")?.asLong,
                 platform = P_QQ,
             )
         }
@@ -416,7 +445,8 @@ object PlatformMusicService {
     }
 
     private suspend fun searchSongsKugou(kw: String, limit: Int): List<Song> {
-        val url = "http://mobilecdn.kugou.com/api/v3/search/song" +
+        // 用 bj 节点：info[] 里 album_id 有效，能拼出封面
+        val url = "http://mobilecdnbj.kugou.com/api/v3/search/song" +
                 "?format=json&keyword=${URLEncoder.encode(kw, "UTF-8")}&page=1&pagesize=$limit&showtype=1"
         val list = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
         return list.mapNotNull { e ->
@@ -435,11 +465,18 @@ object PlatformMusicService {
 
     // [新增]
     private fun kugouCover(o: JsonObject): String? {
+        // 1) 优先用 album_id 拼官方封面
         val albumId = o.get("album_id")?.asString?.takeIf { it.isNotBlank() && it != "0" }
-            ?: o.get("albumid")?.asString?.takeIf { it.isNotBlank() && it != "0" }
         if (albumId != null) return "https://imge.kugou.com/stdmusic/240/$albumId.jpg"
-        val img = o.get("img")?.asString ?: o.get("imgurl")?.asString
-        return if (!img.isNullOrBlank()) img.replace("{size}", "240") else null
+        // 2) imgurl / img 直接给（含 {size} 占位符）
+        val raw = o.get("imgurl")?.asString
+            ?: o.get("img")?.asString
+            ?: o.get("album_img")?.asString
+        if (!raw.isNullOrBlank()) return raw.replace("{size}", "240")
+        // 3) 最后用 hash 走酷狗封面兜底（部分接口支持）
+        val hash = o.get("hash")?.asString
+        if (!hash.isNullOrBlank()) return "https://imge.kugou.com/stdmusic/240/$hash.jpg"
+        return null
     }
 
     // [新增]
@@ -451,7 +488,7 @@ object PlatformMusicService {
     }
 
     private suspend fun searchArtistsKugou(kw: String, limit: Int): List<ArtistItem> {
-        val url = "http://mobilecdn.kugou.com/api/v3/search/singer" +
+        val url = "http://mobilecdnbj.kugou.com/api/v3/search/singer" +
                 "?format=json&keyword=${URLEncoder.encode(kw, "UTF-8")}&page=1&pagesize=$limit"
         val data = kugouJson(url).getAsJsonArray("data") ?: return emptyList()
         return data.mapNotNull { e ->
@@ -462,6 +499,8 @@ object PlatformMusicService {
                 name = o.get("singername")?.asString.orEmpty(),
                 avatar = kugouArtistAvatar(o),
                 alias = o.get("remark")?.asString?.takeIf { it.isNotBlank() },
+                musicSize = o.get("songcount")?.asLong,
+                albumSize = o.get("albumcount")?.asLong,
                 platform = P_KUGOU,
             )
         }
@@ -497,7 +536,7 @@ object PlatformMusicService {
                 name = o.get("albumname")?.asString.orEmpty(),
                 artist = o.get("singername")?.asString.orEmpty(),
                 coverUrl = o.get("imgurl")?.asString?.replace("{size}", "240")?.takeIf { it.isNotBlank() },
-                size = null,
+                size = o.get("songcount")?.asLong ?: o.get("song_count")?.asLong,
                 platform = P_KUGOU,
             )
         }
@@ -506,12 +545,19 @@ object PlatformMusicService {
 // ==================== 酷我（HTTP，单引号伪 JSON） ====================
 
     private fun kuwoNormalize(raw: String): String {
-        val sb = StringBuilder(raw.length + 16)
-        for (ch in raw) {
-            when (ch) {
-                '\'' -> sb.append('"')
-                '"' -> sb.append("\\\"")
-                else -> sb.append(ch)
+        // 酷我 r.s 是单引号伪 JSON。只把「单引号」替换为双引号，
+        // 已有的反斜杠转义（\uXXXX、\'、\"）原样保留，交给 Gson 解码。
+        val sb = StringBuilder(raw.length + 32)
+        var i = 0
+        while (i < raw.length) {
+            val ch = raw[i]
+            when {
+                ch == '\\' && i + 1 < raw.length -> {
+                    sb.append(ch).append(raw[i + 1])
+                    i += 2
+                }
+                ch == '\'' -> { sb.append('"'); i++ }
+                else -> { sb.append(ch); i++ }
             }
         }
         return sb.toString()
@@ -541,17 +587,21 @@ object PlatformMusicService {
 
     private suspend fun searchSongsKuwo(kw: String, limit: Int): List<Song> {
         return try {
+            val token = kuwoToken()
             val url = "https://www.kuwo.cn/api/www/search/searchMusicBykeyWord" +
                     "?key=${URLEncoder.encode(kw, "UTF-8")}&pn=1&rn=$limit&httpsStatus=1"
             val req = Request.Builder().url(url)
                 .header("User-Agent", BROWSER_UA)
-                .header("Referer", "https://www.kuwo.cn/")
-                .header("csrf", "AAAA")
+                .header("Referer", "https://www.kuwo.cn/search/list?key=${URLEncoder.encode(kw, "UTF-8")}")
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Cookie", "kw_token=$token")
+                .header("csrf", token)
                 .build()
             val resp = httpClient.newCall(req).execute()
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             val root = parseJson(url, resp.body?.string().orEmpty())
-            val list = root.getAsJsonObject("data")?.getAsJsonArray("list") ?: return emptyList()
+            val list = root.getAsJsonObject("data")?.getAsJsonArray("list")
+                ?: throw IOException("kuwo www empty")
             list.mapNotNull { e ->
                 val o = e.asJsonObject ?: return@mapNotNull null
                 val rid = o.get("rid")?.asString ?: return@mapNotNull null
@@ -567,7 +617,7 @@ object PlatformMusicService {
                 )
             }
         } catch (e: Exception) {
-            Log.w(TAG, "kuwo www searchMusic failed, fallback r.s: ${e.message}")
+            Log.w(TAG, "kuwo www failed, fallback r.s: ${e.message}")
             val url = "http://search.kuwo.cn/r.s?all=${URLEncoder.encode(kw, "UTF-8")}" +
                     "&ft=music&itemset=web_2013&client=kt&pn=0&rn=$limit&rformat=json&encoding=utf8"
             val arr = kuwoRaw(url).getAsJsonArray("abslist") ?: return emptyList()
@@ -583,6 +633,26 @@ object PlatformMusicService {
                     platform = P_KUWO,
                 )
             }
+        }
+    }
+
+    // [新增] 获取酷我 www 接口所需真 token
+    private suspend fun kuwoToken(): String = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("https://www.kuwo.cn/")
+                .header("User-Agent", BROWSER_UA)
+                .build()
+            val resp = httpClient.newCall(req).execute()
+            val setCookie = resp.headers("Set-Cookie")
+            resp.close()
+            setCookie.firstOrNull { it.contains("kw_token=") }
+                ?.substringAfter("kw_token=")
+                ?.substringBefore(";")
+                ?.takeIf { it.isNotBlank() }
+                ?: "AAAA"
+        } catch (e: Exception) {
+            "AAAA"
         }
     }
 
