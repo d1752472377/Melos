@@ -3,6 +3,7 @@ package com.aesthetic.music.ui.search
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,8 +49,11 @@ import com.aesthetic.music.ui.theme.TextMuted
  *
  * 播放时按 song.platform 分流到对应音源取直链。
  *
- * 本文件只保留页面框架（状态 + 顶层布局骨架），各区块 UI 拆分到同包下的：
- * SearchInputBar / SearchFilterTabs / SearchRecentSearches / SearchHotSearch / SearchResultLists。
+ * 布局说明（方案 B）：
+ * - 外层 Column 不再统一加 horizontal padding，搜索框 / tab 各自加 horizontal 20dp；
+ * - 结果卡片由 SearchResultLists.kt 的 ResultCard 负责贴到屏幕左右边；
+ * - 底部不再统一 padding(bottom = LocalBottomBarPadding)，而是把该高度作为
+ *   LazyColumn 的 contentPadding 底部留白，让白卡白底一直探到屏幕底、内容不被底栏遮挡。
  */
 @Composable
 fun SearchScreen(
@@ -96,19 +100,19 @@ fun SearchScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
-                .padding(top = 24.dp)
-                .padding(bottom = LocalBottomBarPadding.current),
+                .padding(top = 24.dp),
         ) {
-            // ===== 顶部：搜索框（内嵌平台选择） =====
-            SearchInputBar(
-                query = query,
-                onQueryChange = viewModel::onSearchQueryChanged,
-                onSubmit = { viewModel.submitSearch() },
-                platform = platform,
-                onPlatformSelect = viewModel::setSearchPlatform,
-                focusRequester = focusRequester,
-            )
+            // ===== 顶部：搜索框（内嵌平台选择），自身保留左右 20dp =====
+            Box(Modifier.padding(horizontal = 20.dp)) {
+                SearchInputBar(
+                    query = query,
+                    onQueryChange = viewModel::onSearchQueryChanged,
+                    onSubmit = { viewModel.submitSearch() },
+                    platform = platform,
+                    onPlatformSelect = viewModel::setSearchPlatform,
+                    focusRequester = focusRequester,
+                )
+            }
 
             // 自动聚焦搜索框：仅在无关键词时聚焦（从歌手页等返回且已有结果时不再顶起键盘）
             LaunchedEffect(Unit) {
@@ -120,11 +124,13 @@ fun SearchScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // ===== 1. 类型 Tab 优先置顶：单曲 歌手 歌单 专辑 歌词 =====
-            SearchFilterTabs(
-                selected = searchType,
-                onSelect = viewModel::setSearchType,
-            )
+            // ===== 1. 类型 Tab 优先置顶：单曲 歌手 歌单 专辑 歌词，自身保留左右 20dp =====
+            Box(Modifier.padding(horizontal = 20.dp)) {
+                SearchFilterTabs(
+                    selected = searchType,
+                    onSelect = viewModel::setSearchType,
+                )
+            }
 
             // 非单曲类型不涉及平台切换（平台选择器在搜索框内，仅影响单曲）
             if (searchType != SearchType.SONG && query.isNotBlank()) {
@@ -133,6 +139,7 @@ fun SearchScreen(
                     "该类型结果来自公共平台官方接口",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = TextMuted,
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
 
@@ -140,11 +147,13 @@ fun SearchScreen(
 
             // ===== 内容区 =====
             if (query.isBlank()) {
-                // 未搜索：最近搜索 + 热门搜索
+                // 未搜索：最近搜索 + 热门搜索（自身保留左右 20dp）
                 // 可滚动：最近最多 10 条 + 热门 8 条，键盘弹起后可视区变小，不滚动会被裁掉且无法触达
                 Column(
                     Modifier
                         .fillMaxSize()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = LocalBottomBarPadding.current)
                         .verticalScroll(rememberScrollState()),
                 ) {
                     SearchRecentSearches(
@@ -164,7 +173,7 @@ fun SearchScreen(
 //                    )
                 }
             } else {
-                // 有关键词：分类型结果
+                // 有关键词：分类型结果，卡片贴屏幕左右边、底部探到屏幕底
                 Column(Modifier.fillMaxSize()) {
                     when {
                         isSearching && allResultsEmpty(searchType, songResults, artistResults, playlistResults, albumResults) -> {
@@ -178,22 +187,26 @@ fun SearchScreen(
                                 emptyHint = searchError ?: "没有找到相关的单曲",
                                 onPlay = { song -> onPlaySong(song, songResults) },
                                 onMore = { song -> songForActionMenu = song },
+                                bottomContentPadding = LocalBottomBarPadding.current,
                             )
 
                             SearchType.ARTIST -> ArtistResultList(
                                 artists = artistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌手",
                                 onOpen = onOpenArtist,
+                                bottomContentPadding = LocalBottomBarPadding.current,
                             )
                             SearchType.PLAYLIST -> PlaylistResultList(
                                 playlists = playlistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌单",
                                 onOpen = onOpenPlaylist,
+                                bottomContentPadding = LocalBottomBarPadding.current,
                             )
                             SearchType.ALBUM -> AlbumResultList(
                                 albums = albumResults,
                                 emptyHint = searchError ?: "没有找到相关的专辑",
                                 onOpen = onOpenAlbum,
+                                bottomContentPadding = LocalBottomBarPadding.current,
                             )
                         }
                     }
