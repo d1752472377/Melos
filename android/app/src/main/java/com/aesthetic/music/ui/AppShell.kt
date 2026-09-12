@@ -76,6 +76,9 @@ import com.aesthetic.music.ui.profile.ProfileScreen
 import com.aesthetic.music.ui.rank.RankPage
 import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
+import com.aesthetic.music.ui.shell.ShellActions
+import com.aesthetic.music.ui.shell.ShellNav
+import com.aesthetic.music.ui.shell.rememberCacheState
 import com.aesthetic.music.ui.sheet.PlaylistPage
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.Stone100
@@ -171,29 +174,12 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val pageBackground by viewModel.currentPageBackground.collectAsState()
     val isDarkPage by viewModel.isDarkPage.collectAsState()
 
-    // ===== 缓存信息 =====
-    var cacheSize by remember { mutableStateOf(0L) }
-    var cacheCount by remember { mutableStateOf(0) }
-    var cachedSongs by remember { mutableStateOf<List<AudioCacheService.CachedSong>>(emptyList()) }
+    // ===== 缓存信息（Profile / Downloads / CacheList 共用） =====
+    val cacheState = rememberCacheState(context, scope)
     var showAddToPlaylist by remember { mutableStateOf(false) }
 
     // 悬浮胶囊开关
     var capsuleEnabled by remember { mutableStateOf(SettingsStore.isFloatingCapsuleEnabled()) }
-
-    fun refreshCacheInfo() {
-        scope.launch(Dispatchers.IO) {
-            val songs = AudioCacheService.listCached(context)
-            val size = AudioCacheService.getCacheSize(context)
-            val count = AudioCacheService.getCacheCount(context)
-            withContext(Dispatchers.Main) {
-                cachedSongs = songs
-                cacheSize = size
-                cacheCount = count
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) { refreshCacheInfo() }
 
     LaunchedEffect(themeMode, systemDark) {
         applyThemeMode(themeMode, systemDark)
@@ -266,6 +252,24 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             launchSingleTop = true
             restoreState = true
         }
+    }
+
+    // 壳层 holder：收敛导航 / 播放 / 提示回调，destination 只接收 holder 而不逐个透传
+    val nav = remember(navController) {
+        ShellNav(
+            navigate = { route: String -> navController.navigate(route) },
+            navigateSingleTop = { route: String -> navController.navigate(route) { launchSingleTop = true } },
+            popBack = { navController.popBackStack() },
+            switchTab = { route: String, tabEnum: AppTab -> navigateToTab(route, tabEnum) },
+        )
+    }
+    val actions = remember(playerManager, context) {
+        ShellActions(
+            playSong = { song, list -> playSong(song, list) },
+            playAll = { list -> if (list.isNotEmpty()) playSong(list.first(), list) },
+            shareSongs = { songs -> shareSongs(songs) },
+            toast = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+        )
     }
 
     // 匹配当前 Tab
@@ -444,8 +448,8 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             historyCount = history.size,
                             favoritesCount = favorites.size,
                             playlistsCount = myPlaylists.size,
-                            cacheCount = cacheCount,
-                            cacheSize = cacheSize,
+                            cacheCount = cacheState.count,
+                            cacheSize = cacheState.size,
                             localStats = localStats,
                             isSyncConfigured = isSyncConfigured,
                             activeScript = activeScriptInfo,
@@ -453,7 +457,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onOpenFavorites = { navController.navigate(ScreenRoute.Favorites.route) },
                             onOpenMyPlaylists = { navController.navigate(ScreenRoute.MyPlaylists.route) },
                             onOpenDownloads = {
-                                refreshCacheInfo()
+                                cacheState.refresh()
                                 navController.navigate(ScreenRoute.Downloads.route)
                             },
                             onOpenHistory = {
@@ -722,7 +726,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     // 缓存列表页
                     composable(ScreenRoute.CacheList.route) {
                         CacheListScreen(
-                            songs = cachedSongs,
+                            songs = cacheState.songs,
                             onBack = {
                                 viewModel.updatePageBackground(null, false)
                                 navController.popBackStack()
@@ -730,13 +734,13 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onRemoveOne = { path ->
                                 scope.launch(Dispatchers.IO) {
                                     AudioCacheService.removeCacheByPath(context, path)
-                                    withContext(Dispatchers.Main) { refreshCacheInfo() }
+                                    withContext(Dispatchers.Main) { cacheState.refresh() }
                                 }
                             },
                             onClearAll = {
                                 scope.launch(Dispatchers.IO) {
                                     AudioCacheService.clearCache(context)
-                                    withContext(Dispatchers.Main) { refreshCacheInfo() }
+                                    withContext(Dispatchers.Main) { cacheState.refresh() }
                                 }
                             },
                         )
@@ -781,20 +785,20 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     // 本地下载页
                     composable(ScreenRoute.Downloads.route) {
                         DownloadsScreen(
-                            songs = cachedSongs,
+                            songs = cacheState.songs,
                             currentSong = playerState.currentSong,
                             onBack = { navController.popBackStack() },
                             onPlaySong = { song, list -> playSong(song, list) },
                             onRemoveOne = { path ->
                                 scope.launch(Dispatchers.IO) {
                                     AudioCacheService.removeCacheByPath(context, path)
-                                    withContext(Dispatchers.Main) { refreshCacheInfo() }
+                                    withContext(Dispatchers.Main) { cacheState.refresh() }
                                 }
                             },
                             onClearAll = {
                                 scope.launch(Dispatchers.IO) {
                                     AudioCacheService.clearCache(context)
-                                    withContext(Dispatchers.Main) { refreshCacheInfo() }
+                                    withContext(Dispatchers.Main) { cacheState.refresh() }
                                 }
                             },
                         )
@@ -967,10 +971,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     currentArtwork = playerState.currentSong?.artwork,
                     isSpinning = playerState.isPlaying,
                     progressFlow = playerManager.progress,
-                    onHome = { navigateToTab(ScreenRoute.Home.route, AppTab.HOME) },
-                    onSheet = { navigateToTab(ScreenRoute.Fm.route, AppTab.SHEET) },
-                    onPlaylist = { navigateToTab(ScreenRoute.Playlist.route, AppTab.PLAYLIST) },
-                    onProfile = { navigateToTab(ScreenRoute.Profile.route, AppTab.PROFILE) },
+                    onHome = { nav.switchTab(ScreenRoute.Home.route, AppTab.HOME) },
+                    onSheet = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
+                    onPlaylist = { nav.switchTab(ScreenRoute.Playlist.route, AppTab.PLAYLIST) },
+                    onProfile = { nav.switchTab(ScreenRoute.Profile.route, AppTab.PROFILE) },
                     onOpenPlayer = {
                         playerManager.startProgress()
                         viewModel.openPlayer()
