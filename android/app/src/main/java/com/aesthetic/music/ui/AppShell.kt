@@ -2,22 +2,13 @@ package com.aesthetic.music.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -48,9 +39,7 @@ import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.artist.ArtistScreen
 import com.aesthetic.music.ui.cache.CacheListScreen
-import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
-import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.favorites.FavoritesScreen
 import com.aesthetic.music.ui.fm.FmScreen
 import com.aesthetic.music.ui.home.HomeScreen
@@ -75,9 +64,6 @@ import com.aesthetic.music.ui.shell.dialogs.ImportPlaylistDialog
 import com.aesthetic.music.ui.shell.rememberCacheState
 import com.aesthetic.music.ui.sheet.PlaylistPage
 import com.aesthetic.music.ui.theme.Background
-import com.aesthetic.music.ui.theme.Stone100
-import com.aesthetic.music.ui.theme.TextPrimary
-import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.applyThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -170,7 +156,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
     // ===== 缓存信息（Profile / Downloads / CacheList 共用） =====
     val cacheState = rememberCacheState(context, scope)
-    var showAddToPlaylist by remember { mutableStateOf(false) }
 
     // 悬浮胶囊开关
     var capsuleEnabled by remember { mutableStateOf(SettingsStore.isFloatingCapsuleEnabled()) }
@@ -908,53 +893,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             onImportScriptUrl = viewModel::importScriptFromUrl,
                             onUnloadScript = viewModel::unloadScript,
                         )
-                    }
-                }
-
-                // ===== 弹窗：把当前播放加入我的歌单 =====
-                if (showAddToPlaylist) {
-                    val current = playerState.currentSong
-                    if (current != null) {
-                        AppDialog(
-                            onDismissRequest = { showAddToPlaylist = false },
-                            title = "加入歌单",
-                            confirmText = null,
-                            cancelText = "取消",
-                        ) {
-                            Column {
-                                Text(
-                                    "把「${current.title}」加入：",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSoft,
-                                )
-                                Spacer(Modifier.size(10.dp))
-                                if (myPlaylists.isEmpty()) {
-                                    Text("还没有歌单，先去「个人中心 - 我的歌单」新建一个吧", color = TextSoft)
-                                } else {
-                                    LazyColumn {
-                                        myPlaylists.forEach { p ->
-                                            item {
-                                                Row(
-                                                    Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            viewModel.addSongsToPlaylist(p.id, listOf(current))
-                                                            showAddToPlaylist = false
-                                                            scope.launch { snackbarHostState.showSnackbar("已加入「${p.name}」") }
-                                                        }
-                                                        .padding(vertical = 10.dp, horizontal = 6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                ) {
-                                                    SongCover(p.coverUrl, Modifier.size(36.dp), corner = 0.dp)
-                                                    Spacer(Modifier.size(10.dp))
-                                                    Text(p.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
 
