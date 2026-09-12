@@ -3,11 +3,11 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.ui.profile.DownloadsScreen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -19,9 +19,9 @@ fun DownloadsDestination(
     actions: ShellActions,
     playerManager: PlayerManager,
     cacheState: CacheState,
+    scope: CoroutineScope,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val playerState by playerManager.state.collectAsState()
     DownloadsScreen(
         songs = cacheState.songs,

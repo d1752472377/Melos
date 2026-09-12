@@ -1,11 +1,11 @@
 package com.aesthetic.music.ui.shell
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.cache.CacheListScreen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -16,9 +16,9 @@ fun CacheListDestination(
     viewModel: MainViewModel,
     nav: ShellNav,
     cacheState: CacheState,
+    scope: CoroutineScope,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     CacheListScreen(
         songs = cacheState.songs,
         onBack = {

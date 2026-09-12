@@ -6,13 +6,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.settings.SettingsScreen
+import kotlinx.coroutines.CoroutineScope
 
 /** 设置页 */
 @Composable
@@ -20,9 +20,10 @@ fun SettingsDestination(
     viewModel: MainViewModel,
     nav: ShellNav,
     actions: ShellActions,
+    /** 壳层长生命周期 scope：检查更新/下载需在离开本页后继续，故不使用页面自身的 scope */
+    scope: CoroutineScope,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val systemDark = isSystemInDarkTheme()
 
     val themeMode by viewModel.themeMode.collectAsState()
