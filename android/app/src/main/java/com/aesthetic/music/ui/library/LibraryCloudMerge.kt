@@ -70,10 +70,22 @@ internal fun mergePlaylists(
         } else {
             val existing = plList.firstOrNull { it.id == cp.id }
             if (existing == null) {
-                plList.add(MyPlaylist(id = cp.id, name = cp.name, songs = emptyList()))
-            } else if (existing.name != cp.name && cp.name.isNotBlank()) {
-                val idx = plList.indexOfFirst { it.id == cp.id }
-                if (idx >= 0) plList[idx] = existing.copy(name = cp.name)
+                plList.add(
+                    MyPlaylist(id = cp.id, name = cp.name, songs = emptyList(), cover = cp.coverUrl)
+                )
+            } else {
+                val applyName = existing.name != cp.name && cp.name.isNotBlank()
+                // 云端只可能有网络封面：本机已设过自定义封面（含本机图片）时不覆盖
+                val applyCover = existing.cover.isBlank() && cp.coverUrl.isNotBlank()
+                if (applyName || applyCover) {
+                    val idx = plList.indexOfFirst { it.id == cp.id }
+                    if (idx >= 0) {
+                        plList[idx] = existing.copy(
+                            name = if (applyName) cp.name else existing.name,
+                            cover = if (applyCover) cp.coverUrl else existing.cover,
+                        )
+                    }
+                }
             }
         }
     }

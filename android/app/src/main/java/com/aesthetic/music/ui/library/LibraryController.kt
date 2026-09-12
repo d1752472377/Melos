@@ -13,6 +13,7 @@ import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.data.settings.PlaylistCoverStore
 import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.service.StatsTracker
@@ -204,31 +205,95 @@ class LibraryController(
     fun isPlaylistFavorite(id: String): Boolean =
         id in _favoritePlaylistIds.value
 
+    /**
+     * 直接加入收藏歌单（导入外部歌单用）。
+     *
+     * 与 [toggleFavoritePlaylist] 的区别：**重复导入不会把歌单取消收藏**，
+     * 已存在时只刷新名字/封面等元信息。导入是"收藏这个歌单"，语义上不是切换开关。
+     */
+    fun collectPlaylist(playlist: PlaylistItem) {
+        val list = _favoritePlaylists.value.toMutableList()
+        val idx = list.indexOfFirst { it.id == playlist.id }
+        if (idx >= 0) list[idx] = playlist else list.add(0, playlist)
+        _favoritePlaylists.value = list
+        _favoritePlaylistIds.value = list.map { it.id }.toSet()
+        FavoritePlaylistStore.save(list)
+    }
+
     // ==================== 我的歌单（本地优先自治） ====================
 
     fun myPlaylist(id: String): MyPlaylist? = _myPlaylists.value.firstOrNull { it.id == id }
 
-    fun createPlaylist(name: String, initialSongs: List<Song> = emptyList()) {
+    /**
+     * 新建自建歌单。
+     *
+     * @param cover 自定义封面：本机图片绝对路径（[com.aesthetic.music.data.settings.PlaylistCoverStore] 落盘）或网络封面 URL
+     * @param sourcePlatform / [sourcePlaylistId] / [sourceName] 从外部平台导入时记录原始出处，作为"原始记录"便于溯源
+     * @return 新歌单 id，便于调用方跳转到详情
+     */
+    fun createPlaylist(
+        name: String,
+        initialSongs: List<Song> = emptyList(),
+        cover: String = "",
+        sourcePlatform: String = "",
+        sourcePlaylistId: String = "",
+        sourceName: String = "",
+    ): String? {
         val n = name.trim()
-        if (n.isEmpty()) return
-        val p = MyPlaylist(id = PlaylistStore.newId(), name = n, songs = initialSongs)
+        if (n.isEmpty()) return null
+        val p = MyPlaylist(
+            id = PlaylistStore.newId(),
+            name = n,
+            songs = initialSongs.take(MAX_PLAYLIST_SONGS),
+            cover = cover.trim(),
+            sourcePlatform = sourcePlatform.trim(),
+            sourcePlaylistId = sourcePlaylistId.trim(),
+            sourceName = sourceName.trim(),
+        )
         _myPlaylists.value = listOf(p) + _myPlaylists.value
         saveMyPlaylists()
         scheduleSyncPush()
+        return p.id
     }
 
-    fun renamePlaylist(id: String, name: String) {
-        val n = name.trim()
-        if (n.isEmpty()) return
+    fun renamePlaylist(id: String, name: String) = updatePlaylistInfo(id, name = name)
+
+    /**
+     * 编辑歌单信息（改名 / 换封面）。
+     *
+     * @param name null 表示不改名
+     * @param cover null 表示不改封面，空串表示清除自定义封面（回到首曲封面）
+     *
+     * 换封面时旧的"本机封面文件"会被删除：它已不再被任何歌单引用，
+     * 留着只会让私有目录随用户反复换图无限增长。
+     */
+    fun updatePlaylistInfo(id: String, name: String? = null, cover: String? = null) {
+        val current = _myPlaylists.value.firstOrNull { it.id == id } ?: return
+        val newName = name?.trim()
+        if (newName != null && newName.isEmpty()) return
+        val newCover = cover?.trim()
+
         _myPlaylists.value = _myPlaylists.value.map {
-            if (it.id == id) it.copy(name = n) else it
+            when {
+                it.id != id -> it
+                else -> it.copy(
+                    name = newName ?: it.name,
+                    cover = newCover ?: it.cover,
+                )
+            }
+        }
+        if (newCover != null && newCover != current.cover) {
+            PlaylistCoverStore.delete(current.cover)
         }
         saveMyPlaylists()
         scheduleSyncPush()
     }
 
     fun deletePlaylist(id: String) {
+        val target = _myPlaylists.value.firstOrNull { it.id == id }
         _myPlaylists.value = _myPlaylists.value.filterNot { it.id == id }
+        // 歌单没了，它的本机封面文件也一并清掉，避免私有目录残留
+        PlaylistCoverStore.delete(target?.cover)
         saveMyPlaylists()
         scheduleSyncPush()
     }
@@ -327,7 +392,13 @@ class LibraryController(
             )
         }
         val plUpsert = _myPlaylists.value.map {
-            SyncPlaylistUpsert(id = it.id, name = it.name, coverUrl = it.coverUrl)
+            // 只把网络封面同步到云端：本机封面路径在其它设备上没有意义，
+            // 传上去只会让另一台设备拿到一个必然加载失败的本地路径
+            SyncPlaylistUpsert(
+                id = it.id,
+                name = it.name,
+                coverUrl = it.coverUrl?.takeIf { url -> url.startsWith("http") },
+            )
         }
         val plSongUpsert = _myPlaylists.value.flatMap { p ->
             p.songs.mapIndexed { idx, s ->

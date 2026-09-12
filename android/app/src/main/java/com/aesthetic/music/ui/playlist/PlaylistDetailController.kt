@@ -10,16 +10,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * 歌单/榜单详情控制器（含导入歌单与本地歌单展示）。
+ * 歌单/榜单详情控制器（网络歌单详情 + 本地歌单展示）。
  *
- * 从 `MainViewModel` 抽出：只依赖 [MusicRepository]，用请求令牌防止快速连开两个歌单时旧响应串台；
- * 导入失败经 [onToast] 提示。`MainViewModel` 保留同名只读委托。
+ * 从 `MainViewModel` 抽出：只依赖 [MusicRepository]，用请求令牌防止快速连开两个歌单时旧响应串台。
+ * 加载失败写入 [error] 由详情页内联展示；"导入外部歌单"已改由 [com.aesthetic.music.ui.library.PlaylistImportController]
+ * 落成真正的本地歌单，不再借道这里的临时详情页。
+ * `MainViewModel` 保留同名只读委托。
  */
 class PlaylistDetailController(
     private val repository: MusicRepository,
     private val scope: CoroutineScope,
-    /** 向用户展示一次性提示（对应 ViewModel 的全局 Snackbar 通道） */
-    private val onToast: (String) -> Unit,
 ) {
 
     private val _showDetail = MutableStateFlow<PlaylistItem?>(null)
@@ -43,8 +43,20 @@ class PlaylistDetailController(
         val req = ++requestId
         scope.launch {
             _isLoading.value = true
-            repository.getPlaylist(item.id).onSuccess { list ->
-                if (req == requestId) _songs.value = list
+            // 按条目自身平台取曲目：收藏/导入进来的歌单可能来自酷狗、酷我、QQ，
+            // 以前一律走网易云接口，这些歌单打开后能对上 ID 就串歌、对不上就空白
+            repository.getPlaylistDetail(item.platform, item.id).onSuccess { data ->
+                if (req != requestId) return@onSuccess
+                _songs.value = data.songs
+                // 详情接口带回的名字/封面/曲目数更准，顺手刷新列表项展示信息
+                data.info?.let { info ->
+                    _showDetail.value = item.copy(
+                        name = info.name.ifBlank { item.name },
+                        coverUrl = info.coverUrl ?: item.coverUrl,
+                        playCount = info.playCount ?: item.playCount,
+                        trackCount = info.trackCount ?: item.trackCount,
+                    )
+                }
             }.onFailure { e ->
                 // 失败要可见：此前只写 onSuccess，失败后列表空 + 无 loading，
                 // Overlay 渲染 0 项 LazyColumn 白页，无文案无重试
@@ -65,24 +77,6 @@ class PlaylistDetailController(
                 if (req == requestId) _songs.value = list
             }.onFailure { e ->
                 if (req == requestId) _error.value = e.message ?: "榜单加载失败"
-            }
-            if (req == requestId) _isLoading.value = false
-        }
-    }
-
-    fun import(id: String) {
-        val req = ++requestId
-        scope.launch {
-            _isLoading.value = true
-            repository.getPlaylist(id).onSuccess { list ->
-                if (req != requestId) return@launch
-                _songs.value = list
-                _showDetail.value = PlaylistItem(id = id, name = "导入的歌单")
-            }.onFailure { e ->
-                // 此前失败静默：弹窗关闭后"什么都没发生"
-                if (req == requestId) {
-                    onToast("导入歌单失败：${e.message ?: "网络异常"}")
-                }
             }
             if (req == requestId) _isLoading.value = false
         }

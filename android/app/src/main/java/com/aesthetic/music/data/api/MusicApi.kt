@@ -116,6 +116,12 @@ data class AlbumDetailData(
     val songs: List<Song> = emptyList(),
 )
 
+/** 歌单详情 + 全部曲目（导入外部平台歌单时，歌单名与封面也一并带回作为原始记录） */
+data class PlaylistDetailData(
+    val info: PlaylistItem? = null,
+    val songs: List<Song> = emptyList(),
+)
+
 /** 热搜词 */
 data class HotWordDto(
     val word: String = "",

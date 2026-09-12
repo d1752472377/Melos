@@ -332,13 +332,26 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     viewModel = viewModel,
                 )
 
-                // ===== 歌单导入弹窗 =====
+                // ===== 歌单导入弹窗：粘贴链接 / 识别文案 / 登录账号（占位） =====
                 if (showImportDialog) {
+                    val importState by viewModel.playlistImportState.collectAsState()
                     ImportPlaylistDialog(
-                        onDismiss = { viewModel.closeImportDialog() },
-                        onImport = { id ->
+                        state = importState,
+                        onDismiss = {
+                            viewModel.resetPlaylistImportState()
                             viewModel.closeImportDialog()
-                            viewModel.importPlaylist(id)
+                        },
+                        onImport = { text ->
+                            viewModel.importPlaylistFromText(text) { item ->
+                                viewModel.closeImportDialog()
+                                viewModel.resetPlaylistImportState()
+                                // 导入结果在收藏歌单里，走与收藏行一致的详情打开路径
+                                viewModel.openPlaylistDetail(item)
+                                navController.navigate(ScreenRoute.PlaylistDetail.route)
+                            }
+                        },
+                        onLoginImport = { platformName ->
+                            viewModel.showToast("「$platformName」账号导入功能开发中，敬请期待")
                         },
                     )
                 }

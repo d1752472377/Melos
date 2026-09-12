@@ -11,6 +11,7 @@ import com.aesthetic.music.data.api.DailyData
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.LyricData
 import com.aesthetic.music.data.api.NewSongsData
+import com.aesthetic.music.data.api.PlaylistDetailData
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.RanksData
 import com.aesthetic.music.data.api.SongUrlData
@@ -681,16 +682,17 @@ object PlatformMusicService {
         return sb.toString()
     }
 
-    private suspend fun kuwoRaw(url: String): JsonObject = withContext(Dispatchers.IO) {
+    private suspend fun kuwoBody(url: String): String = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(url)
             .header("User-Agent", BROWSER_UA)
             .header("Referer", "https://www.kuwo.cn/")
             .build()
         val resp = httpClient.newCall(req).execute()
         if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-        val raw = resp.body?.string().orEmpty()
-        parseJson(url, kuwoNormalize(raw))
+        resp.body?.string().orEmpty()
     }
+
+    private suspend fun kuwoRaw(url: String): JsonObject = parseJson(url, kuwoNormalize(kuwoBody(url)))
 
     /** 酷我封面：web_albumpic_short 是相对路径；hts_* 已是完整 URL */
     private fun kuwoCover(path: String?): String? {
@@ -1085,12 +1087,235 @@ object PlatformMusicService {
         return AlbumDetailData(info = info, songs = songs)
     }
 
-    suspend fun getPlaylist(id: String): List<Song> {
+    /**
+     * 网易云歌单曲目。
+     *
+     * @param limit 只要前 N 首（0 = 全部）。歌单详情接口的 `tracks` 只回前 10 首，
+     *   全量曲目在 `trackIds` 里，需要按 ID 批量补全——因此做"只看前几首"的调用（分类预览、
+     *   FM 种子）时必须能短路，否则每次都会为 3 首歌拉回上千首。
+     */
+    suspend fun getPlaylist(id: String, limit: Int = 0): List<Song> =
+        neteasePlaylistDetail(id, limit).songs
+
+    // ==================== 歌单详情（导入外部歌单：名字 + 封面 + 全部曲目） ====================
+
+    /**
+     * 抓取歌单详情。导入外部歌单时必须同时拿到名字与封面：
+     * 只抓歌曲会让用户导进来的歌单叫"导入的歌单"、封面退化成首曲封面，失去"原始记录"的意义。
+     */
+    suspend fun getPlaylistDetail(platform: String?, id: String): PlaylistDetailData {
+        val p = platform?.takeIf { it.isNotBlank() } ?: P_NETEASE
+        return when (p) {
+            P_NETEASE -> neteasePlaylistDetail(id)
+            P_QQ -> qqPlaylistDetail(id)
+            P_KUGOU -> kugouPlaylistDetail(id)
+            P_KUWO -> kuwoPlaylistDetail(id)
+            else -> throw IOException("暂不支持导入该平台的歌单")
+        }
+    }
+
+    /** 单次导入的曲目上限：与 LibraryController 的单个歌单上限保持一致 */
+    private const val MAX_PLAYLIST_SONGS = 1000
+
+    /**
+     * 展开跳转链接（网易云 `163cn.tv/xxx` 这类短链只有跳转后的地址才带平台与歌单 ID）。
+     * 失败或本就没有跳转时返回原 URL，由调用方自行判断是否继续。
+     */
+    suspend fun resolveFinalUrl(url: String): String = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", BROWSER_UA)
+                .build()
+            httpClient.newCall(req).execute().use { resp ->
+                resp.request.url.toString()
+            }
+        } catch (_: Exception) {
+            url
+        }
+    }
+
+    private suspend fun neteasePlaylistDetail(id: String, limit: Int = 0): PlaylistDetailData {
         val url = "https://music.163.com/api/v6/playlist/detail?id=${URLEncoder.encode(id, "UTF-8")}"
         val root = getJson(url)
-        val playlist = root.getAsJsonObject("playlist") ?: return emptyList()
-        val tracks = playlist.getAsJsonArray("tracks") ?: return emptyList()
-        return tracks.mapNotNull { parseNeteaseSong(it) }
+        val playlist = root.getAsJsonObject("playlist") ?: throw IOException("歌单不存在或已被删除")
+
+        val maxSongs = if (limit > 0) limit else MAX_PLAYLIST_SONGS
+        val inline = playlist.getAsJsonArray("tracks")?.mapNotNull { parseNeteaseSong(it) } ?: emptyList()
+        // trackIds 是全量曲目 ID；tracks 只有前 10 首，两者数量不一致说明必须补全
+        val trackIds = playlist.getAsJsonArray("trackIds")
+            ?.mapNotNull { it.asJsonObject?.get("id")?.asLong }
+            ?: emptyList()
+        val songs = if (trackIds.size > inline.size && inline.size < maxSongs) {
+            fetchNeteaseSongsByIds(trackIds.take(maxSongs))
+        } else {
+            inline.take(maxSongs)
+        }
+
+        val info = PlaylistItem(
+            id = id,
+            name = playlist.optString("name").orEmpty(),
+            coverUrl = fixPicUrl(playlist.optString("coverImgUrl") ?: playlist.optString("picUrl")),
+            playCount = playlist.optLong("playCount"),
+            trackCount = playlist.optLong("trackCount") ?: songs.size.toLong(),
+            platform = P_NETEASE,
+        )
+        return PlaylistDetailData(info = info, songs = songs)
+    }
+
+    /** 按曲目 ID 批量补全歌曲：分块请求并保持歌单原始顺序 */
+    private suspend fun fetchNeteaseSongsByIds(ids: List<Long>): List<Song> {
+        if (ids.isEmpty()) return emptyList()
+        val byId = HashMap<String, Song>(ids.size)
+        for (chunk in ids.chunked(200)) {
+            val url = "https://music.163.com/api/song/detail/?ids=[${chunk.joinToString(",")}]&id=${chunk.first()}"
+            val root = try {
+                getJson(url)
+            } catch (e: Exception) {
+                // 某一批失败就保留已取到的部分，总比整单导入失败好
+                Log.w(TAG, "netease song detail batch failed: ${e.message}")
+                break
+            }
+            root.getAsJsonArray("songs")?.forEach { element ->
+                parseNeteaseSong(element)?.let { byId[it.id] = it }
+            }
+        }
+        return ids.mapNotNull { byId[it.toString()] }
+    }
+
+    private suspend fun qqPlaylistDetail(id: String): PlaylistDetailData = withContext(Dispatchers.IO) {
+        val url = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg" +
+                "?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=${URLEncoder.encode(id, "UTF-8")}" +
+                "&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0" +
+                "&platform=yqq.json&needNewCode=0"
+        val req = Request.Builder()
+            .url(url)
+            .header("User-Agent", BROWSER_UA)
+            .header("Referer", "https://y.qq.com/")
+            .build()
+        val resp = httpClient.newCall(req).execute()
+        if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+        val body = resp.body?.string().orEmpty()
+        // 该接口在 format=json 下是标准 JSON，但历史上也出现过 JSONP 包装；只在必要时剥离，
+        // 否则歌名里的括号会被 stripJsonp 当成包裹符号截断 JSON。
+        val cleaned = if (body.trimStart().startsWith("{")) body else stripJsonp(body)
+        val root = parseJson(url, cleaned)
+        val cd = root.getAsJsonArray("cdlist")?.firstOrNull()?.asJsonObject
+            ?: throw IOException("歌单不存在或为私密歌单")
+        val songs = cd.getAsJsonArray("songlist")?.mapNotNull { e ->
+            val o = e.asJsonObject ?: return@mapNotNull null
+            val mid = o.optString("songmid") ?: o.optString("mid") ?: return@mapNotNull null
+            val singer = o.getAsJsonArray("singer")
+                ?.mapNotNull { it.asJsonObject?.optString("name") }?.joinToString("/").orEmpty()
+            val albumMid = o.optString("albummid")
+            Song(
+                id = mid,
+                title = o.optString("songname") ?: o.optString("title").orEmpty(),
+                artist = singer,
+                album = o.optString("albumname").orEmpty(),
+                artwork = albumMid?.let { "https://y.qq.com/music/photo_new/T002R300x300M000$it.jpg" },
+                platform = P_QQ,
+            )
+        } ?: emptyList()
+        val info = PlaylistItem(
+            id = id,
+            name = cd.optString("dissname").orEmpty(),
+            coverUrl = fixPicUrl(cd.optString("logo")),
+            playCount = cd.optLong("listennum"),
+            trackCount = cd.optLong("songnum") ?: songs.size.toLong(),
+            platform = P_QQ,
+        )
+        PlaylistDetailData(info = info, songs = songs)
+    }
+
+    private suspend fun kugouPlaylistDetail(id: String): PlaylistDetailData {
+        // 名字/封面信息接口偶发不可用：此时只要有歌曲就仍然导入，歌单名回落为文案里的名字
+        val meta = runCatching {
+            kugouJson("http://mobilecdn.kugou.com/api/v3/special/info?specialid=$id&format=json")
+                .getAsJsonObject("data")
+        }.getOrNull()
+        val songs = kugouPlaylistSongs(id)
+        if (meta == null && songs.isEmpty()) throw IOException("歌单不存在或无法访问")
+        val info = PlaylistItem(
+            id = id,
+            name = meta?.optString("specialname").orEmpty(),
+            coverUrl = fixPicUrl(meta?.optString("imgurl")?.replace("{size}", "480")),
+            playCount = meta?.optLong("playcount"),
+            trackCount = meta?.optLong("songcount") ?: songs.size.toLong(),
+            platform = P_KUGOU,
+        )
+        return PlaylistDetailData(info = info, songs = songs)
+    }
+
+    /** 酷狗歌单曲目分页拉取（每页 100，最多 5 页，避免超大歌单打满内存） */
+    private suspend fun kugouPlaylistSongs(id: String): List<Song> {
+        val out = mutableListOf<Song>()
+        var page = 1
+        while (page <= 5) {
+            val info = runCatching {
+                kugouJson(
+                    "http://mobilecdn.kugou.com/api/v3/special/song" +
+                            "?specialid=$id&page=$page&pagesize=100&format=json"
+                ).getAsJsonObject("data")?.getAsJsonArray("info")
+            }.getOrNull() ?: break
+            if (info.size() == 0) break
+            info.forEach { e ->
+                val o = e.asJsonObject ?: return@forEach
+                val hash = o.optString("hash") ?: return@forEach
+                // filename 形如 "歌手 - 歌名"，作为缺失字段的兜底
+                val fileName = o.optString("filename").orEmpty()
+                val hasSeparator = fileName.contains(" - ")
+                out += Song(
+                    id = hash,
+                    title = o.optString("songname")
+                        ?: if (hasSeparator) fileName.substringAfter(" - ") else fileName,
+                    artist = o.optString("singername")
+                        ?: if (hasSeparator) fileName.substringBefore(" - ") else "",
+                    album = o.optString("album_name").orEmpty(),
+                    artwork = kugouCover(o),
+                    platform = P_KUGOU,
+                )
+            }
+            if (info.size() < 100) break
+            page++
+        }
+        return out
+    }
+
+    private suspend fun kuwoPlaylistDetail(id: String): PlaylistDetailData {
+        val url = "http://nplserver.kuwo.cn/pl.svc?op=getlistinfo&pid=$id&pn=0&rn=300&encode=utf-8" +
+                "&keyset=pl2012&identity=kuwo&pcmp4=1&vipver=MUSIC_9.0.2.0_W1&newver=1"
+        val body = kuwoBody(url)
+        // pl.svc 返回标准 JSON；只有解析为空时才按酷我的单引号伪 JSON 规范化后重试
+        val direct = parseJson(url, body)
+        val root = if (direct.size() > 0) direct else parseJson(url, kuwoNormalize(body))
+        val list = root.getAsJsonArray("musiclist")
+        // 酷我 pl.svc 的顶层歌单名是 title（info 是简介，name 只出现在曲目里），封面是 pic
+        val name = cleanKuwoText(root.optString("title") ?: root.optString("name"))
+        // 既没有歌单名也没有曲目 → 判定为无效/私密歌单；只有空曲目则交由上层提示"没有可导入的歌曲"
+        if (list == null && name.isBlank()) throw IOException("歌单不存在或为私密歌单")
+        val songs = list?.mapNotNull { e ->
+            val o = e.asJsonObject ?: return@mapNotNull null
+            val rid = (o.optString("id") ?: o.optString("rid"))?.removePrefix("MUSIC_")
+                ?: return@mapNotNull null
+            Song(
+                id = rid,
+                title = cleanKuwoText(o.optString("name")),
+                artist = cleanKuwoText(o.optString("artist")),
+                album = cleanKuwoText(o.optString("album")),
+                artwork = kuwoCover(o.optString("albumpic") ?: o.optString("web_albumpic_short")),
+                platform = P_KUWO,
+            )
+        } ?: emptyList()
+        val info = PlaylistItem(
+            id = id,
+            name = name,
+            coverUrl = fixPicUrl(root.optString("pic") ?: root.optString("img")),
+            playCount = root.optLong("playnum"),
+            trackCount = root.optLong("total") ?: songs.size.toLong(),
+            platform = P_KUWO,
+        )
+        return PlaylistDetailData(info = info, songs = songs)
     }
 
     suspend fun getHotPlaylists(limit: Int = 20): List<PlaylistItem> {
@@ -1177,7 +1402,7 @@ object PlatformMusicService {
                 val hotPlaylists = getHotPlaylists(3)
                 for (pl in hotPlaylists) {
                     if (out.size >= limit) break
-                    val plSongs = try { getPlaylist(pl.id) } catch (_: Exception) { emptyList() }
+                    val plSongs = try { getPlaylist(pl.id, limit = 30) } catch (_: Exception) { emptyList() }
                     plSongs.take(30).forEach { s ->
                         if (s.id.isNotBlank() && seen.add(s.id)) out += s
                     }
@@ -1204,7 +1429,7 @@ object PlatformMusicService {
         val playlistIds = root.getAsJsonArray("playlists")?.mapNotNull { it.asJsonObject?.get("id")?.asString } ?: emptyList()
         playlistIds.take(4).forEach { id ->
             if (out.size >= limit) return@forEach
-            val songs = try { getPlaylist(id) } catch (_: Exception) { emptyList() }
+            val songs = try { getPlaylist(id, limit = limit) } catch (_: Exception) { emptyList() }
             songs.forEach { s ->
                 if (s.id.isNotBlank() && seen.add(s.id)) out += s
             }
@@ -1215,7 +1440,7 @@ object PlatformMusicService {
             return fallback.ifEmpty {
                 try {
                     val hot = getHotPlaylists(2).firstOrNull()?.id
-                    if (hot != null) getPlaylist(hot) else emptyList()
+                    if (hot != null) getPlaylist(hot, limit = 60) else emptyList()
                 } catch (_: Exception) { emptyList() }
             }
         }
@@ -1315,7 +1540,7 @@ object PlatformMusicService {
                     var previewSongs = emptyList<String>()
                     if (pId.isNotBlank()) {
                         try {
-                            val songs = getPlaylist(pId).take(3)
+                            val songs = getPlaylist(pId, limit = 3)
                             previewSongs = songs.map { s ->
                                 if (s.artist.isNotBlank()) "${s.title} - ${s.artist}" else s.title
                             }

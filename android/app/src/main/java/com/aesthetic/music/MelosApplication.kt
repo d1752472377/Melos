@@ -5,6 +5,7 @@ import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.PlayerSessionStore
+import com.aesthetic.music.data.settings.PlaylistCoverStore
 import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.RecentSearchStore
 import com.aesthetic.music.data.settings.ScriptCatalogStore
@@ -38,6 +39,7 @@ class MelosApplication : Application() {
         ScriptCatalogStore.init(this)
         UserApiEngine.init(this)
         PlaylistStore.init(this)
+        PlaylistCoverStore.init(this)
         StatsStore.init(this)
         PlayerSessionStore.init(this)
     }

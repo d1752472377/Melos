@@ -14,6 +14,7 @@ import com.aesthetic.music.data.api.LoginBody
 import com.aesthetic.music.data.api.LyricData
 import com.aesthetic.music.data.api.MusicApi
 import com.aesthetic.music.data.api.NewSongsData
+import com.aesthetic.music.data.api.PlaylistDetailData
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.ProfileBody
 import com.aesthetic.music.data.api.RanksData
@@ -145,8 +146,19 @@ class MusicRepository(
         LyricData(platform = song.platform)
     }
 
-    suspend fun getPlaylist(id: String): Result<List<Song>> = apiCatching {
-        PlatformMusicService.getPlaylist(id)
+    /**
+     * 歌单详情：歌单名 / 封面 / 曲目一次性抓回。
+     *
+     * 取代了原先只支持网易云的 `getPlaylist(id)`——收藏/导入进来的歌单可能来自任何平台，
+     * 一律走这个按平台分发的入口，避免"打开是空白或串歌"。
+     */
+    suspend fun getPlaylistDetail(platform: String?, id: String): Result<PlaylistDetailData> = apiCatching {
+        PlatformMusicService.getPlaylistDetail(platform, id)
+    }
+
+    /** 展开跳转链接（分享用的短链）：失败时返回原 URL */
+    suspend fun resolveFinalUrl(url: String): Result<String> = apiCatching {
+        PlatformMusicService.resolveFinalUrl(url)
     }
 
     suspend fun getHotPlaylists(limit: Int = 20): Result<List<PlaylistItem>> = apiCatching {

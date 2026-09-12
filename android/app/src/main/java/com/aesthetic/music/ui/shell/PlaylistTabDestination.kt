@@ -16,6 +16,8 @@ fun PlaylistTabDestination(
 ) {
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
+    val importPreview by viewModel.playlistImportPreview.collectAsState()
+
     PlaylistScreen(
         myPlaylists = myPlaylists,
         favoritePlaylists = favoritePlaylists,
@@ -27,10 +29,35 @@ fun PlaylistTabDestination(
             viewModel.openPlaylistDetail(pl)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
-        onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
-        onRenamePlaylist = viewModel::renamePlaylist,
+        importPreview = importPreview,
+        onResolveImport = viewModel::resolvePlaylistImportPreview,
+        onClearImport = viewModel::clearPlaylistImportPreview,
+        onCreatePlaylist = { result ->
+            val id = viewModel.createPlaylist(
+                name = result.name,
+                initialSongs = result.importedSongs,
+                cover = result.cover,
+                sourcePlatform = result.sourcePlatform,
+                sourcePlaylistId = result.sourcePlaylistId,
+                sourceName = result.sourceName,
+            )
+            if (id != null) {
+                actions.toast(
+                    if (result.importedSongs.isEmpty()) {
+                        "已创建歌单《${result.name}》"
+                    } else {
+                        "已创建《${result.name}》，含 ${result.importedSongs.size} 首原始曲目"
+                    }
+                )
+            }
+        },
+        onEditPlaylist = { id, result ->
+            viewModel.updatePlaylistInfo(id, name = result.name, cover = result.cover)
+            actions.toast("歌单信息已更新")
+        },
         onDeletePlaylist = viewModel::deletePlaylist,
         onOpenImport = { viewModel.openImportDialog() },
         onPlayPlaylist = { songs -> actions.playAll(songs) },
+        onToast = actions.toast,
     )
 }

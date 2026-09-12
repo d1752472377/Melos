@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.HorizontalDivider
@@ -28,20 +27,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
+import com.aesthetic.music.data.api.PlaylistLinkParser
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
+import com.aesthetic.music.ui.components.PlaylistEditorResult
+import com.aesthetic.music.ui.components.PlaylistEditorSheet
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.PrimaryBrown
-import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -54,17 +54,22 @@ fun PlaylistScreen(
     favoritePlaylists: List<PlaylistItem> = emptyList(),
     onOpenMyPlaylist: (String) -> Unit,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit = {},
-    onCreatePlaylist: (String) -> Unit,
-    onRenamePlaylist: (String, String) -> Unit,
+    /** 新建歌单：名称 + 封面 + （可选的）平台导入原始记录 */
+    onCreatePlaylist: (PlaylistEditorResult) -> Unit,
+    /** 编辑已有歌单的名称 / 封面 */
+    onEditPlaylist: (String, PlaylistEditorResult) -> Unit,
     onDeletePlaylist: (String) -> Unit,
     onOpenImport: () -> Unit,
     onPlayPlaylist: (List<Song>) -> Unit,
+    /** 「新建歌单」表单里可选导入外部歌单的解析状态 */
+    importPreview: PlaylistResolveState = PlaylistResolveState.Idle,
+    onResolveImport: (String) -> Unit = {},
+    onClearImport: () -> Unit = {},
+    onToast: (String) -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var newPlaylistName by remember { mutableStateOf("") }
-    var renameTarget by remember { mutableStateOf<MyPlaylist?>(null) }
-    var renameText by remember { mutableStateOf("") }
+    var showCreateSheet by remember { mutableStateOf(false) }
+    var editTarget by remember { mutableStateOf<MyPlaylist?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var selectedPlaylist by remember { mutableStateOf<MyPlaylist?>(null) }
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
@@ -115,7 +120,7 @@ fun PlaylistScreen(
                         SimpleAction(
                             text = "新建歌单",
                             icon = Icons.Filled.Add,
-                            onClick = { showCreateDialog = true }
+                            onClick = { showCreateSheet = true }
                         )
                     } else {
                         SimpleAction(
@@ -217,11 +222,10 @@ fun PlaylistScreen(
                 Spacer(Modifier.height(12.dp))
                 BottomSheetAction(
                     icon = Icons.Filled.Edit,
-                    text = "重命名",
+                    text = "编辑名称与封面",
                     onClick = {
                         selectedPlaylist?.let { playlist ->
-                            renameTarget = playlist
-                            renameText = playlist.name
+                            editTarget = playlist
                         }
                         showBottomSheet = false
                         selectedPlaylist = null
@@ -264,61 +268,43 @@ fun PlaylistScreen(
         }
     }
 
-    if (showCreateDialog) {
-        AppDialog(
-            onDismissRequest = {
-                showCreateDialog = false
-                newPlaylistName = ""
-            },
+    // ================= 新建 / 编辑歌单表单（名称 + 本机封面 + 可选的平台导入） =================
+    if (showCreateSheet) {
+        PlaylistEditorSheet(
             title = "新建歌单",
-            confirmText = "创建",
-            onConfirm = {
-                if (newPlaylistName.isNotBlank()) {
-                    onCreatePlaylist(newPlaylistName.trim())
-                    showCreateDialog = false
-                    newPlaylistName = ""
-                }
+            confirmText = "创建歌单",
+            // 新建时才提供"从其他平台导入"，导入进来的歌单名/封面/歌曲作为原始记录
+            showPlatformImport = true,
+            importState = importPreview,
+            onResolveImport = onResolveImport,
+            onClearImport = onClearImport,
+            onDismiss = {
+                showCreateSheet = false
+                onClearImport()
             },
-            confirmEnabled = newPlaylistName.trim().isNotEmpty(),
-        ) {
-            BasicTextField(
-                value = newPlaylistName,
-                onValueChange = { if (it.length <= 30) newPlaylistName = it },
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 16.sp, color = TextPrimary),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Stone100)
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-            )
-        }
+            onConfirm = { result ->
+                showCreateSheet = false
+                onClearImport()
+                onCreatePlaylist(result)
+            },
+            onToast = onToast,
+        )
     }
 
-    renameTarget?.let { target ->
-        AppDialog(
-            onDismissRequest = { renameTarget = null },
-            title = "重命名歌单",
+    editTarget?.let { target ->
+        PlaylistEditorSheet(
+            title = "编辑歌单",
             confirmText = "保存",
-            onConfirm = {
-                if (renameText.isNotBlank()) {
-                    onRenamePlaylist(target.id, renameText.trim())
-                    renameTarget = null
-                }
+            initialName = target.name,
+            initialCover = target.cover,
+            onDismiss = { editTarget = null },
+            onConfirm = { result ->
+                val id = target.id
+                editTarget = null
+                onEditPlaylist(id, result)
             },
-        ) {
-            BasicTextField(
-                value = renameText,
-                onValueChange = { renameText = it },
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 16.sp, color = TextPrimary),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Stone100)
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-            )
-        }
+            onToast = onToast,
+        )
     }
 }
 
@@ -337,7 +323,7 @@ private fun MyPlaylistContent(
             item(key = "my_empty") {
                 EmptyStateView(
                     title = "还没有自建歌单",
-                    subtitle = "点击上方「新建歌单」创建你的第一个歌单",
+                    subtitle = "点击上方「新建歌单」自己创建，或在表单里从其他平台导入歌单",
                     icon = Icons.Filled.LibraryMusic
                 )
             }
@@ -369,7 +355,7 @@ private fun FavoritePlaylistContent(
             item(key = "fav_empty") {
                 EmptyStateView(
                     title = "还没有收藏的歌单",
-                    subtitle = "浏览歌单时点击 ♡ 即可收藏到这里",
+                    subtitle = "浏览歌单时点 ♡ 收藏，或用上方「导入歌单」粘贴链接/分享文案",
                     icon = Icons.Filled.FavoriteBorder
                 )
             }
@@ -465,7 +451,7 @@ private fun PlaylistRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             SongCover(
-                url = playlist.coverUrl ?: playlist.songs.firstOrNull()?.artwork,
+                url = playlist.coverUrl,
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(12.dp)),
@@ -487,7 +473,14 @@ private fun PlaylistRow(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "${playlist.songs.size} 首歌",
+                    // 导入的歌单标出来源平台，"原始记录"才看得出出处
+                    text = buildString {
+                        append("${playlist.songs.size} 首歌")
+                        if (playlist.isImported) {
+                            append(" · 来自")
+                            append(PlaylistLinkParser.platformName(playlist.sourcePlatform))
+                        }
+                    },
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                     color = TextSoft
                 )

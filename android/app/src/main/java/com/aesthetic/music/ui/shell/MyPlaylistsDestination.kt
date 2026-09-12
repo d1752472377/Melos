@@ -18,6 +18,8 @@ fun MyPlaylistsDestination(
 ) {
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val playerState by playerManager.state.collectAsState()
+    val importPreview by viewModel.playlistImportPreview.collectAsState()
+
     MyPlaylistsScreen(
         playlists = myPlaylists,
         currentSong = playerState.currentSong,
@@ -29,12 +31,37 @@ fun MyPlaylistsDestination(
             viewModel.openMyPlaylist(id)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
-        onCreate = { name -> viewModel.createPlaylist(name) },
-        onRename = viewModel::renamePlaylist,
+        importPreview = importPreview,
+        onResolveImport = viewModel::resolvePlaylistImportPreview,
+        onClearImport = viewModel::clearPlaylistImportPreview,
+        onCreate = { result ->
+            val id = viewModel.createPlaylist(
+                name = result.name,
+                initialSongs = result.importedSongs,
+                cover = result.cover,
+                sourcePlatform = result.sourcePlatform,
+                sourcePlaylistId = result.sourcePlaylistId,
+                sourceName = result.sourceName,
+            )
+            if (id != null) {
+                actions.toast(
+                    if (result.importedSongs.isEmpty()) {
+                        "已创建歌单《${result.name}》"
+                    } else {
+                        "已创建《${result.name}》，含 ${result.importedSongs.size} 首原始曲目"
+                    }
+                )
+            }
+        },
+        onEdit = { id, result ->
+            viewModel.updatePlaylistInfo(id, name = result.name, cover = result.cover)
+            actions.toast("歌单信息已更新")
+        },
         onDelete = viewModel::deletePlaylist,
         onAddCurrent = { id, song ->
             viewModel.addSongsToPlaylist(id, listOf(song))
             actions.toast("已加入歌单")
         },
+        onToast = actions.toast,
     )
 }

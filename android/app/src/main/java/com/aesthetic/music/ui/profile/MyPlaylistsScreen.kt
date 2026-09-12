@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -43,15 +42,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.data.api.PlaylistLinkParser
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.EmptyBox
+import com.aesthetic.music.ui.components.PlaylistEditorResult
+import com.aesthetic.music.ui.components.PlaylistEditorSheet
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
-import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
@@ -59,7 +61,7 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 我的歌单页：自建歌单管理（创建 / 打开 / 重命名 / 删除 / 把当前歌加入歌单）。
+ * 我的歌单页：自建歌单管理（创建 / 打开 / 编辑名称与封面 / 删除 / 把当前歌加入歌单）。
  */
 @Composable
 fun MyPlaylistsScreen(
@@ -67,13 +69,17 @@ fun MyPlaylistsScreen(
     currentSong: Song?,
     onBack: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
-    onCreate: (String) -> Unit,
-    onRename: (String, String) -> Unit,
+    onCreate: (PlaylistEditorResult) -> Unit,
+    onEdit: (String, PlaylistEditorResult) -> Unit,
     onDelete: (String) -> Unit,
     onAddCurrent: (String, Song) -> Unit,
+    importPreview: PlaylistResolveState = PlaylistResolveState.Idle,
+    onResolveImport: (String) -> Unit = {},
+    onClearImport: () -> Unit = {},
+    onToast: (String) -> Unit = {},
 ) {
     var showCreate by remember { mutableStateOf(false) }
-    var renameTarget by remember { mutableStateOf<MyPlaylist?>(null) }
+    var editTarget by remember { mutableStateOf<MyPlaylist?>(null) }
     // 删除歌单二次确认（误触即永久删除，含已同步的云端歌单）
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
@@ -169,7 +175,7 @@ fun MyPlaylistsScreen(
                         currentSong = currentSong,
                         onOpen = { onOpenPlaylist(p.id) },
                         onAddCurrent = { onAddCurrent(p.id, it) },
-                        onRename = { renameTarget = p },
+                        onRename = { editTarget = p },
                         onDelete = { deleteTarget = p }
                     )
                 }
@@ -178,14 +184,23 @@ fun MyPlaylistsScreen(
     }
 
     if (showCreate) {
-        NameDialog(
+        PlaylistEditorSheet(
             title = "新建歌单",
-            initial = "",
-            onDismiss = { showCreate = false },
-            onConfirm = {
-                onCreate(it)
+            confirmText = "创建歌单",
+            showPlatformImport = true,
+            importState = importPreview,
+            onResolveImport = onResolveImport,
+            onClearImport = onClearImport,
+            onDismiss = {
                 showCreate = false
+                onClearImport()
             },
+            onConfirm = {
+                showCreate = false
+                onClearImport()
+                onCreate(it)
+            },
+            onToast = onToast,
         )
     }
 
@@ -210,15 +225,19 @@ fun MyPlaylistsScreen(
         }
     }
 
-    renameTarget?.let { target ->
-        NameDialog(
-            title = "重命名歌单",
-            initial = target.name,
-            onDismiss = { renameTarget = null },
-            onConfirm = {
-                onRename(target.id, it)
-                renameTarget = null
+    editTarget?.let { target ->
+        PlaylistEditorSheet(
+            title = "编辑歌单",
+            confirmText = "保存",
+            initialName = target.name,
+            initialCover = target.cover,
+            onDismiss = { editTarget = null },
+            onConfirm = { result ->
+                val id = target.id
+                editTarget = null
+                onEdit(id, result)
             },
+            onToast = onToast,
         )
     }
 }
@@ -257,7 +276,15 @@ private fun PlaylistRowItem(
             )
             Spacer(Modifier.height(1.dp))
             Text(
-                text = "${playlist.songs.size} 首" + if (playlist.cloudId.isNotBlank()) " · 已同步" else "",
+                // 导入的歌单标出来源平台，方便和本地自建歌单区分
+                text = buildString {
+                    append("${playlist.songs.size} 首")
+                    if (playlist.isImported) {
+                        append(" · 来自")
+                        append(PlaylistLinkParser.platformName(playlist.sourcePlatform))
+                    }
+                    if (playlist.cloudId.isNotBlank()) append(" · 已同步")
+                },
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = TextSoft,
             )
@@ -291,7 +318,7 @@ private fun PlaylistRowItem(
         ) {
             Icon(
                 imageVector = Icons.Filled.Edit,
-                contentDescription = "重命名",
+                contentDescription = "编辑名称与封面",
                 tint = TextSoft,
                 modifier = Modifier.size(15.dp),
             )
@@ -312,47 +339,5 @@ private fun PlaylistRowItem(
                 modifier = Modifier.size(15.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun NameDialog(
-    title: String,
-    initial: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var input by remember { mutableStateOf(initial) }
-
-    AppDialog(
-        onDismissRequest = onDismiss,
-        title = title,
-        confirmText = "确定",
-        onConfirm = { onConfirm(input.trim()) },
-        confirmEnabled = input.isNotBlank(),
-    ) {
-        BasicTextField(
-            value = input,
-            onValueChange = { if (it.length <= 30) input = it },
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(Stone100)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            decorationBox = { innerTextField ->
-                Box(contentAlignment = Alignment.CenterStart) {
-                    if (input.isEmpty()) {
-                        Text(
-                            text = "请输入歌单名称",
-                            color = TextMuted,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    innerTextField()
-                }
-            }
-        )
     }
 }

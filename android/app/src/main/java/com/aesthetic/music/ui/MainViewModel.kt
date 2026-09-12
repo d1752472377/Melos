@@ -15,6 +15,7 @@ import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.library.LibraryController
+import com.aesthetic.music.ui.library.PlaylistImportController
 import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.script.ScriptController
@@ -42,6 +43,16 @@ class MainViewModel : ViewModel() {
     // 用户音乐库（收藏/历史/我的歌单/云同步）：已抽到 LibraryController（见 ui/library/LibraryController.kt）
     private val library = LibraryController(repository, viewModelScope, onToast = { _appToast.value = it })
 
+    // 外部歌单导入（链接/分享文案）：已抽到 PlaylistImportController（见 ui/library/PlaylistImportController.kt）
+    private val playlistImport = PlaylistImportController(
+        repository = repository,
+        scope = viewModelScope,
+        onToast = { _appToast.value = it },
+        // 「导入歌单」弹窗的归属是收藏歌单：导入 = 把平台上的歌单收藏进来，
+        // 与「新建歌单」表单里那条可选导入（落成自建歌单）刻意区分开
+        onCollectPlaylist = { library.collectPlaylist(it) },
+    )
+
     // 首页内容体系：已抽到 ContentController（见 ui/home/ContentController.kt）
     private val content = ContentController(repository, viewModelScope)
 
@@ -58,8 +69,7 @@ class MainViewModel : ViewModel() {
     private val search = SearchController(repository, viewModelScope)
 
     // 歌单/榜单详情：已抽到 PlaylistDetailController（见 ui/playlist/PlaylistDetailController.kt）
-    private val playlistDetail =
-        PlaylistDetailController(repository, viewModelScope, onToast = { _appToast.value = it })
+    private val playlistDetail = PlaylistDetailController(repository, viewModelScope)
 
     // 用户 / 个人中心：已抽到 ProfileController（见 ui/profile/ProfileController.kt）
     private val profile = ProfileController(
@@ -348,14 +358,51 @@ class MainViewModel : ViewModel() {
 
     fun openRankDetail(item: PlaylistItem) = playlistDetail.openRank(item)
 
-    fun importPlaylist(id: String) = playlistDetail.import(id)
+    // ==================== 外部歌单导入（委托 PlaylistImportController） ====================
+
+    /** 「新建歌单」表单里的可选导入：解析结果仅用于回填，不落库 */
+    val playlistImportPreview get() = playlistImport.preview
+
+    /** 「导入歌单」弹窗状态：Idle / Loading / Ready / Failed */
+    val playlistImportState get() = playlistImport.importState
+
+    fun resolvePlaylistImportPreview(text: String) = playlistImport.resolveForPreview(text)
+
+    fun clearPlaylistImportPreview() = playlistImport.clearPreview()
+
+    fun resetPlaylistImportState() = playlistImport.resetImport()
+
+    /**
+     * 粘贴链接/文案导入：解析平台歌单 → 抓回名字、封面与曲目 → 加入**收藏歌单**。
+     * 成功后回调收藏条目，供调用方跳转详情。
+     */
+    fun importPlaylistFromText(text: String, onImported: (PlaylistItem) -> Unit = {}) =
+        playlistImport.importFromText(text, onImported)
 
     // ==================== 我的歌单（委托 LibraryController） ====================
 
-    fun createPlaylist(name: String, initialSongs: List<Song> = emptyList()) =
-        library.createPlaylist(name, initialSongs)
+    /** 新建自建歌单；[cover] 为本机封面绝对路径或网络封面 URL，返回新歌单 id */
+    fun createPlaylist(
+        name: String,
+        initialSongs: List<Song> = emptyList(),
+        cover: String = "",
+        sourcePlatform: String = "",
+        sourcePlaylistId: String = "",
+        sourceName: String = "",
+    ): String? = library.createPlaylist(
+        name = name,
+        initialSongs = initialSongs,
+        cover = cover,
+        sourcePlatform = sourcePlatform,
+        sourcePlaylistId = sourcePlaylistId,
+        sourceName = sourceName,
+    )
 
     fun renamePlaylist(id: String, name: String) = library.renamePlaylist(id, name)
+
+    /** 编辑歌单信息：name/cover 传 null 表示该项不变，cover 传空串表示清除自定义封面 */
+    fun updatePlaylistInfo(id: String, name: String? = null, cover: String? = null) =
+        library.updatePlaylistInfo(id, name, cover)
 
     fun deletePlaylist(id: String) = library.deletePlaylist(id)
 
