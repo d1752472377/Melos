@@ -1,7 +1,11 @@
 package com.aesthetic.music.player
 
 import android.content.Context
+import android.media.AudioManager
+import android.media.AudioRecordingConfiguration
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -14,6 +18,7 @@ import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.SettingsStore
+import com.aesthetic.music.data.settings.UserPrefs
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.StatsTracker
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
@@ -35,6 +40,9 @@ import kotlinx.coroutines.withContext
 
 /** 播放模式（参考 App 的 PlayMode） */
 enum class PlayMode { SEQUENCE, REPEAT, SHUFFLE }
+
+/** 淡入淡出每步时长（10 步 ≈ 300ms，短到不影响手感，长到听不出突跳） */
+private const val FADE_STEP_MS = 30L
 
 /**
  * 高频播放进度：每 500ms 更新一次。
@@ -126,6 +134,182 @@ class PlayerManager private constructor(private val appContext: Context) {
     /** 外部监听（系统悬浮胶囊 / MediaSession 等） */
     var onStateChanged: ((PlayerState) -> Unit)? = null
 
+    // ==================== 用户设置（设置页 → 播放/歌词/下载） ====================
+
+    /** 当前设置快照：播放链路每处判断都读它，改设置后由 [applyUserPrefs] 刷新生效 */
+    @Volatile
+    private var userPrefs: UserPrefs = SettingsStore.readPrefs()
+
+    /** 淡入淡出用的音量渐变任务（切换歌曲时取消上一个） */
+    private var fadeJob: Job? = null
+
+    /** 因麦克风被占用而暂停：占用结束后按需自动恢复 */
+    private var pausedForRecording = false
+
+    /** 录音占用监听（仅「混合播放」开启时注册） */
+    private var recordingCallback: AudioManager.AudioRecordingCallback? = null
+
+    private val audioManager: AudioManager?
+        get() = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+    /** 已预加载的下一首 key，避免同一首反复预取 */
+    private var preloadedKey: String? = null
+
+    /**
+     * 应用设置页的变更（主题之外的播放/歌词/下载项）。
+     *
+     * 只在"需要真的动播放器"的地方生效：
+     * - 混合播放 → 重新注册音频属性（是否独占焦点）
+     * - 歌词来源/翻译 → 重新加载当前歌曲歌词
+     * 其余（预加载、淡入淡出、下载策略）在各自的执行点读 [userPrefs]，无需重启播放。
+     */
+    fun applyUserPrefs(prefs: UserPrefs) {
+        val old = userPrefs
+        userPrefs = prefs
+        applyAudioFocusMode(prefs)
+        if (old.lyricOnline != prefs.lyricOnline ||
+            old.lyricLocal != prefs.lyricLocal ||
+            old.lyricTranslation != prefs.lyricTranslation
+        ) {
+            _state.value.currentSong?.let { song ->
+                val gen = playGeneration
+                scope.launch { loadLyrics(song, gen) }
+            }
+        }
+    }
+
+    /**
+     * 混合播放：开启后不再独占音频焦点（与其他 App 同时出声），改为监听麦克风占用；
+     * 关闭时回到 ExoPlayer 默认的焦点让出行为（来电/其他播放器会暂停本 App）。
+     */
+    private fun applyAudioFocusMode(prefs: UserPrefs) {
+        runCatching {
+            player.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                // handleAudioFocus = !mixWithOthers
+                !prefs.mixWithOthers,
+            )
+        }
+        if (prefs.mixWithOthers) registerRecordingWatcher() else unregisterRecordingWatcher()
+    }
+
+    private fun registerRecordingWatcher() {
+        if (recordingCallback != null) return
+        val cb = object : AudioManager.AudioRecordingCallback() {
+            override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) {
+                val recording = configs.isNotEmpty()
+                if (recording) {
+                    // 麦克风被占用（通话/录音/语音助手）：混合播放模式下必须让路，否则会串音
+                    if (player.isPlaying) {
+                        pausedForRecording = true
+                        runCatching { player.pause() }
+                    }
+                } else if (pausedForRecording) {
+                    pausedForRecording = false
+                    runCatching { player.play() }
+                }
+            }
+        }
+        recordingCallback = cb
+        runCatching { audioManager?.registerAudioRecordingCallback(cb, Handler(Looper.getMainLooper())) }
+    }
+
+    private fun unregisterRecordingWatcher() {
+        val cb = recordingCallback ?: return
+        recordingCallback = null
+        pausedForRecording = false
+        runCatching { audioManager?.unregisterAudioRecordingCallback(cb) }
+    }
+
+    /** 淡入：播放开始时从静音升到正常音量（关闭淡入淡出则直接满音量） */
+    private fun fadeIn() {
+        if (!userPrefs.crossFade) {
+            player.volume = 1f
+            return
+        }
+        fadeJob?.cancel()
+        player.volume = 0f
+        fadeJob = scope.launch {
+            val steps = 10
+            for (i in 1..steps) {
+                player.volume = i / steps.toFloat()
+                delay(FADE_STEP_MS)
+            }
+            player.volume = 1f
+        }
+    }
+
+    /** 淡出后暂停：避免"啪"的一声直接断掉 */
+    private fun fadeOutThenPause() {        if (!userPrefs.crossFade) {
+            player.pause()
+            return
+        }
+        fadeJob?.cancel()
+        fadeJob = scope.launch {
+            val from = player.volume
+            val steps = 8
+            for (i in 1..steps) {
+                player.volume = from * (1f - i / steps.toFloat())
+                delay(FADE_STEP_MS)
+            }
+            player.volume = 0f
+            player.pause()
+            player.volume = 1f
+        }
+    }
+
+    /** 预加载下一首：把下一首音频后台缓存下来，切歌时直接命中本地（弱网/走动时更稳） */
+    private fun preloadNextIfEnabled() {
+        if (!userPrefs.preloadNext) return
+        val s = _state.value
+        if (s.queue.size <= 1) return
+        val next = s.queue.getOrNull(s.currentIndex + 1) ?: return
+        if (next.id.isBlank()) return
+        val key = next.platform + ":" + next.id
+        if (key == preloadedKey) return
+        if (!DownloadPolicy.allowed(appContext, userPrefs, manual = false)) return
+        preloadedKey = key
+        scope.launch {
+            val quality = SettingsStore.getQuality().value
+            val cached = withContext(Dispatchers.IO) {
+                AudioCacheService.getCachedPath(appContext, next.platform, next.id, quality)
+            }
+            if (cached != null) return@launch
+            val url = repository.getSongUrl(next, quality).getOrNull()?.url ?: return@launch
+            AudioCacheService.cacheAudio(
+                context = appContext,
+                platformCode = next.platform,
+                songId = next.id,
+                quality = quality,
+                url = url,
+                name = next.title,
+                artist = next.artist,
+                scope = scope,
+            ) { path -> if (path != null) saveSidecars(next) }
+        }
+    }
+
+    /**
+     * 下载后补封面与歌词副文件（「下载与缓存 → 封面与歌词」开启时）。
+     * 放在缓存成功之后做，避免为了副文件多做一次无谓的网络请求。
+     */
+    private fun saveSidecars(song: Song) {
+        if (!userPrefs.downloadCoverLyrics) return
+        scope.launch {
+            runCatching {
+                if (userPrefs.lyricOnline) {
+                    repository.getLyric(song).getOrNull()?.let { d ->
+                        MediaCardFavorites.saveLocalLyric(appContext, song, d.lyric)
+                    }
+                }
+                SongSidecarStore.saveCover(appContext, song)
+            }
+        }
+    }
+
     /** 歌曲真正开始播放后回调（写"最近播放"等用）。
      *  此前"点击即写历史"：取直链失败的歌也会入历史，统计口径被污染 */
     var onPlaybackStarted: ((Song) -> Unit)? = null
@@ -137,6 +321,8 @@ class PlayerManager private constructor(private val appContext: Context) {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
                 if (isPlaying) {
+                    // 淡入：从静音升到正常音量，避免每次起播"啪"一声
+                    fadeIn()
                     val s = _state.value
                     val song = s.currentSong
                     val key = song?.let { it.platform + ":" + it.id }
@@ -146,11 +332,34 @@ class PlayerManager private constructor(private val appContext: Context) {
                         // 真正起播才写"最近播放"（此前"点击即写历史"，取直链失败的歌也入历史）
                         if (song != null) onPlaybackStarted?.invoke(song)
                     }
+                    // 起播后预取下一首（设置里可关）
+                    preloadNextIfEnabled()
                 } else {
                     // 暂停瞬间立即落一次断点：轮询循环暂停时降频不再保存，这里保证暂停位置不丢
                     saveSession()
                 }
                 notifyState()
+            }
+
+            /**
+             * 音频焦点丢失 → 实现「打断自动恢复」开关。
+             *
+             * 已核对的 API 事实：media3 1.4.1 的 Player 只有
+             * PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS，没有 *_AUDIO_FOCUS_GAIN，
+             * 所以无法在"焦点恢复"那一刻判断是系统恢复还是用户点的。
+             * 换个更稳的做法：关掉开关时，把系统因焦点丢失产生的暂停"转成"用户暂停
+             * ——ExoPlayer 只对"自己因焦点丢失暂停"的播放做自动恢复，
+             * 一旦收到显式 pause() 就不会再自己续播，正好等于"打断后不自动恢复"。
+             * 开关打开时不做任何事，即保持 ExoPlayer 默认的自动恢复行为。
+             */
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS &&
+                    !playWhenReady &&
+                    !userPrefs.resumeAfterInterrupt
+                ) {
+                    // 显式暂停：焦点恢复后停在暂停态，等用户手动点播放
+                    runCatching { player.pause() }
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -433,6 +642,8 @@ class PlayerManager private constructor(private val appContext: Context) {
                 ) { localPath ->
                     if (localPath != null) {
                         android.util.Log.d("PlayerManager", "后台缓存完成: $localPath")
+                        // 「下载与缓存 → 封面与歌词」开启时补存封面/歌词副文件
+                        saveSidecars(song)
                     }
                 }
             }
@@ -467,68 +678,111 @@ class PlayerManager private constructor(private val appContext: Context) {
         }
     }
 
+    /**
+     * 加载当前歌曲歌词。
+     *
+     * 歌词来源按设置走（设置 → 歌词显示）：
+     * - 两个来源都关 = 不显示歌词，且不发起任何请求；
+     * - 开本地 = 先找本地歌词文件（缓存歌曲同目录 .lrc，或 filesDir/lyrics 下的已保存歌词），命中就离线用；
+     * - 开在线 = 走仓库取歌词（失败/为空时不覆盖已有歌词，避免"网络抖一下歌词就空"）。
+     */
     private suspend fun loadLyrics(song: Song, gen: Long) {
-        repository.getLyric(song).onSuccess { d ->
-            if (gen != playGeneration) return@onSuccess
-            val original = parseLrc(d.lyric)
-            val translated = parseLrc(d.translated)
-            val merged = mergeTranslation(original, translated)
-
-            val rawLyric = d.lyric ?: ""
-            val rawTranslated = d.translated
-            val contentToParse = if (!rawTranslated.isNullOrBlank() && !rawLyric.contains(rawTranslated)) {
-                "$rawLyric\n$rawTranslated"
-            } else {
-                rawLyric
-            }
-            val parsedSynced = if (contentToParse.isNotBlank()) {
-                try {
-                    AutoParser().parse(contentToParse)
-                } catch (e: Exception) {
-                    null
-                }
-            } else null
-
-            val finalSynced = when {
-                parsedSynced != null && parsedSynced.lines.isNotEmpty() -> {
-                    if (merged.any { it.translated != null } && parsedSynced.lines.none { it.translation != null }) {
-                        val updatedLines = parsedSynced.lines.map { line ->
-                            val match = merged.find { kotlin.math.abs(it.timeMs - line.start) < 1000 }
-                            if (match?.translated != null) {
-                                when (line) {
-                                    is KaraokeLine.MainKaraokeLine -> line.copy(translation = match.translated)
-                                    is KaraokeLine.AccompanimentKaraokeLine -> line.copy(translation = match.translated)
-                                    is SyncedLine -> line.copy(translation = match.translated)
-                                    else -> line
-                                }
-                            } else line
-                        }
-                        parsedSynced.copy(lines = updatedLines)
-                    } else {
-                        parsedSynced
-                    }
-                }
-                merged.isNotEmpty() -> {
-                    SyncedLyrics(
-                        lines = merged.mapIndexed { idx, item ->
-                            val nextStart = merged.getOrNull(idx + 1)?.timeMs?.toInt() ?: (item.timeMs.toInt() + 5000)
-                            SyncedLine(
-                                content = item.text,
-                                start = item.timeMs.toInt(),
-                                end = nextStart,
-                                translation = item.translated
-                            )
-                        }
-                    )
-                }
-                else -> null
-            }
-
-            _state.value = _state.value.copy(
-                lyrics = merged,
-                syncedLyrics = finalSynced
-            )
+        val prefs = userPrefs
+        if (!prefs.lyricOnline && !prefs.lyricLocal) {
+            clearLyrics(gen)
+            return
         }
+        if (prefs.lyricLocal) {
+            val local = withContext(Dispatchers.IO) {
+                val cached = AudioCacheService.getCachedPath(
+                    appContext, song.platform, song.id, SettingsStore.getQuality().value,
+                )
+                MediaCardFavorites.loadLocalLyric(appContext, song, cached)
+            }
+            if (!local.isNullOrBlank()) {
+                applyLyrics(local, null, gen)
+                return
+            }
+        }
+        if (!prefs.lyricOnline) {
+            // 只开本地却没有本地文件：清空而不是联网（用户的目标就是纯离线）
+            clearLyrics(gen)
+            return
+        }
+        repository.getLyric(song).onSuccess { d ->
+            applyLyrics(d.lyric, d.translated, gen)
+        }
+    }
+
+    /** 清空歌词（来源被关掉，或本地没有可用歌词） */
+    private fun clearLyrics(gen: Long) {
+        if (gen != playGeneration) return
+        _state.value = _state.value.copy(lyrics = emptyList(), syncedLyrics = null)
+        notifyState()
+    }
+
+    /** 解析并落地歌词：关闭「翻译歌词」时丢弃译文，只保留原文 */
+    private fun applyLyrics(rawLyricIn: String?, rawTranslatedIn: String?, gen: Long) {
+        if (gen != playGeneration) return
+        val rawLyric = rawLyricIn ?: ""
+        val rawTranslated = if (userPrefs.lyricTranslation) rawTranslatedIn else null
+        val original = parseLrc(rawLyric)
+        val translated = if (rawTranslated.isNullOrBlank()) emptyList() else parseLrc(rawTranslated)
+        val merged = mergeTranslation(original, translated)
+
+        val contentToParse = if (!rawTranslated.isNullOrBlank() && !rawLyric.contains(rawTranslated)) {
+            "$rawLyric\n$rawTranslated"
+        } else {
+            rawLyric
+        }
+        val parsedSynced = if (contentToParse.isNotBlank()) {
+            try {
+                AutoParser().parse(contentToParse)
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+
+        val finalSynced = when {
+            parsedSynced != null && parsedSynced.lines.isNotEmpty() -> {
+                if (merged.any { it.translated != null } && parsedSynced.lines.none { it.translation != null }) {
+                    val updatedLines = parsedSynced.lines.map { line ->
+                        val match = merged.find { kotlin.math.abs(it.timeMs - line.start) < 1000 }
+                        if (match?.translated != null) {
+                            when (line) {
+                                is KaraokeLine.MainKaraokeLine -> line.copy(translation = match.translated)
+                                is KaraokeLine.AccompanimentKaraokeLine -> line.copy(translation = match.translated)
+                                is SyncedLine -> line.copy(translation = match.translated)
+                                else -> line
+                            }
+                        } else line
+                    }
+                    parsedSynced.copy(lines = updatedLines)
+                } else {
+                    parsedSynced
+                }
+            }
+            merged.isNotEmpty() -> {
+                SyncedLyrics(
+                    lines = merged.mapIndexed { idx, item ->
+                        val nextStart = merged.getOrNull(idx + 1)?.timeMs?.toInt() ?: (item.timeMs.toInt() + 5000)
+                        SyncedLine(
+                            content = item.text,
+                            start = item.timeMs.toInt(),
+                            end = nextStart,
+                            translation = item.translated
+                        )
+                    }
+                )
+            }
+            else -> null
+        }
+
+        _state.value = _state.value.copy(
+            lyrics = merged,
+            syncedLyrics = finalSynced
+        )
+        notifyState()
     }
 
     // ==================== 播放模式 ====================
@@ -591,7 +845,8 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     fun toggle() {
         if (player.isPlaying) {
-            player.pause()
+            // 淡出后暂停（关闭「淡入淡出」时直接 pause）
+            fadeOutThenPause()
         } else {
             when (player.playbackState) {
                 // 从未起播：正常走取链播放

@@ -58,6 +58,13 @@ import com.aesthetic.music.ui.shell.SheetSquareDestination
 import com.aesthetic.music.ui.shell.ShellActions
 import com.aesthetic.music.ui.shell.ShellNav
 import com.aesthetic.music.ui.shell.dialogs.ImportPlaylistDialog
+import com.aesthetic.music.ui.shell.SettingsAppearanceDestination
+import com.aesthetic.music.ui.shell.SettingsCacheDestination
+import com.aesthetic.music.ui.shell.SettingsDownloadDestination
+import com.aesthetic.music.ui.shell.SettingsLyricsDestination
+import com.aesthetic.music.ui.shell.SettingsMediaCardDestination
+import com.aesthetic.music.ui.shell.SettingsPlaybackDestination
+import com.aesthetic.music.ui.shell.SettingsQualityDestination
 import com.aesthetic.music.ui.shell.rememberCacheState
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.applyThemeMode
@@ -91,6 +98,26 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
     LaunchedEffect(themeMode, systemDark) {
         applyThemeMode(themeMode, systemDark)
+    }
+
+    // ===== 系统状态栏显示方式（设置 → 主题与外观 → 系统状态栏） =====
+    // ALWAYS：始终显示；PLAYER_ONLY：只在播放页沉浸隐藏；HIDDEN：所有页面隐藏
+    val userPrefs by viewModel.settings.prefs.collectAsState()
+    val activity = context as? androidx.activity.ComponentActivity
+    LaunchedEffect(userPrefs.statusBarMode, showPlayer, currentRoute) {
+        val controller = activity?.let {
+            androidx.core.view.WindowCompat.getInsetsController(it.window, it.window.decorView)
+        } ?: return@LaunchedEffect
+        val shouldHide = when (userPrefs.statusBarMode) {
+            com.aesthetic.music.data.settings.StatusBarMode.ALWAYS -> false
+            com.aesthetic.music.data.settings.StatusBarMode.PLAYER_ONLY -> showPlayer
+            com.aesthetic.music.data.settings.StatusBarMode.HIDDEN -> true
+        }
+        // 隐藏时允许从屏幕边缘临时划出（BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE），避免"状态栏再也划不出来"
+        controller.systemBarsBehavior =
+            androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (shouldHide) controller.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+        else controller.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
     }
 
     // 启动恢复会话与内容预拉取
@@ -267,6 +294,35 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     // 缓存列表页
                     composable(ScreenRoute.CacheList.route) {
                         CacheListDestination(viewModel, nav, cacheState, scope)
+                    }
+
+                    // ===== 设置子页面（设置主页只做入口，各项独立成页） =====
+                    composable(ScreenRoute.SettingsAppearance.route) {
+                        SettingsAppearanceDestination(viewModel, nav)
+                    }
+
+                    composable(ScreenRoute.SettingsQuality.route) {
+                        SettingsQualityDestination(viewModel, nav)
+                    }
+
+                    composable(ScreenRoute.SettingsPlayback.route) {
+                        SettingsPlaybackDestination(viewModel, nav)
+                    }
+
+                    composable(ScreenRoute.SettingsLyrics.route) {
+                        SettingsLyricsDestination(viewModel, nav)
+                    }
+
+                    composable(ScreenRoute.SettingsMediaCard.route) {
+                        SettingsMediaCardDestination(viewModel, nav)
+                    }
+
+                    composable(ScreenRoute.SettingsDownload.route) {
+                        SettingsDownloadDestination(viewModel, nav)
+                    }
+
+                    composable(ScreenRoute.SettingsCache.route) {
+                        SettingsCacheDestination(viewModel, nav, cacheState, scope)
                     }
 
                     // 最近播放页

@@ -11,6 +11,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.navigation.ScreenRoute
+import com.aesthetic.music.ui.settings.SettingsPage
 import com.aesthetic.music.ui.settings.SettingsScreen
 import kotlinx.coroutines.CoroutineScope
 
@@ -38,6 +40,7 @@ fun SettingsDestination(
     val lastSyncedAt by viewModel.lastSyncedAt.collectAsState()
     val lastSyncStatus by viewModel.lastSyncStatus.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
+    val userPrefs by viewModel.settings.prefs.collectAsState()
 
     // 悬浮胶囊开关
     var capsuleEnabled by remember { mutableStateOf(SettingsStore.isFloatingCapsuleEnabled()) }
@@ -45,6 +48,7 @@ fun SettingsDestination(
     SettingsScreen(
         themeMode = themeMode,
         quality = qualityLevel,
+        userPrefs = userPrefs,
         floatingCapsuleEnabled = capsuleEnabled,
         activeScript = activeScriptInfo,
         scriptCatalog = scriptCatalog,
@@ -59,8 +63,20 @@ fun SettingsDestination(
         lastSyncStatus = lastSyncStatus,
         isSyncing = isSyncing,
         onBack = nav.popBack,
-        onThemeModeChange = { viewModel.setThemeMode(it, systemDark) },
-        onQualityChange = viewModel::setQuality,
+        // 设置项各自独立成页：主页只做入口，改设置不再需要一页滚到底
+        onOpenPage = { page ->
+            nav.navigate(
+                when (page) {
+                    SettingsPage.APPEARANCE -> ScreenRoute.SettingsAppearance
+                    SettingsPage.QUALITY -> ScreenRoute.SettingsQuality
+                    SettingsPage.PLAYBACK -> ScreenRoute.SettingsPlayback
+                    SettingsPage.LYRICS -> ScreenRoute.SettingsLyrics
+                    SettingsPage.MEDIA_CARD -> ScreenRoute.SettingsMediaCard
+                    SettingsPage.DOWNLOAD -> ScreenRoute.SettingsDownload
+                    SettingsPage.CACHE -> ScreenRoute.SettingsCache
+                }.route
+            )
+        },
         onFloatingCapsuleChange = { enabled ->
             if (enabled) {
                 if (FloatCapsuleManager.hasPermission(context)) {

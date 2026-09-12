@@ -3,11 +3,15 @@ package com.aesthetic.music.ui
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aesthetic.music.MelosApplication
 import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.player.MediaCardFavorites
+import com.aesthetic.music.player.PlayerManager
+import com.aesthetic.music.service.PlaybackService
 import com.aesthetic.music.ui.album.AlbumController
 import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.artist.ArtistRef
@@ -21,12 +25,15 @@ import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.script.ScriptController
 import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
+import com.aesthetic.music.ui.settings.SettingsController
 import com.aesthetic.music.ui.sheet.SheetController
 import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.StatsStore
+import com.aesthetic.music.data.settings.UserNotice
+import com.aesthetic.music.player.DownloadPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +62,20 @@ class MainViewModel : ViewModel() {
 
     // 首页内容体系：已抽到 ContentController（见 ui/home/ContentController.kt）
     private val content = ContentController(repository, viewModelScope)
+
+    /**
+     * 设置项（主题与外观/播放/歌词/媒体卡片/下载）：已抽到 SettingsController。
+     *
+     * 变更后立刻推给播放器与通知卡片，避免"改了设置要重启 App 才生效"。
+     */
+    val settings = SettingsController(
+        onApplied = { prefs ->
+            runCatching {
+                PlayerManager.get(MelosApplication.instance).applyUserPrefs(prefs)
+                PlaybackService.refreshCard(MelosApplication.instance)
+            }
+        },
+    )
 
     // 歌单广场：已抽到 SheetController（见 ui/sheet/SheetController.kt）
     private val sheet = SheetController(repository, viewModelScope)
@@ -208,6 +229,16 @@ class MainViewModel : ViewModel() {
         profile.installAuthFailedHook()
         // 最近搜索 + 热门搜索词（委托 SearchController 异步回填）
         search.hydrate()
+        // 通知栏媒体卡片的收藏按钮：交给 LibraryController，保证与 App 内 ♡ 同步
+        MediaCardFavorites.register(
+            read = { song -> library.isFavorite(song) },
+            toggle = { song ->
+                library.toggleFavorite(song)
+                library.isFavorite(song)
+            },
+        )
+        // 底层（缓存失败提示等）没有 UI 通道：统一接到全局 Snackbar
+        UserNotice.register { msg -> _appToast.value = msg }
     }
 
     // ==================== 全局搜索（委托 SearchController） ====================
@@ -277,7 +308,7 @@ class MainViewModel : ViewModel() {
         _appToast.value = msg
     }
 
-    /** 异步下载/缓存歌曲并提供全局提示 */
+    /** 异步下载/缓存歌曲并提供全局提示（用户主动下载：不受"边听边下"限制） */
     fun downloadSong(context: android.content.Context, song: Song) {
         viewModelScope.launch {
             val quality = SettingsStore.getQuality().value
@@ -286,6 +317,12 @@ class MainViewModel : ViewModel() {
             }
             if (cached != null) {
                 showToast("「${song.title}」已在本地下载")
+                return@launch
+            }
+            // 仅 WiFi 下载开启时，移动网络下不下载（明确告知原因，不做静默失败）
+            val prefs = SettingsStore.readPrefs()
+            if (!DownloadPolicy.allowed(context, prefs, manual = true)) {
+                showToast("「${song.title}」未下载：${DownloadPolicy.blockedReason(prefs)}")
                 return@launch
             }
             showToast("正在获取「${song.title}」下载链接…")
@@ -305,12 +342,27 @@ class MainViewModel : ViewModel() {
                 artist = song.artist,
                 quality = quality,
                 scope = viewModelScope,
+                manual = true,
             ) { path ->
                 if (path != null) {
                     showToast("「${song.title}」下载完成")
+                    saveSongSidecars(context, song)
                 } else {
                     showToast("「${song.title}」下载失败")
                 }
+            }
+        }
+    }
+
+    /** 下载成功后补封面/歌词副文件（「下载与缓存 → 封面与歌词」开启时） */
+    private fun saveSongSidecars(context: android.content.Context, song: Song) {
+        if (!SettingsStore.readPrefs().downloadCoverLyrics) return
+        viewModelScope.launch {
+            runCatching {
+                repository.getLyric(song).getOrNull()?.let { d ->
+                    MediaCardFavorites.saveLocalLyric(context, song, d.lyric)
+                }
+                com.aesthetic.music.player.SongSidecarStore.saveCover(context, song)
             }
         }
     }

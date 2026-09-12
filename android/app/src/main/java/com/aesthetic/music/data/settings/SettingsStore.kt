@@ -28,6 +28,94 @@ enum class QualityLevel(val value: String, val label: String) {
     }
 }
 
+/** 系统状态栏显示策略 */
+enum class StatusBarMode(val value: String, val label: String, val desc: String) {
+    ALWAYS("always", "显示", "始终显示系统状态栏"),
+    PLAYER_ONLY("player", "仅播放页", "播放页沉浸时隐藏，其余页面保持显示"),
+    HIDDEN("hidden", "全局隐藏", "所有页面都隐藏系统状态栏");
+
+    companion object {
+        fun fromValue(v: String?): StatusBarMode = entries.firstOrNull { it.value == v } ?: ALWAYS
+    }
+}
+
+/** 媒体卡片收藏按钮位置 */
+enum class MediaCardButtonPosition(val value: String, val label: String, val desc: String) {
+    LEFT("left", "左侧", "收藏按钮排在播放控制左边"),
+    RIGHT("right", "右侧", "收藏按钮排在播放控制右边");
+
+    companion object {
+        fun fromValue(v: String?): MediaCardButtonPosition =
+            entries.firstOrNull { it.value == v } ?: RIGHT
+    }
+}
+
+/** 媒体卡片歌词位置 */
+enum class MediaCardLyricPosition(val value: String, val label: String, val desc: String) {
+    ABOVE("above", "歌名上方", "歌词显示在歌名上方一行"),
+    BELOW("below", "歌名下方", "歌词替换歌手名显示在歌名下方");
+
+    companion object {
+        fun fromValue(v: String?): MediaCardLyricPosition =
+            entries.firstOrNull { it.value == v } ?: BELOW
+    }
+}
+
+/** 下载/缓存文件命名规则 */
+enum class DownloadNaming(val value: String, val label: String, val example: String) {
+    TITLE_ARTIST("title_artist", "歌名 - 歌手", "夜曲 - 周杰伦.mp3"),
+    TITLE("title", "仅歌名", "夜曲.mp3"),
+    ARTIST_TITLE("artist_title", "歌手 - 歌名", "周杰伦 - 夜曲.mp3");
+
+    companion object {
+        fun fromValue(v: String?): DownloadNaming = entries.firstOrNull { it.value == v } ?: TITLE_ARTIST
+    }
+}
+
+/** 缓存失败处理策略 */
+enum class DownloadFailurePolicy(val value: String, val label: String, val desc: String) {
+    RETRY("retry", "自动重试", "失败后自动重试 2 次"),
+    SKIP("skip", "直接跳过", "失败即跳过，不再重试也不提示"),
+    NOTIFY("notify", "提示我", "失败时提示，由我决定是否重试");
+
+    companion object {
+        fun fromValue(v: String?): DownloadFailurePolicy =
+            entries.firstOrNull { it.value == v } ?: RETRY
+    }
+}
+
+/**
+ * 新增设置项快照。
+ *
+ * 一次性读/写整组（而不是十几个分散的 key），避免"加了一项忘了读/写"这类漏配；
+ * 写入是一次 `edit()` 批量提交，代价可忽略。
+ */
+data class UserPrefs(
+    // ===== 主题与外观 =====
+    val statusBarMode: StatusBarMode = StatusBarMode.ALWAYS,
+    // ===== 播放 =====
+    val preloadNext: Boolean = true,
+    val crossFade: Boolean = false,
+    val resumeAfterInterrupt: Boolean = true,
+    val mixWithOthers: Boolean = false,
+    // ===== 歌词 =====
+    val lyricTranslation: Boolean = true,
+    val lyricRomanization: Boolean = false,
+    val lyricOnline: Boolean = true,
+    val lyricLocal: Boolean = false,
+    // ===== 媒体卡片 =====
+    val mediaCardFavorite: Boolean = true,
+    val mediaCardButtonPosition: MediaCardButtonPosition = MediaCardButtonPosition.RIGHT,
+    val mediaCardShowLyric: Boolean = true,
+    val mediaCardLyricPosition: MediaCardLyricPosition = MediaCardLyricPosition.BELOW,
+    // ===== 下载与缓存 =====
+    val downloadWhilePlaying: Boolean = true,
+    val downloadNaming: DownloadNaming = DownloadNaming.TITLE_ARTIST,
+    val downloadCoverLyrics: Boolean = true,
+    val downloadFailurePolicy: DownloadFailurePolicy = DownloadFailurePolicy.RETRY,
+    val downloadWifiOnly: Boolean = false,
+)
+
 /**
  * 设置持久化（SharedPreferences）：主题模式三档、音质等级、悬浮窗开关。
  * 所有读取容错：未初始化或异常时返回默认值，绝不抛异常（避免播放链路崩溃）。
@@ -107,5 +195,99 @@ object SettingsStore {
 
     fun setPlaybackSpeed(speed: Float) = bestEffort(TAG, "保存播放倍速") {
         p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
+    }
+
+    // ==================== 设置页（主题与外观 / 播放 / 歌词 / 媒体卡片 / 下载） ====================
+
+    private const val KEY_STATUS_BAR = "status_bar_mode"
+    private const val KEY_PRELOAD_NEXT = "play_preload_next"
+    private const val KEY_CROSS_FADE = "play_cross_fade"
+    private const val KEY_RESUME_AFTER_INTERRUPT = "play_resume_after_interrupt"
+    private const val KEY_MIX_WITH_OTHERS = "play_mix_with_others"
+    private const val KEY_LYRIC_TRANSLATION = "lyric_translation"
+    private const val KEY_LYRIC_ROMANIZATION = "lyric_romanization"
+    private const val KEY_LYRIC_ONLINE = "lyric_online"
+    private const val KEY_LYRIC_LOCAL = "lyric_local"
+    private const val KEY_CARD_FAVORITE = "media_card_favorite"
+    private const val KEY_CARD_BUTTON_POSITION = "media_card_button_position"
+    private const val KEY_CARD_SHOW_LYRIC = "media_card_show_lyric"
+    private const val KEY_CARD_LYRIC_POSITION = "media_card_lyric_position"
+    private const val KEY_DL_WHILE_PLAYING = "download_while_playing"
+    private const val KEY_DL_NAMING = "download_naming"
+    private const val KEY_DL_COVER_LYRICS = "download_cover_lyrics"
+    private const val KEY_DL_FAILURE = "download_failure_policy"
+    private const val KEY_DL_WIFI_ONLY = "download_wifi_only"
+
+    private fun getBool(key: String, def: Boolean): Boolean = try {
+        p()?.getBoolean(key, def) ?: def
+    } catch (_: Exception) {
+        def
+    }
+
+    private fun setBool(key: String, value: Boolean) = bestEffort(TAG, "保存开关 $key") {
+        p()?.edit()?.putBoolean(key, value)?.apply()
+    }
+
+    private fun getStr(key: String): String? = try {
+        p()?.getString(key, null)
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun setStr(key: String, value: String) = bestEffort(TAG, "保存选项 $key") {
+        p()?.edit()?.putString(key, value)?.apply()
+    }
+
+    /** 读取新增设置项（任一读取异常都回落默认值，绝不抛异常打断设置页） */
+    fun readPrefs(): UserPrefs {
+        val d = UserPrefs()
+        return try {
+            UserPrefs(
+                statusBarMode = StatusBarMode.fromValue(getStr(KEY_STATUS_BAR)),
+                preloadNext = getBool(KEY_PRELOAD_NEXT, d.preloadNext),
+                crossFade = getBool(KEY_CROSS_FADE, d.crossFade),
+                resumeAfterInterrupt = getBool(KEY_RESUME_AFTER_INTERRUPT, d.resumeAfterInterrupt),
+                mixWithOthers = getBool(KEY_MIX_WITH_OTHERS, d.mixWithOthers),
+                lyricTranslation = getBool(KEY_LYRIC_TRANSLATION, d.lyricTranslation),
+                lyricRomanization = getBool(KEY_LYRIC_ROMANIZATION, d.lyricRomanization),
+                lyricOnline = getBool(KEY_LYRIC_ONLINE, d.lyricOnline),
+                lyricLocal = getBool(KEY_LYRIC_LOCAL, d.lyricLocal),
+                mediaCardFavorite = getBool(KEY_CARD_FAVORITE, d.mediaCardFavorite),
+                mediaCardButtonPosition = MediaCardButtonPosition.fromValue(getStr(KEY_CARD_BUTTON_POSITION)),
+                mediaCardShowLyric = getBool(KEY_CARD_SHOW_LYRIC, d.mediaCardShowLyric),
+                mediaCardLyricPosition = MediaCardLyricPosition.fromValue(getStr(KEY_CARD_LYRIC_POSITION)),
+                downloadWhilePlaying = getBool(KEY_DL_WHILE_PLAYING, d.downloadWhilePlaying),
+                downloadNaming = DownloadNaming.fromValue(getStr(KEY_DL_NAMING)),
+                downloadCoverLyrics = getBool(KEY_DL_COVER_LYRICS, d.downloadCoverLyrics),
+                downloadFailurePolicy = DownloadFailurePolicy.fromValue(getStr(KEY_DL_FAILURE)),
+                downloadWifiOnly = getBool(KEY_DL_WIFI_ONLY, d.downloadWifiOnly),
+            )
+        } catch (_: Exception) {
+            d
+        }
+    }
+
+    /** 批量写入新增设置项 */
+    fun writePrefs(prefs: UserPrefs) = bestEffort(TAG, "保存设置项") {
+        p()?.edit()?.apply {
+            putString(KEY_STATUS_BAR, prefs.statusBarMode.value)
+            putBoolean(KEY_PRELOAD_NEXT, prefs.preloadNext)
+            putBoolean(KEY_CROSS_FADE, prefs.crossFade)
+            putBoolean(KEY_RESUME_AFTER_INTERRUPT, prefs.resumeAfterInterrupt)
+            putBoolean(KEY_MIX_WITH_OTHERS, prefs.mixWithOthers)
+            putBoolean(KEY_LYRIC_TRANSLATION, prefs.lyricTranslation)
+            putBoolean(KEY_LYRIC_ROMANIZATION, prefs.lyricRomanization)
+            putBoolean(KEY_LYRIC_ONLINE, prefs.lyricOnline)
+            putBoolean(KEY_LYRIC_LOCAL, prefs.lyricLocal)
+            putBoolean(KEY_CARD_FAVORITE, prefs.mediaCardFavorite)
+            putString(KEY_CARD_BUTTON_POSITION, prefs.mediaCardButtonPosition.value)
+            putBoolean(KEY_CARD_SHOW_LYRIC, prefs.mediaCardShowLyric)
+            putString(KEY_CARD_LYRIC_POSITION, prefs.mediaCardLyricPosition.value)
+            putBoolean(KEY_DL_WHILE_PLAYING, prefs.downloadWhilePlaying)
+            putString(KEY_DL_NAMING, prefs.downloadNaming.value)
+            putBoolean(KEY_DL_COVER_LYRICS, prefs.downloadCoverLyrics)
+            putString(KEY_DL_FAILURE, prefs.downloadFailurePolicy.value)
+            putBoolean(KEY_DL_WIFI_ONLY, prefs.downloadWifiOnly)
+        }?.apply()
     }
 }

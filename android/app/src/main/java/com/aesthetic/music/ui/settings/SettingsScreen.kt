@@ -25,11 +25,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Widgets
@@ -38,8 +44,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -49,7 +53,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.ScriptCatalogEntry
 import com.aesthetic.music.data.settings.ThemeMode
+import com.aesthetic.music.data.settings.UserPrefs
 import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.AppDialog
@@ -82,15 +86,27 @@ import java.util.Locale
 
 private val ThemeMode.label: String
     get() = when (this) {
-        ThemeMode.SYSTEM -> "跟随系统"
+        ThemeMode.SYSTEM -> "自动（跟随系统）"
         ThemeMode.LIGHT -> "浅色"
         ThemeMode.DARK -> "深色"
     }
 
+/** 设置主页可跳转的子页面 */
+enum class SettingsPage {
+    APPEARANCE, QUALITY, PLAYBACK, LYRICS, MEDIA_CARD, DOWNLOAD, CACHE
+}
+
+/**
+ * 设置主页。
+ *
+ * 结构：常用设置（7 个入口，各自独立成页）→ 音源脚本 / 云同步 → 系统与交互 → 关于。
+ * 设置项本身不再堆在本页，避免"一页滚到底找开关"；本页只显示每项的当前状态摘要。
+ */
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
     quality: QualityLevel,
+    userPrefs: UserPrefs = UserPrefs(),
     floatingCapsuleEnabled: Boolean,
     activeScript: ScriptMetadata? = null,
     scriptCatalog: List<ScriptCatalogEntry> = emptyList(),
@@ -105,8 +121,7 @@ fun SettingsScreen(
     lastSyncStatus: String? = null,
     isSyncing: Boolean = false,
     onBack: () -> Unit,
-    onThemeModeChange: (ThemeMode) -> Unit,
-    onQualityChange: (QualityLevel) -> Unit,
+    onOpenPage: (SettingsPage) -> Unit = {},
     onFloatingCapsuleChange: (Boolean) -> Unit,
     onCheckUpdate: (onResult: (String) -> Unit) -> Unit,
     onSaveSyncConfig: (String, String) -> Unit = { _, _ -> },
@@ -116,7 +131,6 @@ fun SettingsScreen(
     onImportScriptUrl: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
     onUnloadScript: () -> Unit = {},
 ) {
-    var showQualityDialog by rememberSaveable { mutableStateOf(false) }
     var showScriptImportDialog by remember { mutableStateOf(false) }
     var showSyncConfigDialog by remember { mutableStateOf(false) }
     var showUnloadConfirm by remember { mutableStateOf(false) }
@@ -161,7 +175,7 @@ fun SettingsScreen(
             }
             Spacer(Modifier.width(12.dp))
             Text(
-                text = "设置与音源",
+                text = "设置",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -407,53 +421,76 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        // ===== 3. 外观 =====
-        SectionCard(title = "外观与主题") {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Stone100)
-                    .padding(3.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ThemeMode.entries.forEach { mode ->
-                    val isSelected = themeMode == mode
-                    val animatedBg by animateColorAsState(
-                        targetValue = if (isSelected) Surface else Color.Transparent,
-                        animationSpec = tween(150),
-                        label = "theme_tab_bg",
-                    )
-                    val animatedTextColor by animateColorAsState(
-                        targetValue = if (isSelected) PrimaryBrown else TextSoft,
-                        animationSpec = tween(150),
-                        label = "theme_tab_text",
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(animatedBg)
-                            .clickable { onThemeModeChange(mode) }
-                            .padding(vertical = 7.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = mode.label,
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            ),
-                            color = animatedTextColor
-                        )
-                    }
-                }
-            }
+        // ===== 外观与主题：已独立成「主题与外观」子页面，这里只放入口 =====
+        SectionCard(title = "常用设置") {
+            SettingRow(
+                icon = Icons.Filled.Palette,
+                iconTint = PrimaryBrown,
+                label = "主题与外观",
+                subtitle = "${themeMode.label} · 状态栏${userPrefs.statusBarMode.label}",
+                onClick = { onOpenPage(SettingsPage.APPEARANCE) }
+            )
+            SettingRow(
+                icon = Icons.Filled.MusicNote,
+                iconTint = PrimaryBrown,
+                label = "音质",
+                subtitle = quality.label,
+                onClick = { onOpenPage(SettingsPage.QUALITY) }
+            )
+            SettingRow(
+                icon = Icons.Filled.PlayCircleOutline,
+                iconTint = PrimaryBrown,
+                label = "播放设置",
+                subtitle = buildString {
+                    append(if (userPrefs.preloadNext) "预加载下一首" else "不预加载")
+                    if (userPrefs.crossFade) append(" · 淡入淡出")
+                    if (userPrefs.mixWithOthers) append(" · 混合播放")
+                },
+                onClick = { onOpenPage(SettingsPage.PLAYBACK) }
+            )
+            SettingRow(
+                icon = Icons.Filled.Subtitles,
+                iconTint = PrimaryBrown,
+                label = "歌词显示",
+                subtitle = buildString {
+                    append(if (userPrefs.lyricTranslation) "翻译歌词" else "不显示翻译")
+                    append(if (userPrefs.lyricOnline) " · 在线" else " · 离线")
+                    if (userPrefs.lyricLocal) append(" · 本地优先")
+                },
+                onClick = { onOpenPage(SettingsPage.LYRICS) }
+            )
+            SettingRow(
+                icon = Icons.Filled.Notifications,
+                iconTint = PrimaryBrown,
+                label = "媒体卡片",
+                subtitle = buildString {
+                    append(if (userPrefs.mediaCardFavorite) "含收藏按钮" else "仅播放控制")
+                    if (userPrefs.mediaCardShowLyric) append(" · 显示歌词")
+                },
+                onClick = { onOpenPage(SettingsPage.MEDIA_CARD) }
+            )
+            SettingRow(
+                icon = Icons.Filled.CloudDownload,
+                iconTint = PrimaryBrown,
+                label = "下载设置",
+                subtitle = buildString {
+                    append(if (userPrefs.downloadWhilePlaying) "边听边下" else "不自动缓存")
+                    if (userPrefs.downloadWifiOnly) append(" · 仅 WiFi")
+                },
+                onClick = { onOpenPage(SettingsPage.DOWNLOAD) }
+            )
+            SettingRow(
+                icon = Icons.Filled.Storage,
+                iconTint = PrimaryBrown,
+                label = "缓存管理",
+                subtitle = "查看缓存占用、按类型清理",
+                onClick = { onOpenPage(SettingsPage.CACHE) }
+            )
         }
 
         Spacer(Modifier.height(14.dp))
 
+        // ===== 音源脚本 / 云同步 / 系统与交互 / 关于：保持原有实现 =====
         // ===== 4. 桌面胶囊 =====
         SectionCard(title = "系统与交互") {
             Row(
@@ -505,14 +542,14 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        // ===== 5. 播放与音质 =====
+        // ===== 播放与音质：音质已独立成子页面，这里只保留桌面胶囊等系统项 =====
         SectionCard(title = "播放与音效") {
             SettingRow(
                 icon = Icons.Filled.MusicNote,
                 iconTint = PrimaryBrown,
                 label = "音质等级",
-                subtitle = quality.label,
-                onClick = { showQualityDialog = true }
+                subtitle = "${quality.label}（在「音质」页可改）",
+                onClick = { onOpenPage(SettingsPage.QUALITY) }
             )
         }
 
@@ -545,55 +582,7 @@ fun SettingsScreen(
         }
     }
 
-    // ===== 音质选择弹窗 =====
-    if (showQualityDialog) {
-        AppDialog(
-            onDismissRequest = { showQualityDialog = false },
-            title = "选择播放音质",
-            confirmText = null,
-            cancelText = "取消",
-            content = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    QualityLevel.entries.forEach { level ->
-                        val isSelected = quality == level
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) Stone100 else Color.Transparent)
-                                .clickable {
-                                    onQualityChange(level)
-                                    showQualityDialog = false
-                                }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = null,
-                                colors = RadioButtonDefaults.colors(selectedColor = PrimaryBrown)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = level.label,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                ),
-                                color = TextPrimary
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "音质等级取决于音源脚本支持的最高码率，如果音源不支持无损将自动平滑降级。",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft,
-                    )
-                }
-            },
-        )
-    }
+    // ===== 音质选择弹窗已移入「音质」子页面（ui/settings/QualitySettingsScreen.kt） =====
 
     // ===== 导入音源脚本弹窗 =====
     if (showScriptImportDialog) {

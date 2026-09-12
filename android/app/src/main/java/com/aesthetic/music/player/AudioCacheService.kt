@@ -1,10 +1,15 @@
 package com.aesthetic.music.player
 
 import android.content.Context
+import com.aesthetic.music.data.settings.DownloadFailurePolicy
+import com.aesthetic.music.data.settings.DownloadNaming
+import com.aesthetic.music.data.settings.SettingsStore
+import com.aesthetic.music.data.settings.UserNotice
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -168,13 +173,18 @@ object AudioCacheService {
             maxBytes,
         )
 
-    /** 缓存文件基础名：歌名-歌手-songId（songId 参与命名，同名歌曲不同源不互相覆盖）。
+    /** 缓存文件基础名：按「下载设置 → 缓存文件命名」生成，末尾附 songId 防同名覆盖。
      *  字节预算：标题 60 + '-' + 歌手 40 + '-' + id 20 + 扩展名 5 = 126 字节，远低于 255 上限 */
     private fun baseFileName(name: String, artist: String, songId: String): String {
         val title = sanitize(name.ifBlank { "未知歌曲" }, 60)
         val singer = sanitize(artist.ifBlank { "未知歌手" }, 40)
         val id = songId.replace(Regex("""[^\w-]"""), "_").take(20).ifBlank { "x" }
-        return "$title-$singer-$id"
+        val stem = when (SettingsStore.readPrefs().downloadNaming) {
+            DownloadNaming.TITLE -> title
+            DownloadNaming.ARTIST_TITLE -> "$singer-$title"
+            DownloadNaming.TITLE_ARTIST -> "$title-$singer"
+        }
+        return "$stem-$id"
     }
 
     /** 检查是否已有缓存，返回本地文件路径（不存在/过小返回 null）。索引走内存，无重复读盘 */
@@ -199,9 +209,17 @@ object AudioCacheService {
         artist: String,
         quality: String,
         scope: CoroutineScope,
+        /** true = 用户主动下载：不受「边听边下」限制，但仍受「仅 WiFi」限制 */
+        manual: Boolean = false,
         onDone: (String?) -> Unit,
     ) {
         if (url.isBlank()) { onDone(null); return }
+        // 省流闸门：所有缓存入口都经过这里，避免某条路径绕过「边听边下 / 仅 WiFi」
+        val prefs = SettingsStore.readPrefs()
+        if (!DownloadPolicy.allowed(context, prefs, manual)) {
+            onDone(null)
+            return
+        }
         val key = cacheKey(platformCode, songId, quality)
         synchronized(indexLock) {
             downloadJobs[key]?.cancel()
@@ -210,46 +228,69 @@ object AudioCacheService {
             val dir = cacheDir(context)
             val ext = extractExt(url)
             val baseName = baseFileName(name, artist, songId)
-            // tmp 文件名带时间戳：同一首歌并发缓存时互不干扰（旧实现共用同名 tmp 会互相覆盖）
-            val tmp = File(dir, "$baseName.$ext.tmp-${System.nanoTime()}")
             var done: String? = null
             // 记录本协程 Job：不能引用尚未初始化完成的外层 val（编译器拒绝自引用）；
-            // try 外的清理逻辑也用到它，声明必须提到 try 之前
+            // 清理逻辑也用到它，声明必须提到 try 之前
             val selfJob = coroutineContext[kotlinx.coroutines.Job]
             try {
                 // 已有缓存直接返回
                 getCachedPath(context, platformCode, songId, quality)?.let { onDone(it); return@launch }
                 synchronized(indexLock) { if (selfJob != null) downloadJobs[key] = selfJob }
 
-                tmp.delete()
-                client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
-                    if (!resp.isSuccessful) { tmp.delete(); onDone(null); return@launch }
-                    resp.body?.byteStream()?.use { input ->
-                        tmp.outputStream().use { output -> input.copyTo(output) }
-                    }
-                    if (tmp.length() > 10240) {
-                        val target = File(dir, "$baseName.$ext")
-                        // 同名目标已存在（并发缓存同一首歌）：先删除再重命名，保证最终文件完整
-                        if (target.exists()) target.delete()
-                        tmp.renameTo(target)
-                        mutateIndex(context) {
-                            it[key] =
-                                CacheEntry(name, artist, platformCode, songId, target.absolutePath, target.length())
+                // 失败策略：自动重试 = 首次 + 最多 2 次重试（递增退避）；其余策略只尝试一次
+                val maxAttempts =
+                    if (prefs.downloadFailurePolicy == DownloadFailurePolicy.RETRY) 3 else 1
+                var attempt = 0
+                while (attempt < maxAttempts && done == null) {
+                    attempt++
+                    // tmp 文件名带时间戳：同一首歌并发缓存时互不干扰（旧实现共用同名 tmp 会互相覆盖）
+                    val tmp = File(dir, "$baseName.$ext.tmp-${System.nanoTime()}")
+                    try {
+                        tmp.delete()
+                        client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+                            if (!resp.isSuccessful) {
+                                tmp.delete()
+                            } else {
+                                resp.body?.byteStream()?.use { input ->
+                                    tmp.outputStream().use { output -> input.copyTo(output) }
+                                }
+                                if (tmp.length() > 10240) {
+                                    val target = File(dir, "$baseName.$ext")
+                                    // 同名目标已存在（并发缓存同一首歌）：先删除再重命名，保证最终文件完整
+                                    if (target.exists()) target.delete()
+                                    if (tmp.renameTo(target)) {
+                                        mutateIndex(context) {
+                                            it[key] = CacheEntry(
+                                                name, artist, platformCode, songId,
+                                                target.absolutePath, target.length(),
+                                            )
+                                        }
+                                        // 容量清理时保护"正在播放"的文件（调用方传入当前播放路径）
+                                        enforceCacheLimitIfNeeded(context)
+                                        done = target.absolutePath
+                                    } else {
+                                        tmp.delete()
+                                    }
+                                } else {
+                                    tmp.delete()
+                                }
+                            }
                         }
-                        // 容量清理时保护"正在播放"的文件（调用方传入当前播放路径）
-                        enforceCacheLimitIfNeeded(context)
-                        done = target.absolutePath
-                    } else {
+                    } catch (ce: kotlinx.coroutines.CancellationException) {
+                        tmp.delete()
+                        throw ce
+                    } catch (_: Exception) {
                         tmp.delete()
                     }
+                    if (done == null && attempt < maxAttempts) delay(800L * attempt)
                 }
-            } catch (ce: kotlinx.coroutines.CancellationException) {
-                tmp.delete()
-                throw ce
-            } catch (_: Exception) {
-                tmp.delete()
+            } finally {
+                synchronized(indexLock) { if (downloadJobs[key] === selfJob) downloadJobs.remove(key) }
             }
-            synchronized(indexLock) { if (downloadJobs[key] === selfJob) downloadJobs.remove(key) }
+            // 「提示我」策略下失败要说话；其余策略静默（避免连播时刷屏）
+            if (done == null && prefs.downloadFailurePolicy == DownloadFailurePolicy.NOTIFY) {
+                UserNotice.post("缓存失败：「${name.ifBlank { songId }}」，可在下载设置里调整失败策略")
+            }
             onDone(done)
         }
     }
