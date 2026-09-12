@@ -57,7 +57,15 @@ import com.aesthetic.music.ui.profile.ProfileScreen
 import com.aesthetic.music.ui.rank.RankPage
 import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
+import com.aesthetic.music.ui.shell.CacheListDestination
+import com.aesthetic.music.ui.shell.CloudManageDestination
+import com.aesthetic.music.ui.shell.FavoritesDestination
+import com.aesthetic.music.ui.shell.HistoryDestination
+import com.aesthetic.music.ui.shell.ListeningStatsDestination
 import com.aesthetic.music.ui.shell.PlayerOverlay
+import com.aesthetic.music.ui.shell.PluginManageDestination
+import com.aesthetic.music.ui.shell.ProfileEditDestination
+import com.aesthetic.music.ui.shell.RanksDestination
 import com.aesthetic.music.ui.shell.ShellActions
 import com.aesthetic.music.ui.shell.ShellNav
 import com.aesthetic.music.ui.shell.dialogs.ImportPlaylistDialog
@@ -501,16 +509,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     }
 
                     // 排行榜列表页
-                    composable(ScreenRoute.Ranks.route) {
-                        RankPage(
-                            ranks = ranks,
-                            onBack = { navController.popBackStack() },
-                            onOpenRank = { rankItem ->
-                                viewModel.openRankDetail(rankItem)
-                                navController.navigate(ScreenRoute.PlaylistDetail.route)
-                            },
-                        )
-                    }
+                    composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel, nav) }
 
                     // 歌单广场（分类标签歌单）
                     composable(ScreenRoute.SheetSquare.route) {
@@ -666,17 +665,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 我的收藏页
                     composable(ScreenRoute.Favorites.route) {
-                        FavoritesScreen(
-                            songs = favoriteSongs,
-                            currentSong = playerState.currentSong,
-                            onBack = {
-                                viewModel.updatePageBackground(null, false)
-                                navController.popBackStack()
-                            },
-                            onPlaySong = { playSong(it, favoriteSongs) },
-                            onPlayAll = { if (favoriteSongs.isNotEmpty()) playSong(favoriteSongs.first(), favoriteSongs) },
-                            onRemoveFavorite = viewModel::toggleFavorite,
-                        )
+                        FavoritesDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 我的歌单页
@@ -704,61 +693,17 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 缓存列表页
                     composable(ScreenRoute.CacheList.route) {
-                        CacheListScreen(
-                            songs = cacheState.songs,
-                            onBack = {
-                                viewModel.updatePageBackground(null, false)
-                                navController.popBackStack()
-                            },
-                            onRemoveOne = { path ->
-                                scope.launch(Dispatchers.IO) {
-                                    AudioCacheService.removeCacheByPath(context, path)
-                                    withContext(Dispatchers.Main) { cacheState.refresh() }
-                                }
-                            },
-                            onClearAll = {
-                                scope.launch(Dispatchers.IO) {
-                                    AudioCacheService.clearCache(context)
-                                    withContext(Dispatchers.Main) { cacheState.refresh() }
-                                }
-                            },
-                        )
+                        CacheListDestination(viewModel, nav, cacheState)
                     }
 
                     // 最近播放页
                     composable(ScreenRoute.History.route) {
-                        HistoryScreen(
-                            songs = history,
-                            currentSong = playerState.currentSong,
-                            onBack = {
-                                viewModel.closeHistory()
-                                viewModel.updatePageBackground(null, false)
-                                navController.popBackStack()
-                            },
-                            onPlaySong = { playSong(it, history) },
-                            onPlayAll = { if (history.isNotEmpty()) playSong(history.first(), history) },
-                            onRemoveOne = viewModel::removeFromHistory,
-                            onClearAll = viewModel::clearHistory,
-                        )
+                        HistoryDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 编辑个人资料页
                     composable(ScreenRoute.ProfileEdit.route) {
-                        ProfileEditScreen(
-                            initialNickname = profileNickname,
-                            initialBio = profileBio,
-                            initialGender = profileGender,
-                            initialBirthday = profileBirthday,
-                            initialAvatarPath = profileAvatar,
-                            userId = profileUserId,
-                            onBack = { navController.popBackStack() },
-                            onSave = { nick, bio, gender, bday, avatar ->
-                                viewModel.saveProfileInfo(nick, bio, gender, bday, avatar)
-                            },
-                            onShowToast = { msg ->
-                                scope.launch { snackbarHostState.showSnackbar(msg) }
-                            },
-                        )
+                        ProfileEditDestination(viewModel, nav, actions)
                     }
 
                     // 本地下载页
@@ -785,35 +730,17 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 听歌时长页
                     composable(ScreenRoute.ListeningStats.route) {
-                        ListeningStatsScreen(
-                            localStats = localStats,
-                            onBack = { navController.popBackStack() },
-                        )
+                        ListeningStatsDestination(viewModel, nav)
                     }
 
                     // 云端管理页
                     composable(ScreenRoute.CloudManage.route) {
-                        CloudManageScreen(
-                            isSyncConfigured = isSyncConfigured,
-                            syncServerUrl = syncServerUrl,
-                            lastSyncedAt = lastSyncedAt,
-                            lastSyncStatus = lastSyncStatus,
-                            isSyncing = isSyncing,
-                            onBack = { navController.popBackStack() },
-                            onOpenSettings = { navController.navigate(ScreenRoute.Settings.route) },
-                            onPerformSync = { viewModel.performCloudSync() },
-                        )
+                        CloudManageDestination(viewModel, nav)
                     }
 
                     // 插件管理页
                     composable(ScreenRoute.PluginManage.route) {
-                        PluginManageScreen(
-                            activeScript = activeScriptInfo,
-                            isEngineReady = isEngineReady,
-                            onBack = { navController.popBackStack() },
-                            onOpenSettings = { navController.navigate(ScreenRoute.Settings.route) },
-                            onReloadScript = { viewModel.retryLoadScript() },
-                        )
+                        PluginManageDestination(viewModel, nav)
                     }
 
                     // 设置页
