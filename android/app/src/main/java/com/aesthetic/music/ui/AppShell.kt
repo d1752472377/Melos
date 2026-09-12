@@ -57,6 +57,8 @@ import com.aesthetic.music.ui.profile.ProfileScreen
 import com.aesthetic.music.ui.rank.RankPage
 import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
+import com.aesthetic.music.ui.shell.AlbumDetailDestination
+import com.aesthetic.music.ui.shell.ArtistDetailDestination
 import com.aesthetic.music.ui.shell.CacheListDestination
 import com.aesthetic.music.ui.shell.CloudManageDestination
 import com.aesthetic.music.ui.shell.DownloadsDestination
@@ -65,9 +67,11 @@ import com.aesthetic.music.ui.shell.HistoryDestination
 import com.aesthetic.music.ui.shell.ListeningStatsDestination
 import com.aesthetic.music.ui.shell.MyPlaylistsDestination
 import com.aesthetic.music.ui.shell.PlayerOverlay
+import com.aesthetic.music.ui.shell.PlaylistDetailDestination
 import com.aesthetic.music.ui.shell.PluginManageDestination
 import com.aesthetic.music.ui.shell.ProfileEditDestination
 import com.aesthetic.music.ui.shell.RanksDestination
+import com.aesthetic.music.ui.shell.SearchDestination
 import com.aesthetic.music.ui.shell.SettingsDestination
 import com.aesthetic.music.ui.shell.SheetSquareDestination
 import com.aesthetic.music.ui.shell.ShellActions
@@ -469,44 +473,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 全局搜索页
                     composable(ScreenRoute.Search.route) {
-                        SearchScreen(
-                            viewModel = viewModel,
-                            currentSong = playerState.currentSong,
-                            onPlaySong = { song, list -> playSong(song, list) },
-                            onOpenArtist = { artist ->
-                                viewModel.openArtist(artist)
-                                navController.navigate(ScreenRoute.ArtistDetail.route)
-                            },
-                            onOpenPlaylist = { pl ->
-                                viewModel.openPlaylistDetail(pl)
-                                navController.navigate(ScreenRoute.PlaylistDetail.route)
-                            },
-                            onOpenAlbum = { album ->
-                                viewModel.openAlbum(album)
-                                navController.navigate(ScreenRoute.AlbumDetail.route)
-                            },
-                            myPlaylists = myPlaylists,
-                            isSongFavorite = viewModel::isFavorite,
-                            onToggleFavorite = viewModel::toggleFavorite,
-                            onPlayNext = { song ->
-                                playerManager.playNext(song)
-                                viewModel.showToast("已设为下一首播放")
-                            },
-                            onAddToQueue = { song ->
-                                playerManager.addToQueue(song)
-                                viewModel.showToast("已加入播放队列")
-                            },
-                            onDownloadSong = { song -> viewModel.downloadSong(context, song) },
-                            onAddToPlaylist = { playlistId, song ->
-                                viewModel.addSongsToPlaylist(playlistId, listOf(song))
-                                val target = myPlaylists.firstOrNull { it.id == playlistId }
-                                viewModel.showToast("已添加到「${target?.name ?: "歌单"}」")
-                            },
-                            onCreatePlaylist = { name, song ->
-                                viewModel.createPlaylist(name, listOf(song))
-                                viewModel.showToast("已创建并加入「$name」")
-                            },
-                        )
+                        SearchDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 排行榜列表页
@@ -519,134 +486,17 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 歌单详情页
                     composable(ScreenRoute.PlaylistDetail.route) {
-                        val playlistDetail = showPlaylistDetail
-                        if (playlistDetail != null) {
-                            val isFav = viewModel.isPlaylistFavorite(playlistDetail.id)
-                            PlaylistDetailScreen(
-                                playlist = playlistDetail,
-                                songs = playlistSongs,
-                                isLoading = isLoadingPlaylist,
-                                error = playlistError,
-                                isFavorite = isFav,
-                                myPlaylists = myPlaylists,
-                                currentSong = playerState.currentSong,
-                                onBack = {
-                                    viewModel.closePlaylistDetail()
-                                    viewModel.updatePageBackground(null, false)
-                                    navController.popBackStack()
-                                },
-                                onRetry = { viewModel.openPlaylistDetail(playlistDetail) },
-                                onPlaySong = { song, list -> playSong(song, list) },
-                                onPlayAll = { songs -> if (songs.isNotEmpty()) playSong(songs.first(), songs) },
-                                onToggleFavoritePlaylist = { viewModel.toggleFavoritePlaylist(playlistDetail) },
-                                onToggleFavoriteSong = viewModel::toggleFavorite,
-                                isSongFavorite = viewModel::isFavorite,
-                                onAddToQueue = { song ->
-                                    playerManager.addToQueue(song)
-                                    viewModel.showToast("已加入播放队列")
-                                },
-                                onPlayNext = { song ->
-                                    playerManager.playNext(song)
-                                    viewModel.showToast("已设为下一首播放")
-                                },
-                                onDownloadSong = { song -> viewModel.downloadSong(context, song) },
-                                onAddToPlaylist = { playlistId, song ->
-                                    viewModel.addSongsToPlaylist(playlistId, listOf(song))
-                                    val targetPlaylist = myPlaylists.firstOrNull { it.id == playlistId }
-                                    viewModel.showToast("已添加到「${targetPlaylist?.name ?: "歌单"}」")
-                                },
-                                onCreatePlaylist = { name, song ->
-                                    viewModel.createPlaylist(name, listOfNotNull(song))
-                                    viewModel.showToast("已创建并加入「$name」")
-                                },
-                                onBackgroundColorChange = viewModel::updatePageBackground,
-                            )
-                        }
+                        PlaylistDetailDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 专辑详情页
                     composable(ScreenRoute.AlbumDetail.route) {
-                        val albumDetail = showAlbumDetail
-                        if (albumDetail != null) {
-                            val albumPlaylistItem = remember(albumDetail, albumDetailSongs.size) {
-                                PlaylistItem(
-                                    id = albumDetail.id,
-                                    name = albumDetail.name,
-                                    coverUrl = albumDetail.coverUrl,
-                                    trackCount = albumDetail.size ?: albumDetailSongs.size.toLong(),
-                                    platform = albumDetail.platform,
-                                )
-                            }
-                            val isFav = viewModel.isPlaylistFavorite(albumDetail.id)
-                            PlaylistDetailScreen(
-                                playlist = albumPlaylistItem,
-                                songs = albumDetailSongs,
-                                isLoading = isLoadingAlbum,
-                                error = albumError,
-                                isFavorite = isFav,
-                                myPlaylists = myPlaylists,
-                                currentSong = playerState.currentSong,
-                                onBack = {
-                                    viewModel.closeAlbum()
-                                    viewModel.updatePageBackground(null, false)
-                                    navController.popBackStack()
-                                },
-                                onRetry = { viewModel.openAlbum(albumDetail) },
-                                onPlaySong = { song, list -> playSong(song, list) },
-                                onPlayAll = { songs -> if (songs.isNotEmpty()) playSong(songs.first(), songs) },
-                                onToggleFavoritePlaylist = { viewModel.toggleFavoritePlaylist(albumPlaylistItem) },
-                                onToggleFavoriteSong = viewModel::toggleFavorite,
-                                isSongFavorite = viewModel::isFavorite,
-                                onAddToQueue = { song ->
-                                    playerManager.addToQueue(song)
-                                    viewModel.showToast("已加入播放队列")
-                                },
-                                onPlayNext = { song ->
-                                    playerManager.playNext(song)
-                                    viewModel.showToast("已设为下一首播放")
-                                },
-                                onDownloadSong = { song -> viewModel.downloadSong(context, song) },
-                                onAddToPlaylist = { playlistId, song ->
-                                    viewModel.addSongsToPlaylist(playlistId, listOf(song))
-                                    val targetPlaylist = myPlaylists.firstOrNull { it.id == playlistId }
-                                    viewModel.showToast("已添加到「${targetPlaylist?.name ?: "歌单"}」")
-                                },
-                                onCreatePlaylist = { name, song ->
-                                    viewModel.createPlaylist(name, listOfNotNull(song))
-                                    viewModel.showToast("已创建并加入「$name」")
-                                },
-                                onBackgroundColorChange = viewModel::updatePageBackground,
-                            )
-                        }
+                        AlbumDetailDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 歌手页
                     composable(ScreenRoute.ArtistDetail.route) {
-                        val artistRef = showArtist
-                        if (artistRef != null) {
-                            val info = artistDetail?.info
-                            val artistSongs = artistDetail?.songs.orEmpty()
-                            ArtistScreen(
-                                name = info?.name?.takeIf { it.isNotBlank() } ?: artistRef.name,
-                                alias = info?.alias,
-                                avatar = info?.avatar,
-                                songs = artistSongs,
-                                isLoading = isLoadingArtist,
-                                errorMessage = artistError,
-                                onRetry = { viewModel.openArtist(artistRef) },
-                                favorites = favorites,
-                                onBack = {
-                                    viewModel.closeArtist()
-                                    viewModel.updatePageBackground(null, false)
-                                    navController.popBackStack()
-                                },
-                                onPlaySong = { playSong(it, artistSongs) },
-                                onPlayAll = {
-                                    if (artistSongs.isNotEmpty()) playSong(artistSongs.first(), artistSongs)
-                                },
-                                onToggleFavorite = viewModel::toggleFavorite,
-                            )
-                        }
+                        ArtistDetailDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 我的收藏页
