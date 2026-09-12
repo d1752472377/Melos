@@ -22,7 +22,7 @@ fun ProfileTabDestination(
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val localStats by viewModel.localStats.collectAsState()
     val isSyncConfigured by viewModel.isSyncConfigured.collectAsState()
-    val activeScriptInfo by viewModel.activeScriptInfo.collectAsState()
+    val sourcePlugins by viewModel.sourcePlugins.collectAsState()
     val profileNickname by viewModel.profileNickname.collectAsState()
     val profileAvatar by viewModel.profileAvatar.collectAsState()
     val profileBackground by viewModel.profileBackground.collectAsState()
@@ -41,7 +41,11 @@ fun ProfileTabDestination(
         cacheSize = cacheState.size,
         localStats = localStats,
         isSyncConfigured = isSyncConfigured,
-        activeScript = activeScriptInfo,
+        sourceSummary = when {
+            sourcePlugins.isEmpty() -> "内置直连"
+            sourcePlugins.count { it.enable } == 0 -> "${sourcePlugins.size} 个插件（全部停用）"
+            else -> "${sourcePlugins.size} 个音源插件"
+        },
         onOpenEditProfile = { nav.navigate(ScreenRoute.ProfileEdit.route) },
         onOpenFavorites = { nav.navigate(ScreenRoute.Favorites.route) },
         onOpenMyPlaylists = { nav.navigate(ScreenRoute.MyPlaylists.route) },

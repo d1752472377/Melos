@@ -352,7 +352,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 插件管理页
                     composable(ScreenRoute.PluginManage.route) {
-                        PluginManageDestination(viewModel, nav)
+                        PluginManageDestination(viewModel, nav, actions.toast)
                     }
 
                     // 设置页

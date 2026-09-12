@@ -22,11 +22,12 @@ import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.library.PlaylistImportController
 import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.profile.ProfileController
-import com.aesthetic.music.ui.script.ScriptController
+import com.aesthetic.music.ui.source.SourceController
 import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
 import com.aesthetic.music.ui.settings.SettingsController
 import com.aesthetic.music.ui.sheet.SheetController
+import com.aesthetic.music.data.settings.ListeningStats
 import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.SettingsStore
@@ -203,6 +204,15 @@ class MainViewModel : ViewModel() {
     // 统计（本地真实累计）
     private val _localStats = MutableStateFlow(StatsStore.load())
     val localStats: StateFlow<LocalStats> = _localStats.asStateFlow()
+
+    /**
+     * 听歌统计页用的全量明细（按天/按时段/按歌曲）。
+     *
+     * 初值直接取内存快照（上面 [StatsStore.load] 已解析过一次，这里是白拿的），
+     * 避免进页面时先闪一下"还没有听歌记录"再填上真实数据。
+     */
+    private val _listeningStats = MutableStateFlow(StatsStore.snapshot())
+    val listeningStats: StateFlow<ListeningStats> = _listeningStats.asStateFlow()
 
     // 主题模式
     private val _themeMode = MutableStateFlow(SettingsStore.getThemeMode())
@@ -474,16 +484,33 @@ class MainViewModel : ViewModel() {
         )
     }
 
-    // ==================== 音源脚本与私有云同步 ====================
+    // ==================== 音源插件与私有云同步 ====================
 
-    // 音源脚本：逻辑与状态已抽到 ScriptController（见 ui/script/ScriptController.kt）。
+    // 音源插件：逻辑与状态已抽到 SourceController（见 ui/source/SourceController.kt）。
     // 提示文案经 _appToast 通道走全局 Snackbar，因此这里注入回调而非让控制器依赖 ViewModel。
-    private val script = ScriptController(scope = viewModelScope, onToast = { _appToast.value = it })
+    private val sources = SourceController(scope = viewModelScope, onToast = { _appToast.value = it })
 
-    val activeScriptInfo get() = script.activeScriptInfo
-    val isEngineReady get() = script.isEngineReady
-    val engineError get() = script.engineError
-    val scriptCatalog get() = script.catalog
+    /** 已安装的插件（音源列表） */
+    val sourcePlugins get() = sources.plugins
+
+    /** 检测/实测结果，key 为检测目标 id */
+    val sourceProbes get() = sources.probes
+
+    /** 待检测/已检测的目标清单（内置四平台 + 插件声明平台） */
+    val sourceTargets get() = sources.targets
+
+    val sourceDetecting get() = sources.detecting
+    val sourceDetectProgress get() = sources.detectProgress
+    val sourceLastDetectAt get() = sources.lastDetectAt
+
+    /** 当前手动指定的插件 id（策略开启时实际使用的源由 SourceManager 决定） */
+    val activeSourceId get() = sources.activeId
+
+    /** 沙箱里正在运行的插件 id 与引擎状态 */
+    val loadedSourceId get() = sources.loadedPluginId
+    val sourceEngineReady get() = sources.engineReady
+    val sourceEngineError get() = sources.engineError
+    val sourceDeclaredSources get() = sources.declaredSources
 
     // 私有云同步状态：已抽到 LibraryController，保留同名只读委托
     val syncServerUrl get() = library.syncServerUrl
@@ -500,18 +527,41 @@ class MainViewModel : ViewModel() {
 
     fun performCloudSync() = library.performCloudSync()
 
-    // ==================== 音源脚本（委托 ScriptController） ====================
+    // ==================== 音源插件（委托 SourceController） ====================
 
-    fun importScriptFromText(content: String, name: String? = null) = script.importFromText(content, name)
+    /** 从文件导入：界面负责用系统文件选择器读出文本，这里只做校验与登记 */
+    fun importSourceFromContent(content: String, targetPlatform: String) =
+        sources.importFromContent(content, targetPlatform)
 
-    fun importScriptFromUrl(url: String, onFinished: (Boolean, String) -> Unit) =
-        script.importFromUrl(url, onFinished)
+    fun importSourceFromUrl(url: String, targetPlatform: String, onFinished: (Boolean, String) -> Unit) =
+        sources.importFromUrl(url, targetPlatform, onFinished)
 
-    fun retryLoadScript() = script.retryLoad()
+    fun setSourceEnable(id: String, enable: Boolean) = sources.setEnable(id, enable)
 
-    fun unloadScript() = script.unload()
+    /** 指定插件适用的平台（空串 = 全平台通用） */
+    fun setSourcePlatform(id: String, platformCode: String) = sources.setTargetPlatform(id, platformCode)
 
-    fun switchScript(id: String) = script.switchTo(id)
+    fun activateSource(id: String) = sources.activate(id)
+
+    fun reloadActiveSource() = sources.reloadActive()
+
+    fun unloadSource() = sources.unload()
+
+    fun removeSource(id: String) = sources.remove(id)
+
+    fun detectSources() = sources.detectAll()
+
+    fun detectSourceTarget(targetId: String) = sources.detectOne(targetId)
+
+    fun refreshSources() = sources.refresh()
+
+    // ==================== 音源策略开关（委托 SettingsController） ====================
+
+    fun setSourceFailover(enabled: Boolean) = settings.setSourceFailover(enabled)
+
+    fun setSourceSmartSwitch(enabled: Boolean) = settings.setSourceSmartSwitch(enabled)
+
+    fun setSourceFastest(enabled: Boolean) = settings.setSourceFastest(enabled)
 
     // ==================== 用户体系 / 个人中心（委托 ProfileController） ====================
 
@@ -540,6 +590,27 @@ class MainViewModel : ViewModel() {
 
     fun refreshStats() {
         _localStats.value = StatsStore.load()
+        refreshListeningStats()
+    }
+
+    /**
+     * 刷新统计页明细。
+     *
+     * 解析统计 JSON（有明细后约 20~30KB）走 IO 线程，避免进页面时卡一下首帧。
+     */
+    fun refreshListeningStats() {
+        viewModelScope.launch {
+            val snapshot = withContext(Dispatchers.IO) { StatsStore.snapshot() }
+            _listeningStats.value = snapshot
+        }
+    }
+
+    /** 清空本机统计记录（统计页的"清空统计记录"） */
+    fun clearListeningStats() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { StatsStore.clearAll() }
+            refreshStats()
+        }
     }
 
     // ==================== 主题 ====================

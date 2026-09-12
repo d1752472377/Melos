@@ -42,29 +42,11 @@ object UserApiStore {
     }
 
     /**
-     * 保存音源脚本源码与元数据
-     */
-    fun saveScript(content: String, customName: String? = null, customVersion: String? = null, customId: String? = null): ScriptMetadata {
-        val parsed = parseScriptHeader(content)
-        val meta = parsed.copy(
-            id = customId?.takeIf { it.isNotBlank() } ?: parsed.id,
-            name = customName?.takeIf { it.isNotBlank() } ?: parsed.name,
-            version = customVersion?.takeIf { it.isNotBlank() } ?: parsed.version,
-            updatedAt = System.currentTimeMillis()
-        )
-
-        try {
-            scriptFile?.writeText(content, Charsets.UTF_8)
-            prefs?.edit()?.putString(KEY_META, gson.toJson(meta))?.apply()
-        } catch (e: Exception) {
-            android.util.Log.e("UserApiStore", "Failed to save script: ${e.message}")
-        }
-
-        return meta
-    }
-
-    /**
      * 获取当前保存在本地的脚本源码
+     *
+     * ⚠ 这是**旧版单脚本**存储。自多插件模型（data/source/SourceRegistryStore）上线后，
+     * 本 store 只剩一个职责：升级时把用户原有的那份脚本迁移成插件（见 SourceRegistryStore.migrateLegacy）。
+     * 因此这里只有"读"，写入/删除已移除——避免再出现两处都在写同一份脚本的错位。
      */
     fun getScriptContent(): String? {
         return try {
@@ -88,26 +70,6 @@ object UserApiStore {
             gson.fromJson(raw, ScriptMetadata::class.java)
         } catch (_: Exception) {
             null
-        }
-    }
-
-    /**
-     * 是否已安装音源脚本
-     */
-    fun hasScript(): Boolean {
-        return scriptFile?.exists() == true && scriptFile?.length() ?: 0 > 0
-    }
-
-    /**
-     * 清理已安装的脚本
-     */
-    fun clearScript() {
-        try {
-            if (scriptFile?.exists() == true) {
-                scriptFile?.delete()
-            }
-            prefs?.edit()?.remove(KEY_META)?.apply()
-        } catch (_: Exception) {
         }
     }
 

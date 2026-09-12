@@ -63,3 +63,24 @@ val TextFaint get() = light(Color(0xFFCCD4E0), Color(0xFF404654))       // 极�
 
 val Stone200 get() = light(Color(0xFFE2E7ED), Color(0xFF2A2D38))        // 1dp 精致线框描边
 val Stone100 get() = light(Color(0xFFF1F4F8), Color(0xFF1F222B))        // 按钮浅底色/次级卡片
+
+// ===== 听歌统计页专用（毛玻璃 + 渐变） =====
+// 页面背景：顶部淡蓝紫 → 下方米白/浅灰（深色下改为墨蓝 → 近黑，保持同样氛围）
+val StatsGradientTop get() = light(Color(0xFFE8ECFF), Color(0xFF1A1B2E))
+val StatsGradientMid get() = light(Color(0xFFF3F1FB), Color(0xFF16171F))
+val StatsGradientBottom get() = light(Color(0xFFFAF8F4), Color(0xFF0F1013))
+
+// 毛玻璃卡片：半透明白 + 淡边框（深色下半透明白黑）
+val GlassSurface get() = light(Color(0xE6FFFFFF), Color(0xE61C1E26))
+val GlassSurfaceSoft get() = light(Color(0x99FFFFFF), Color(0x1AFFFFFF))
+val GlassBorder get() = light(Color(0x66FFFFFF), Color(0x1FFFFFFF))
+
+// 数据可视化：蓝紫渐变（时段分布进度条）、青蓝渐变（柱状图）
+val AccentViolet get() = light(Color(0xFF7C6BFF), Color(0xFF8E80FF))
+val AccentTeal get() = light(Color(0xFF14B8A6), Color(0xFF2DD4BF))
+
+// 排行榜前三名（金银铜）
+val RankGold get() = light(Color(0xFFE0A020), Color(0xFFF0B429))
+val RankSilver get() = light(Color(0xFF8E9AAF), Color(0xFFAAB4C6))
+val RankBronze get() = light(Color(0xFFC07A45), Color(0xFFD08C55))
+

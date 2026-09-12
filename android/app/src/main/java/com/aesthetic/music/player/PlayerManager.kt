@@ -931,7 +931,13 @@ class PlayerManager private constructor(private val appContext: Context) {
                     durationMs = dur,
                 )
                 if (s.currentSong != null && pos > 0) {
-                    StatsTracker.tick(s.currentSong!!, delta.coerceAtMost(2000), _progress.value.durationMs)
+                    // 传 positionMs：单日听歌日记里要显示"最后 00:49"这样的播放时间点
+                    StatsTracker.tick(
+                        song = s.currentSong!!,
+                        deltaMs = delta.coerceAtMost(2000),
+                        durationMs = _progress.value.durationMs,
+                        positionMs = pos,
+                    )
                 }
                 if (now - lastSessionSaveAt > 5000) {
                     lastSessionSaveAt = now

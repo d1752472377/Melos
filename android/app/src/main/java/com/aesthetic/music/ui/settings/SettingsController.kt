@@ -6,6 +6,7 @@ import com.aesthetic.music.data.settings.MediaCardButtonPosition
 import com.aesthetic.music.data.settings.MediaCardLyricPosition
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.StatusBarMode
+import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.UserPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,4 +79,34 @@ class SettingsController(
 
     fun setDownloadWifiOnly(enabled: Boolean) =
         update(_prefs.value.copy(downloadWifiOnly = enabled))
+
+    // ===== 听歌统计 =====
+
+    /**
+     * 是否记录听歌数据。
+     *
+     * 关掉后除了写偏好，还会让 [com.aesthetic.music.data.settings.StatsStore] 立即失效
+     * 它的开关缓存，否则最坏情况会多记 2 秒的数据（统计开关"关不干净"很容易被当成隐私问题）。
+     */
+    fun setStatsRecording(enabled: Boolean) {
+        update(_prefs.value.copy(statsRecording = enabled))
+        StatsStore.invalidateRecordingCache()
+    }
+
+    fun setStatsCloudSync(enabled: Boolean) =
+        update(_prefs.value.copy(statsCloudSync = enabled))
+
+    // ===== 音源策略（插件管理页） =====
+
+    /** 失败换源：解析失败时自动换下一个音源 */
+    fun setSourceFailover(enabled: Boolean) =
+        update(_prefs.value.copy(sourceFailover = enabled))
+
+    /** 智能切换：源被判定为失败/偏慢时不等失败直接换 */
+    fun setSourceSmartSwitch(enabled: Boolean) =
+        update(_prefs.value.copy(sourceSmartSwitch = enabled))
+
+    /** 自动按照最快的进行使用：按实测速度排序取最快 */
+    fun setSourceFastest(enabled: Boolean) =
+        update(_prefs.value.copy(sourceFastest = enabled))
 }

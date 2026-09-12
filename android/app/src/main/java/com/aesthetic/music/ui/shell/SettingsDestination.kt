@@ -30,10 +30,7 @@ fun SettingsDestination(
 
     val themeMode by viewModel.themeMode.collectAsState()
     val qualityLevel by viewModel.quality.collectAsState()
-    val activeScriptInfo by viewModel.activeScriptInfo.collectAsState()
-    val scriptCatalog by viewModel.scriptCatalog.collectAsState()
-    val isEngineReady by viewModel.isEngineReady.collectAsState()
-    val engineError by viewModel.engineError.collectAsState()
+    val sourcePlugins by viewModel.sourcePlugins.collectAsState()
     val isSyncConfigured by viewModel.isSyncConfigured.collectAsState()
     val syncServerUrl by viewModel.syncServerUrl.collectAsState()
     val syncToken by viewModel.syncToken.collectAsState()
@@ -50,12 +47,7 @@ fun SettingsDestination(
         quality = qualityLevel,
         userPrefs = userPrefs,
         floatingCapsuleEnabled = capsuleEnabled,
-        activeScript = activeScriptInfo,
-        scriptCatalog = scriptCatalog,
-        isEngineReady = isEngineReady,
-        engineError = engineError,
-        onRetryLoadScript = viewModel::retryLoadScript,
-        onSwitchScript = viewModel::switchScript,
+        pluginCount = sourcePlugins.size,
         isSyncConfigured = isSyncConfigured,
         syncServerUrl = syncServerUrl,
         syncToken = syncToken,
@@ -102,11 +94,9 @@ fun SettingsDestination(
                 onError = { msg -> actions.toast(msg) },
             )
         },
+        onOpenPluginManage = { nav.navigate(ScreenRoute.PluginManage.route) },
         onSaveSyncConfig = viewModel::saveSyncConfig,
         onTestSyncConnection = viewModel::testSyncConnection,
         onPerformSync = viewModel::performCloudSync,
-        onImportScriptText = viewModel::importScriptFromText,
-        onImportScriptUrl = viewModel::importScriptFromUrl,
-        onUnloadScript = viewModel::unloadScript,
     )
 }

@@ -27,7 +27,7 @@ import com.aesthetic.music.data.api.platform.PlatformMusicService
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.settings.UserStore
-import com.aesthetic.music.data.userapi.UserApiEngine
+import com.aesthetic.music.data.source.SourceManager
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -90,60 +90,20 @@ class MusicRepository(
         PlatformMusicService.getArtistAllSongs(platform, id, maxCount)
     }
 
+    /**
+     * 解析播放直链。
+     *
+     * 音源选择（用哪个插件、失败要不要换、要不要按最快挑）统一交给 [SourceManager]：
+     * 之前这里写死"有脚本就用脚本，没有就走内置直连"，只支持单一脚本，
+     * 也就没有"换源"可言；现在按用户设置的三条策略在多个插件间挑选与兜底。
+     */
     suspend fun getSongUrl(song: Song, quality: String = "lossless"): Result<SongUrlData> = apiCatching {
-        // 1. 优先使用本地 QuickJS 音源脚本解析直链（完全在客户端沙箱独立执行）
-        if (UserApiEngine.isAvailable()) {
-            val scriptResult = UserApiEngine.resolveMusicUrl(song.platform, song, quality)
-            if (scriptResult.isSuccess) {
-                val resolvedUrl = scriptResult.getOrNull()
-                if (!resolvedUrl.isNullOrBlank()) {
-                    return@apiCatching SongUrlData(
-                        url = resolvedUrl,
-                        platform = song.platform,
-                        sourceName = UserApiEngine.getScriptName()
-                    )
-                }
-            }
-        }
-
-        // 2. 音源脚本未安装或未解析成功时，使用平台公开外链协议直连兜底
-        try {
-            val direct = PlatformMusicService.getDirectSongUrl(song, quality)
-            if (!direct.url.isNullOrBlank()) {
-                return@apiCatching direct
-            }
-        } catch (e: Exception) {
-            // 平台直连兜底也失败。这里仍会抛"请导入音源脚本"，但记录原因才能区分
-            // "平台接口变更"与"网络问题"——此前静默吞掉，线上只能看到一句通用提示。
-            Log.w(TAG, "平台直连兜底失败 ${song.platform}:${song.id}", e)
-        }
-
-        throw Exception("未获取到播放直链，请在「设置」中导入音源脚本以获得高品质音源")
+        SourceManager.resolveUrl(song, quality)
     }
 
     suspend fun getLyric(song: Song): Result<LyricData> = apiCatching {
-        // 1. 优先使用本地音源脚本解析歌词
-        if (UserApiEngine.isAvailable()) {
-            val scriptResult = UserApiEngine.resolveLyric(song.platform, song)
-            if (scriptResult.isSuccess) {
-                val lrc = scriptResult.getOrNull()
-                if (!lrc.isNullOrBlank()) {
-                    return@apiCatching LyricData(
-                        lyric = lrc,
-                        platform = song.platform,
-                        sourceName = UserApiEngine.getScriptName()
-                    )
-                }
-            }
-        }
-
-        // 2. 直连公共平台歌词接口
-        val directLyric = PlatformMusicService.getLyric(song)
-        if (!directLyric.lyric.isNullOrBlank()) {
-            return@apiCatching directLyric
-        }
-
-        LyricData(platform = song.platform)
+        val lyric = SourceManager.resolveLyric(song)
+        if (!lyric.lyric.isNullOrBlank()) lyric else LyricData(platform = song.platform)
     }
 
     /**

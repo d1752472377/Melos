@@ -84,6 +84,20 @@ object UserApiEngine {
     private val _engineError = MutableStateFlow<String?>(null)
     val engineError: StateFlow<String?> = _engineError.asStateFlow()
 
+    /**
+     * 脚本自报支持的源（LX 源标识，如 wy/tx/kg/kw/mg）。
+     *
+     * 来源是脚本加载后往沙箱发的 `inited` 事件：预加载层把脚本声明的 `sources` 整理后回传原生
+     * （见 assets/script/user-api-preload.js 的 handleInit）。**以脚本自己的声明为准**，
+     * 而不是按"LX 规范支持五源"去猜——音源列表和检测都依赖这份真实声明。
+     */
+    private val _declaredSources = MutableStateFlow<List<String>>(emptyList())
+    val declaredSources: StateFlow<List<String>> = _declaredSources.asStateFlow()
+
+    /** 当前加载进沙箱的插件 id（由 [com.aesthetic.music.data.source.SourceManager] 传入） */
+    private val _loadedPluginId = MutableStateFlow<String?>(null)
+    val loadedPluginId: StateFlow<String?> = _loadedPluginId.asStateFlow()
+
     fun init(context: Context) {
         if (appContext != null) return
         appContext = context.applicationContext
@@ -110,13 +124,10 @@ object UserApiEngine {
             }
         }
 
-        // 尝试加载本地存储的历史脚本
-        val savedScript = UserApiStore.getScriptContent()
-        if (!savedScript.isNullOrBlank()) {
-            engineScope.launch {
-                loadScript(savedScript, savedMeta)
-            }
-        }
+        // 注意：这里**不再**自动加载本地脚本。
+        // 自从支持多插件（见 SourceRegistryStore / SourceManager）后，"加载哪个脚本"由
+        // SourceManager 统一决定；引擎若仍按旧路径去加载 filesDir 里的单一脚本文件，
+        // 就会出现"沙箱里是 A、路由以为在用 B"的错位。启动预热改由 SourceManager 负责。
     }
 
     fun isAvailable(): Boolean = _isEngineReady.value && jsContext != null
@@ -125,10 +136,19 @@ object UserApiEngine {
 
     /**
      * 重新加载或安装新脚本，挂起等待编译与执行结果
+     *
+     * @param pluginId 该脚本对应的插件 id（音源路由据此判断"沙箱里现在是谁"）
      */
-    suspend fun loadScript(scriptContent: String, meta: ScriptMetadata? = null): Result<ScriptMetadata> {
+    suspend fun loadScript(
+        scriptContent: String,
+        meta: ScriptMetadata? = null,
+        pluginId: String? = null,
+    ): Result<ScriptMetadata> {
         val actualMeta = meta ?: UserApiStore.parseScriptHeader(scriptContent)
         _activeMetadata.value = actualMeta
+        _loadedPluginId.value = pluginId
+        // 声明源属于"上一个脚本"，换脚本前先清空，避免把旧脚本的平台列表挂到新脚本上
+        _declaredSources.value = emptyList()
 
         val handler = workerHandler ?: run {
             val err = "QuickJS 引擎线程尚未就绪"
@@ -194,7 +214,10 @@ object UserApiEngine {
     }
 
     /**
-     * 卸载清理当前运行的脚本环境
+     * 卸载清理当前运行的脚本环境（只是把脚本从沙箱拿走，**不删除**已安装的插件）。
+     *
+     * 旧实现在这里调 `UserApiStore.clearScript()`，等于"卸载"直接把用户唯一一份脚本删掉；
+     * 多插件模型下删除是插件管理页的显式动作（SourceRegistryStore.remove），卸载只停止使用。
      */
     fun unloadScript() {
         workerHandler?.post {
@@ -202,7 +225,8 @@ object UserApiEngine {
             _activeMetadata.value = null
             _isEngineReady.value = false
             _engineError.value = null
-            UserApiStore.clearScript()
+            _declaredSources.value = emptyList()
+            _loadedPluginId.value = null
         }
     }
 
@@ -318,7 +342,7 @@ object UserApiEngine {
         when (action) {
             "init" -> {
                 isInited = true
-                Log.i(TAG, "UserApi script reported inited: $data")
+                captureDeclaredSources(data)
             }
             "request" -> {
                 // 脚本请求执行 HTTP 访问
@@ -338,6 +362,32 @@ object UserApiEngine {
             else -> {
                 Log.w(TAG, "Unhandled nativeCall action: $action")
             }
+        }
+    }
+
+    /**
+     * 记录脚本自报支持的源。
+     *
+     * 预加载层回传的结构：
+     * `{"info":{"sources":{"wy":{"type":"music","actions":["musicUrl"],"qualitys":[...]}, ...}}, "status":true}`
+     * 只认 `type == "music"` 且带 `musicUrl` 动作的源——脚本声明了却不实现取链的源，
+     * 对播放没有意义，展示出来反而误导。
+     */
+    private fun captureDeclaredSources(rawJson: String) {
+        try {
+            val root = gson.fromJson(rawJson, JsonObject::class.java) ?: return
+            val sources = root.getAsJsonObject("info")?.getAsJsonObject("sources") ?: return
+            val declared = sources.entrySet().mapNotNull { (key, value) ->
+                val obj = value.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                val type = obj.get("type")?.asString
+                val actions = obj.getAsJsonArray("actions")?.mapNotNull { it.asString }
+                val supportsUrl = actions?.any { it == "musicUrl" } == true
+                key.lowercase().takeIf { type == "music" && supportsUrl }
+            }
+            _declaredSources.value = declared
+            Log.i(TAG, "脚本声明支持的源: ${declared.joinToString(",")}")
+        } catch (e: Exception) {
+            Log.w(TAG, "解析脚本声明源失败: ${e.message}")
         }
     }
 

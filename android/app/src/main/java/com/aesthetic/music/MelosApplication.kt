@@ -8,13 +8,17 @@ import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.PlaylistCoverStore
 import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.RecentSearchStore
-import com.aesthetic.music.data.settings.ScriptCatalogStore
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.settings.UserStore
+import com.aesthetic.music.data.source.SourceManager
 import com.aesthetic.music.data.userapi.UserApiEngine
 import com.aesthetic.music.service.CrashHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * 全局应用入口 Application：
@@ -36,16 +40,24 @@ class MelosApplication : Application() {
         RecentSearchStore.init(this)
         UserStore.init(this)
         SyncServerStore.init(this)
-        ScriptCatalogStore.init(this)
+        // 音源插件注册表与检测统计（取代旧版"唯一脚本"存储 ScriptCatalogStore）
+        SourceManager.init(this)
         UserApiEngine.init(this)
         PlaylistStore.init(this)
         PlaylistCoverStore.init(this)
         StatsStore.init(this)
         PlayerSessionStore.init(this)
+
+        // 启动预热当前指定音源：沙箱编译放在后台，避免第一次播放时才付这份代价。
+        // 注意 UserApiEngine 自身不再自动加载脚本（多插件下"加载哪个"由 SourceManager 决定）。
+        appScope.launch { runCatching { SourceManager.preloadActive() } }
     }
 
     companion object {
         lateinit var instance: MelosApplication
             private set
+
+        /** 应用级后台作用域：只用于启动预热这类"失败也无所谓"的任务 */
+        private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

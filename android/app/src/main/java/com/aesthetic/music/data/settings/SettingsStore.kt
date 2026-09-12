@@ -114,6 +114,18 @@ data class UserPrefs(
     val downloadCoverLyrics: Boolean = true,
     val downloadFailurePolicy: DownloadFailurePolicy = DownloadFailurePolicy.RETRY,
     val downloadWifiOnly: Boolean = false,
+    // ===== 听歌统计 =====
+    /** 是否记录听歌数据（关闭后时长/次数/排行都不再累计，已有历史保留） */
+    val statsRecording: Boolean = true,
+    /** 是否把听歌事件随云同步上传（关闭后仅本地记录，不上传） */
+    val statsCloudSync: Boolean = true,
+    // ===== 音源策略（插件管理页） =====
+    /** 失败换源：当前音源解析失败时自动尝试下一个音源 */
+    val sourceFailover: Boolean = true,
+    /** 智能切换：当前音源被判定为失败/偏慢时，不等失败直接改用更优音源 */
+    val sourceSmartSwitch: Boolean = false,
+    /** 自动按照最快的进行使用：按实测速度排序，永远优先用最快的音源 */
+    val sourceFastest: Boolean = false,
 )
 
 /**
@@ -217,6 +229,11 @@ object SettingsStore {
     private const val KEY_DL_COVER_LYRICS = "download_cover_lyrics"
     private const val KEY_DL_FAILURE = "download_failure_policy"
     private const val KEY_DL_WIFI_ONLY = "download_wifi_only"
+    private const val KEY_STATS_RECORDING = "stats_recording"
+    private const val KEY_STATS_CLOUD = "stats_cloud_sync"
+    private const val KEY_SOURCE_FAILOVER = "source_failover"
+    private const val KEY_SOURCE_SMART = "source_smart_switch"
+    private const val KEY_SOURCE_FASTEST = "source_fastest"
 
     private fun getBool(key: String, def: Boolean): Boolean = try {
         p()?.getBoolean(key, def) ?: def
@@ -261,6 +278,11 @@ object SettingsStore {
                 downloadCoverLyrics = getBool(KEY_DL_COVER_LYRICS, d.downloadCoverLyrics),
                 downloadFailurePolicy = DownloadFailurePolicy.fromValue(getStr(KEY_DL_FAILURE)),
                 downloadWifiOnly = getBool(KEY_DL_WIFI_ONLY, d.downloadWifiOnly),
+                statsRecording = getBool(KEY_STATS_RECORDING, d.statsRecording),
+                statsCloudSync = getBool(KEY_STATS_CLOUD, d.statsCloudSync),
+                sourceFailover = getBool(KEY_SOURCE_FAILOVER, d.sourceFailover),
+                sourceSmartSwitch = getBool(KEY_SOURCE_SMART, d.sourceSmartSwitch),
+                sourceFastest = getBool(KEY_SOURCE_FASTEST, d.sourceFastest),
             )
         } catch (_: Exception) {
             d
@@ -288,6 +310,11 @@ object SettingsStore {
             putBoolean(KEY_DL_COVER_LYRICS, prefs.downloadCoverLyrics)
             putString(KEY_DL_FAILURE, prefs.downloadFailurePolicy.value)
             putBoolean(KEY_DL_WIFI_ONLY, prefs.downloadWifiOnly)
+            putBoolean(KEY_STATS_RECORDING, prefs.statsRecording)
+            putBoolean(KEY_STATS_CLOUD, prefs.statsCloudSync)
+            putBoolean(KEY_SOURCE_FAILOVER, prefs.sourceFailover)
+            putBoolean(KEY_SOURCE_SMART, prefs.sourceSmartSwitch)
+            putBoolean(KEY_SOURCE_FASTEST, prefs.sourceFastest)
         }?.apply()
     }
 }

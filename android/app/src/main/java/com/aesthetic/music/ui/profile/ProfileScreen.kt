@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.profile
+﻿package com.aesthetic.music.ui.profile
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -72,7 +72,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.settings.LocalStats
-import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.service.UpdateInfo
 import com.aesthetic.music.service.UpdateService
@@ -114,7 +113,8 @@ fun ProfileScreen(
     cacheSize: Long,
     localStats: LocalStats,
     isSyncConfigured: Boolean,
-    activeScript: ScriptMetadata?,
+    /** 音源插件状态摘要（插件管理入口的副标题，文本由调用方组织，页面不关心插件细节） */
+    sourceSummary: String,
     onOpenEditProfile: () -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenMyPlaylists: () -> Unit,
@@ -420,7 +420,7 @@ fun ProfileScreen(
                         icon = Icons.Filled.Extension,
                         iconTint = AccentMint,
                         title = "插件管理",
-                        subtitle = activeScript?.name ?: "音源与扩展",
+                        subtitle = sourceSummary,
                         onClick = onOpenPluginManage,
                     )
                     ProfileMenuItem(

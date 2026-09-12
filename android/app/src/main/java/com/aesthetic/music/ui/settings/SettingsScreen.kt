@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,14 +25,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircleOutline
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Sync
@@ -62,11 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.QualityLevel
-import com.aesthetic.music.data.settings.ScriptCatalogEntry
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.UserPrefs
-import com.aesthetic.music.data.userapi.ScriptMetadata
-import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
@@ -108,12 +102,8 @@ fun SettingsScreen(
     quality: QualityLevel,
     userPrefs: UserPrefs = UserPrefs(),
     floatingCapsuleEnabled: Boolean,
-    activeScript: ScriptMetadata? = null,
-    scriptCatalog: List<ScriptCatalogEntry> = emptyList(),
-    isEngineReady: Boolean = false,
-    engineError: String? = null,
-    onRetryLoadScript: () -> Unit = {},
-    onSwitchScript: (String) -> Unit = {},
+    /** 已安装的音源插件数量（只用于在入口行显示状态摘要） */
+    pluginCount: Int = 0,
     isSyncConfigured: Boolean = false,
     syncServerUrl: String = "",
     syncToken: String = "",
@@ -124,17 +114,12 @@ fun SettingsScreen(
     onOpenPage: (SettingsPage) -> Unit = {},
     onFloatingCapsuleChange: (Boolean) -> Unit,
     onCheckUpdate: (onResult: (String) -> Unit) -> Unit,
+    onOpenPluginManage: () -> Unit = {},
     onSaveSyncConfig: (String, String) -> Unit = { _, _ -> },
     onTestSyncConnection: ((Boolean, String) -> Unit) -> Unit = {},
     onPerformSync: () -> Unit = {},
-    onImportScriptText: (String, String?) -> Unit = { _, _ -> },
-    onImportScriptUrl: (String, (Boolean, String) -> Unit) -> Unit = { _, _ -> },
-    onUnloadScript: () -> Unit = {},
 ) {
-    var showScriptImportDialog by remember { mutableStateOf(false) }
     var showSyncConfigDialog by remember { mutableStateOf(false) }
-    var showUnloadConfirm by remember { mutableStateOf(false) }
-    var showCatalogDialog by remember { mutableStateOf(false) }
 
     var syncTestResult by remember { mutableStateOf<String?>(null) }
     var testingSync by remember { mutableStateOf(false) }
@@ -186,196 +171,22 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(10.dp))
 
-        // ===== 1. 自定义音源脚本管理 =====
-        SectionCard(title = "📜 自定义音源脚本 (Local-First)") {
-            if (activeScript != null) {
-                // 脚本信息卡
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Stone100)
-                        .padding(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = activeScript.name,
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = TextPrimary
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (isEngineReady) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(AccentMint.copy(alpha = 0.2f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "🟢 就绪",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                                        color = AccentMint
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "🔴 异常",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(PrimaryBrown.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "v${activeScript.version}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                                    color = PrimaryBrown
-                                )
-                            }
-                        }
-                    }
-                    if (activeScript.description.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = activeScript.description,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextSoft,
-                            maxLines = 2
-                        )
-                    }
-                    if (activeScript.author.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = "作者: ${activeScript.author}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = TextMuted
-                        )
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "支持平台: ${activeScript.supportedSources.joinToString(", ")} · QuickJS 沙箱解析",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = TextMuted
-                    )
-                    if (!isEngineReady && engineError != null) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "沙箱报错: $engineError",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-
-                if (!isEngineReady) {
-                    SettingRow(
-                        icon = Icons.Filled.Refresh,
-                        iconTint = PrimaryBrown,
-                        label = "🔄 重新在沙箱中加载脚本",
-                        subtitle = "点击重新初始化并执行已保存的音源脚本",
-                        onClick = onRetryLoadScript
-                    )
-                }
-
-                SettingRow(
-                    icon = Icons.Filled.Code,
-                    iconTint = PrimaryBrown,
-                    label = "导入 / 替换音源脚本",
-                    subtitle = "可粘贴 JS 完整代码或输入订阅直链",
-                    onClick = { showScriptImportDialog = true }
-                )
-                SettingRow(
-                    icon = Icons.Filled.Sync,
-                    iconTint = PrimaryBrown,
-                    label = "☁️ 从私有云同步音源脚本",
-                    subtitle = if (isSyncConfigured) "拉取服务端启用的最新音源并双向同步" else "未连接私有服务（点击配置服务器地址与密钥）",
-                    onClick = {
-                        if (isSyncConfigured) onPerformSync() else showSyncConfigDialog = true
-                    }
-                )
-                if (scriptCatalog.isNotEmpty()) {
-                    SettingRow(
-                        icon = Icons.Filled.Widgets,
-                        iconTint = PrimaryBrown,
-                        label = "🗂 音源脚本目录（${scriptCatalog.size} 个）",
-                        subtitle = "本地一键切换已同步的音源，无需回服务端修改",
-                        onClick = { showCatalogDialog = true }
-                    )
-                }
-                SettingRow(
-                    icon = Icons.Filled.Delete,
-                    iconTint = MaterialTheme.colorScheme.error,
-                    label = "卸载当前脚本",
-                    subtitle = "清空本地沙箱中的脚本",
-                    onClick = { showUnloadConfirm = true }
-                )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Stone100)
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = "⚠️ 尚未安装音源脚本",
-                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Melos 本身不内置任何音乐直链分发服务。播放歌曲需依赖本地音源脚本（兼容 LX Music 音源规范），所有歌曲解析均在手机本地执行并直连官方 CDN。",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft
-                    )
-                }
-                SettingRow(
-                    icon = Icons.Filled.Code,
-                    iconTint = PrimaryBrown,
-                    label = "＋ 导入自定义音源脚本",
-                    subtitle = "粘贴 JS 源码或输入订阅下载直链",
-                    onClick = { showScriptImportDialog = true }
-                )
-                SettingRow(
-                    icon = Icons.Filled.Sync,
-                    iconTint = PrimaryBrown,
-                    label = "☁️ 从私有云同步音源脚本与歌单",
-                    subtitle = if (isSyncConfigured) "一键获取私有服务器托管的健康音源" else "未连接私有服务（点击配置服务器地址与密钥）",
-                    onClick = {
-                        if (isSyncConfigured) onPerformSync() else showSyncConfigDialog = true
-                    }
-                )
-                if (scriptCatalog.isNotEmpty()) {
-                    SettingRow(
-                        icon = Icons.Filled.Widgets,
-                        iconTint = PrimaryBrown,
-                        label = "🗂 音源脚本目录（${scriptCatalog.size} 个）",
-                        subtitle = "本地一键切换已同步的音源，无需回服务端修改",
-                        onClick = { showCatalogDialog = true }
-                    )
-                }
-            }
+        // ===== 1. 音源插件（入口） =====
+        // 音源脚本的导入/切换/卸载/检测已整体迁到「插件管理」页：多插件并存、指定平台、
+        // 真实测速都要成套的状态支撑，放在设置页里改会变成两处各自维护同一份数据。
+        // 这里只留一个入口，并显示当前安装数量，避免用户以为功能消失了。
+        SectionCard(title = "🧩 音源插件") {
+            SettingRow(
+                icon = Icons.Filled.Extension,
+                iconTint = AccentMint,
+                label = "插件管理",
+                subtitle = if (pluginCount > 0) {
+                    "已安装 $pluginCount 个插件 · 导入 / 检测 / 切换策略"
+                } else {
+                    "未安装插件 · 从此处导入音源脚本"
+                },
+                onClick = onOpenPluginManage
+            )
         }
 
         Spacer(Modifier.height(14.dp))
@@ -584,20 +395,6 @@ fun SettingsScreen(
 
     // ===== 音质选择弹窗已移入「音质」子页面（ui/settings/QualitySettingsScreen.kt） =====
 
-    // ===== 导入音源脚本弹窗 =====
-    if (showScriptImportDialog) {
-        ScriptImportDialog(
-            onDismiss = { showScriptImportDialog = false },
-            onImportText = { text, name ->
-                onImportScriptText(text, name)
-                showScriptImportDialog = false
-            },
-            onImportUrl = { url, cb ->
-                onImportScriptUrl(url, cb)
-            }
-        )
-    }
-
     // ===== 私有服务器配置弹窗 =====
     if (showSyncConfigDialog) {
         SyncConfigDialog(
@@ -613,154 +410,6 @@ fun SettingsScreen(
             }
         )
     }
-
-    // ===== 卸载脚本确认弹窗 =====
-    if (showUnloadConfirm) {
-        AppConfirmDialog(
-            onDismissRequest = { showUnloadConfirm = false },
-            title = "卸载音源脚本",
-            message = "确定要卸载当前音源脚本吗？卸载后在线歌曲将无法直接解析播放。",
-            confirmText = "卸载",
-            onConfirm = {
-                showUnloadConfirm = false
-                onUnloadScript()
-            },
-            destructive = true,
-        )
-    }
-
-    // ===== 音源脚本目录弹窗（本地切换） =====
-    if (showCatalogDialog) {
-        ScriptCatalogDialog(
-            entries = scriptCatalog,
-            activeId = activeScript?.id.orEmpty(),
-            onDismiss = { showCatalogDialog = false },
-            onSwitch = { id ->
-                showCatalogDialog = false
-                onSwitchScript(id)
-            }
-        )
-    }
-}
-
-@Composable
-private fun ScriptImportDialog(
-    onDismiss: () -> Unit,
-    onImportText: (String, String?) -> Unit,
-    onImportUrl: (String, (Boolean, String) -> Unit) -> Unit,
-) {
-    var mode by remember { mutableIntStateOf(0) } // 0 = 粘贴代码, 1 = 网络链接
-    var scriptText by remember { mutableStateOf("") }
-    var scriptUrl by remember { mutableStateOf("") }
-    var customName by remember { mutableStateOf("") }
-    var downloading by remember { mutableStateOf(false) }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-
-    AppDialog(
-        onDismissRequest = onDismiss,
-        title = "导入音源脚本",
-        confirmText = if (downloading) "正在抓取…" else "确认导入",
-        confirmEnabled = !downloading,
-        content = {
-            Column(Modifier.fillMaxWidth()) {
-                // Tab 切换
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Stone100)
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (mode == 0) Surface else Color.Transparent)
-                            .clickable { mode = 0 }
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("粘贴 JS 代码", fontSize = 12.sp, color = if (mode == 0) PrimaryBrown else TextSoft)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (mode == 1) Surface else Color.Transparent)
-                            .clickable { mode = 1 }
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("网络订阅 URL", fontSize = 12.sp, color = if (mode == 1) PrimaryBrown else TextSoft)
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                if (mode == 0) {
-                    OutlinedTextField(
-                        value = scriptText,
-                        onValueChange = { scriptText = it },
-                        label = { Text("JS 代码") },
-                        placeholder = { Text("粘贴完整的音源脚本内容...") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        maxLines = 15,
-                    )
-                } else {
-                    OutlinedTextField(
-                        value = scriptUrl,
-                        onValueChange = { scriptUrl = it },
-                        label = { Text("订阅/下载直链") },
-                        placeholder = { Text("https://raw.githubusercontent.com/.../latest.js") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                }
-
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = customName,
-                    onValueChange = { customName = it },
-                    label = { Text("自定义名称（可选）") },
-                    placeholder = { Text("留空将从脚本注释 @name 自动识别") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-
-                if (errorMsg != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(text = errorMsg!!, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
-                }
-            }
-        },
-        onConfirm = confirm@{
-            errorMsg = null
-            if (mode == 0) {
-                if (scriptText.isBlank()) {
-                    errorMsg = "请先粘贴脚本代码"
-                    return@confirm
-                }
-                onImportText(scriptText, customName.ifBlank { null })
-            } else {
-                if (scriptUrl.isBlank()) {
-                    errorMsg = "请输入下载链接"
-                    return@confirm
-                }
-                downloading = true
-                onImportUrl(scriptUrl) { ok, msg ->
-                    downloading = false
-                    if (!ok) {
-                        errorMsg = msg
-                    } else {
-                        onDismiss()
-                    }
-                }
-            }
-        }
-    )
 }
 
 @Composable
@@ -920,88 +569,3 @@ private fun formatTime(ms: Long): String {
     }
 }
 
-@Composable
-private fun ScriptCatalogDialog(
-    entries: List<ScriptCatalogEntry>,
-    activeId: String,
-    onDismiss: () -> Unit,
-    onSwitch: (String) -> Unit,
-) {
-    AppDialog(
-        onDismissRequest = onDismiss,
-        title = "音源脚本目录",
-        confirmText = "关闭",
-        onConfirm = onDismiss,
-        cancelText = null,
-        content = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (entries.isEmpty()) {
-                    Text(
-                        text = "暂无已同步的音源脚本，请先执行一次私有云同步。",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = TextSoft
-                    )
-                } else {
-                    entries.forEach { entry ->
-                        val isActive = entry.id.isNotBlank() && entry.id == activeId
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isActive) Stone100 else Color.Transparent)
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = entry.name,
-                                        fontSize = 14.sp,
-                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
-                                        color = TextPrimary,
-                                        maxLines = 1
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("v${entry.version}", fontSize = 11.sp, color = TextMuted)
-                                }
-                                if (entry.description.isNotBlank()) {
-                                    Text(
-                                        text = entry.description,
-                                        fontSize = 11.sp,
-                                        color = TextSoft,
-                                        maxLines = 1
-                                    )
-                                }
-                                val statusText = when (entry.status.lowercase()) {
-                                    "success", "healthy" -> "✅ 测活正常"
-                                    "failed", "error" -> "❌ 解析异常"
-                                    else -> "未测活"
-                                }
-                                Text(statusText, fontSize = 11.sp, color = TextMuted)
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            if (isActive) {
-                                Text(
-                                    text = "正在使用",
-                                    fontSize = 11.sp,
-                                    color = PrimaryBrown,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            } else {
-                                TextButton(onClick = { onSwitch(entry.id) }) {
-                                    Text("切换使用", fontSize = 12.sp, color = PrimaryBrown)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-    )
-}
