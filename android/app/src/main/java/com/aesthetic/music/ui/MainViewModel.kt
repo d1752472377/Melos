@@ -203,14 +203,13 @@ class MainViewModel : ViewModel() {
     val searchType get() = search.type
     val searchPlatform get() = search.platform
     val songResults get() = search.songResults
-    val lyricResults get() = search.lyricResults
     val artistResults get() = search.artistResults
     val playlistResults get() = search.playlistResults
     val albumResults get() = search.albumResults
     val isSearching get() = search.isSearching
     val searchError get() = search.searchError
     val recentSearches get() = search.recentSearches
-    val hotSearchWords get() = search.hotSearchWords
+
 
     /** 专辑详情覆盖层（搜索页专辑 Tab 点击进入）：已抽到 AlbumController，保留同名只读委托 */
     val showAlbumDetail get() = albumPage.showAlbumDetail

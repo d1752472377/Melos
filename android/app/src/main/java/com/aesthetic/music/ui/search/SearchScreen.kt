@@ -72,14 +72,13 @@ fun SearchScreen(
     val searchType by viewModel.searchType.collectAsState()
     val platform by viewModel.searchPlatform.collectAsState()
     val songResults by viewModel.songResults.collectAsState()
-    val lyricResults by viewModel.lyricResults.collectAsState()
     val artistResults by viewModel.artistResults.collectAsState()
     val playlistResults by viewModel.playlistResults.collectAsState()
     val albumResults by viewModel.albumResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val searchError by viewModel.searchError.collectAsState()
     val recentSearches by viewModel.recentSearches.collectAsState()
-    val hotWords by viewModel.hotSearchWords.collectAsState()
+//    val hotWords by viewModel.hotSearchWords.collectAsState()
 
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -156,19 +155,19 @@ fun SearchScreen(
                         },
                         onClearAll = { showClearRecentConfirm = true },
                     )
-                    SearchHotSearch(
-                        words = hotWords,
-                        onPick = { word ->
-                            viewModel.submitSearch(word)
-                            keyboard?.hide()
-                        },
-                    )
+//                    SearchHotSearch(
+//                        words = hotWords.map { HotSearchWord(it) },
+//                        onPick = { word ->
+//                            viewModel.submitSearch(word)
+//                            keyboard?.hide()
+//                        },
+//                    )
                 }
             } else {
                 // 有关键词：分类型结果
                 Column(Modifier.fillMaxSize()) {
                     when {
-                        isSearching && allResultsEmpty(searchType, songResults, lyricResults, artistResults, playlistResults, albumResults) -> {
+                        isSearching && allResultsEmpty(searchType, songResults, artistResults, playlistResults, albumResults) -> {
                             LoadingBox(message = "搜索中…", modifier = Modifier.weight(1f).fillMaxWidth())
                         }
 
@@ -180,13 +179,7 @@ fun SearchScreen(
                                 onPlay = { song -> onPlaySong(song, songResults) },
                                 onMore = { song -> songForActionMenu = song },
                             )
-                            SearchType.LYRIC -> SongResultList(
-                                songs = lyricResults,
-                                currentSong = currentSong,
-                                emptyHint = searchError ?: "没有匹配歌词的歌曲",
-                                onPlay = { song -> onPlaySong(song, lyricResults) },
-                                onMore = { song -> songForActionMenu = song },
-                            )
+
                             SearchType.ARTIST -> ArtistResultList(
                                 artists = artistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌手",
@@ -261,13 +254,11 @@ fun SearchScreen(
 private fun allResultsEmpty(
     type: SearchType,
     songs: List<Song>,
-    lyrics: List<Song>,
     artists: List<ArtistItem>,
     playlists: List<PlaylistItem>,
     albums: List<AlbumItem>,
 ): Boolean = when (type) {
     SearchType.SONG -> songs.isEmpty()
-    SearchType.LYRIC -> lyrics.isEmpty()
     SearchType.ARTIST -> artists.isEmpty()
     SearchType.PLAYLIST -> playlists.isEmpty()
     SearchType.ALBUM -> albums.isEmpty()

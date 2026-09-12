@@ -1,25 +1,29 @@
 package com.aesthetic.music.ui.search
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.PrimaryBrown
-import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 
 /** 类型筛选行：单曲 / 歌手 / 歌单 / 专辑 / 歌词 */
@@ -31,7 +35,7 @@ fun SearchFilterTabs(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         SearchType.entries.forEach { type ->
             TypeTag(
@@ -44,29 +48,37 @@ fun SearchFilterTabs(
 }
 
 /**
- * 类型筛选 tag。
- *
- * 用户要求把「单曲/歌手/歌单/专辑/歌词」从实底按钮改成 tag：选中态用主色淡底 + 主色文字，
- * 未选中只留弱描边，视觉重量明显低于按钮，不再和结果行抢注意力。
+ * 类型筛选 tag（纯文字 + 底部短横线）：
+ * - 选中态：主色加粗文字 + 下方主色短横线；
+ * - 未选中：灰色普通文字，无横线，但保留同高透明占位，避免选中切换时整行跳动。
  */
 @Composable
 private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
+    Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Color.Transparent)
-            .then(
-                if (selected) Modifier
-                else Modifier.border(1.dp, Stone200, RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp),
             color = if (selected) PrimaryBrown else TextMuted,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        )
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .width(18.dp)
+                .height(2.dp)
+                .background(
+                    color = if (selected) PrimaryBrown else Color.Transparent,
+                    shape = RoundedCornerShape(1.dp),
+                )
         )
     }
 }

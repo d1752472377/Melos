@@ -1,7 +1,6 @@
 package com.aesthetic.music.ui.search
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.components.DangerTextButton
 import com.aesthetic.music.ui.theme.Stone100
-import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 
@@ -71,20 +69,19 @@ fun SearchRecentSearches(
     }
 }
 
-/** 最近搜索词条：圆角收到 6dp（原先 15dp 接近胶囊），文字用 TextMuted 保证对比度达标 */
+/** 最近搜索词条：无边框 + 浅灰实底，圆角 8dp，文字弱化 */
 @Composable
 private fun WordChip(word: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .border(1.dp, Stone200, RoundedCornerShape(6.dp))
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(Stone100)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             word,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
             color = TextMuted,
             maxLines = 1,
         )

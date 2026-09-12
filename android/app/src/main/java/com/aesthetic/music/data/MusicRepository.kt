@@ -51,41 +51,35 @@ class MusicRepository(
         Result.failure(friendlyError(e))
     }
 
-    // ==================== 音乐（直连公共平台协议，客户端独立自治） ====================
-
-    suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): Result<List<Song>> = apiCatching {
-        PlatformMusicService.search(keyword, limit, platform)
-    }
+    // ==================== 音乐搜索（四平台直连） ====================
+    /** 单曲搜索（多平台） */
+    suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): Result<List<Song>> =
+        apiCatching { PlatformMusicService.search(keyword, limit, platform) }
 
     /** 热搜词（搜索页热门搜索：直连官方热搜） */
     suspend fun hotSearchWords(): Result<List<String>> = apiCatching {
         PlatformMusicService.hotSearchWords()
     }
 
-    /** 歌单搜索（直连公共平台官方接口） */
-    suspend fun searchPlaylists(keyword: String, limit: Int = 20): Result<List<PlaylistItem>> = apiCatching {
-        PlatformMusicService.searchPlaylists(keyword, limit)
-    }
+    /** 歌单搜索（多平台：网易云 / 酷狗 / 酷我；QQ 暂不支持） */
+    suspend fun searchPlaylists(keyword: String, limit: Int = 20, platform: String? = null): Result<List<PlaylistItem>> =
+        apiCatching { PlatformMusicService.searchPlaylists(keyword, limit, platform) }
 
-    /** 专辑搜索（直连公共平台官方接口） */
-    suspend fun searchAlbums(keyword: String, limit: Int = 20): Result<List<AlbumItem>> = apiCatching {
-        PlatformMusicService.searchAlbums(keyword, limit)
-    }
+    /** 专辑搜索（多平台：网易云 / 酷狗 / 酷我；QQ 暂不支持） */
+    suspend fun searchAlbums(keyword: String, limit: Int = 20, platform: String? = null): Result<List<AlbumItem>> =
+        apiCatching { PlatformMusicService.searchAlbums(keyword, limit, platform) }
 
-    /** 歌词关键词搜歌 */
-    suspend fun searchByLyric(keyword: String, limit: Int = 20): Result<List<Song>> = apiCatching {
-        PlatformMusicService.searchByLyric(keyword, limit)
-    }
+
 
     /** 专辑详情 + 曲目列表 */
     suspend fun getAlbum(id: String): Result<AlbumDetailData> = apiCatching {
         PlatformMusicService.getAlbum(id)
     }
 
-    /** 歌手搜索 */
-    suspend fun searchArtists(keyword: String, limit: Int = 8, platform: String? = null): Result<List<ArtistItem>> = apiCatching {
-        PlatformMusicService.searchArtists(keyword, limit, platform)
-    }
+    /** 歌手搜索（多平台：网易云 / 酷狗 / 酷我；QQ 暂不支持） */
+    suspend fun searchArtists(keyword: String, limit: Int = 12, platform: String? = null): Result<List<ArtistItem>> =
+        apiCatching { PlatformMusicService.searchArtists(keyword, limit, platform) }
+
 
     suspend fun getArtist(platform: String?, id: String, limit: Int = 50): Result<ArtistDetailData> = apiCatching {
         PlatformMusicService.getArtist(platform, id, limit)
