@@ -8,6 +8,9 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.userapi.ScriptMetadata
 import com.aesthetic.music.data.userapi.UserApiEngine
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -30,6 +33,15 @@ object SourceManager {
 
     @Volatile
     private var loadedPluginId: String? = null
+
+    /**
+     * 最近一次成功取到直链的音源名（"某插件" 或 "官方直连"）。
+     *
+     * 用途：媒体卡片上的 `专辑 · 无损 · 音源` 信息行。真实报出来源比写死"自定义音源"更有用——
+     * 用户能一眼看出这首歌是哪个源在供链，排查"某首歌播不了"时直接有用。
+     */
+    private val _lastSourceName = MutableStateFlow<String?>(null)
+    val lastSourceName: StateFlow<String?> = _lastSourceName.asStateFlow()
 
     fun init(context: android.content.Context) {
         SourceRegistryStore.init(context)
@@ -84,6 +96,7 @@ object SourceManager {
                     // 失败记录在同一次成功后被覆盖：源已经证明可用，不该继续背着"失败"标签
                 }
                 SourceRegistryStore.markUsed(plugin.id)
+                _lastSourceName.value = plugin.name
                 // 智能切换：本次实测明显变慢时不给提示也不强行换（播放不该被打断），
                 // 但速度样本会让下一次"自动最快"改选更快的源。
                 return SongUrlData(
@@ -102,6 +115,7 @@ object SourceManager {
             try {
                 val direct = PlatformMusicService.getDirectSongUrl(song, quality)
                 if (!direct.url.isNullOrBlank()) {
+                    _lastSourceName.value = direct.sourceName?.takeIf { it.isNotBlank() } ?: "内置直连"
                     return direct
                 }
             } catch (e: Exception) {

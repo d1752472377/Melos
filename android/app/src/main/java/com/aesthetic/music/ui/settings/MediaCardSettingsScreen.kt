@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aesthetic.music.data.settings.MediaCardButtonPosition
 import com.aesthetic.music.data.settings.MediaCardLyricPosition
 import com.aesthetic.music.data.settings.UserPrefs
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -43,20 +42,77 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
-/** 媒体卡片设置页：通知栏卡片按钮与歌词显示 */
+/** 媒体卡片设置页：通知栏卡片的内容、按钮与歌词 */
 @Composable
 fun MediaCardSettingsScreen(
     prefs: UserPrefs,
     onBack: () -> Unit,
     onFavoriteChange: (Boolean) -> Unit,
-    onButtonPositionChange: (MediaCardButtonPosition) -> Unit,
     onShowLyricChange: (Boolean) -> Unit,
     onLyricPositionChange: (MediaCardLyricPosition) -> Unit,
+    onCoverChange: (Boolean) -> Unit = {},
+    onAlbumChange: (Boolean) -> Unit = {},
+    onProgressChange: (Boolean) -> Unit = {},
+    onColorizedChange: (Boolean) -> Unit = {},
+    onLiveUpdateChange: (Boolean) -> Unit = {},
 ) {
-    SettingsPageScaffold(title = "媒体卡片", subtitle = "通知栏播放卡片的按钮与歌词", onBack = onBack) {
+    SettingsPageScaffold(title = "媒体卡片", subtitle = "通知栏 / 锁屏卡片的封面、按钮与歌词", onBack = onBack) {
         // 预览：改完立刻能看到卡片长什么样
         SettingsSection(title = "预览") {
             MediaCardPreview(prefs)
+        }
+
+        SettingsGap()
+
+        SettingsSection(title = "内容") {
+            SettingsSwitchRow(
+                icon = Icons.Filled.MusicNote,
+                title = "显示封面",
+                subtitle = "卡片、锁屏、系统媒体控件与超级岛都用这张封面",
+                checked = prefs.mediaCardCover,
+                onCheckedChange = onCoverChange,
+            )
+            SettingsDivider()
+            SettingsSwitchRow(
+                icon = Icons.Filled.Notifications,
+                title = "显示专辑与音源",
+                subtitle = "在歌手下方追加「专辑 · 音质 · 音源」信息行",
+                checked = prefs.mediaCardAlbum,
+                onCheckedChange = onAlbumChange,
+            )
+            SettingsDivider()
+            SettingsSwitchRow(
+                icon = Icons.Filled.Pause,
+                title = "显示播放进度",
+                subtitle = "卡片上显示进度条，并每 3 秒同步一次播放位置",
+                checked = prefs.mediaCardProgress,
+                onCheckedChange = onProgressChange,
+            )
+            SettingsDivider()
+            SettingsSwitchRow(
+                icon = Icons.Filled.MusicNote,
+                title = "封面取色",
+                subtitle = "用封面主色作为卡片底色（Android 10+，部分系统不渲染）",
+                checked = prefs.mediaCardColorized,
+                onCheckedChange = onColorizedChange,
+            )
+        }
+
+        SettingsGap()
+
+        SettingsSection(title = "系统灵动通知") {
+            SettingsSwitchRow(
+                icon = Icons.Filled.Notifications,
+                title = "实时活动（Android 16+）",
+                subtitle = "把正在播放提升到状态栏胶囊/锁屏强调卡，点一下展开完整卡片",
+                checked = prefs.mediaCardLiveUpdate,
+                onCheckedChange = onLiveUpdateChange,
+            )
+            SettingsNote(
+                "这是 Android 16 的官方能力（Live Updates），需要系统「实时活动」开关打开，" +
+                    "小米「超级岛 / 焦点通知」是厂商自己的通道，没有公开的第三方接入文档，" +
+                    "能否显示由系统决定。"
+            )
         }
 
         SettingsGap()
@@ -69,20 +125,10 @@ fun MediaCardSettingsScreen(
                 checked = prefs.mediaCardFavorite,
                 onCheckedChange = onFavoriteChange,
             )
-            if (prefs.mediaCardFavorite) {
-                SettingsDivider()
-                SettingsSegmentRow(
-                    title = "收藏按钮位置",
-                    subtitle = "决定收藏按钮排在播放控制的哪一侧",
-                    options = listOf(
-                        SettingOption(MediaCardButtonPosition.LEFT.label),
-                        SettingOption(MediaCardButtonPosition.RIGHT.label),
-                    ),
-                    selectedIndex = MediaCardButtonPosition.entries
-                        .indexOf(prefs.mediaCardButtonPosition).coerceAtLeast(0),
-                    onSelect = { idx -> onButtonPositionChange(MediaCardButtonPosition.entries[idx]) },
-                )
-            }
+            SettingsNote(
+                "上一首 / 播放暂停 / 下一首固定排在按钮行最前面，收藏按钮排最后。" +
+                    "系统媒体卡片只会显示前几个按钮，把收藏放前面会把「下一首」挤掉（已修复）。"
+            )
         }
 
         SettingsGap()
@@ -140,12 +186,16 @@ private fun MediaCardPreview(prefs: UserPrefs) {
                 .background(PrimaryBrown.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = PrimaryBrown,
-                modifier = Modifier.size(20.dp),
-            )
+            if (prefs.mediaCardCover) {
+                Icon(
+                    imageVector = Icons.Filled.MusicNote,
+                    contentDescription = null,
+                    tint = PrimaryBrown,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                Text("无封面", style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp), color = TextMuted)
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -165,6 +215,7 @@ private fun MediaCardPreview(prefs: UserPrefs) {
             )
             val secondLine = when {
                 prefs.mediaCardShowLyric && prefs.mediaCardLyricPosition == MediaCardLyricPosition.BELOW -> lyric
+                prefs.mediaCardAlbum -> "十一月的萧邦 · 无损 · 网易云"
                 else -> "周杰伦"
             }
             Text(
@@ -173,31 +224,42 @@ private fun MediaCardPreview(prefs: UserPrefs) {
                 color = if (secondLine == lyric) PrimaryBrown else TextSoft,
                 maxLines = 1,
             )
+            if (prefs.mediaCardProgress) {
+                Spacer(Modifier.height(5.dp))
+                // 进度条示意：真实卡片用系统通知进度，这里只画个比例
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Stone200),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.35f)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(PrimaryBrown),
+                    )
+                }
+            }
         }
         Spacer(Modifier.width(10.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            val controls: @Composable () -> Unit = {
-                Icon(Icons.Filled.SkipPrevious, null, tint = TextSoft, modifier = Modifier.size(18.dp))
-                Icon(Icons.Filled.Pause, null, tint = TextPrimary, modifier = Modifier.size(20.dp))
-                Icon(Icons.Filled.SkipNext, null, tint = TextSoft, modifier = Modifier.size(18.dp))
-            }
-            val favorite = @Composable {
+            // 顺序与真实卡片一致：上一首 / 播放暂停 / 下一首 / [收藏]
+            Icon(Icons.Filled.SkipPrevious, null, tint = TextSoft, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Pause, null, tint = TextPrimary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Filled.SkipNext, null, tint = TextSoft, modifier = Modifier.size(18.dp))
+            if (prefs.mediaCardFavorite) {
                 Icon(
                     imageVector = Icons.Filled.Favorite,
                     contentDescription = null,
-                    tint = if (prefs.mediaCardFavorite) PrimaryBrown else TextMuted,
+                    tint = PrimaryBrown,
                     modifier = Modifier.size(18.dp),
                 )
-            }
-            if (prefs.mediaCardFavorite && prefs.mediaCardButtonPosition == MediaCardButtonPosition.LEFT) {
-                favorite()
-            }
-            controls()
-            if (prefs.mediaCardFavorite && prefs.mediaCardButtonPosition == MediaCardButtonPosition.RIGHT) {
-                favorite()
             }
         }
     }

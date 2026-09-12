@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -55,13 +56,16 @@ class PlaybackService : MediaSessionService() {
     /** 歌词行跟随播放滚动：定时比对当前歌词句，变了才重绘通知 */
     private val cardScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var lyricWatchJob: Job? = null
+    private var cardStateJob: Job? = null
     private var lastLyricLine: String? = null
 
     override fun onCreate() {
         // 先保证通知渠道存在，再走 Media3 前台逻辑，避免超时崩溃
         ensureChannelExists(this)
         super.onCreate()
-        val player = PlayerManager.get(this).player
+        // 用 sessionPlayer（不是裸 ExoPlayer）：它会按 App 自己的队列向系统声明
+        // "还有上一首/下一首"，否则系统媒体控件里的"下一首"会被静默禁用（详见 MelosSessionPlayer）
+        val player = PlayerManager.get(this).sessionPlayer
         // media3 1.4.1 的 MediaSession.Builder 没有 (context, player, callback) 三参构造，
         // MediaSession.Callback 也没有可覆写的 onSeekToNext/PreviousMediaItem（切歌命令
         // 由 player 的 timeline 可用性决定，session 不提供拦截点）——此前那次"修复"编不过。
@@ -72,10 +76,12 @@ class PlaybackService : MediaSessionService() {
                 /**
                  * 接管"上一条/下一条"播放命令。
                  *
-                 * 本 App 的 timeline 只有一首（单曲 setMediaItem 模式），系统默认认为
-                 * hasNextMediaItem() = false，于是卡片/蓝牙/耳机线的下一首是死键。
-                 * 这里把命令转发给 PlayerManager 的队列逻辑（顺序/循环/随机都在那边），
-                 * 顺带把"蓝牙切歌无效"这个老问题一起修掉。
+                 * 本 App 的 timeline 只有一首（单曲 setMediaItem 模式），系统看到的
+                 * hasNextMediaItem() 恒为 false。命令能走到这里，是因为 [MelosSessionPlayer]
+                 * 以 App 队列为准对外声明了 next/previous 可用；这里再把它转发给 PlayerManager 的
+                 * 队列逻辑（顺序/循环/随机都在那边），卡片/锁屏/超级岛/蓝牙的切歌由此真正生效。
+                 *
+                 * 队列只有一首时明确回"不支持"：以前会重播同一首，用户感受是"切歌坏了"。
                  */
                 override fun onPlayerCommandRequest(
                     session: MediaSession,
@@ -83,6 +89,9 @@ class PlaybackService : MediaSessionService() {
                     playerCommand: Int,
                 ): Int {
                     val manager = PlayerManager.get(this@PlaybackService)
+                    if (manager.state.value.queue.size <= 1) {
+                        return super.onPlayerCommandRequest(session, controller, playerCommand)
+                    }
                     when (playerCommand) {
                         Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
                         Player.COMMAND_SEEK_TO_NEXT,
@@ -107,6 +116,7 @@ class PlaybackService : MediaSessionService() {
 
         instance = this
         startLyricWatcher()
+        startCardStateWatcher()
     }
 
     /**
@@ -157,6 +167,9 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         lyricWatchJob?.cancel()
+        cardStateJob?.cancel()
+        // 作用域整体取消：否则协程（含封面加载回调）会在服务销毁后继续持有引用
+        cardScope.cancel()
         if (instance === this) instance = null
         // 不能 release 共享的 PlayerManager.player（App 单例还要用）
         mediaSession?.release()
@@ -164,19 +177,64 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
+    /**
+     * 卡片跟随"当前歌 / 加载态 / 播放态"自动重绘。
+     *
+     * 为什么必须自己监听：media3 只在**媒体条目**变化时重建通知，而切歌的过程是
+     * `currentIndex 立刻变 → isLoading=true → 解析直链 → 真正 setMediaItem`，
+     * 前半段没有任何媒体条目变化，卡片会一直停在上一首（用户感受：切歌没反应）。
+     * 这里监听 PlayerManager 的状态流，切歌瞬间就重绘（标题换成新歌 + "正在加载…"），
+     * 加载完成后再重绘一次（替换成歌词/信息行）。
+     *
+     * 顺带做封面预加载：新歌封面解码完成后回调重绘，避免"先出文字、封面几秒后才蹦出来"。
+     */
+    private fun startCardStateWatcher() {
+        cardStateJob?.cancel()
+        cardStateJob = cardScope.launch {
+            val manager = PlayerManager.get(this@PlaybackService)
+            var lastSignature: String? = null
+            manager.state.collect { state ->
+                val song = state.currentSong
+                // 注意签名只含"歌 + 加载态 + 播放态"：进度变化不参与，
+                // 否则 500ms 一次的状态流会把通知重建打成刷屏
+                val signature = "${song?.platform}:${song?.id}|loading=${state.isLoading}|playing=${state.isPlaying}"
+                if (signature == lastSignature) return@collect
+                lastSignature = signature
+                // 新歌封面预取：解码完再补一次重绘，把封面补上
+                // （服务已销毁时 refreshCard 会因实例为空直接返回，这里无需再判断存活）
+                MediaCardArtwork.prefetch(this@PlaybackService, song?.artwork) {
+                    refreshCard(this@PlaybackService)
+                }
+                refreshCard(this@PlaybackService)
+            }
+        }
+    }
+
     /** 每 500ms 检查当前歌词句，变化时重建通知（只在播放中轮询，暂停即停，不白耗电） */
     private fun startLyricWatcher() {
         lyricWatchJob?.cancel()
         lyricWatchJob = cardScope.launch {
             val manager = PlayerManager.get(this@PlaybackService)
+            var lastProgressTick = 0L
             while (isActive) {
                 delay(LYRIC_WATCH_INTERVAL_MS)
-                if (!SettingsStore.readPrefs().mediaCardShowLyric) continue
+                val prefs = SettingsStore.readPrefs()
                 if (!manager.state.value.isPlaying) continue
+                if (!prefs.mediaCardShowLyric) continue
                 val line = currentLyricLine()
                 if (line != lastLyricLine) {
                     lastLyricLine = line
                     refreshCard(this@PlaybackService)
+                    continue
+                }
+                // 歌词没变时，若开了进度条，按 3 秒一次补刷：
+                // 通知自身的进度是静态快照，不重绘就一直停在按下播放那一刻的位置
+                if (prefs.mediaCardProgress) {
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    if (now - lastProgressTick >= PROGRESS_REFRESH_INTERVAL_MS) {
+                        lastProgressTick = now
+                        refreshCard(this@PlaybackService)
+                    }
                 }
             }
         }
@@ -203,6 +261,9 @@ class PlaybackService : MediaSessionService() {
         const val NOTIFICATION_ID: Int = 1001
 
         private const val LYRIC_WATCH_INTERVAL_MS = 500L
+
+        /** 歌词行没变时的进度补刷间隔（仅当开启"显示播放进度"） */
+        private const val PROGRESS_REFRESH_INTERVAL_MS = 3_000L
 
         /** 当前服务实例（未运行时为 null：此时没有通知需要刷新） */
         @Volatile

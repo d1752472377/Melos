@@ -103,9 +103,13 @@ fun SettingsMediaCardDestination(viewModel: MainViewModel, nav: ShellNav) {
             nav.popBack()
         },
         onFavoriteChange = viewModel.settings::setMediaCardFavorite,
-        onButtonPositionChange = viewModel.settings::setMediaCardButtonPosition,
         onShowLyricChange = viewModel.settings::setMediaCardShowLyric,
         onLyricPositionChange = viewModel.settings::setMediaCardLyricPosition,
+        onCoverChange = viewModel.settings::setMediaCardCover,
+        onAlbumChange = viewModel.settings::setMediaCardAlbum,
+        onProgressChange = viewModel.settings::setMediaCardProgress,
+        onColorizedChange = viewModel.settings::setMediaCardColorized,
+        onLiveUpdateChange = viewModel.settings::setMediaCardLiveUpdate,
     )
 }
 

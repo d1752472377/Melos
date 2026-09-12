@@ -2,7 +2,6 @@ package com.aesthetic.music.ui.settings
 
 import com.aesthetic.music.data.settings.DownloadFailurePolicy
 import com.aesthetic.music.data.settings.DownloadNaming
-import com.aesthetic.music.data.settings.MediaCardButtonPosition
 import com.aesthetic.music.data.settings.MediaCardLyricPosition
 import com.aesthetic.music.data.settings.StatusBarMode
 import com.aesthetic.music.data.settings.UserPrefs
@@ -53,12 +52,12 @@ class SettingsControllerTest {
         val controller = SettingsController()
 
         controller.setDownloadWifiOnly(true)
-        controller.setMediaCardButtonPosition(MediaCardButtonPosition.LEFT)
+        controller.setMediaCardCover(false)
         controller.setLyricTranslation(false)
 
         val prefs = controller.prefs.value
         assertEquals(true, prefs.downloadWifiOnly)
-        assertEquals(MediaCardButtonPosition.LEFT, prefs.mediaCardButtonPosition)
+        assertEquals(false, prefs.mediaCardCover)
         assertEquals(false, prefs.lyricTranslation)
         // 同一次会话里其它字段保持默认，没有被连带改掉
         assertEquals(UserPrefs().preloadNext, prefs.preloadNext)
@@ -109,9 +108,7 @@ class SettingsControllerTest {
         DownloadNaming.entries.forEach { naming ->
             assertEquals(naming, DownloadNaming.fromValue(naming.value))
         }
-        MediaCardButtonPosition.entries.forEach { pos ->
-            assertEquals(pos, MediaCardButtonPosition.fromValue(pos.value))
-        }
+
         MediaCardLyricPosition.entries.forEach { pos ->
             assertEquals(pos, MediaCardLyricPosition.fromValue(pos.value))
         }
@@ -123,7 +120,6 @@ class SettingsControllerTest {
         assertEquals(StatusBarMode.ALWAYS, StatusBarMode.fromValue("未来版本的状态栏模式"))
         assertEquals(StatusBarMode.ALWAYS, StatusBarMode.fromValue(null))
         assertEquals(DownloadNaming.TITLE_ARTIST, DownloadNaming.fromValue("不存在"))
-        assertEquals(MediaCardButtonPosition.RIGHT, MediaCardButtonPosition.fromValue(""))
         assertEquals(MediaCardLyricPosition.BELOW, MediaCardLyricPosition.fromValue(null))
         assertEquals(DownloadFailurePolicy.RETRY, DownloadFailurePolicy.fromValue("unknown"))
     }
@@ -135,9 +131,11 @@ class SettingsControllerTest {
         assertTrue(d.lyricTranslation)
         assertTrue(d.lyricOnline)
         assertEquals(false, d.lyricLocal)
-        // 媒体卡片：默认带收藏按钮、显示歌词，位置在右 / 歌名下方
+        // 媒体卡片：默认带收藏按钮、显示封面/信息行/进度、歌词在歌名下方
         assertTrue(d.mediaCardFavorite)
-        assertEquals(MediaCardButtonPosition.RIGHT, d.mediaCardButtonPosition)
+        assertTrue(d.mediaCardCover)
+        assertTrue(d.mediaCardAlbum)
+        assertTrue(d.mediaCardProgress)
         assertTrue(d.mediaCardShowLyric)
         assertEquals(MediaCardLyricPosition.BELOW, d.mediaCardLyricPosition)
         // 播放与下载：预加载/边听边下默认开，仅 WiFi 默认关（默认不省流量，由用户显式开启）

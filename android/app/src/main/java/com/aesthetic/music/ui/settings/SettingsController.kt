@@ -2,7 +2,6 @@ package com.aesthetic.music.ui.settings
 
 import com.aesthetic.music.data.settings.DownloadFailurePolicy
 import com.aesthetic.music.data.settings.DownloadNaming
-import com.aesthetic.music.data.settings.MediaCardButtonPosition
 import com.aesthetic.music.data.settings.MediaCardLyricPosition
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.StatusBarMode
@@ -57,14 +56,21 @@ class SettingsController(
     fun setMediaCardFavorite(enabled: Boolean) =
         update(_prefs.value.copy(mediaCardFavorite = enabled))
 
-    fun setMediaCardButtonPosition(position: MediaCardButtonPosition) =
-        update(_prefs.value.copy(mediaCardButtonPosition = position))
 
     fun setMediaCardShowLyric(enabled: Boolean) =
         update(_prefs.value.copy(mediaCardShowLyric = enabled))
 
     fun setMediaCardLyricPosition(position: MediaCardLyricPosition) =
         update(_prefs.value.copy(mediaCardLyricPosition = position))
+
+    fun setMediaCardCover(enabled: Boolean) = update(_prefs.value.copy(mediaCardCover = enabled))
+    fun setMediaCardAlbum(enabled: Boolean) = update(_prefs.value.copy(mediaCardAlbum = enabled))
+    fun setMediaCardProgress(enabled: Boolean) = update(_prefs.value.copy(mediaCardProgress = enabled))
+    fun setMediaCardColorized(enabled: Boolean) =
+        update(_prefs.value.copy(mediaCardColorized = enabled))
+
+    fun setMediaCardLiveUpdate(enabled: Boolean) =
+        update(_prefs.value.copy(mediaCardLiveUpdate = enabled))
 
     // ===== 下载与缓存 =====
     fun setDownloadWhilePlaying(enabled: Boolean) =

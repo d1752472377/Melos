@@ -1,7 +1,9 @@
 [versions]
 agp = "9.1.0"
 kotlin = "2.0.21"
-coreKtx = "1.13.1"
+# 1.17.0 起 NotificationCompat 才有 Android 16「实时活动」（Live Updates）的公开封装：
+# setShortCriticalText / setRequestPromotedOngoing —— 状态栏胶囊与锁屏强调卡都靠它
+coreKtx = "1.17.0"
 lifecycleRuntimeKtx = "2.8.6"
 activityCompose = "1.9.2"
 composeBom = "2024.10.00"

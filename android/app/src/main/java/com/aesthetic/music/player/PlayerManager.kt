@@ -20,6 +20,7 @@ import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.UserPrefs
 import com.aesthetic.music.service.FloatCapsuleManager
+import com.aesthetic.music.service.MediaCardArtwork
 import com.aesthetic.music.service.StatsTracker
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
 import com.mocharealm.accompanist.lyrics.core.model.karaoke.KaraokeLine
@@ -105,6 +106,17 @@ class PlayerManager private constructor(private val appContext: Context) {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /**
+     * 交给 [androidx.media3.session.MediaSession] 的播放器（见 [MelosSessionPlayer]）。
+     *
+     * 为什么不能直接把 [player] 交给 MediaSession：ExoPlayer 的 timeline 里永远只有当前这一首，
+     * 系统据此认为"没有下一首"，于是通知栏/锁屏/超级岛/蓝牙上的"下一首"被静默禁用。
+     * 包装后按 App 自己的队列（[PlayerState.queue]）对系统声明可切歌。
+     */
+    val sessionPlayer: Player by lazy {
+        MelosSessionPlayer(player) { _state.value.queue.size > 1 }
+    }
 
     private val _state = MutableStateFlow(
         PlayerState(speed = SettingsStore.getPlaybackSpeed())
@@ -649,6 +661,10 @@ class PlayerManager private constructor(private val appContext: Context) {
             }
 
             // MediaMetadata：通知栏/锁屏/蓝牙 AVRCP 的歌名歌手封面（此前为空，媒体通知全是空壳）
+            // artworkData 必须给：Android 13+ 的媒体卡片用元数据里的图片字节画封面，
+            // 只给 https 的 artworkUri 时 SystemUI（另一个进程）取不到，卡片就是"空的"。
+            // 这里只做 best-effort（封面已缓存才有字节），不做等待：为了封面拖慢起播不值得。
+            val artworkBytes = MediaCardArtwork.artworkBytes(appContext, song.artwork)
             val mediaItem = MediaItem.Builder()
                 .setUri(playPath)
                 .setMediaId(song.id)
@@ -657,7 +673,16 @@ class PlayerManager private constructor(private val appContext: Context) {
                     MediaMetadata.Builder()
                         .setTitle(song.title)
                         .setArtist(song.artist)
+                        .setAlbumTitle(song.album)
                         .setArtworkUri(song.artwork?.let { runCatching { Uri.parse(it) }.getOrNull() })
+                        .apply {
+                            if (artworkBytes != null) {
+                                setArtworkData(
+                                    artworkBytes,
+                                    MediaMetadata.PICTURE_TYPE_FRONT_COVER,
+                                )
+                            }
+                        }
                         .build()
                 )
                 .build()
