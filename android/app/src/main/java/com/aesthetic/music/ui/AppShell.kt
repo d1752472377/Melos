@@ -31,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.PlayerManager
+import com.aesthetic.music.ui.artist.ArtistAllSongsDestination
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.shell.AlbumDetailDestination
@@ -248,6 +249,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     // 歌手页
                     composable(ScreenRoute.ArtistDetail.route) {
                         ArtistDetailDestination(viewModel, nav, actions, playerManager)
+                    }
+                    composable(ScreenRoute.ArtistAllSongs.route) {
+                        ArtistAllSongsDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 我的收藏页

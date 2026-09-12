@@ -42,10 +42,9 @@ import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.EmptyBox
-import com.aesthetic.music.ui.components.PlatformTag
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.components.SongRow
 import com.aesthetic.music.ui.components.formatPlayCountText
-import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
@@ -57,7 +56,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 
 /**
  * 结果列表统一外层白卡：顶部两角圆角 + 白底，左右贴屏幕边、底部探到屏幕底。
- * 用 fillMaxHeight 让白底一直铺到底部，LazyColumn 通过 contentPadding 给底部栏留出内容空间。
  */
 @Composable
 private fun ResultCard(
@@ -114,11 +112,27 @@ fun SongResultList(
             ) { index, song ->
                 val playingNow = currentSong != null &&
                         song.id == currentSong.id && song.platform == currentSong.platform
-                ResultSongRow(
+                SongRow(
                     song = song,
                     isPlaying = playingNow,
+                    showPlatformTag = true,
                     onPlay = { onPlay(song) },
-                    onMore = { onMore(song) },
+                    actions = {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .clickable { onMore(song) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Filled.MoreHoriz,
+                                contentDescription = "更多操作",
+                                tint = TextMuted,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    },
                 )
                 if (index != songs.lastIndex) {
                     ResultDivider(startIndent = 70)
@@ -343,80 +357,6 @@ fun AlbumResultList(
                     ResultDivider(startIndent = 74)
                 }
             }
-        }
-    }
-}
-
-/**
- * 单曲搜索结果行。
- * 封面 48dp + 15sp 标题；平台标签在标题下方；最右侧「...」打开单曲操作抽屉。
- * 行本身不再画边框/背景，统一由外层 ResultCard 提供白底。
- */
-@Composable
-private fun ResultSongRow(
-    song: Song,
-    isPlaying: Boolean,
-    onPlay: () -> Unit,
-    onMore: () -> Unit,
-) {
-    val subtitle = listOfNotNull(
-        song.artist.ifBlank { null },
-        song.album.ifBlank { null },
-    ).joinToString(" · ")
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(if (isPlaying) PrimaryBrown.copy(alpha = 0.06f) else Surface)
-            .clickable(onClick = onPlay)
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SongCover(song.artwork, Modifier.size(48.dp), corner = 10.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                color = if (isPlaying) PrimaryBrown else TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(3.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (!song.platform.isNullOrBlank()) {
-                    PlatformTag(song.platform)
-                    if (subtitle.isNotBlank()) Spacer(Modifier.width(6.dp))
-                }
-                if (subtitle.isNotBlank()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = TextSoft,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.width(4.dp))
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onMore),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Filled.MoreHoriz,
-                contentDescription = "更多操作",
-                tint = TextMuted,
-                modifier = Modifier.size(20.dp),
-            )
         }
     }
 }

@@ -18,6 +18,7 @@ sealed class ScreenRoute(val route: String) {
     data object PlaylistDetail : ScreenRoute("playlist_detail")
     data object AlbumDetail : ScreenRoute("album_detail")
     data object ArtistDetail : ScreenRoute("artist_detail")
+    data object ArtistAllSongs : ScreenRoute("artist_all_songs")
     data object Favorites : ScreenRoute("favorites")
     data object MyPlaylists : ScreenRoute("my_playlists")
     data object CacheList : ScreenRoute("cache_list")
@@ -28,4 +29,5 @@ sealed class ScreenRoute(val route: String) {
     data object ListeningStats : ScreenRoute("listening_stats")
     data object CloudManage : ScreenRoute("cloud_manage")
     data object PluginManage : ScreenRoute("plugin_manage")
+
 }
