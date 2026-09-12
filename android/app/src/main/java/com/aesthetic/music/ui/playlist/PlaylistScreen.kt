@@ -1,7 +1,15 @@
 package com.aesthetic.music.ui.playlist
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
@@ -34,16 +42,11 @@ import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
-import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
-// 补充：建议在 Theme 中定义这些颜色，这里为了演示直接硬编码
-private val AppBackground = Color(0xFFF7F8FA)
-private val CardBackground = Color.White
-private val TabSelectedBg = Color(0xFFE8E0D8) // 浅棕色底
-private val TabSelectedText = Color(0xFF5D4037) // 深棕色字
+private val DividerColor = Color(0xFFEEEEEE)
 
 @Composable
 fun PlaylistScreen(
@@ -66,141 +69,107 @@ fun PlaylistScreen(
     var selectedPlaylist by remember { mutableStateOf<MyPlaylist?>(null) }
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize().background(AppBackground)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp), // 增加间距
-            contentPadding = PaddingValues(
-                top = 32.dp,
-                start = 20.dp,
-                end = 20.dp,
-                bottom = LocalBottomBarPadding.current + 20.dp
-            )
+    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 32.dp)
         ) {
-            // ================= 顶部 Header =================
-            item(key = "playlist_header") {
-                Column {
-                    // 标题行
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Text(
-                            text = "我的音乐",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = (-0.5).sp
-                            ),
-                            color = TextPrimary
-                        )
-                        Spacer(Modifier.weight(1f))
-                        // 数量统计放在右侧，显得更精致
-                        Text(
-                            text = if (selectedTab == 0) "${myPlaylists.size} 个歌单" else "${favoritePlaylists.size} 个收藏",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSoft,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                    }
+            // ============ Header（固定不滚动） ============
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            ) {
+                Text(
+                    text = "歌单",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.5).sp
+                    ),
+                    color = TextPrimary
+                )
 
-                    Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(20.dp))
 
-                    // 胶囊 Tab 切换
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color.White.copy(alpha = 0.6f))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        TabButton(
-                            text = "自建歌单",
-                            isSelected = selectedTab == 0,
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedTab = 0 }
-                        )
-                        TabButton(
-                            text = "收藏歌单",
-                            isSelected = selectedTab == 1,
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedTab = 1 }
-                        )
-                    }
-                }
-            }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TabText(
+                        text = "自建歌单",
+                        isSelected = selectedTab == 0,
+                        onClick = { selectedTab = 0 }
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    TabText(
+                        text = "收藏歌单",
+                        isSelected = selectedTab == 1,
+                        onClick = { selectedTab = 1 }
+                    )
 
-            // ================= 操作按钮区 =================
-            if (selectedTab == 0) {
-                item(key = "playlist_actions") {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ActionButton(
+                    Spacer(Modifier.weight(1f))
+
+                    if (selectedTab == 0) {
+                        SimpleAction(
                             text = "新建歌单",
                             icon = Icons.Filled.Add,
-                            isPrimary = true,
                             onClick = { showCreateDialog = true }
                         )
-                        ActionButton(
+                    } else {
+                        SimpleAction(
                             text = "导入歌单",
                             icon = Icons.Filled.Download,
-                            isPrimary = false,
                             onClick = onOpenImport
                         )
                     }
                 }
 
-                // ================= 自建歌单列表 =================
-                if (myPlaylists.isEmpty()) {
-                    item(key = "my_empty") {
-                        EmptyStateView(
-                            title = "还没有自建歌单",
-                            subtitle = "点击上方「新建歌单」创建你的第一个歌单",
-                            icon = Icons.Filled.LibraryMusic
-                        )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // ============ 内容区：动画 + 单个 LazyColumn ============
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        (slideInHorizontally(tween(280)) { it } + fadeIn(tween(280)))
+                            .togetherWith(
+                                slideOutHorizontally(tween(280)) { -it } + fadeOut(tween(280))
+                            )
+                    } else {
+                        (slideInHorizontally(tween(280)) { -it } + fadeIn(tween(280)))
+                            .togetherWith(
+                                slideOutHorizontally(tween(280)) { it } + fadeOut(tween(280))
+                            )
                     }
+                },
+                label = "playlist_tab",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) // 关键：给内部 LazyColumn 一个确定的高度
+            ) { tab ->
+                if (tab == 0) {
+                    MyPlaylistContent(
+                        myPlaylists = myPlaylists,
+                        onOpenMyPlaylist = onOpenMyPlaylist,
+                        onPlayPlaylist = onPlayPlaylist,
+                        onMore = { playlist ->
+                            selectedPlaylist = playlist
+                            showBottomSheet = true
+                        }
+                    )
                 } else {
-                    items(myPlaylists, key = { it.id }) { playlist ->
-                        PlaylistCard(
-                            playlist = playlist,
-                            onClick = { onOpenMyPlaylist(playlist.id) },
-                            onPlay = {
-                                if (playlist.songs.isNotEmpty()) {
-                                    onPlayPlaylist(playlist.songs)
-                                }
-                            },
-                            onMore = {
-                                selectedPlaylist = playlist
-                                showBottomSheet = true
-                            }
-                        )
-                    }
-                }
-            } else {
-                // ================= 收藏歌单列表 =================
-                if (favoritePlaylists.isEmpty()) {
-                    item(key = "fav_empty") {
-                        EmptyStateView(
-                            title = "还没有收藏的歌单",
-                            subtitle = "浏览歌单时点击 ♡ 即可收藏到这里",
-                            icon = Icons.Filled.FavoriteBorder
-                        )
-                    }
-                } else {
-                    items(favoritePlaylists, key = { it.id }) { playlist ->
-                        CollectedPlaylistCard(
-                            playlist = playlist,
-                            onClick = { onOpenPlaylistDetail(playlist) }
-                        )
-                    }
+                    FavoritePlaylistContent(
+                        favoritePlaylists = favoritePlaylists,
+                        onOpenPlaylistDetail = onOpenPlaylistDetail
+                    )
                 }
             }
         }
     }
-
-    // ================= 弹窗与抽屉 (保持原有逻辑，仅微调样式) =================
+    // ================= 弹窗与抽屉 =================
     if (showBottomSheet && selectedPlaylist != null) {
         AppBottomSheet(
             onDismissRequest = {
@@ -353,204 +322,270 @@ fun PlaylistScreen(
     }
 }
 
-// ==================== 重新设计的子组件 ====================
+// ==================== 内容区（拆出来给 AnimatedContent 用） ====================
 
-/** 胶囊形状的 Tab 按钮 */
+/** 自建歌单内容 */
 @Composable
-private fun TabButton(
-    text: String,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+private fun MyPlaylistContent(
+    myPlaylists: List<MyPlaylist>,
+    onOpenMyPlaylist: (String) -> Unit,
+    onPlayPlaylist: (List<Song>) -> Unit,
+    onMore: (MyPlaylist) -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) TabSelectedBg else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontSize = 14.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-            ),
-            color = if (isSelected) TabSelectedText else TextSoft
-        )
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        if (myPlaylists.isEmpty()) {
+            item(key = "my_empty") {
+                EmptyStateView(
+                    title = "还没有自建歌单",
+                    subtitle = "点击上方「新建歌单」创建你的第一个歌单",
+                    icon = Icons.Filled.LibraryMusic
+                )
+            }
+        } else {
+            items(myPlaylists, key = { it.id }) { playlist ->
+                PlaylistRow(
+                    playlist = playlist,
+                    onClick = { onOpenMyPlaylist(playlist.id) },
+                    onPlay = {
+                        if (playlist.songs.isNotEmpty()) {
+                            onPlayPlaylist(playlist.songs)
+                        }
+                    },
+                    onMore = { onMore(playlist) }
+                )
+            }
+        }
     }
 }
 
-/** 重新设计的操作按钮 */
+/** 收藏歌单内容 */
 @Composable
-private fun ActionButton(
+private fun FavoritePlaylistContent(
+    favoritePlaylists: List<PlaylistItem>,
+    onOpenPlaylistDetail: (PlaylistItem) -> Unit,
+) {
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        if (favoritePlaylists.isEmpty()) {
+            item(key = "fav_empty") {
+                EmptyStateView(
+                    title = "还没有收藏的歌单",
+                    subtitle = "浏览歌单时点击 ♡ 即可收藏到这里",
+                    icon = Icons.Filled.FavoriteBorder
+                )
+            }
+        } else {
+            items(favoritePlaylists, key = { it.id }) { playlist ->
+                CollectedPlaylistRow(
+                    playlist = playlist,
+                    onClick = { onOpenPlaylistDetail(playlist) }
+                )
+            }
+        }
+    }
+}
+
+// ==================== 子组件 ====================
+
+@Composable
+private fun TabText(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontSize = if (isSelected) 17.sp else 15.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        ),
+        color = if (isSelected) PrimaryBrown else TextSoft,
+        maxLines = 1,
+        softWrap = false
+    )
+}
+
+@Composable
+private fun SimpleAction(
     text: String,
     icon: ImageVector,
-    isPrimary: Boolean,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isPrimary) PrimaryBrown else Color.White)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isPrimary) Color.White else PrimaryBrown,
-            modifier = Modifier.size(18.dp)
+            tint = PrimaryBrown,
+            modifier = Modifier.size(16.dp)
         )
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium.copy(
                 fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Medium
             ),
-            color = if (isPrimary) Color.White else TextPrimary
+            color = PrimaryBrown,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }
 
-/** 自建歌单卡片 */
 @Composable
-private fun PlaylistCard(
+private fun PlaylistRow(
     playlist: MyPlaylist,
     onClick: () -> Unit,
     onPlay: () -> Unit,
     onMore: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), clip = false)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardBackground)
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 封面增加投影
-        SongCover(
-            url = playlist.coverUrl ?: playlist.songs.firstOrNull()?.artwork,
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(64.dp)
-                .shadow(4.dp, RoundedCornerShape(14.dp)),
-            corner = 14.dp
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SongCover(
+                url = playlist.coverUrl ?: playlist.songs.firstOrNull()?.artwork,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                corner = 12.dp
+            )
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "${playlist.songs.size} 首歌",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                    color = TextSoft
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onPlay),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = "播放",
+                    tint = PrimaryBrown,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onMore),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.MoreVert,
+                    contentDescription = "更多操作",
+                    tint = TextMuted,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 90.dp, end = 20.dp),
+            thickness = 0.5.dp,
+            color = DividerColor
         )
-
-        Spacer(Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist.name,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "${playlist.songs.size} 首歌",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                color = TextSoft
-            )
-        }
-
-        // 播放按钮：使用浅色底 + 图标，更精致
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(PrimaryBrown.copy(alpha = 0.1f))
-                .clickable(onClick = onPlay),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Filled.PlayArrow,
-                contentDescription = "播放",
-                tint = PrimaryBrown,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onMore),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Filled.MoreVert,
-                contentDescription = "更多操作",
-                tint = TextMuted,
-                modifier = Modifier.size(20.dp)
-            )
-        }
     }
 }
 
-/** 收藏歌单卡片 */
 @Composable
-private fun CollectedPlaylistCard(
+private fun CollectedPlaylistRow(
     playlist: PlaylistItem,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), clip = false)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardBackground)
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        SongCover(
-            url = playlist.coverUrl,
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(64.dp)
-                .shadow(4.dp, RoundedCornerShape(14.dp)),
-            corner = 14.dp
-        )
-
-        Spacer(Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist.name,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SongCover(
+                url = playlist.coverUrl,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                corner = 12.dp
             )
-            Spacer(Modifier.height(6.dp))
-            val playCountPart = if (playlist.playCount != null && playlist.playCount > 0) {
-                " · ${com.aesthetic.music.ui.components.formatPlayCountText(playlist.playCount)} 播放"
-            } else ""
-            Text(
-                text = "${playlist.trackCount ?: 0} 首歌$playCountPart",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                color = TextSoft
-            )
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                val playCountPart = if (playlist.playCount != null && playlist.playCount > 0) {
+                    " · ${com.aesthetic.music.ui.components.formatPlayCountText(playlist.playCount)} 播放"
+                } else ""
+                Text(
+                    text = "${playlist.trackCount ?: 0} 首歌$playCountPart",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                    color = TextSoft
+                )
+            }
         }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 90.dp, end = 20.dp),
+            thickness = 0.5.dp,
+            color = DividerColor
+        )
     }
 }
 
-/** 底部抽屉操作项 */
 @Composable
 private fun BottomSheetAction(
     icon: ImageVector,
@@ -584,7 +619,6 @@ private fun BottomSheetAction(
     }
 }
 
-/** 统一的空状态视图 */
 @Composable
 private fun EmptyStateView(
     title: String,
@@ -594,7 +628,7 @@ private fun EmptyStateView(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 60.dp),
+            .padding(vertical = 60.dp, horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -602,7 +636,7 @@ private fun EmptyStateView(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(Color.White),
+                .background(Color(0xFFF5F5F5)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
