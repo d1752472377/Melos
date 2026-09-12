@@ -59,13 +59,17 @@ import com.aesthetic.music.ui.search.SearchScreen
 import com.aesthetic.music.ui.settings.SettingsScreen
 import com.aesthetic.music.ui.shell.CacheListDestination
 import com.aesthetic.music.ui.shell.CloudManageDestination
+import com.aesthetic.music.ui.shell.DownloadsDestination
 import com.aesthetic.music.ui.shell.FavoritesDestination
 import com.aesthetic.music.ui.shell.HistoryDestination
 import com.aesthetic.music.ui.shell.ListeningStatsDestination
+import com.aesthetic.music.ui.shell.MyPlaylistsDestination
 import com.aesthetic.music.ui.shell.PlayerOverlay
 import com.aesthetic.music.ui.shell.PluginManageDestination
 import com.aesthetic.music.ui.shell.ProfileEditDestination
 import com.aesthetic.music.ui.shell.RanksDestination
+import com.aesthetic.music.ui.shell.SettingsDestination
+import com.aesthetic.music.ui.shell.SheetSquareDestination
 import com.aesthetic.music.ui.shell.ShellActions
 import com.aesthetic.music.ui.shell.ShellNav
 import com.aesthetic.music.ui.shell.dialogs.ImportPlaylistDialog
@@ -164,9 +168,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
     // ===== 缓存信息（Profile / Downloads / CacheList 共用） =====
     val cacheState = rememberCacheState(context, scope)
-
-    // 悬浮胶囊开关
-    var capsuleEnabled by remember { mutableStateOf(SettingsStore.isFloatingCapsuleEnabled()) }
 
     LaunchedEffect(themeMode, systemDark) {
         applyThemeMode(themeMode, systemDark)
@@ -513,22 +514,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 歌单广场（分类标签歌单）
                     composable(ScreenRoute.SheetSquare.route) {
-                        PlaylistPage(
-                            sheetTags = viewModel.sheetTags,
-                            sheetCat = sheetCat,
-                            sheetOrder = sheetOrder,
-                            playlists = sheetPlaylists,
-                            isLoading = isLoadingSheets,
-                            error = sheetError,
-                            onSelectCat = viewModel::setSheetCat,
-                            onSelectOrder = viewModel::setSheetOrder,
-                            onRetry = { viewModel.loadSheetPlaylists(force = true) },
-                            onOpenPlaylist = { pl ->
-                                viewModel.openPlaylistDetail(pl)
-                                navController.navigate(ScreenRoute.PlaylistDetail.route)
-                            },
-                            onBack = { navController.popBackStack() },
-                        )
+                        SheetSquareDestination(viewModel, nav)
                     }
 
                     // 歌单详情页
@@ -670,25 +656,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 我的歌单页
                     composable(ScreenRoute.MyPlaylists.route) {
-                        MyPlaylistsScreen(
-                            playlists = myPlaylists,
-                            currentSong = playerState.currentSong,
-                            onBack = {
-                                viewModel.updatePageBackground(null, false)
-                                navController.popBackStack()
-                            },
-                            onOpenPlaylist = { id ->
-                                viewModel.openMyPlaylist(id)
-                                navController.navigate(ScreenRoute.PlaylistDetail.route)
-                            },
-                            onCreate = { name -> viewModel.createPlaylist(name) },
-                            onRename = viewModel::renamePlaylist,
-                            onDelete = viewModel::deletePlaylist,
-                            onAddCurrent = { id, song ->
-                                viewModel.addSongsToPlaylist(id, listOf(song))
-                                scope.launch { snackbarHostState.showSnackbar("已加入歌单") }
-                            },
-                        )
+                        MyPlaylistsDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 缓存列表页
@@ -708,24 +676,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 本地下载页
                     composable(ScreenRoute.Downloads.route) {
-                        DownloadsScreen(
-                            songs = cacheState.songs,
-                            currentSong = playerState.currentSong,
-                            onBack = { navController.popBackStack() },
-                            onPlaySong = { song, list -> playSong(song, list) },
-                            onRemoveOne = { path ->
-                                scope.launch(Dispatchers.IO) {
-                                    AudioCacheService.removeCacheByPath(context, path)
-                                    withContext(Dispatchers.Main) { cacheState.refresh() }
-                                }
-                            },
-                            onClearAll = {
-                                scope.launch(Dispatchers.IO) {
-                                    AudioCacheService.clearCache(context)
-                                    withContext(Dispatchers.Main) { cacheState.refresh() }
-                                }
-                            },
-                        )
+                        DownloadsDestination(nav, actions, playerManager, cacheState)
                     }
 
                     // 听歌时长页
@@ -745,81 +696,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                     // 设置页
                     composable(ScreenRoute.Settings.route) {
-                        SettingsScreen(
-                            themeMode = themeMode,
-                            quality = qualityLevel,
-                            floatingCapsuleEnabled = capsuleEnabled,
-                            activeScript = activeScriptInfo,
-                            scriptCatalog = scriptCatalog,
-                            isEngineReady = isEngineReady,
-                            engineError = engineError,
-                            onRetryLoadScript = viewModel::retryLoadScript,
-                            onSwitchScript = viewModel::switchScript,
-                            isSyncConfigured = isSyncConfigured,
-                            syncServerUrl = syncServerUrl,
-                            syncToken = syncToken,
-                            lastSyncedAt = lastSyncedAt,
-                            lastSyncStatus = lastSyncStatus,
-                            isSyncing = isSyncing,
-                            onBack = { navController.popBackStack() },
-                            onThemeModeChange = { viewModel.setThemeMode(it, systemDark) },
-                            onQualityChange = viewModel::setQuality,
-                            onFloatingCapsuleChange = { enabled ->
-                                if (enabled) {
-                                    if (FloatCapsuleManager.hasPermission(context)) {
-                                        SettingsStore.setFloatingCapsuleEnabled(true)
-                                        capsuleEnabled = true
-                                    } else {
-                                        SettingsStore.setFloatingCapsuleEnabled(false)
-                                        capsuleEnabled = false
-                                        FloatCapsuleManager.openPermissionSettings(context)
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("请在系统设置中开启「悬浮窗」权限，返回后重新打开开关")
-                                        }
-                                    }
-                                } else {
-                                    SettingsStore.setFloatingCapsuleEnabled(false)
-                                    capsuleEnabled = false
-                                    FloatCapsuleManager.hide()
-                                }
-                            },
-                            onCheckUpdate = { onResult ->
-                                scope.launch {
-                                    when (val result = UpdateService.checkUpdate()) {
-                                        is UpdateService.CheckResult.Available -> {
-                                            val info = result.info
-                                            onResult("发现新版本 ${info.versionName}，开始下载…")
-                                            try {
-                                                val path = UpdateService.downloadApk(context, info) { received, total ->
-                                                    if (total > 0) onResult("下载中 ${received * 100 / total}%")
-                                                }
-                                                onResult("下载完成，正在打开安装程序…")
-                                                if (UpdateService.installApk(context, path)) {
-                                                    onResult("已打开安装程序")
-                                                } else {
-                                                    onResult("请允许「安装未知应用」后重新下载安装")
-                                                }
-                                            } catch (e: Exception) {
-                                                onResult("更新失败：${e.message ?: "未知错误"}")
-                                                snackbarHostState.showSnackbar("更新失败: ${e.message}")
-                                            }
-                                        }
-                                        is UpdateService.CheckResult.UpToDate -> {
-                                            onResult("当前已是最新版本")
-                                        }
-                                        is UpdateService.CheckResult.Failed -> {
-                                            onResult("检查更新失败: ${result.reason ?: "网络错误"}")
-                                        }
-                                    }
-                                }
-                            },
-                            onSaveSyncConfig = viewModel::saveSyncConfig,
-                            onTestSyncConnection = viewModel::testSyncConnection,
-                            onPerformSync = viewModel::performCloudSync,
-                            onImportScriptText = viewModel::importScriptFromText,
-                            onImportScriptUrl = viewModel::importScriptFromUrl,
-                            onUnloadScript = viewModel::unloadScript,
-                        )
+                        SettingsDestination(viewModel, nav, actions)
                     }
                 }
 

@@ -1,0 +1,44 @@
+package com.aesthetic.music.ui.shell
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.aesthetic.music.player.AudioCacheService
+import com.aesthetic.music.player.PlayerManager
+import com.aesthetic.music.ui.profile.DownloadsScreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** 本地下载页 */
+@Composable
+fun DownloadsDestination(
+    nav: ShellNav,
+    actions: ShellActions,
+    playerManager: PlayerManager,
+    cacheState: CacheState,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val playerState by playerManager.state.collectAsState()
+    DownloadsScreen(
+        songs = cacheState.songs,
+        currentSong = playerState.currentSong,
+        onBack = nav.popBack,
+        onPlaySong = { song, list -> actions.playSong(song, list) },
+        onRemoveOne = { path ->
+            scope.launch(Dispatchers.IO) {
+                AudioCacheService.removeCacheByPath(context, path)
+                withContext(Dispatchers.Main) { cacheState.refresh() }
+            }
+        },
+        onClearAll = {
+            scope.launch(Dispatchers.IO) {
+                AudioCacheService.clearCache(context)
+                withContext(Dispatchers.Main) { cacheState.refresh() }
+            }
+        },
+    )
+}
