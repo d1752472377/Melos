@@ -64,6 +64,10 @@ val TextFaint get() = light(Color(0xFFCCD4E0), Color(0xFF404654))       // 极�
 val Stone200 get() = light(Color(0xFFE2E7ED), Color(0xFF2A2D38))        // 1dp 精致线框描边
 val Stone100 get() = light(Color(0xFFF1F4F8), Color(0xFF1F222B))        // 按钮浅底色/次级卡片
 
+// 卡片统一描边：浅色为白色亮边（与白卡融为一体，只在浅灰背景上留一道极浅边界），
+// 深色为同色系深灰。配合无阴影，得到与「我的收藏」一致的干净卡片。
+val CardBorder get() = light(Color.White.copy(alpha = 0.9f), Color(0xFF33304A))
+
 // ===== 听歌统计页专用（毛玻璃 + 渐变） =====
 // 页面背景：顶部淡蓝紫 → 下方米白/浅灰（深色下改为墨蓝 → 近黑，保持同样氛围）
 val StatsGradientTop get() = light(Color(0xFFE8ECFF), Color(0xFF1A1B2E))

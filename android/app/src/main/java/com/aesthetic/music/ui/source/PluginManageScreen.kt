@@ -63,6 +63,7 @@ import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.AccentRose
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
@@ -374,7 +375,7 @@ private fun CurrentSourceCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(Surface)
-            .border(1.dp, Stone200, RoundedCornerShape(18.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -932,7 +933,7 @@ private fun DetectSection(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, Stone200, RoundedCornerShape(16.dp))
+                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                 .clip(RoundedCornerShape(16.dp))
                 .background(Surface),
         ) {

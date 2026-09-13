@@ -22,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
@@ -42,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.Background
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
@@ -62,12 +62,14 @@ import com.aesthetic.music.ui.theme.TextSoft
 data class SettingOption(val label: String, val desc: String? = null)
 
 /**
- * 设置子页面骨架：返回按钮 + 标题 + 可滚动内容区。
+ * 设置子页面骨架：大标题 + 可滚动内容区。
+ * 与「我的收藏」等页保持一致：顶部不再渲染返回按钮，回退统一交给系统返回手势 / 返回键。
  * 底部自动预留底部栏高度，避免最后一项被 Dock 遮挡。
  */
 @Composable
 fun SettingsPageScaffold(
     title: String,
+    /** 保留参数以兼容各子页面调用；顶部已不再渲染返回按钮 */
     onBack: () -> Unit,
     subtitle: String? = null,
     showBottomBarPadding: Boolean = true,
@@ -84,49 +86,25 @@ fun SettingsPageScaffold(
                 else Modifier.padding(bottom = 24.dp)
             ),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Surface)
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = TextMuted,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    color = TextPrimary,
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft,
-                    )
-                }
-            }
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = TextPrimary,
+        )
+        if (!subtitle.isNullOrBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = TextSoft,
+            )
         }
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(18.dp))
         content()
         Spacer(Modifier.height(24.dp))
     }
@@ -150,7 +128,7 @@ fun SettingsSection(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, Stone200, RoundedCornerShape(16.dp))
+                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                 .clip(RoundedCornerShape(16.dp))
                 .background(Surface),
             content = content,

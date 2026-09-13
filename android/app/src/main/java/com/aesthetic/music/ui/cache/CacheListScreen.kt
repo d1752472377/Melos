@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
@@ -45,11 +44,10 @@ import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.Palette
-import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextFaint
-import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
@@ -78,48 +76,32 @@ fun CacheListScreen(
                 .padding(top = 24.dp)
                 .padding(bottom = LocalBottomBarPadding.current),
         ) {
+            // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Surface)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = TextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "本地缓存",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = TextPrimary,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = "已缓存 ${songs.size} 首歌曲",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft
-                    )
-                }
+                Text(
+                    text = "本地缓存",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                )
                 if (songs.isNotEmpty()) {
                     // Level 2 危险操作描边胶囊：统一走 components.DangerCapsuleButton（error 色收敛）
                     DangerCapsuleButton(text = "清空全部", onClick = { showClearConfirm = true })
                 }
             }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "已缓存 ${songs.size} 首歌曲",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = TextSoft
+            )
 
             Spacer(Modifier.height(16.dp))
 
@@ -133,7 +115,7 @@ fun CacheListScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Surface)
                                 .padding(8.dp),

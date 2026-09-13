@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudQueue
@@ -49,6 +48,7 @@ import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
@@ -144,33 +144,14 @@ fun CloudManageScreen(
                 .padding(bottom = LocalBottomBarPadding.current)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // ===== 顶部导航栏 =====
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Surface)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = TextMuted,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = "账号与同步",
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                )
-            }
+            // ===== 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键） =====
+            Text(
+                text = "账号与同步",
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp, fontWeight = FontWeight.Bold),
+                color = TextPrimary,
+            )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(18.dp))
 
             // ===== 1. 服务器地址 =====
             SectionCard {
@@ -486,7 +467,7 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Stone200, RoundedCornerShape(14.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Surface)
             .padding(16.dp),

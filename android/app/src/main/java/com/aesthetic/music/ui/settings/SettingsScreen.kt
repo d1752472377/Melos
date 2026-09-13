@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
@@ -64,6 +63,7 @@ import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
@@ -135,41 +135,18 @@ fun SettingsScreen(
             .padding(horizontal = 20.dp)
             .padding(bottom = LocalBottomBarPadding.current),
     ) {
-        // 顶栏
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Surface)
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = TextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = "设置",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = TextPrimary
-            )
-        }
+        // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = "设置",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = TextPrimary,
+        )
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(18.dp))
 
         // ===== 1. 音源插件（入口） =====
         // 音源脚本的导入/切换/卸载/检测已整体迁到「插件管理」页：多插件并存、指定平台、
@@ -395,7 +372,7 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Stone200, RoundedCornerShape(12.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Surface)
             .padding(vertical = 12.dp)
