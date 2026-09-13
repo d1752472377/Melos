@@ -111,7 +111,6 @@ object SettingsStore {
     private const val PREFS = "aesthetic_music_settings"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_QUALITY = "quality"
-    private const val KEY_FLOATING_CAPSULE = "floating_capsule_enabled"
     private const val KEY_PLAYER_THEME = "player_theme"
     private const val KEY_PLAYBACK_SPEED = "playback_speed"
     private const val KEY_PREFERRED_BASE = "preferred_base_url"
@@ -147,17 +146,6 @@ object SettingsStore {
 
     fun setQuality(level: QualityLevel) = bestEffort(TAG, "保存音质等级") {
         p()?.edit()?.putString(KEY_QUALITY, level.value)?.apply()
-    }
-
-    // ===== 悬浮窗开关 =====
-    fun isFloatingCapsuleEnabled(): Boolean = try {
-        p()?.getBoolean(KEY_FLOATING_CAPSULE, false) ?: false
-    } catch (_: Exception) {
-        false
-    }
-
-    fun setFloatingCapsuleEnabled(enabled: Boolean) = bestEffort(TAG, "保存悬浮窗开关") {
-        p()?.edit()?.putBoolean(KEY_FLOATING_CAPSULE, enabled)?.apply()
     }
 
     // ===== 播放页主题 =====

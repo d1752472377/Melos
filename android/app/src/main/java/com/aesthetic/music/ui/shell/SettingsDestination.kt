@@ -1,22 +1,22 @@
 package com.aesthetic.music.ui.shell
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.aesthetic.music.data.settings.SettingsStore
-import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.settings.SettingsPage
 import com.aesthetic.music.ui.settings.SettingsScreen
 import kotlinx.coroutines.CoroutineScope
 
-/** 设置页 */
+/**
+ * 设置页。
+ *
+ * 本页只保留「常用设置 / 播放与音效 / 关于」：
+ * 「插件管理」「账号与同步」在个人页都有入口，重复入口已移除；
+ * 「桌面悬浮胶囊」已整体删除。
+ */
 @Composable
 fun SettingsDestination(
     viewModel: MainViewModel,
@@ -26,36 +26,15 @@ fun SettingsDestination(
     scope: CoroutineScope,
 ) {
     val context = LocalContext.current
-    val systemDark = isSystemInDarkTheme()
 
     val themeMode by viewModel.themeMode.collectAsState()
     val qualityLevel by viewModel.quality.collectAsState()
-    val sourcePlugins by viewModel.sourcePlugins.collectAsState()
-    val isSyncConfigured by viewModel.isSyncConfigured.collectAsState()
-    val syncServerUrl by viewModel.syncServerUrl.collectAsState()
-    val isLoggedIn by viewModel.isLoggedIn.collectAsState()
-    val currentUser by viewModel.currentUser.collectAsState()
-    val lastSyncedAt by viewModel.lastSyncedAt.collectAsState()
-    val lastSyncStatus by viewModel.lastSyncStatus.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
     val userPrefs by viewModel.settings.prefs.collectAsState()
-
-    // 悬浮胶囊开关
-    var capsuleEnabled by remember { mutableStateOf(SettingsStore.isFloatingCapsuleEnabled()) }
 
     SettingsScreen(
         themeMode = themeMode,
         quality = qualityLevel,
         userPrefs = userPrefs,
-        floatingCapsuleEnabled = capsuleEnabled,
-        pluginCount = sourcePlugins.size,
-        isSyncConfigured = isSyncConfigured,
-        syncServerUrl = syncServerUrl,
-        accountName = currentUser?.username.orEmpty(),
-        isLoggedIn = isLoggedIn,
-        lastSyncedAt = lastSyncedAt,
-        lastSyncStatus = lastSyncStatus,
-        isSyncing = isSyncing,
         onBack = nav.popBack,
         // 设置项各自独立成页：主页只做入口，改设置不再需要一页滚到底
         onOpenPage = { page ->
@@ -70,23 +49,6 @@ fun SettingsDestination(
                 }.route
             )
         },
-        onFloatingCapsuleChange = { enabled ->
-            if (enabled) {
-                if (FloatCapsuleManager.hasPermission(context)) {
-                    SettingsStore.setFloatingCapsuleEnabled(true)
-                    capsuleEnabled = true
-                } else {
-                    SettingsStore.setFloatingCapsuleEnabled(false)
-                    capsuleEnabled = false
-                    FloatCapsuleManager.openPermissionSettings(context)
-                    actions.toast("请在系统设置中开启「悬浮窗」权限，返回后重新打开开关")
-                }
-            } else {
-                SettingsStore.setFloatingCapsuleEnabled(false)
-                capsuleEnabled = false
-                FloatCapsuleManager.hide()
-            }
-        },
         onCheckUpdate = { onResult ->
             launchUpdateCheck(
                 context = context,
@@ -95,9 +57,5 @@ fun SettingsDestination(
                 onError = { msg -> actions.toast(msg) },
             )
         },
-        onOpenPluginManage = { nav.navigate(ScreenRoute.PluginManage.route) },
-        onOpenAccountSync = { nav.navigate(ScreenRoute.CloudManage.route) },
-        onTestSyncConnection = viewModel::testSyncConnection,
-        onPerformSync = viewModel::performCloudSync,
     )
 }

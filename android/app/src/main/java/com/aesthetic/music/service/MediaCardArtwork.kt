@@ -8,7 +8,6 @@ import android.util.LruCache
 import coil.imageLoader
 import coil.memory.MemoryCache
 import coil.request.ImageRequest
-import com.aesthetic.music.player.PlayerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -152,11 +151,6 @@ object MediaCardArtwork {
             null
         }
     }
-
-    /**
-     * 当前播放歌曲的封面（供悬浮胶囊等其它入口复用同一份缓存） */
-    fun currentSongArtwork(context: Context): Bitmap? =
-        cached(context, PlayerManager.get(context).state.value.currentSong?.artwork)
 
     /**
      * 把封面编码成可以塞进媒体会话元数据的字节（`MediaMetadata.setArtworkData`）。

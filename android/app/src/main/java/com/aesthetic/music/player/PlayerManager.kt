@@ -19,7 +19,6 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.UserPrefs
-import com.aesthetic.music.service.FloatCapsuleManager
 import com.aesthetic.music.service.MediaCardArtwork
 import com.aesthetic.music.service.StatsTracker
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
@@ -138,8 +137,6 @@ class PlayerManager private constructor(private val appContext: Context) {
     private var pendingSeekMs: Long = 0
     private var statsSongKey: String? = null
     private var lastSessionSaveAt = 0L
-    /** 上次悬浮胶囊展示签名（歌曲+播放状态），用于跳过重复的窗口刷新 */
-    private var lastCapsuleSignature: String? = null
     /**
      * 播放请求代数：每次 playCurrent 递增。
      * 快速连点"上一首/下一首"时，旧请求（网络慢）返回后凭代数判断已过期，
@@ -149,7 +146,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     /** 在途的取直链/播放任务：切歌时取消，避免过期请求继续耗流量 */
     private var playJob: Job? = null
 
-    /** 外部监听（系统悬浮胶囊 / MediaSession 等） */
+    /** 外部监听（MediaSession 等） */
     var onStateChanged: ((PlayerState) -> Unit)? = null
 
     // ==================== 用户设置（设置页 → 播放/歌词/下载） ====================
@@ -414,43 +411,6 @@ class PlayerManager private constructor(private val appContext: Context) {
     private fun notifyState() {
         val s = _state.value
         onStateChanged?.invoke(s)
-        updateFloatingCapsule(s)
-    }
-
-    /** 系统悬浮胶囊联动（参考 App：播放时显示/更新，关闭开关则隐藏）。
-     *  节流：仅在"歌曲或播放状态真正变化"时才触碰悬浮窗；
-     *  进度轮询等高频状态更新不会引发 WindowManager 操作。 */
-    private fun updateFloatingCapsule(s: PlayerState) {
-        val song = s.currentSong
-        if (!SettingsStore.isFloatingCapsuleEnabled()) {
-            if (lastCapsuleSignature != null || FloatCapsuleManager.isShowing()) {
-                lastCapsuleSignature = null
-                FloatCapsuleManager.hide()
-            }
-            return
-        }
-        if (song == null) return
-        if (s.isPlaying || s.isLoading) {
-            val signature = "${song.platform}:${song.id}|playing=${s.isPlaying}"
-            // 同一首歌同一播放状态：悬浮窗已在展示，跳过重复刷新
-            if (signature == lastCapsuleSignature && FloatCapsuleManager.isShowing()) return
-            lastCapsuleSignature = signature
-            FloatCapsuleManager.show(
-                context = appContext,
-                title = song.title,
-                artist = song.artist,
-                coverUrl = song.artwork,
-                isPlaying = s.isPlaying,
-                onPlayPause = { toggle() },
-                onTap = {},
-            )
-        } else {
-            // 暂停：只把按钮图标切为"播放"，无窗口操作
-            lastCapsuleSignature = null
-            if (FloatCapsuleManager.isShowing()) {
-                FloatCapsuleManager.updatePlayState(false)
-            }
-        }
     }
 
     /** 启动系统媒体通知服务（播放时通知栏显示媒体控制） */
