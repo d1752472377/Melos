@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.stats
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,6 +71,8 @@ import com.aesthetic.music.ui.theme.TextSoft
  * 所有数字都来自 [StatsStore] 的真实记录（旧版页面里的柱状图是写死的假数据，
  * 那种"看起来有数据、其实是装饰"的实现会误导用户，已删除）。
  * 数据在本地记录，未登录也不影响统计。
+ *
+ * 本次修改：去除所有卡片阴影，边框统一白色，圆角加大，大数字加粗。
  */
 @Composable
 fun ListeningStatsScreen(
@@ -386,37 +389,39 @@ private fun StatsHeader(recording: Boolean, onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 24.dp, bottom = 14.dp),
+            .padding(top = 20.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // 返回按钮：无底框、圆形，只留图标
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(GlassSurfaceSoft)
+                .clip(CircleShape)
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "返回",
-                tint = TextMuted,
-                modifier = Modifier.size(18.dp),
+                tint = TextPrimary,
+                modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = "听歌统计",
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
-                color = TextPrimary,
-            )
-            Text(
-                text = "本机记录 · 未登录也统计",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = TextSoft,
-            )
-        }
+
+        Spacer(Modifier.width(4.dp))
+
+        // 大标题
+        Text(
+            text = "听歌统计",
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = TextPrimary,
+            modifier = Modifier.weight(1f),
+        )
+
+        // 右上角：记录状态药丸
         StatRecordingBadge(recording = recording)
     }
 }
@@ -518,31 +523,30 @@ private fun QuickSliceCard(
     highlight: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(20.dp)
     Column(
         modifier = modifier
             .clip(shape)
-            .background(if (highlight) AccentAmber.copy(alpha = 0.12f) else GlassSurfaceSoft)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .background(if (highlight) AccentAmber.copy(alpha = 0.10f) else GlassSurfaceSoft)
+            .border(1.dp, Color.White, shape)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-                color = if (highlight) AccentAmber else TextSoft,
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+            color = if (highlight) AccentAmber else TextSoft,
+        )
         Spacer(Modifier.height(10.dp))
         Text(
             text = ListeningInsights.formatDurationCompact(durationMs),
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.ExtraBold),
             color = TextPrimary,
             maxLines = 1,
         )
-        Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
-            text = if (plays > 0) "${plays} 次" else "暂无",
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+            text = if (plays > 0) "播放 ${plays} 次" else "暂无记录",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
             color = TextSoft,
         )
     }

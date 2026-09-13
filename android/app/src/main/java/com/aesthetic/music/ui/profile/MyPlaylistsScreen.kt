@@ -16,15 +16,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -54,6 +54,7 @@ import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
@@ -61,7 +62,11 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 我的歌单页：自建歌单管理（创建 / 打开 / 编辑名称与封面 / 删除 / 把当前歌加入歌单）。
+ * 我的歌单页：自建歌单管理。
+ * 已调整：
+ * - 移除左上角返回按钮；
+ * - 歌单列表改为「整张卡片 + 内部分割线」；
+ * - 卡片边框统一为白色。
  */
 @Composable
 fun MyPlaylistsScreen(
@@ -80,10 +85,8 @@ fun MyPlaylistsScreen(
 ) {
     var showCreate by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<MyPlaylist?>(null) }
-    // 删除歌单二次确认（误触即永久删除，含已同步的云端歌单）
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
-    // 此处加上了 .background(Background)，防止底层页面不小心透出来
     Box(
         Modifier
             .fillMaxSize()
@@ -96,32 +99,15 @@ fun MyPlaylistsScreen(
                 top = 28.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = LocalBottomBarPadding.current // 保证下滑到底部时不会被底栏播放器遮挡
+                bottom = LocalBottomBarPadding.current
             )
         ) {
-            // 顶栏 Header
+            // ===== 顶栏 Header（已去掉返回按钮）=====
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Surface)
-                            .clickable(onClick = onBack),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = TextMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
                             text = "我的歌单",
@@ -163,21 +149,39 @@ fun MyPlaylistsScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // 空状态
+            // ===== 空状态 =====
             if (playlists.isEmpty()) {
                 item {
                     EmptyBox("还没有自建歌单\n点击右上角「新建歌单」开始整理你的音乐")
                 }
             } else {
-                items(playlists, key = { it.id }) { p ->
-                    PlaylistRowItem(
-                        playlist = p,
-                        currentSong = currentSong,
-                        onOpen = { onOpenPlaylist(p.id) },
-                        onAddCurrent = { onAddCurrent(p.id, it) },
-                        onRename = { editTarget = p },
-                        onDelete = { deleteTarget = p }
-                    )
+                // ===== 整张卡片包裹所有歌单，内部用分割线区分 =====
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Surface)
+                            .border(1.dp, Color.White, RoundedCornerShape(16.dp)),
+                    ) {
+                        playlists.forEachIndexed { index, p ->
+                            PlaylistRowItem(
+                                playlist = p,
+                                currentSong = currentSong,
+                                onOpen = { onOpenPlaylist(p.id) },
+                                onAddCurrent = { onAddCurrent(p.id, it) },
+                                onRename = { editTarget = p },
+                                onDelete = { deleteTarget = p }
+                            )
+                            if (index < playlists.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 66.dp),
+                                    thickness = 0.8.dp,
+                                    color = Stone100,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -204,7 +208,6 @@ fun MyPlaylistsScreen(
         )
     }
 
-    // 删除歌单确认对话框
     deleteTarget?.let { target ->
         AppDialog(
             onDismissRequest = { deleteTarget = null },
@@ -242,6 +245,9 @@ fun MyPlaylistsScreen(
     }
 }
 
+/**
+ * 歌单行（不再自带外边框/圆角，由外层卡片统一包裹）
+ */
 @Composable
 private fun PlaylistRowItem(
     playlist: MyPlaylist,
@@ -254,11 +260,9 @@ private fun PlaylistRowItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Stone200.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-            .clip(RoundedCornerShape(10.dp))
             .background(Surface)
             .clickable(onClick = onOpen)
-            .padding(8.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SongCover(playlist.coverUrl, Modifier.size(46.dp), corner = 8.dp)
@@ -276,7 +280,6 @@ private fun PlaylistRowItem(
             )
             Spacer(Modifier.height(1.dp))
             Text(
-                // 导入的歌单标出来源平台，方便和本地自建歌单区分
                 text = buildString {
                     append("${playlist.songs.size} 首")
                     if (playlist.isImported) {
@@ -291,24 +294,32 @@ private fun PlaylistRowItem(
         }
 
         if (currentSong != null) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .border(1.dp, Stone200, RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Surface)
                     .clickable { onAddCurrent(currentSong) }
                     .padding(horizontal = 8.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(12.dp))
-                    Spacer(Modifier.width(2.dp))
-                    Text("加入当前", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp), color = PrimaryBrown, fontWeight = FontWeight.Medium)
-                }
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = PrimaryBrown,
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    "加入当前",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = PrimaryBrown
+                )
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(4.dp))
         }
 
-        // 编辑按钮
         Box(
             modifier = Modifier
                 .size(32.dp)
@@ -324,7 +335,6 @@ private fun PlaylistRowItem(
             )
         }
 
-        // 删除按钮
         Box(
             modifier = Modifier
                 .size(32.dp)

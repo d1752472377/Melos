@@ -90,10 +90,9 @@ fun StatsGlassCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(elevation = 10.dp, shape = shape, clip = false)
             .clip(shape)
             .background(GlassSurface)
-            .border(1.dp, GlassBorder, shape)
+            .border(1.dp, Color.White, shape)
             .padding(padding.dp),
         content = content,
     )

@@ -20,6 +20,7 @@ androidxTestExtJunit = "1.2.1"
 quickjs = "3.2.3"
 kotlinxSerialization = "1.7.3"
 junit = "4.13.2"
+material3 = "1.4.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -51,6 +52,7 @@ quickjs-android = { group = "wang.harlon.quickjs", name = "wrapper-android", ver
 androidx-compose-ui-geometry = { group = "androidx.compose.ui", name = "ui-geometry" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
