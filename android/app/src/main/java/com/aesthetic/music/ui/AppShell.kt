@@ -211,9 +211,8 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         else -> tab
     }
 
-    val bottomBarPadding = 78.dp
-
-    CompositionLocalProvider(LocalBottomBarPadding provides bottomBarPadding) {
+    // 底部不再为悬浮 Dock 预留高度：内容一直铺到屏幕底部（列表末尾会从 Dock 底下穿过）
+    CompositionLocalProvider(LocalBottomBarPadding provides 0.dp) {
         Scaffold(
             containerColor = Background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
