@@ -19,6 +19,7 @@ import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.ProfileBody
 import com.aesthetic.music.data.api.RanksData
 import com.aesthetic.music.data.api.RegisterBody
+import com.aesthetic.music.data.api.SessionDto
 import com.aesthetic.music.data.api.SongUrlData
 import com.aesthetic.music.data.api.SyncPushPayload
 import com.aesthetic.music.data.api.SyncPushResult
@@ -217,6 +218,18 @@ class MusicRepository(
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "获取个人信息失败")
     }
 
+    /** 当前账号的登录设备列表（服务端按会话记录，用于"退出其它设备"） */
+    suspend fun getSessions(): Result<List<SessionDto>> = apiCatching {
+        val resp = api.sessions()
+        if (resp.code == 200) resp.data ?: emptyList() else throw Exception(resp.msg ?: "获取设备列表失败")
+    }
+
+    /** 撤销指定会话（把那台设备踢下线） */
+    suspend fun deleteSession(sessionId: String): Result<Unit> = apiCatching {
+        val resp = api.deleteSession(sessionId)
+        if (resp.code == 200) Unit else throw Exception(resp.msg ?: "撤销会话失败")
+    }
+
     /**
      * 更新资料。字段为 null = 不改动该项（后端按「缺省即不改」处理）。
      *
@@ -232,17 +245,18 @@ class MusicRepository(
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "更新资料失败")
     }
 
-    // ==================== 私有云同步 (Sync LWW) ====================
+    // ==================== 云端同步 ====================
 
+    /**
+     * 服务器可达性探测（不需要登录）。
+     *
+     * 以前这里靠 `/api/me` 或 `/api/sync/pull` 判断，未登录时必然拿 401，
+     * 于是"地址填错"和"地址对但没登录"在界面上是同一句"连接失败"。
+     * 现在改走无需鉴权的 `/api/health`，语义唯一：地址是否指向一个活着的 Melos 后端。
+     */
     suspend fun testConnection(): Result<Boolean> = apiCatching {
-        val token = SyncServerStore.getSyncToken().ifBlank { UserStore.token().orEmpty() }
-        if (token.isNotBlank()) {
-            val resp = api.me()
-            if (resp.code == 200) return@apiCatching true
-            throw Exception(resp.msg ?: "HTTP ${resp.code}")
-        }
-        val pullResp = api.syncPull(0, 0)
-        if (pullResp.code == 200) true else throw Exception(pullResp.msg ?: "连接异常")
+        val resp = api.health()
+        if (resp.code == 200) true else throw Exception(resp.msg ?: "HTTP ${resp.code}")
     }
 
     suspend fun syncPull(since: Long = 0L, eventSince: Long = 0L): Result<CloudSyncPullData> = apiCatching {

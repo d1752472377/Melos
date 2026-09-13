@@ -76,12 +76,31 @@ export async function buildApp() {
   app.get('/', async () => ({
     name: 'melos-backend',
     version: '2.0.0',
+    // 接口清单只到「路由」粒度：新增数据集（音源脚本 scripts、下载记录 downloads）
+    // 复用同一对 /api/sync/pull 与 /api/sync/push，不产生新 endpoint，所以此处无需追加。
     endpoints: [
+      '/api/health',
       '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/logout-all',
       '/api/me', '/api/me/password', '/api/me/sessions',
       '/api/sync/pull', '/api/sync/push',
       '/api/admin/users',
     ],
+  }));
+
+  /**
+   * 探活接口（**不需要鉴权**）。
+   *
+   * 客户端的「测试连接」必须在**未登录**时也能回答"这个地址是不是一个活着的 Melos 后端"。
+   * 用 /api/me 或 /api/sync/pull 探测时未登录必然 401，客户端无法区分
+   * 「地址填错了」「服务没起来」和「地址对但还没登录」——而这正是配置页面最需要说清的事。
+   *
+   * 返回 `{code,msg,data}` 信封而不是裸对象：客户端的响应模型（ApiResponse）只认这个形状，
+   * 裸对象会因为缺少 code 被当成失败（`GET /` 是给人看/做元数据发现的，两者用途不同）。
+   */
+  app.get('/api/health', async () => ({
+    code: 200,
+    msg: 'ok',
+    data: { ok: true, time: Date.now(), version: '2.0.0' },
   }));
 
   return app;

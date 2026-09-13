@@ -156,13 +156,24 @@ object SourceRegistryStore {
         } catch (_: Exception) {
         }
         if (activeId() == id) setActiveId(null)
+        // 插件删除是"用户显式动作"：记成云同步墓碑，否则卸载脚本在别的设备上永远留着。
+        // 放在数据层而不是各个界面里，是为了不漏掉任何一个删除入口（详情页/列表页/批量清理）。
+        com.aesthetic.music.data.sync.SyncStateStore.recordDeleteForCurrentUser(
+            com.aesthetic.music.data.sync.SyncCollections.SCRIPTS,
+            com.aesthetic.music.data.sync.SyncKey.script(id),
+        )
     }
 
     fun clear() {
+        val removedIds = list().map { it.id }.filter { it.isNotBlank() }
         cache = emptyList()
         activeCache = null
         prefs?.edit()?.remove(KEY_PLUGINS)?.remove(KEY_ACTIVE)?.apply()
         dir?.listFiles()?.forEach { it.delete() }
+        com.aesthetic.music.data.sync.SyncStateStore.recordDeletesForCurrentUser(
+            com.aesthetic.music.data.sync.SyncCollections.SCRIPTS,
+            removedIds.map { com.aesthetic.music.data.sync.SyncKey.script(it) },
+        )
     }
 
     private fun writeContent(id: String, content: String) {

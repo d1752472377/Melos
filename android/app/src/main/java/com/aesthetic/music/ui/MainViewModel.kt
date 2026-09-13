@@ -18,6 +18,7 @@ import com.aesthetic.music.ui.artist.ArtistRef
 import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.home.ContentController
+import com.aesthetic.music.ui.account.AuthController
 import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.library.PlaylistImportController
 import com.aesthetic.music.ui.playlist.PlaylistDetailController
@@ -36,6 +37,7 @@ import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.UserNotice
+import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.player.DownloadPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -103,7 +105,28 @@ class MainViewModel : ViewModel() {
         repository = repository,
         scope = viewModelScope,
         onToast = { _appToast.value = it },
-        onLoggedOut = { library.resetSyncState() },
+        onLoggedOut = { library.refreshSyncState() },
+    )
+
+    /**
+     * 账号：注册 / 登录 / 退出 / 登录设备管理（见 ui/account/AuthController.kt）。
+     *
+     * 放在 library 之后创建：登录成功后要立刻刷新"可同步"状态并触发一次同步，
+     * 而同步状态由 LibraryController 持有（`refreshSyncState` + `performCloudSync`）。
+     */
+    private val auth: AuthController = AuthController(
+        repository = repository,
+        scope = viewModelScope,
+        onToast = { _appToast.value = it },
+        onAuthChanged = {
+            library.refreshSyncState()
+            // 个人中心显示的账号信息（用户名/邮箱/昵称）必须跟着登录态刷新
+            profile.syncFromStore()
+            // 登录后自动同步一次：用户刚登录最期待的就是"我的收藏回来了"；
+            // 退出登录时 performCloudSync 会自己拒绝（未登录直接返回），因此这里无需分支。
+            // 这里读 UserStore 而不是 auth.isLoggedIn：在 auth 的初始化表达式里引用 auth 会形成自引用。
+            if (UserStore.isLoggedIn()) library.performCloudSync()
+        },
     )
 
     // 页面/弹层状态
@@ -252,6 +275,12 @@ class MainViewModel : ViewModel() {
         profile.installAuthFailedHook()
         // 最近搜索 + 热门搜索词（委托 SearchController 异步回填）
         search.hydrate()
+        // 已登录 + 已配置服务器时，启动后自动做一次增量同步。
+        // 没有这一步的话，"另一台设备改了什么"只有用户手动点同步才会出现，
+        // 而本地一有改动只会**推送**——多端漫游在最常见的场景（换设备后打开 App）下形同没有。
+        // 增量同步只传改动，代价是一次很小的请求；未登录/未配置时 performCloudSync 会直接返回。
+        library.refreshSyncState()
+        if (library.isSyncConfigured.value) library.performCloudSync()
         // 注：原先这里给"通知栏卡片的收藏按钮"注册过 LocalLyricStore 回调桥。
         // 卡片上的收藏按钮已删除（卡片控制整体不可用，只保留 media3 官方支持的播放控制），
         // 桥没有任何调用方，因此连同实现一起删了 —— 留着只会让人以为卡片收藏还活着。
@@ -543,20 +572,48 @@ class MainViewModel : ViewModel() {
     val sourceEngineError get() = sources.engineError
     val sourceDeclaredSources get() = sources.declaredSources
 
-    // 私有云同步状态：已抽到 LibraryController，保留同名只读委托
+    // 云端同步状态：已抽到 LibraryController，保留同名只读委托
     val syncServerUrl get() = library.syncServerUrl
-    val syncToken get() = library.syncToken
     val isSyncConfigured get() = library.isSyncConfigured
     val lastSyncedAt get() = library.lastSyncedAt
     val lastSyncStatus get() = library.lastSyncStatus
     val isSyncing get() = library.isSyncing
+    val isTestingSync get() = library.isTestingSync
 
-    fun saveSyncConfig(serverUrl: String, token: String) = library.saveSyncConfig(serverUrl, token)
+    /** 保存服务器地址（设备级配置；账号登录态另见 [auth]） */
+    fun saveSyncServerUrl(serverUrl: String) = library.saveServerUrl(serverUrl)
 
     fun testSyncConnection(onResult: ((Boolean, String) -> Unit)? = null) =
         library.testSyncConnection(onResult)
 
     fun performCloudSync() = library.performCloudSync()
+
+    // ==================== 账号（委托 AuthController） ====================
+
+    val currentUser get() = auth.user
+    val isLoggedIn get() = auth.isLoggedIn
+    val isAuthBusy get() = auth.isBusy
+    val authError get() = auth.error
+    val loginSessions get() = auth.sessions
+    val isLoadingSessions get() = auth.isLoadingSessions
+
+    fun login(username: String, password: String) = auth.login(username, password)
+
+    fun register(username: String, password: String, nickname: String = "") =
+        auth.register(username, password, nickname)
+
+    fun clearAuthError() = auth.clearError()
+
+    fun loadLoginSessions() = auth.loadSessions()
+
+    fun revokeLoginSession(sessionId: String) = auth.revokeSession(sessionId)
+
+    fun logoutAllDevices() = auth.logoutAll()
+
+    /** 退出并清空本机音乐库（账号数据留在服务端；用于把设备交给别人） */
+    fun logoutAndClearLocalData() = auth.logoutAndClearLocalData {
+        library.clearAllLocalData()
+    }
 
     // ==================== 音源插件（委托 SourceController） ====================
 
@@ -596,7 +653,8 @@ class MainViewModel : ViewModel() {
 
     // ==================== 用户体系 / 个人中心（委托 ProfileController） ====================
 
-    fun logout() = profile.logout()
+    /** 退出登录：统一走 [AuthController]（撤销服务端会话 + 清本机登录态 + 刷新同步状态） */
+    fun logout() = auth.logout()
 
     fun updateNickname(nickname: String) = profile.updateNickname(nickname)
 

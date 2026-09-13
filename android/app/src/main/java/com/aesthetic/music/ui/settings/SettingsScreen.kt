@@ -105,7 +105,9 @@ fun SettingsScreen(
     pluginCount: Int = 0,
     isSyncConfigured: Boolean = false,
     syncServerUrl: String = "",
-    syncToken: String = "",
+    /** 当前登录账号名（未登录为空串）——同步的鉴权前提，不再是"同步密钥" */
+    accountName: String = "",
+    isLoggedIn: Boolean = false,
     lastSyncedAt: Long = 0L,
     lastSyncStatus: String? = null,
     isSyncing: Boolean = false,
@@ -114,12 +116,11 @@ fun SettingsScreen(
     onFloatingCapsuleChange: (Boolean) -> Unit,
     onCheckUpdate: (onResult: (String) -> Unit) -> Unit,
     onOpenPluginManage: () -> Unit = {},
-    onSaveSyncConfig: (String, String) -> Unit = { _, _ -> },
+    /** 打开「账号与同步」页（服务器地址、登录注册、设备管理都在那里） */
+    onOpenAccountSync: () -> Unit = {},
     onTestSyncConnection: ((Boolean, String) -> Unit) -> Unit = {},
     onPerformSync: () -> Unit = {},
 ) {
-    var showSyncConfigDialog by remember { mutableStateOf(false) }
-
     var syncTestResult by remember { mutableStateOf<String?>(null) }
     var testingSync by remember { mutableStateOf(false) }
 
@@ -190,32 +191,38 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        // ===== 2. 私有云同步 =====
-        SectionCard(title = "☁️ 私有云同步配置 (个人自建)") {
+        // ===== 2. 账号与同步 =====
+        SectionCard(title = "☁️ 账号与同步 (个人自建后端)") {
             SettingRow(
                 icon = Icons.Filled.Cloud,
                 iconTint = PrimaryBrown,
-                label = "私有服务器连接",
-                subtitle = if (isSyncConfigured) syncServerUrl else "未配置（点击填入地址与密钥）",
-                onClick = { showSyncConfigDialog = true }
+                label = "账号与同步",
+                subtitle = when {
+                    !isSyncConfigured -> "未配置（点击填入服务器地址并登录）"
+                    !isLoggedIn -> "服务器：$syncServerUrl · 未登录"
+                    else -> "已登录 $accountName · $syncServerUrl"
+                },
+                onClick = onOpenAccountSync
             )
-            if (isSyncConfigured) {
+            if (isLoggedIn) {
                 SettingRow(
                     icon = Icons.Filled.Sync,
                     iconTint = PrimaryBrown,
-                    label = "一键双向数据同步",
+                    label = "立即同步",
                     subtitle = when {
                         isSyncing -> "正在同步中…"
                         lastSyncedAt > 0 -> "上次: ${formatTime(lastSyncedAt)} · ${lastSyncStatus ?: "正常"}"
-                        else -> "同步音源脚本、收藏曲目、歌单及历史"
+                        else -> "同步收藏、歌单、历史、音源脚本与下载记录"
                     },
                     onClick = onPerformSync
                 )
+            }
+            if (isSyncConfigured) {
                 SettingRow(
                     icon = Icons.Filled.Info,
                     iconTint = PrimaryBrown,
                     label = "测试服务器连通性",
-                    subtitle = syncTestResult ?: "点击检测服务器响应",
+                    subtitle = syncTestResult ?: "点击检测服务器响应（不需要登录）",
                     onClick = {
                         if (testingSync) return@SettingRow
                         testingSync = true
@@ -381,100 +388,6 @@ fun SettingsScreen(
             )
         }
     }
-
-    // ===== 音质选择弹窗已移入「音质」子页面（ui/settings/QualitySettingsScreen.kt） =====
-
-    // ===== 私有服务器配置弹窗 =====
-    if (showSyncConfigDialog) {
-        SyncConfigDialog(
-            currentUrl = syncServerUrl,
-            currentToken = syncToken,
-            onDismiss = { showSyncConfigDialog = false },
-            onSave = { url, token ->
-                onSaveSyncConfig(url, token)
-                showSyncConfigDialog = false
-            },
-            onTest = { cb ->
-                onTestSyncConnection(cb)
-            }
-        )
-    }
-}
-
-@Composable
-private fun SyncConfigDialog(
-    currentUrl: String,
-    currentToken: String,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit,
-    onTest: ((Boolean, String) -> Unit) -> Unit,
-) {
-    var url by remember { mutableStateOf(currentUrl) }
-    var token by remember { mutableStateOf(currentToken) }
-    var testResult by remember { mutableStateOf<String?>(null) }
-    var testing by remember { mutableStateOf(false) }
-
-    AppDialog(
-        onDismissRequest = onDismiss,
-        title = "配置私有服务器",
-        content = {
-            Column(Modifier.fillMaxWidth()) {
-                Text(
-                    text = "填入您的 Melos 私有后端地址与同步密钥，即可一键在手机和电脑之间同步已激活的音源脚本及歌单：",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = TextSoft
-                )
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("服务器地址") },
-                    placeholder = { Text("http://192.168.1.100:3000") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = { Text("同步密钥 (Sync Token)") },
-                    placeholder = { Text("melos_sync_secret") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-
-                if (testResult != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(text = testResult!!, fontSize = 11.sp)
-                }
-            }
-        },
-        actions = {
-            TextButton(
-                onClick = {
-                    if (testing) return@TextButton
-                    testing = true
-                    testResult = "测试中…"
-                    onSave(url, token) // 先临时保存
-                    onTest { ok, msg ->
-                        testing = false
-                        testResult = if (ok) "✅ $msg" else "❌ $msg"
-                    }
-                }
-            ) {
-                Text("测试连接")
-            }
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-            Button(
-                onClick = { onSave(url, token) },
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBrown)
-            ) {
-                Text("保存配置")
-            }
-        }
-    )
 }
 
 @Composable

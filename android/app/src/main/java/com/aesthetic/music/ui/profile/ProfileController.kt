@@ -71,35 +71,27 @@ class ProfileController(
         ApiClient.setOnAuthFailed {
             if (UserStore.isLoggedIn()) {
                 UserStore.logout()
-                _user.value = null
-                _username.value = ""
-                _email.value = null
-                _createdAt.value = 0L
+                syncFromStore()
+                onLoggedOut()
                 onToast("登录已过期，请重新登录")
             }
         }
     }
 
-    fun logout() {
-        scope.launch {
-            try {
-                repository.logout()
-            } catch (e: Exception) {
-                // 服务端登出失败：本地仍继续登出（用户体验优先），但必须留痕——
-                // 否则服务端 token 可能仍然有效，属于需要被发现的鉴权残留。
-                Log.w(TAG, "服务端登出失败，已继续本地登出", e)
-            }
-            UserStore.logout()
-            onLoggedOut()
-            _user.value = null
-            _profileNickname.value = UserStore.getNickname()
-            _profileUserId.value = UserStore.getUserId()
-            // 账号级信息必须一起清空：登出后还显示上一个账号的用户名/邮箱会直接泄露隐私
-            _username.value = ""
-            _email.value = null
-            _createdAt.value = 0L
-            onToast("已退出登录并清空私有服务器配置")
-        }
+    /**
+     * 从本地登录态重新读取界面数据。
+     *
+     * 登录/退出/会话失效后由宿主调用（退出的完整流程在 `AuthController`：撤销服务端会话 +
+     * 清本机 token + 按账号清同步状态）。这里只负责把个人中心**显示的账号信息**同步成真实状态——
+     * 登出后还留着上一个账号的用户名/邮箱会直接泄露隐私，而登录后不刷新又会出现"登录了但页面没变"。
+     */
+    fun syncFromStore() {
+        _user.value = UserStore.user()
+        _username.value = UserStore.user()?.username.orEmpty()
+        _email.value = UserStore.user()?.email
+        _createdAt.value = UserStore.user()?.createdAt ?: 0L
+        _profileNickname.value = UserStore.getNickname()
+        _profileUserId.value = UserStore.getUserId()
     }
 
     fun updateNickname(nickname: String) {

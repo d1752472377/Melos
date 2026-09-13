@@ -159,6 +159,241 @@ try {
   const ndData = newDevicePull.json().data;
   ok('新设备全量拉取(since=0)不包含已删除的墓碑记录', !ndData.playlists.some((p) => p.deleted) && !ndData.playlistSongs.some((s) => s.deleted));
 
+  console.log('== 歌单类型 kind：自建(mine) 与 收藏的网络歌单(fav) ==');
+  // 客户端把两个来源的歌单存在同一张表、用 kind 区分，并**用「kind + id」组本地记录键**：
+  // 因此服务端必须原样存回 kind，且墓碑也要带——丢了 kind，收藏歌单的删除会落到自建歌单上。
+  push = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: {
+      playlists: {
+        upsert: [
+          { id: 'local_mine_1', name: '通勤', kind: 'mine' },
+          { id: '777', name: '收藏的网易歌单', kind: 'fav' },
+          { id: 'old_client', name: '老客户端没传 kind' },
+          { id: 'weird', name: '拼错的 kind', kind: 'FAVOURITE' },
+        ],
+      },
+    },
+  });
+  version = push.json().data.version;
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  const plById = Object.fromEntries(pull.json().data.playlists.map((p) => [p.id, p]));
+  ok('kind=mine 原样返回', plById.local_mine_1?.kind === 'mine');
+  ok('kind=fav 原样返回（客户端靠它区分收藏的歌单）', plById['777']?.kind === 'fav');
+  ok('缺省 kind 按 mine 处理（兼容老客户端）', plById.old_client?.kind === 'mine');
+  ok('非法 kind 归一化为 mine（避免两端键不一致）', plById.weird?.kind === 'mine');
+
+  push = await j('POST', '/api/sync/push', { token: tokenA, payload: { playlists: { delete: [{ id: '777', kind: 'fav' }] } } });
+  version = push.json().data.version;
+  pull = await j('GET', `/api/sync/pull?since=${version - 1}&eventSince=0`, { token: tokenA });
+  const deadFavPl = pull.json().data.playlists.find((p) => p.id === '777');
+  ok('歌单墓碑保留 kind（客户端按 kind+id 组键）', deadFavPl?.deleted === true && deadFavPl?.kind === 'fav');
+  pull = await j('GET', `/api/sync/pull?since=${version}&eventSince=0`, { token: tokenA });
+  ok('拉取不回传 kind=FAVOURITE 之类脏值', pull.json().data.playlists.every((p) => p.kind === 'mine' || p.kind === 'fav'));
+
+  console.log('== 探活接口 /api/health（客户端「测试连接」用，无需鉴权） ==');
+  const healthRes = await j('GET', '/api/health');
+  const healthJson = healthRes.json();
+  ok('未登录也能访问 /api/health', healthRes.statusCode === 200);
+  ok('/api/health 返回 {code,msg,data} 信封（客户端 ApiResponse 只认这个形状）',
+    healthJson.code === 200 && typeof healthJson.data === 'object' && healthJson.data !== null);
+  ok('/api/health data 含 ok/time/version', healthJson.data.ok === true && Number.isFinite(healthJson.data.time) && Boolean(healthJson.data.version));
+
+  // ==================== 新增数据集：音源脚本 + 下载记录 ====================
+  // 与上面 favorites/playlists 同款语义：LWW 覆盖 + 墓碑传播 + version(sync_seq) 游标。
+  console.log('== 音源脚本 scripts：push / pull / code 原文 / enabled 布尔 ==');
+  // code 刻意做得长（两万+ 字符）且含换行，验证「脚本源码原样回传」不被截断/不被转义破坏
+  const scriptCode = `${'// 音源脚本骨架\n'.repeat(2500)}module.exports = { search: async (kw) => [] };`;
+  push = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: {
+      scripts: {
+        upsert: [
+          { id: 'sc_src', name: '我的音源', description: '测试脚本', code: scriptCode, enabled: true },
+          { id: 'sc_off', name: '停用脚本', code: 'x', enabled: false },
+          { id: 'sc_default', name: '缺省启用', code: 'y' }, // 不传 enabled：默认按启用入库
+        ],
+      },
+    },
+  });
+  ok('脚本 push 成功', push.statusCode === 200);
+  version = push.json().data.version;
+
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  const byId = Object.fromEntries(pull.json().data.scripts.map((s) => [s.id, s]));
+  ok('pull 拿到 code 原文（长文本不截断）', byId.sc_src?.code === scriptCode);
+  ok('脚本 name/description 原样回传', byId.sc_src?.name === '我的音源' && byId.sc_src?.description === '测试脚本');
+  ok('enabled=true 出参为布尔 true', byId.sc_src?.enabled === true);
+  ok('enabled=false 落库 0 并出参布尔 false', byId.sc_off?.enabled === false);
+  ok('未传 enabled 时默认启用(true)', byId.sc_default?.enabled === true);
+  ok('存活脚本 deleted=false 且带 updatedAtMs', byId.sc_src?.deleted === false && Number.isFinite(byId.sc_src?.updatedAtMs));
+
+  console.log('== 音源脚本：单脚本体积上限（超限整批 413 + 可行动的错误信息） ==');
+  // 整个请求体另有 4MB bodyLimit，但顶爆它时客户端只拿到笼统的 413，
+  // 不知道该改什么；这里保证超限脚本被点名、且不影响其它集合的语义判断。
+  const oversized = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: { scripts: { upsert: [{ id: 'sc_huge', name: '巨型脚本', code: 'x'.repeat(1024 * 1024 + 1) }] } },
+  });
+  ok('超过 1MB 的脚本返回 413', oversized.statusCode === 413, `status=${oversized.statusCode}`);
+  ok('413 的错误信息点明是哪个脚本', /音源脚本过大/.test(oversized.json().msg) && oversized.json().msg.includes('sc_huge'));
+  const justRight = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: { scripts: { upsert: [{ id: 'sc_edge', name: '边界脚本', code: 'x'.repeat(1024 * 1024) }] } },
+  });
+  ok('恰好 1MB 的脚本仍可入库', justRight.statusCode === 200);
+  // 立刻删掉这条 1MB 的边界记录，并把 version 归位到当前 head：
+  // 后面几节都靠 `version` 变量推算"下一次 push 是否恰好 +1"，本节点了版本号却不更新它，
+  // 会让后续断言莫名失败（这正是本节第一次写错时踩到的坑）。
+  const edgeCleanup = await j('POST', '/api/sync/push', { token: tokenA, payload: { scripts: { delete: [{ id: 'sc_edge' }] } } });
+  version = edgeCleanup.json().data.version;
+
+  console.log('== 音源脚本：同 id 覆盖 + version 游标只回一次 ==');
+  const scPrev = version;
+  push = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: { scripts: { upsert: [{ id: 'sc_src', name: '改名了', description: '', code: 'const q = 1;', enabled: false }] } },
+  });
+  const scV2 = push.json().data.version;
+  ok('同 id 二次 push 使 version 递增', scV2 === scPrev + 1);
+  pull = await j('GET', `/api/sync/pull?since=${scPrev}&eventSince=0`, { token: tokenA });
+  const scDelta = pull.json().data.scripts;
+  ok('增量拉取只回一条被覆盖的脚本(update_seq 递增)', scDelta.length === 1 && scDelta[0].id === 'sc_src');
+  ok('覆盖后旧值不再存在', scDelta[0].name === '改名了' && scDelta[0].code === 'const q = 1;' && scDelta[0].enabled === false);
+  pull = await j('GET', `/api/sync/pull?since=${scV2}&eventSince=0`, { token: tokenA });
+  ok('游标推进后同一变更不再重复下发', pull.json().data.scripts.length === 0);
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  const scRows = pull.json().data.scripts.filter((s) => s.id === 'sc_src');
+  ok('同 id 覆盖是原地更新(不留第二行)', scRows.length === 1 && scRows[0].name === '改名了');
+
+  console.log('== 音源脚本：删除墓碑传播（增量可见 / 全量不可见）==');
+  push = await j('POST', '/api/sync/push', { token: tokenA, payload: { scripts: { delete: [{ id: 'sc_src' }] } } });
+  const scV3 = push.json().data.version;
+  pull = await j('GET', `/api/sync/pull?since=${scV3 - 1}&eventSince=0`, { token: tokenA });
+  const scTomb = pull.json().data.scripts.find((s) => s.id === 'sc_src');
+  ok('增量拉取可见脚本墓碑 deleted=true', !!scTomb && scTomb.deleted === true);
+  ok('墓碑不下发 code 载荷(省带宽，键仍齐全)', scTomb.code === '' && scTomb.enabled === false && scTomb.name === '');
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  ok('全量拉取不含已删脚本', !pull.json().data.scripts.some((s) => s.id === 'sc_src'));
+  version = scV3;
+
+  console.log('== 下载记录 downloads：设备维度进主键，多设备互不覆盖 ==');
+  const dl = (deviceId, deviceName, extra = {}) => ({
+    platform: 'netease', id: 'd_song', deviceId, deviceName,
+    title: '下载的歌', artist: '测试歌手', album: '测试专辑', artwork: 'https://art/1.jpg',
+    quality: '320k', sizeBytes: 8123456, downloadedAtMs: 1700000000000, ...extra,
+  });
+  push = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: { downloads: { upsert: [dl('dev-phone', 'Pixel 8'), dl('dev-tablet', '小米平板')] } },
+  });
+  ok('同一首歌在两台设备各存一条(push 200)', push.statusCode === 200);
+  const dlV1 = push.json().data.version;
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  const dlRows = pull.json().data.downloads.filter((d) => d.id === 'd_song');
+  ok('pull 返回两台设备的下载记录', dlRows.length === 2);
+  const phoneRow = dlRows.find((d) => d.deviceId === 'dev-phone');
+  ok('字段按驼峰回传(platform/id/deviceId/deviceName/title/...)',
+    phoneRow.title === '下载的歌' && phoneRow.artist === '测试歌手' && phoneRow.album === '测试专辑'
+    && phoneRow.artwork === 'https://art/1.jpg' && phoneRow.quality === '320k'
+    && phoneRow.sizeBytes === 8123456 && phoneRow.downloadedAtMs === 1700000000000
+    && phoneRow.deviceName === 'Pixel 8' && phoneRow.deleted === false);
+  const tabletRow = dlRows.find((d) => d.deviceId === 'dev-tablet');
+  ok('两台设备的 deviceId 互不覆盖', !!tabletRow && tabletRow.deviceName === '小米平板');
+
+  push = await j('POST', '/api/sync/push', { token: tokenA, payload: { downloads: { upsert: [dl('dev-phone', 'Pixel 8', { quality: 'flac' })] } } });
+  const dlV2 = push.json().data.version;
+  ok('设备内更新使 version 递增', dlV2 === dlV1 + 1);
+  pull = await j('GET', `/api/sync/pull?since=${dlV1}&eventSince=0`, { token: tokenA });
+  const dlDelta = pull.json().data.downloads;
+  ok('增量只回被改的那台设备', dlDelta.length === 1 && dlDelta[0].deviceId === 'dev-phone' && dlDelta[0].quality === 'flac');
+
+  console.log('== 下载记录：删除只影响对应 deviceId ==');
+  push = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: { downloads: { delete: [{ platform: 'netease', id: 'd_song', deviceId: 'dev-phone' }] } },
+  });
+  const dlV3 = push.json().data.version;
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  const dlAlive = pull.json().data.downloads.filter((d) => d.id === 'd_song');
+  ok('手机删文件不会连带删掉平板的记录', dlAlive.length === 1 && dlAlive[0].deviceId === 'dev-tablet' && dlAlive[0].deleted === false);
+  pull = await j('GET', `/api/sync/pull?since=${dlV3 - 1}&eventSince=0`, { token: tokenA });
+  const dlTomb = pull.json().data.downloads.find((d) => d.deviceId === 'dev-phone');
+  ok('增量拉取可见该设备维度的墓碑(主键三段齐全)',
+    !!dlTomb && dlTomb.deleted === true && dlTomb.platform === 'netease' && dlTomb.id === 'd_song');
+  version = dlV3;
+
+  console.log('== 跨用户隔离：B(carol) 拉不到 A(alice) 的脚本/下载记录 ==');
+  const pullOther = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenC });
+  const otherData = pullOther.json().data;
+  ok('另一用户脚本列表为空(含 scripts 键)', Array.isArray(otherData.scripts) && otherData.scripts.length === 0);
+  ok('另一用户下载记录为空(含 downloads 键)', Array.isArray(otherData.downloads) && otherData.downloads.length === 0);
+  ok('另一用户也拉不到 A 的收藏/歌单', otherData.favorites.length === 0 && otherData.playlists.length === 0);
+
+  const pushC2 = await j('POST', '/api/sync/push', {
+    token: tokenC,
+    payload: { scripts: { upsert: [{ id: 'sc_default', name: 'Carol的脚本', code: 'c' }] } },
+  });
+  ok('不同用户可复用同一 script_id(主键含 user_id)', pushC2.statusCode === 200);
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  ok('B 推同名脚本不会覆盖 A 的那条', pull.json().data.scripts.find((s) => s.id === 'sc_default')?.name === '缺省启用');
+
+  console.log('== 缺必填键的脏数据整条跳过（不写半条、不报 500）==');
+  const dirtyBefore = version;
+  const dirty = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: {
+      scripts: {
+        upsert: [
+          { name: '没有 id 的脚本', code: 'bad' },
+          null,
+          { id: 'sc_good', name: '合法脚本', code: 'good' },
+        ],
+        delete: [{}], // 缺 id：不能产生 id='' 的墓碑
+      },
+      downloads: {
+        upsert: [
+          { platform: 'netease', id: 'no_device', title: '缺 deviceId' },
+          { platform: 'netease', deviceId: 'dev-x', title: '缺歌曲 id' },
+          dl('dev-phone2', '第二台手机'),
+        ],
+        // 缺 deviceId：绝不允许退化成「删掉这首歌在所有设备上的记录」
+        delete: [{ platform: 'netease', id: 'd_song' }],
+      },
+    },
+  });
+  ok('脏数据 push 返回 200（不是 500）', dirty.statusCode === 200);
+  const dirtyAfter = dirty.json().data.version;
+  pull = await j('GET', `/api/sync/pull?since=${dirtyBefore}&eventSince=0`, { token: tokenA });
+  const dirtyScripts = pull.json().data.scripts;
+  const dirtyDownloads = pull.json().data.downloads;
+  ok('缺 id / null 的脚本被跳过，同批合法脚本照常写入',
+    dirtyScripts.length === 1 && dirtyScripts[0].id === 'sc_good' && dirtyScripts[0].code === 'good');
+  ok('缺 deviceId / 缺歌曲 id 的下载被跳过，同批合法记录照常写入',
+    dirtyDownloads.length === 1 && dirtyDownloads[0].deviceId === 'dev-phone2');
+  ok('缺键的 delete 指令被忽略(不产生任何墓碑)',
+    dirtyScripts.every((s) => !s.deleted) && dirtyDownloads.every((d) => !d.deleted));
+  pull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: tokenA });
+  const aliveScriptIds = pull.json().data.scripts.map((s) => s.id).sort();
+  ok('全量脚本列表只剩未删记录', JSON.stringify(aliveScriptIds) === JSON.stringify(['sc_default', 'sc_good', 'sc_off']));
+  const aliveDlDevices = pull.json().data.downloads.map((d) => d.deviceId).sort();
+  ok('全量下载列表只剩存活的设备行', JSON.stringify(aliveDlDevices) === JSON.stringify(['dev-phone2', 'dev-tablet']));
+
+  console.log('== 数字/布尔字段归一化（脏值不落库成 NaN / 负数）==');
+  push = await j('POST', '/api/sync/push', {
+    token: tokenA,
+    payload: {
+      scripts: { upsert: [{ id: 'sc_norm', name: '归一化', code: '', enabled: '0' }] },
+      downloads: { upsert: [{ platform: 'netease', id: 'd_norm', deviceId: 'dev-n', sizeBytes: -42, downloadedAtMs: 'abc', quality: null }] },
+    },
+  });
+  ok('脏值 push 不报错', push.statusCode === 200);
+  pull = await j('GET', `/api/sync/pull?since=${dirtyAfter}&eventSince=0`, { token: tokenA });
+  const normScript = pull.json().data.scripts.find((s) => s.id === 'sc_norm');
+  const normDl = pull.json().data.downloads.find((d) => d.id === 'd_norm');
+  ok("enabled:'0'（字符串零）判为停用 false", normScript?.enabled === false);
+  ok('负数/非数字/null 归一化为 0 与空串',
+    normDl?.sizeBytes === 0 && normDl?.downloadedAtMs === 0 && normDl?.quality === '');
 
   console.log('== 登出失效 / 多端独立会话 ==');
   const out = await j('POST', '/api/auth/logout', { token: tokenA });
@@ -214,9 +449,34 @@ try {
   });
   ok('管理员更新用户角色与昵称成功', updatedBob.statusCode === 200 && updatedBob.json().data.nickname === '鲍勃改名' && updatedBob.json().data.role === 'admin');
 
+  // 管理员删除用户要连带清理新数据集（否则脚本源码/下载记录会永久留在库里）
+  const bobLogin = await j('POST', '/api/auth/login', { payload: { username: 'bob_test', password: 'bobpassword' } });
+  ok('管理员创建的账号可登录', bobLogin.statusCode === 200);
+  const bobToken = bobLogin.json().data.token;
+  const bobPush = await j('POST', '/api/sync/push', {
+    token: bobToken,
+    payload: {
+      scripts: { upsert: [{ id: 'bob_sc', name: 'B的脚本', code: 'z' }] },
+      downloads: { upsert: [{ platform: 'netease', id: 'bob_dl', deviceId: 'bob-dev', title: 'B的下载' }] },
+    },
+  });
+  ok('该账号可推送脚本与下载记录', bobPush.statusCode === 200);
+  const bobPull = await j('GET', '/api/sync/pull?since=0&eventSince=0', { token: bobToken });
+  ok('该账号只拉到自己的一条脚本 + 一条下载',
+    bobPull.json().data.scripts.length === 1 && bobPull.json().data.scripts[0].id === 'bob_sc'
+    && bobPull.json().data.downloads.length === 1 && bobPull.json().data.downloads[0].deviceId === 'bob-dev');
+
   // 管理员删除用户
   const deleteBob = await j('DELETE', `/api/admin/users/${bobId}`, { token: adminToken });
   ok('管理员删除用户成功', deleteBob.statusCode === 200);
+
+  // 走 HTTP 已无法再验证（账号与会话都没了），直接查库确认两张新表按 user_id 清干净
+  const leftover = await app.client.execute({
+    sql: 'SELECT (SELECT COUNT(*) FROM user_scripts WHERE user_id = ?) AS s, (SELECT COUNT(*) FROM downloads WHERE user_id = ?) AS d',
+    args: [bobId, bobId],
+  });
+  ok('删除用户后 user_scripts / downloads 无残留(含墓碑)',
+    Number(leftover.rows[0].s) === 0 && Number(leftover.rows[0].d) === 0);
 
   // 管理员无法删除自己
   const deleteSelf = await j('DELETE', `/api/admin/users/${adminMe.json().data.id}`, { token: adminToken });

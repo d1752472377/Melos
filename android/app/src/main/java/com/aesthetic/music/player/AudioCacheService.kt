@@ -374,14 +374,20 @@ object AudioCacheService {
     fun removeCacheByPath(context: Context, path: String) {
         try {
             File(path).delete()
+            var removed: List<CacheEntry> = emptyList()
             mutateIndex(context) { index ->
+                removed = index.entries.filter { it.value.filePath == path }.map { it.value }
                 index.entries.removeAll { it.value.filePath == path }
             }
+            recordDownloadDeletes(removed)
         } catch (_: Exception) {
         }
     }
 
     fun clearCache(context: Context) {
+        // 先取删除前的索引：清空缓存是用户显式动作，要把这些歌的下载记录作为墓碑同步出去；
+        // 清完再取就一条也拿不到了（"云端记录永远删不掉"就是这么来的）
+        val removed = try { queryIndex(context) { it.values.toList() } } catch (_: Exception) { emptyList() }
         try {
             cacheDir(context).listFiles()?.forEach { if (it.isFile) it.delete() }
         } catch (_: Exception) {
@@ -395,15 +401,35 @@ object AudioCacheService {
             } catch (_: Exception) {
             }
         }
+        recordDownloadDeletes(removed)
     }
 
     fun removeCache(context: Context, platformCode: String, songId: String, quality: String) {
         try {
+            var removed: CacheEntry? = null
             mutateIndex(context) { index ->
-                index.remove(cacheKey(platformCode, songId, quality))?.let { File(it.filePath).delete() }
+                removed = index.remove(cacheKey(platformCode, songId, quality))
+                removed?.let { File(it.filePath).delete() }
             }
+            removed?.let { recordDownloadDeletes(listOf(it)) }
         } catch (_: Exception) {
         }
+    }
+
+    /**
+     * 把"用户删掉的缓存条目"记成云同步墓碑（下载记录以 设备id + 平台 + 歌曲id 为键）。
+     *
+     * 只在**用户显式删除**的入口调用：容量上限淘汰（trim）虽然也删文件，
+     * 但那是本地空间管理的副作用，不代表"我不想再要这首歌"，不该把别的设备的记录一起删掉。
+     */
+    private fun recordDownloadDeletes(entries: List<CacheEntry>) {
+        val valid = entries.filter { it.platformCode.isNotBlank() && it.songId.isNotBlank() }
+        if (valid.isEmpty()) return
+        val deviceId = com.aesthetic.music.data.sync.SyncStateStore.deviceId()
+        com.aesthetic.music.data.sync.SyncStateStore.recordDeletesForCurrentUser(
+            com.aesthetic.music.data.sync.SyncCollections.DOWNLOADS,
+            valid.map { com.aesthetic.music.data.sync.SyncKey.download(deviceId, it.platformCode, it.songId) },
+        )
     }
 
     /**

@@ -8,7 +8,9 @@
   "scripts": {
     "start": "node src/start.js",
     "dev": "node --watch src/start.js",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "contract": "node scripts/client-contract.mjs",
+    "migrate-check": "node scripts/migrate-check.mjs"
   },
   "license": "MIT",
   "dependencies": {

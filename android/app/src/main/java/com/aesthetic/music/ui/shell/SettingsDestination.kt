@@ -33,7 +33,8 @@ fun SettingsDestination(
     val sourcePlugins by viewModel.sourcePlugins.collectAsState()
     val isSyncConfigured by viewModel.isSyncConfigured.collectAsState()
     val syncServerUrl by viewModel.syncServerUrl.collectAsState()
-    val syncToken by viewModel.syncToken.collectAsState()
+    val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
     val lastSyncedAt by viewModel.lastSyncedAt.collectAsState()
     val lastSyncStatus by viewModel.lastSyncStatus.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
@@ -50,7 +51,8 @@ fun SettingsDestination(
         pluginCount = sourcePlugins.size,
         isSyncConfigured = isSyncConfigured,
         syncServerUrl = syncServerUrl,
-        syncToken = syncToken,
+        accountName = currentUser?.username.orEmpty(),
+        isLoggedIn = isLoggedIn,
         lastSyncedAt = lastSyncedAt,
         lastSyncStatus = lastSyncStatus,
         isSyncing = isSyncing,
@@ -94,7 +96,7 @@ fun SettingsDestination(
             )
         },
         onOpenPluginManage = { nav.navigate(ScreenRoute.PluginManage.route) },
-        onSaveSyncConfig = viewModel::saveSyncConfig,
+        onOpenAccountSync = { nav.navigate(ScreenRoute.CloudManage.route) },
         onTestSyncConnection = viewModel::testSyncConnection,
         onPerformSync = viewModel::performCloudSync,
     )

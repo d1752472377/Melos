@@ -49,12 +49,14 @@ object ApiClient {
                     // 若未配置私有服务器且试图请求后端云接口，直接拦截并友好提示
                     val path = request.url.encodedPath
                     if (path.startsWith("/api/sync") || path.startsWith("/api/auth") || path.startsWith("/api/me")) {
-                        throw IOException("未配置私有服务器地址，请先在「设置」中填入后端地址与密钥")
+                        throw IOException("未配置服务器地址，请先在「账号与同步」中填写后端地址")
                     }
                 }
 
-                // 2. 自动附加私有云同步/用户密钥 (Bearer Token)
-                val token = SyncServerStore.getSyncToken().ifBlank { UserStore.token().orEmpty() }
+                // 2. 自动附加账号登录凭证 (Bearer Token)
+                // 只认账号登录态：旧版本的"同步密钥"已废弃，密钥概念被账号取代（见 SyncServerStore 说明）。
+                val token = UserStore.token().orEmpty()
+
                 val reqBuilder = request.newBuilder()
                 if (token.isNotBlank()) {
                     reqBuilder.header("Authorization", "Bearer $token")
@@ -63,7 +65,10 @@ object ApiClient {
 
                 val response = chain.proceed(newRequest)
 
-                if (response.code == 401 && SyncServerStore.isConfigured()) {
+                // 3. 会话过期判定：**只有带着 token 还被拒**才算"登录已过期"。
+                // 没带 token 的 401 只是"这个接口要登录"（例如未登录时探测服务器可达性），
+                // 若也回调 onAuthFailed，用户会在测试连接时莫名收到"登录已过期"的提示。
+                if (response.code == 401 && token.isNotBlank() && SyncServerStore.isConfigured()) {
                     Handler(Looper.getMainLooper()).post { onAuthFailed?.invoke() }
                 }
 

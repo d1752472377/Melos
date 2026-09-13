@@ -1,0 +1,133 @@
+{
+  "code": 200,
+  "data": {
+    "version": 1,
+    "nextEventId": 1,
+    "serverTime": 1789240278653,
+    "favorites": [
+      {
+        "platform": "netease",
+        "id": "f1",
+        "song": {
+          "id": "f1",
+          "title": "歌曲f1",
+          "artist": "歌手",
+          "album": "专辑",
+          "artwork": "https://cdn.example.com/a.jpg",
+          "platform": "netease"
+        },
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      },
+      {
+        "platform": "netease",
+        "id": "f2",
+        "song": {
+          "id": "f2",
+          "title": "歌曲f2",
+          "artist": "歌手",
+          "album": "专辑",
+          "artwork": "https://cdn.example.com/a.jpg",
+          "platform": "netease"
+        },
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      }
+    ],
+    "history": [
+      {
+        "platform": "netease",
+        "id": "h1",
+        "song": {
+          "id": "h1",
+          "title": "歌曲h1",
+          "artist": "歌手",
+          "album": "专辑",
+          "artwork": "https://cdn.example.com/a.jpg",
+          "platform": "netease",
+          "playedAtMs": 1700000000000
+        },
+        "playedAtMs": 1700000000000,
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      }
+    ],
+    "playlists": [
+      {
+        "id": "local_1",
+        "kind": "mine",
+        "name": "我的通勤",
+        "coverUrl": "",
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      },
+      {
+        "id": "888",
+        "kind": "fav",
+        "name": "收藏的网易歌单",
+        "coverUrl": "https://cdn.example.com/p.jpg",
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      }
+    ],
+    "playlistSongs": [
+      {
+        "playlistId": "local_1",
+        "position": 0,
+        "platform": "netease",
+        "songId": "f1",
+        "song": {
+          "id": "f1",
+          "title": "歌曲f1",
+          "artist": "歌手",
+          "album": "专辑",
+          "artwork": "https://cdn.example.com/a.jpg",
+          "platform": "netease"
+        },
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      }
+    ],
+    "scripts": [
+      {
+        "id": "sc1",
+        "name": "自写音源",
+        "description": "说明",
+        "code": "module.exports = { search: async () => [] };",
+        "enabled": true,
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      }
+    ],
+    "downloads": [
+      {
+        "platform": "netease",
+        "id": "f1",
+        "deviceId": "dev-phone",
+        "deviceName": "Pixel 8",
+        "title": "歌曲f1",
+        "artist": "歌手",
+        "album": "",
+        "artwork": "",
+        "quality": "",
+        "sizeBytes": 4096,
+        "downloadedAtMs": 1700000000000,
+        "updatedAtMs": 1789240278643,
+        "deleted": false
+      }
+    ],
+    "playEvents": [
+      {
+        "eventId": "ev1",
+        "platform": "netease",
+        "songId": "f1",
+        "title": "歌曲f1",
+        "artist": "歌手",
+        "listenedMs": 30000,
+        "durationMs": 200000,
+        "listenedAtMs": 1700000000000,
+        "updatedAtMs": 1789240278643
+      }
+    ]
+  }
+}

@@ -34,6 +34,14 @@ data class LyricData(
     val sourceName: String? = null,
 )
 
+/** 服务器探活响应 */
+data class HealthData(
+    val ok: Boolean = true,
+    val time: Long = 0L,
+    /** 服务端版本号（便于排查"客户端比后端新/旧"引起的字段缺失） */
+    val version: String? = null,
+)
+
 /** 歌单条目模型（用于排行榜、热门歌单、歌单广场等） */
 data class PlaylistItem(
     val id: String = "",
@@ -209,6 +217,8 @@ data class CloudSyncPullData(
     val playlists: List<SyncPlaylistItem> = emptyList(),
     val playlistSongs: List<SyncPlaylistSongItem> = emptyList(),
     val playEvents: List<SyncPlayEventItem> = emptyList(),
+    val scripts: List<SyncScriptItem> = emptyList(),
+    val downloads: List<SyncDownloadItem> = emptyList(),
 )
 
 data class SyncFavoriteItem(
@@ -230,6 +240,8 @@ data class SyncHistoryItem(
 
 data class SyncPlaylistItem(
     val id: String = "",
+    /** 歌单类型：`mine`=自建歌单 / `fav`=收藏的网络歌单（缺省按 mine 处理，兼容旧数据） */
+    val kind: String = "mine",
     val name: String = "",
     val coverUrl: String = "",
     val updatedAtMs: Long = 0L,
@@ -259,7 +271,45 @@ data class SyncPlayEventItem(
 )
 
 /**
+ * 音源脚本（用户上传的 JS 插件）——拉取项。
+ *
+ * `code` 是脚本源码本身：它是用户自己写的资产，丢了就得重写，
+ * 因此随账号同步（而不是只同步"脚本名"）。服务端只做存储，不解析/不执行。
+ */
+data class SyncScriptItem(
+    val id: String = "",
+    val name: String = "",
+    val description: String = "",
+    val code: String = "",
+    val enabled: Boolean = true,
+    val updatedAtMs: Long = 0L,
+    val deleted: Boolean = false,
+)
+
+/**
+ * 下载记录——拉取项。
+ *
+ * `deviceId` 是"哪个设备上的文件"：下载是设备级事实，不同设备可以有各自的副本与删除。
+ * 只同步"哪台设备下过哪首歌 + 体积 + 时间"：文件名与路径属于本机事实，
+ * 换设备后真实能播的路径只能由本机缓存索引决定。
+ */
+data class SyncDownloadItem(
+    val platform: String = "",
+    val id: String = "",
+    val deviceId: String = "",
+    val deviceName: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val sizeBytes: Long = 0L,
+    val downloadedAtMs: Long = 0L,
+    val updatedAtMs: Long = 0L,
+    val deleted: Boolean = false,
+)
+
+/**
  * 增量推送变更包（POST /api/sync/push）
+ *
+ * 传 null 表示"本次不改动这个集合"；服务端对缺省集合不做任何事。
  */
 data class SyncPushPayload(
     val favorites: SyncCollection<Song, SyncSongKey>? = null,
@@ -267,6 +317,37 @@ data class SyncPushPayload(
     val playlists: SyncCollection<SyncPlaylistUpsert, SyncPlaylistKey>? = null,
     val playlistSongs: SyncCollection<SyncPlaylistSongUpsert, SyncPlaylistSongKey>? = null,
     val playEvents: List<PlayEventDto>? = null,
+    val scripts: SyncCollection<SyncScriptUpsert, SyncScriptKey>? = null,
+    val downloads: SyncCollection<SyncDownloadUpsert, SyncDownloadKey>? = null,
+)
+
+data class SyncScriptUpsert(
+    val id: String,
+    val name: String,
+    val description: String = "",
+    val code: String,
+    val enabled: Boolean = true,
+)
+
+data class SyncScriptKey(
+    val id: String,
+)
+
+data class SyncDownloadUpsert(
+    val platform: String,
+    val id: String,
+    val deviceId: String,
+    val deviceName: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val sizeBytes: Long = 0L,
+    val downloadedAtMs: Long = 0L,
+)
+
+data class SyncDownloadKey(
+    val platform: String,
+    val id: String,
+    val deviceId: String,
 )
 
 data class SyncCollection<U, D>(
@@ -293,10 +374,14 @@ data class SyncPlaylistUpsert(
     val id: String,
     val name: String,
     val coverUrl: String? = null,
+    /** `mine`=自建歌单 / `fav`=收藏的网络歌单 */
+    val kind: String = "mine",
 )
 
 data class SyncPlaylistKey(
     val id: String,
+    /** 歌单类型：墓碑必须带，否则服务端/对端无法区分自建与收藏（键由 kind + id 组成） */
+    val kind: String = "mine",
 )
 
 data class SyncPlaylistSongUpsert(
@@ -320,6 +405,15 @@ data class SyncPushResult(
 // ==================== Retrofit 接口 ====================
 
 interface MusicApi {
+
+    /**
+     * 服务器可达性探测（**不需要登录**）。
+     *
+     * 为什么单独要一个接口：未登录时用 /api/me 或 /api/sync/pull 探测会拿到 401，
+     * 客户端无法区分"地址填错了"和"地址对但没登录"——而这正是用户在配置页面最需要知道的事。
+     */
+    @GET("api/health")
+    suspend fun health(): ApiResponse<HealthData>
 
     // ==================== 用户体系 (Auth) ====================
 
