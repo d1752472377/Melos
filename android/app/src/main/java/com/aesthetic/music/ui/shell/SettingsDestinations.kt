@@ -19,6 +19,8 @@ import com.aesthetic.music.ui.settings.SettingsScreen
 import com.aesthetic.music.ui.settings.PlaybackSettingsScreen
 import com.aesthetic.music.ui.settings.QualitySettingsScreen
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 /**
  * 设置子页面（主题与外观 / 音质 / 播放 / 歌词 / 下载 / 缓存 / 音源插件）的目的地。
@@ -143,6 +145,12 @@ fun SettingsCacheDestination(
         onClearTemp = { pendingClear = CacheKind.TEMP },
         onClearAll = { pendingClear = CacheKind.ALL },
         onOpenCachedSongs = { nav.navigate(ScreenRoute.CacheList.route) },
+        onCacheLimitChange = { bytes ->
+            // 用户调小上限后立即按新上限清理一次
+            scope.launch(Dispatchers.IO) {
+                com.aesthetic.music.player.AudioCacheService.enforceCacheLimit(context)
+            }
+        },
     )
 
     val kind = pendingClear

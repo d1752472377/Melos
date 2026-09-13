@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -64,7 +65,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
@@ -132,6 +135,10 @@ import com.aesthetic.music.ui.theme.FmSheetCardBg
 import com.aesthetic.music.ui.theme.FmSheetCardBorder
 import com.aesthetic.music.ui.theme.FmSheetContainer
 import com.aesthetic.music.ui.theme.FmSolidFill
+import com.aesthetic.music.ui.theme.TextPrimary
+import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.Surface as ThemeSurface
+import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.fmGlass
 import com.aesthetic.music.ui.theme.fmOn
@@ -1052,7 +1059,11 @@ private fun FmChannelCard(
 }
 
 /**
- * 宝藏歌单抽屉：列出本次会话听到的心动好歌，支持一键分享与导出
+ * 宝藏歌单抽屉：本次会话听到的心动好歌。
+ *
+ * 固定高度，顶部标题固定；下面是一整张贴边的大卡片（左右/下都到屏幕边缘），
+ * 卡片内是歌曲列表（歌曲之间一条分割线），卡片底部固定「一键导出到歌单」按钮。
+ * 列表单独滚动，标题与按钮不动。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1069,13 +1080,13 @@ private fun FmTreasureSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp)
-                .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
-                .padding(20.dp)
+                .height(460.dp)
         ) {
+            // ===== 顶部标题行（固定） =====
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1109,73 +1120,85 @@ private fun FmTreasureSheet(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            // 宝藏列表：用普通 Column 而不是固定高度的 LazyColumn，
-            // 外层已可滚动，固定高度会把下面的导出按钮挤出屏幕
+            // ===== 大卡片：左右/下贴边，内部列表滚动 =====
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .background(ThemeSurface)
             ) {
-                songs.forEach { song ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(fmGlass(0.06f))
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SongCover(
-                            url = song.artwork,
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(vertical = 6.dp)
+                ) {
+                    itemsIndexed(songs) { index, song ->
+                        Row(
                             modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                color = fmOn(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SongCover(
+                                url = song.artwork,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(8.dp))
                             )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = song.artist,
-                                color = fmOn(0.5f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    color = TextPrimary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = song.artist,
+                                    color = TextSoft,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (index != songs.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                                thickness = 0.5.dp,
+                                color = Stone200.copy(alpha = 0.55f)
                             )
                         }
                     }
                 }
-            }
 
-            Spacer(Modifier.height(14.dp))
-
-            Button(
-                onClick = onExportToPlaylist,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentRose)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Share,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(text = "一键导出到歌单", fontWeight = FontWeight.Bold)
+                // ===== 底部按钮（固定在卡片内） =====
+                Button(
+                    onClick = onExportToPlaylist,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentRose)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "一键导出到歌单", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
+
 
 @Composable
 private fun FmLoadingState(channel: FmChannel) {

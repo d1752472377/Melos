@@ -109,8 +109,11 @@ object SettingsStore {
 
     private const val TAG = "SettingsStore"
     private const val PREFS = "aesthetic_music_settings"
+    /** 缓存上限默认值：2GB */
+    const val DEFAULT_CACHE_LIMIT_BYTES: Long = 2L * 1024 * 1024 * 1024
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_QUALITY = "quality"
+    private const val KEY_CACHE_LIMIT = "cache_limit_bytes"
     private const val KEY_PLAYER_THEME = "player_theme"
     private const val KEY_PLAYBACK_SPEED = "playback_speed"
     private const val KEY_PREFERRED_BASE = "preferred_base_url"
@@ -146,6 +149,17 @@ object SettingsStore {
 
     fun setQuality(level: QualityLevel) = bestEffort(TAG, "保存音质等级") {
         p()?.edit()?.putString(KEY_QUALITY, level.value)?.apply()
+    }
+
+    // ===== 缓存上限（字节）：播放/下载缓存总量超过它就按最旧淘汰，默认 2GB =====
+    fun getCacheLimitBytes(): Long = try {
+        p()?.getLong(KEY_CACHE_LIMIT, DEFAULT_CACHE_LIMIT_BYTES) ?: DEFAULT_CACHE_LIMIT_BYTES
+    } catch (_: Exception) {
+        DEFAULT_CACHE_LIMIT_BYTES
+    }
+
+    fun setCacheLimitBytes(bytes: Long) = bestEffort(TAG, "保存缓存上限") {
+        p()?.edit()?.putLong(KEY_CACHE_LIMIT, bytes)?.apply()
     }
 
     // ===== 播放页主题 =====

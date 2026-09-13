@@ -32,7 +32,6 @@ object AudioCacheService {
     private const val INDEX_FILE_NAME = "_index.json"
 
     /** 缓存目录总大小上限：超过后自动删除最旧的音频文件 */
-    private const val MAX_CACHE_BYTES = 2L * 1024 * 1024 * 1024 // 2GB
 
     /** 平台 id（管理后台可自定义，可能含下划线），用作 key 分隔符的平台白名单 */
     private val KNOWN_PLATFORMS = setOf("kuwo", "netease", "chksz", "qq", "kugou")
@@ -44,6 +43,8 @@ object AudioCacheService {
         val songId: String,
         val filePath: String,
         val fileSize: Long,
+        /** true = 用户主动点下载（进「我的下载」页）；false = 播放时边听边下的缓存 */
+        val manual: Boolean = false,
     )
 
     private val gson = Gson()
@@ -263,6 +264,7 @@ object AudioCacheService {
                                             it[key] = CacheEntry(
                                                 name, artist, platformCode, songId,
                                                 target.absolutePath, target.length(),
+                                                manual = manual,
                                             )
                                         }
                                         // 容量清理时保护"正在播放"的文件（调用方传入当前播放路径）
@@ -305,14 +307,16 @@ object AudioCacheService {
                 ?.filter { it.isFile && it.name != INDEX_FILE_NAME }
                 ?: return
             var total = files.sumOf { it.length() }
-            if (total <= MAX_CACHE_BYTES) return
+            // 上限可由用户在「缓存管理」页调整（默认 2GB）
+            val limit = SettingsStore.getCacheLimitBytes()
+            if (total <= limit) return
             synchronized(indexLock) {
                 val index = getIndexLocked(context)
                 // 预建 filePath -> key 映射，删除循环 O(1) 定位（旧写法 removeAll 是 O(n²)）
                 val keyByPath = HashMap<String, String>(index.size)
                 for ((k, v) in index) keyByPath[v.filePath] = k
                 for (f in files.sortedBy { it.lastModified() }) {
-                    if (total <= MAX_CACHE_BYTES) break
+                    if (total <= limit) break
                     // 跳过正在播放的文件（它同时是"最旧"的可能：整首播完前 lastModified 不更新）
                     if (f.absolutePath == protectedPath) continue
                     val size = f.length()
@@ -329,6 +333,9 @@ object AudioCacheService {
         } catch (_: Exception) {
         }
     }
+
+    /** 用户调整缓存上限后立即执行一次容量清理（IO 线程调用） */
+    fun enforceCacheLimit(context: Context) = enforceCacheLimitIfNeeded(context)
 
     fun getCacheSize(context: Context): Long =
         try {
@@ -354,6 +361,7 @@ object AudioCacheService {
                             filePath = e.filePath,
                             platformCode = e.platformCode,
                             songId = e.songId,
+                            manual = e.manual,
                         )
                     } else null
                 }
@@ -368,6 +376,8 @@ object AudioCacheService {
         val filePath: String,
         val platformCode: String = "",
         val songId: String = "",
+        /** true = 用户主动下载；false = 播放时产生的缓存 */
+        val manual: Boolean = false,
     )
 
     /** 删除单个缓存（按路径），并同步清掉索引条目避免残留 */

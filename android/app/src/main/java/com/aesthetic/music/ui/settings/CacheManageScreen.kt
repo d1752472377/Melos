@@ -24,8 +24,13 @@ import androidx.compose.material.icons.filled.Warehouse
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableLongStateOf
+import com.aesthetic.music.data.settings.SettingsStore
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +69,19 @@ fun CacheManageScreen(
     onClearTemp: () -> Unit,
     onClearAll: () -> Unit,
     onOpenCachedSongs: () -> Unit,
+    /** 用户修改缓存上限（字节）：保存并立即按新上限清理一次 */
+    onCacheLimitChange: (Long) -> Unit = {},
 ) {
+    // 缓存上限（默认 2GB）：超过按最旧自动清理
+    val limitPresets = listOf(
+        "512M" to 512L * 1024 * 1024,
+        "1G" to 1024L * 1024 * 1024,
+        "2G" to 2L * 1024 * 1024 * 1024,
+        "4G" to 4L * 1024 * 1024 * 1024,
+        "8G" to 8L * 1024 * 1024 * 1024,
+    )
+    var cacheLimit by remember { mutableLongStateOf(SettingsStore.getCacheLimitBytes()) }
+
     SettingsPageScaffold(title = "缓存管理", subtitle = "查看占用并清理本地缓存", onBack = onBack) {
         // ===== 总占用卡片 =====
         SettingsSection {
@@ -125,6 +142,51 @@ fun CacheManageScreen(
                         RatioLegend("图片缓存", breakdown.images, Color(0xFF3E7CB1))
                         RatioLegend("临时文件", breakdown.temp, Color(0xFF8A8F98))
                     }
+                }
+            }
+        }
+
+        SettingsGap()
+
+        // ===== 缓存上限（超过自动按最旧淘汰） =====
+        SettingsSection(title = "缓存上限") {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(
+                    text = "缓存总量超过上限时，从最旧的开始自动清理（正在播放的不受影响）",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = TextSoft,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    limitPresets.forEach { (label, bytes) ->
+                        val selected = bytes == cacheLimit
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Stone100)
+                                .clickable {
+                                    cacheLimit = bytes
+                                    SettingsStore.setCacheLimitBytes(bytes)
+                                    onCacheLimitChange(bytes)
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                color = if (selected) PrimaryBrown else TextSoft,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                if (cacheLimit != SettingsStore.getCacheLimitBytes()) {
+                    SettingsStore.setCacheLimitBytes(cacheLimit)
                 }
             }
         }

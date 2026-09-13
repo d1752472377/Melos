@@ -86,16 +86,19 @@ fun DownloadsScreen(
         if (isSearchExpanded) searchFocus.requestFocus()
     }
 
-    // 页内过滤：搜歌名 / 歌手
-    // 先按文件路径去重：同一首歌可能存在多条缓存记录，重复的 filePath 会让
+    // 「我的下载」只显示用户主动点下载的歌；播放时边听边下产生的缓存在「本地缓存」页
+    // 再按文件路径去重：同一首歌可能存在多条缓存记录，重复的 filePath 会让
     // LazyColumn 的 key 冲突直接闪退（IllegalArgumentException: Key was already used）
-    val filtered = remember(songs, searchQuery) {
-        val base = songs.distinctBy { it.filePath }
+    val downloadedSongs = remember(songs) {
+        songs.filter { it.manual }.distinctBy { it.filePath }
+    }
+
+    val filtered = remember(downloadedSongs, searchQuery) {
         val q = searchQuery.trim()
         if (q.isEmpty()) {
-            base
+            downloadedSongs
         } else {
-            base.filter {
+            downloadedSongs.filter {
                 it.title.contains(q, ignoreCase = true) || it.artist.contains(q, ignoreCase = true)
             }
         }

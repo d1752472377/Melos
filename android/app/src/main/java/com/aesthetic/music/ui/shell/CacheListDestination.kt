@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.shell
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.MainViewModel
@@ -19,6 +20,9 @@ fun CacheListDestination(
     scope: CoroutineScope,
 ) {
     val context = LocalContext.current
+    // 进页刷新：播放产生的新缓存在这里要能立刻看到
+    LaunchedEffect(Unit) { cacheState.refresh() }
+
     CacheListScreen(
         songs = cacheState.songs,
         onBack = {
