@@ -6,8 +6,8 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
-        <!-- 系统启动画面（Android 12+ 自动展示）：深暖黑底 + 品牌图标 -->
+        <!-- 系统启动画面（Android 12+ 自动展示）：深暖黑底 + 应用本身的图标 -->
         <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
     </style>
 </resources>
