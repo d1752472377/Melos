@@ -44,8 +44,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
+import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -213,8 +215,8 @@ private fun PlatformSelector(
                             spotColor = Color.Black.copy(alpha = 0.1f)
                         )
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFFDFBF7))
-                        .border(1.dp, Color.White, RoundedCornerShape(16.dp))
+                        .background(Surface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
                         .padding(vertical = 6.dp)
                 ) {
                     PlatformFilters.forEach { item ->

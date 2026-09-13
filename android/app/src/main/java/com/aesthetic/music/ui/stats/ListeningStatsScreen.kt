@@ -56,6 +56,7 @@ import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.AccentTeal
 import com.aesthetic.music.ui.theme.AccentViolet
+import com.aesthetic.music.ui.theme.GlassBorder
 import com.aesthetic.music.ui.theme.GlassSurfaceSoft
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
@@ -528,7 +529,7 @@ private fun QuickSliceCard(
         modifier = modifier
             .clip(shape)
             .background(if (highlight) AccentAmber.copy(alpha = 0.10f) else GlassSurfaceSoft)
-            .border(1.dp, Color.White, shape)
+            .border(1.dp, GlassBorder, shape)
             .padding(horizontal = 14.dp, vertical = 14.dp),
     ) {
         Text(

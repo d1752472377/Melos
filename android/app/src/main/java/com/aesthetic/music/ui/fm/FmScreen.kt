@@ -123,11 +123,18 @@ import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.AccentRose
 import com.aesthetic.music.ui.theme.Background
+import com.aesthetic.music.ui.theme.FmBackground
+import com.aesthetic.music.ui.theme.FmScrimBottom
+import com.aesthetic.music.ui.theme.FmScrimMid
+import com.aesthetic.music.ui.theme.FmScrimTop
+import com.aesthetic.music.ui.theme.FmSheetContainer
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.fmGlass
+import com.aesthetic.music.ui.theme.fmOn
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
 import com.mocharealm.accompanist.lyrics.ui.composable.lyrics.KaraokeLyricsView
 import kotlinx.coroutines.android.awaitFrame
@@ -208,7 +215,7 @@ fun FmScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0D0D11))
+            .background(FmBackground)
     ) {
         // ===== 1. 动态沉浸背景层 =====
         displaySong?.artwork?.let { artUrl ->
@@ -229,9 +236,9 @@ fun FmScreen(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0x990A0A0E),
-                            Color(0xCC0D0D12),
-                            Color(0xFA09090C)
+                            FmScrimTop,
+                            FmScrimMid,
+                            FmScrimBottom
                         )
                     )
                 )
@@ -388,8 +395,8 @@ private fun FmTopBar(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(Color(0x33FFFFFF))
-                .border(0.8.dp, Color(0x33FFFFFF), RoundedCornerShape(999.dp))
+                .background(fmGlass(0.2f))
+                .border(0.8.dp, fmGlass(0.2f), RoundedCornerShape(999.dp))
                 .clickable(onClick = onOpenChannel)
                 .padding(horizontal = 14.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -398,7 +405,7 @@ private fun FmTopBar(
             Spacer(Modifier.width(6.dp))
             Text(
                 text = currentChannel.name,
-                color = Color.White,
+                color = fmOn(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -410,7 +417,7 @@ private fun FmTopBar(
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowDown,
                 contentDescription = "切换频道",
-                tint = Color.White.copy(alpha = 0.7f),
+                tint = fmOn(0.7f),
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -433,7 +440,7 @@ private fun FmTopBar(
                 ) {
                     Text(
                         text = "🎁 宝藏 $treasureCount",
-                        color = Color.White,
+                        color = fmOn(),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -445,7 +452,7 @@ private fun FmTopBar(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0x22FFFFFF))
+                    .background(fmGlass(0.13f))
                     .clickable {
                         onRefresh()
                     },
@@ -454,7 +461,7 @@ private fun FmTopBar(
                 Icon(
                     imageVector = Icons.Filled.Refresh,
                     contentDescription = "重新调频",
-                    tint = Color.White.copy(alpha = 0.85f),
+                    tint = fmOn(0.85f),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -500,7 +507,7 @@ private fun FmTrackView(
         // ===== 歌曲基本信息 =====
         Text(
             text = song.title.ifBlank { "未知曲目" },
-            color = Color.White,
+            color = fmOn(),
             style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -513,7 +520,7 @@ private fun FmTrackView(
 
         Text(
             text = "${song.artist.ifBlank { "未知歌手" }} · ${song.album.ifBlank { "单曲" }}",
-            color = Color.White.copy(alpha = 0.65f),
+            color = fmOn(0.65f),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -531,12 +538,12 @@ private fun FmTrackView(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0x22FFFFFF))
+                    .background(fmGlass(0.13f))
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = "$channelName · 心动推荐",
-                    color = Color.White.copy(alpha = 0.75f),
+                    color = fmOn(0.75f),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -563,7 +570,7 @@ private fun FmTrackView(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0x18FFFFFF))
+                .background(fmGlass(0.09f))
                 .clickable(onClick = onToggleLyrics)
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             contentAlignment = Alignment.Center
@@ -574,7 +581,7 @@ private fun FmTrackView(
             ) {
                 Text(
                     text = currentLine ?: "♪ 心动旋律 流淌心间 ♪",
-                    color = if (currentLine != null) Color.White else Color.White.copy(alpha = 0.5f),
+                    color = if (currentLine != null) fmOn() else fmOn(0.5f),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
@@ -584,7 +591,7 @@ private fun FmTrackView(
                 if (nextLine != null) {
                     Text(
                         text = nextLine,
-                        color = Color.White.copy(alpha = 0.35f),
+                        color = fmOn(0.35f),
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
@@ -873,17 +880,17 @@ private fun FmBottomControlBar(
         ) {
             Text(
                 text = formatDuration(pos),
-                color = Color.White.copy(alpha = 0.5f),
+                color = fmOn(0.5f),
                 fontSize = 11.sp
             )
             Text(
                 text = "心动调频中 · 第 ${currentIndex + 1} 首",
-                color = Color.White.copy(alpha = 0.4f),
+                color = fmOn(0.4f),
                 fontSize = 10.sp
             )
             Text(
                 text = formatDuration(dur),
-                color = Color.White.copy(alpha = 0.5f),
+                color = fmOn(0.5f),
                 fontSize = 11.sp
             )
         }
@@ -909,7 +916,7 @@ private fun FmBottomControlBar(
                     .fillMaxWidth()
                     .height(3.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White.copy(alpha = 0.15f))
+                    .background(fmOn(0.15f))
             )
             // 播放进度高亮条
             Box(
@@ -942,7 +949,7 @@ private fun FmBottomControlBar(
                 Icon(
                     imageVector = Icons.Filled.ThumbDown,
                     contentDescription = "不感兴趣",
-                    tint = Color.White.copy(alpha = 0.65f),
+                    tint = fmOn(0.65f),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -964,7 +971,7 @@ private fun FmBottomControlBar(
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = "喜欢",
-                    tint = if (isFavorite) AccentRose else Color.White.copy(alpha = 0.8f),
+                    tint = if (isFavorite) AccentRose else fmOn(0.8f),
                     modifier = Modifier
                         .size(24.dp)
                         .graphicsLayer {
@@ -986,10 +993,10 @@ private fun FmBottomControlBar(
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
-                            listOf(Color.White.copy(alpha = 0.28f), Color.White.copy(alpha = 0.12f))
+                            listOf(fmOn(0.28f), fmOn(0.12f))
                         )
                     )
-                    .border(1.5.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+                    .border(1.5.dp, fmOn(0.45f), CircleShape)
                     .clickable(onClick = onTogglePlay),
                 contentAlignment = Alignment.Center
             ) {
@@ -997,13 +1004,13 @@ private fun FmBottomControlBar(
                     CircularProgressIndicator(
                         modifier = Modifier.size(28.dp),
                         strokeWidth = 2.5.dp,
-                        color = Color.White
+                        color = fmOn()
                     )
                 } else {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                         contentDescription = if (isPlaying) "暂停" else "播放",
-                        tint = Color.White,
+                        tint = fmOn(),
                         modifier = Modifier.size(34.dp)
                     )
                 }
@@ -1018,7 +1025,7 @@ private fun FmBottomControlBar(
                 Icon(
                     imageVector = Icons.Filled.SkipNext,
                     contentDescription = "下一首",
-                    tint = Color.White,
+                    tint = fmOn(),
                     modifier = Modifier.size(26.dp)
                 )
             }
@@ -1032,7 +1039,7 @@ private fun FmBottomControlBar(
                 Icon(
                     imageVector = if (showFullLyrics) Icons.Filled.Album else Icons.Filled.Lyrics,
                     contentDescription = if (showFullLyrics) "唱片模式" else "歌词模式",
-                    tint = if (showFullLyrics) AccentRose else Color.White.copy(alpha = 0.7f),
+                    tint = if (showFullLyrics) AccentRose else fmOn(0.7f),
                     modifier = Modifier.size(21.dp)
                 )
             }
@@ -1089,7 +1096,7 @@ private fun FmFullLyricsView(
                 onLinePressed = { line -> onSeek(line.start.toLong()) },
                 showTranslation = true,
                 showPhonetic = false,
-                textColor = Color.White,
+                textColor = fmOn(),
                 normalLineTextStyle = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp
@@ -1120,7 +1127,7 @@ private fun FmFullLyricsView(
                     val isCurrent = (idx == activeIdx)
                     Text(
                         text = line.text,
-                        color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.4f),
+                        color = if (isCurrent) fmOn() else fmOn(0.4f),
                         fontSize = if (isCurrent) 20.sp else 16.sp,
                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                         textAlign = TextAlign.Center,
@@ -1135,7 +1142,7 @@ private fun FmFullLyricsView(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = "暂无逐字歌词 · 随旋律漫游",
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = fmOn(0.5f),
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -1146,7 +1153,7 @@ private fun FmFullLyricsView(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .clip(RoundedCornerShape(999.dp))
-                .background(Color(0x33FFFFFF))
+                .background(fmGlass(0.2f))
                 .clickable(onClick = onCloseLyrics)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1154,13 +1161,13 @@ private fun FmFullLyricsView(
             Icon(
                 imageVector = Icons.Filled.Album,
                 contentDescription = null,
-                tint = Color.White,
+                tint = fmOn(),
                 modifier = Modifier.size(14.dp)
             )
             Spacer(Modifier.width(4.dp))
             Text(
                 text = "唱片模式",
-                color = Color.White,
+                color = fmOn(),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -1181,7 +1188,7 @@ private fun FmChannelSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF16161B),
+        containerColor = FmSheetContainer,
         dragHandle = null
     ) {
         Column(
@@ -1197,13 +1204,13 @@ private fun FmChannelSheet(
                 Column {
                     Text(
                         text = "选择心动电台频道",
-                        color = Color.White,
+                        color = fmOn(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "不同频道，不同的心动频率",
-                        color = Color.White.copy(alpha = 0.5f),
+                        color = fmOn(0.5f),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -1211,14 +1218,14 @@ private fun FmChannelSheet(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0x22FFFFFF))
+                        .background(fmGlass(0.13f))
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Close,
                         contentDescription = "关闭",
-                        tint = Color.White,
+                        tint = fmOn(),
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -1241,11 +1248,11 @@ private fun FmChannelSheet(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
                             .background(
-                                if (isSelected) AccentRose.copy(alpha = 0.22f) else Color(0x18FFFFFF)
+                                if (isSelected) AccentRose.copy(alpha = 0.22f) else fmGlass(0.09f)
                             )
                             .border(
                                 width = if (isSelected) 1.2.dp else 0.5.dp,
-                                color = if (isSelected) AccentRose else Color.White.copy(alpha = 0.1f),
+                                color = if (isSelected) AccentRose else fmOn(0.1f),
                                 shape = RoundedCornerShape(14.dp)
                             )
                             .clickable { onSelect(ch) }
@@ -1257,14 +1264,14 @@ private fun FmChannelSheet(
                         Column(Modifier.weight(1f)) {
                             Text(
                                 text = ch.name,
-                                color = if (isSelected) AccentRose else Color.White,
+                                color = if (isSelected) AccentRose else fmOn(),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 text = ch.subtitle,
-                                color = Color.White.copy(alpha = 0.45f),
+                                color = fmOn(0.45f),
                                 fontSize = 10.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1289,7 +1296,7 @@ private fun FmTreasureSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF16161B),
+        containerColor = FmSheetContainer,
         dragHandle = null
     ) {
         Column(
@@ -1305,13 +1312,13 @@ private fun FmTreasureSheet(
                 Column {
                     Text(
                         text = "本次淘到的宝藏歌单",
-                        color = Color.White,
+                        color = fmOn(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "共 ${songs.size} 首 · 听歌点赞已自动加入「我喜欢的音乐」",
-                        color = Color.White.copy(alpha = 0.5f),
+                        color = fmOn(0.5f),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -1319,14 +1326,14 @@ private fun FmTreasureSheet(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0x22FFFFFF))
+                        .background(fmGlass(0.13f))
                         .clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Close,
                         contentDescription = "关闭",
-                        tint = Color.White,
+                        tint = fmOn(),
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -1345,7 +1352,7 @@ private fun FmTreasureSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0x10FFFFFF))
+                            .background(fmGlass(0.06f))
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1359,7 +1366,7 @@ private fun FmTreasureSheet(
                         Column(Modifier.weight(1f)) {
                             Text(
                                 text = song.title,
-                                color = Color.White,
+                                color = fmOn(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -1368,7 +1375,7 @@ private fun FmTreasureSheet(
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 text = song.artist,
-                                color = Color.White.copy(alpha = 0.5f),
+                                color = fmOn(0.5f),
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1414,8 +1421,8 @@ private fun FmRoundButton(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color(0x24FFFFFF))
-            .border(0.8.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+            .background(fmGlass(0.14f))
+            .border(0.8.dp, fmOn(0.2f), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -1450,7 +1457,7 @@ private fun FmLoadingState(channel: FmChannel) {
                 .size(120.dp)
                 .rotate(rotation)
                 .clip(CircleShape)
-                .background(Color(0x18FFFFFF))
+                .background(fmGlass(0.09f))
                 .border(2.dp, AccentRose.copy(alpha = 0.6f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
@@ -1461,7 +1468,7 @@ private fun FmLoadingState(channel: FmChannel) {
 
         Text(
             text = "正在为你在「${channel.name}」寻觅心动旋律…",
-            color = Color.White,
+            color = fmOn(),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center
@@ -1471,7 +1478,7 @@ private fun FmLoadingState(channel: FmChannel) {
 
         Text(
             text = "私人算法实时调频中，马上就来",
-            color = Color.White.copy(alpha = 0.5f),
+            color = fmOn(0.5f),
             style = MaterialTheme.typography.bodySmall
         )
     }
@@ -1497,7 +1504,7 @@ private fun FmEmptyState(
         Spacer(Modifier.height(16.dp))
         Text(
             text = "电台调频遇到了一点小波折",
-            color = Color.White,
+            color = fmOn(),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
@@ -1505,7 +1512,7 @@ private fun FmEmptyState(
             Spacer(Modifier.height(8.dp))
             Text(
                 text = error,
-                color = Color.White.copy(alpha = 0.5f),
+                color = fmOn(0.5f),
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center
             )

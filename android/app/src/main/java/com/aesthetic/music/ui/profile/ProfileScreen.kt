@@ -85,6 +85,7 @@ import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
@@ -282,7 +283,7 @@ fun ProfileScreen(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(20.dp))
                             .background(Surface)
-                            .border(1.dp, Color.White, RoundedCornerShape(20.dp))
+                            .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
                             .clickable(onClick = onOpenListeningStats)
                             .padding(horizontal = 20.dp, vertical = 18.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -346,7 +347,7 @@ fun ProfileScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, Color.White, RoundedCornerShape(20.dp))
+                        .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
                         .clip(RoundedCornerShape(16.dp))
                         .background(Surface)
                         .padding(vertical = 4.dp),
@@ -730,7 +731,7 @@ private fun MusicStatsRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(Surface)
-            .border(1.dp, Color.White, RoundedCornerShape(20.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
             .padding(vertical = 20.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {

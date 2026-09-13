@@ -68,6 +68,22 @@ val Stone100 get() = light(Color(0xFFF1F4F8), Color(0xFF1F222B))        // 按�
 // 深色为同色系深灰。配合无阴影，得到与「我的收藏」一致的干净卡片。
 val CardBorder get() = light(Color.White.copy(alpha = 0.9f), Color(0xFF33304A))
 
+// ===== 沉浸式页面（FM 电台页）主题色 =====
+// 深色沿用原本的墨黑氛围；浅色切成白底深字，整体就是黑 / 白两套。
+val FmBackground get() = light(Color(0xFFF6F8FA), Color(0xFF0D0D11))
+val FmScrimTop get() = light(Color(0x99FFFFFF), Color(0x990A0A0E))
+val FmScrimMid get() = light(Color(0xCCF3F5F9), Color(0xCC0D0D12))
+val FmScrimBottom get() = light(Color(0xFAF6F8FA), Color(0xFA09090C))
+val FmSheetContainer get() = light(Color(0xFFFFFFFF), Color(0xFF16161B))
+
+/** FM 页前景色：深色=白，浅色=近黑（文字 / 图标 / 进度条） */
+fun fmOn(alpha: Float = 1f): Color =
+    if (Palette.isDark) Color.White.copy(alpha = alpha) else Color(0xFF12141A).copy(alpha = alpha)
+
+/** FM 页「玻璃」叠色：深色=白叠加，浅色=黑叠加（胶囊 / 按钮底 / 分隔） */
+fun fmGlass(alpha: Float): Color =
+    if (Palette.isDark) Color.White.copy(alpha = alpha) else Color.Black.copy(alpha = alpha)
+
 // ===== 听歌统计页专用（毛玻璃 + 渐变） =====
 // 页面背景：顶部淡蓝紫 → 下方米白/浅灰（深色下改为墨蓝 → 近黑，保持同样氛围）
 val StatsGradientTop get() = light(Color(0xFFE8ECFF), Color(0xFF1A1B2E))

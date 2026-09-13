@@ -41,12 +41,14 @@ import com.aesthetic.music.ui.components.PlaylistEditorResult
 import com.aesthetic.music.ui.components.PlaylistEditorSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.library.PlaylistResolveState
+import com.aesthetic.music.ui.theme.AccentCoral
+import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Stone100
+import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
-
-private val DividerColor = Color(0xFFEEEEEE)
 
 @Composable
 fun PlaylistScreen(
@@ -74,7 +76,7 @@ fun PlaylistScreen(
     var selectedPlaylist by remember { mutableStateOf<MyPlaylist?>(null) }
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    Box(modifier = Modifier.fillMaxSize().background(Background)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -235,7 +237,7 @@ fun PlaylistScreen(
                 BottomSheetAction(
                     icon = Icons.Filled.Delete,
                     text = "删除歌单",
-                    textColor = Color(0xFFE53935),
+                    textColor = AccentCoral,
                     onClick = {
                         selectedPlaylist?.let { playlist ->
                             deleteTarget = playlist
@@ -520,7 +522,7 @@ private fun PlaylistRow(
         HorizontalDivider(
             modifier = Modifier.padding(start = 90.dp, end = 20.dp),
             thickness = 0.5.dp,
-            color = DividerColor
+            color = Stone200.copy(alpha = 0.6f)
         )
     }
 }
@@ -574,7 +576,7 @@ private fun CollectedPlaylistRow(
         HorizontalDivider(
             modifier = Modifier.padding(start = 90.dp, end = 20.dp),
             thickness = 0.5.dp,
-            color = DividerColor
+            color = Stone200.copy(alpha = 0.6f)
         )
     }
 }
@@ -629,7 +631,7 @@ private fun EmptyStateView(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFF5F5F5)),
+                .background(Stone100),
             contentAlignment = Alignment.Center
         ) {
             Icon(

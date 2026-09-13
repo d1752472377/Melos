@@ -92,7 +92,7 @@ fun StatsGlassCard(
             .fillMaxWidth()
             .clip(shape)
             .background(GlassSurface)
-            .border(1.dp, Color.White, shape)
+            .border(1.dp, GlassBorder, shape)
             .padding(padding.dp),
         content = content,
     )

@@ -5,10 +5,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.graphics.Color
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.fm.FmScreen
+import com.aesthetic.music.ui.theme.FmBackground
+import com.aesthetic.music.ui.theme.Palette
 
 /** FM 电台 Tab */
 @Composable
@@ -27,9 +28,11 @@ fun FmDestination(
     val favorites by viewModel.favorites.collectAsState()
     val playerState by playerManager.state.collectAsState()
 
-    // 进入 FM 路由自动设置暗色背景，使底部 NavigationDock 呈现暗黑毛玻璃质感
-    DisposableEffect(Unit) {
-        viewModel.updatePageBackground(Color(0xFF0D0D11), true)
+    // 进入 FM 路由设置与主题匹配的背景，使底部 NavigationDock 呈现深/浅两套毛玻璃质感
+    val fmPageBackground = FmBackground
+    val fmIsDark = Palette.isDark
+    DisposableEffect(fmPageBackground, fmIsDark) {
+        viewModel.updatePageBackground(fmPageBackground, fmIsDark)
         onDispose {
             viewModel.updatePageBackground(null, false)
         }
