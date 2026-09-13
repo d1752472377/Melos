@@ -73,7 +73,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -122,17 +121,12 @@ import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.AccentRose
-import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.FmBackground
 import com.aesthetic.music.ui.theme.FmScrimBottom
 import com.aesthetic.music.ui.theme.FmScrimMid
 import com.aesthetic.music.ui.theme.FmScrimTop
 import com.aesthetic.music.ui.theme.FmSheetContainer
 import com.aesthetic.music.ui.theme.PrimaryBrown
-import com.aesthetic.music.ui.theme.Surface
-import com.aesthetic.music.ui.theme.TextMuted
-import com.aesthetic.music.ui.theme.TextPrimary
-import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.fmGlass
 import com.aesthetic.music.ui.theme.fmOn
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
