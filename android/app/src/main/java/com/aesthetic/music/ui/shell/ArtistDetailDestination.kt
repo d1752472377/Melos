@@ -50,13 +50,13 @@ fun ArtistDetailDestination(
         onRetry = { viewModel.openArtist(ref) },
         favorites = favorites,
         currentSong = currentSong,
-        onBack = {
-            viewModel.closeArtist()
-            viewModel.updatePageBackground(null, false)
-            nav.popBack()
-        },
         onPlaySong = { actions.playSong(it, if (allSongs.isNotEmpty()) allSongs else artistSongs) },
         onPlayAll = { actions.playAll(if (allSongs.isNotEmpty()) allSongs else artistSongs) },
+        // 随机播放：打乱顺序后整队播放（不改全局播放模式）
+        onShuffle = {
+            val list = if (allSongs.isNotEmpty()) allSongs else artistSongs
+            if (list.isNotEmpty()) actions.playAll(list.shuffled())
+        },
         onMoreSong = { song -> songForActionMenu = song },
         onOpenAllSongs = { nav.navigate(ScreenRoute.ArtistAllSongs.route) },
     )
