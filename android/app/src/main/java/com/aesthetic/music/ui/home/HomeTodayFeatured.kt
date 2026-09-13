@@ -57,8 +57,9 @@ fun TodayFeaturedCard(
             .shadow(
                 elevation = 8.dp,
                 shape = RoundedCornerShape(20.dp),
-                ambientColor = Color.White,
-                spotColor = Color.White
+                // 深色主题下白阴影会变成一圈白色光晕，改用黑阴影
+                ambientColor = if (Palette.isDark) Color.Black.copy(alpha = 0.5f) else Color.White,
+                spotColor = if (Palette.isDark) Color.Black.copy(alpha = 0.5f) else Color.White
             )
             .appCard(background = theme.background, borderWidth = 0.5.dp)
             .clickable(onClick = onClick)
@@ -119,7 +120,7 @@ fun TodayFeaturedCard(
                 // Level 1 主操作 CTA 胶囊按钮（大圆角、充足呼吸感）
                 Row(
                     modifier = Modifier
-                        .shadow(4.dp, RoundedCornerShape(22.dp), ambientColor = Color.White)
+                        .shadow(4.dp, RoundedCornerShape(22.dp), ambientColor = if (Palette.isDark) Color.Black.copy(alpha = 0.4f) else Color.White)
                         .clip(RoundedCornerShape(22.dp))
                         .background(theme.accent)
                         .padding(horizontal = 16.dp, vertical = 8.dp),

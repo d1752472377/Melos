@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.theme.CardBorder
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
@@ -61,12 +63,13 @@ private fun SearchEntry(onClick: () -> Unit) {
             .shadow(
                 elevation = 4.dp,
                 shape = RoundedCornerShape(18.dp),
-                ambientColor = Color.White.copy(alpha = 0.8f),
-                spotColor = Color.White.copy(alpha = 0.8f)
+                // 深色主题下白阴影会变成白光晕，改用黑阴影
+                ambientColor = if (Palette.isDark) Color.Black.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.8f),
+                spotColor = if (Palette.isDark) Color.Black.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.8f)
             )
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.9f),  // 改成白色边框
+                color = CardBorder,  // 浅色白边 / 深色深边，白边在深色下会发亮
                 shape = RoundedCornerShape(18.dp)
             )
             .clip(RoundedCornerShape(18.dp))
