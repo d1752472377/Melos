@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.ui.components.RotatingDisc
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextSoft
@@ -65,16 +66,15 @@ fun NavigationDock(
     containerColor: Color = Color.White,  // 这行的 Color 是 android.graphics.Color
     isDarkBackground: Boolean = false,
 ) {
-    // 根据背景色自动调整 Dock 的颜色
-    val dockBackground = if (isDarkBackground) {
-        // 深色背景下，使用传入的颜色
-        containerColor.copy(alpha = 0.85f)  // 使用传入的颜色，不是黑色
-    } else {
-        // 浅色背景下，使用白色背景
-        Color.White.copy(alpha = 0.97f)
+    // 深色底（沉浸页或深色主题）走深色玻璃；浅色底才用白色玻璃
+    val onDark = isDarkBackground || Palette.isDark
+    val dockBackground = when {
+        isDarkBackground -> containerColor.copy(alpha = 0.85f)
+        Palette.isDark -> Surface.copy(alpha = 0.92f)
+        else -> Color.White.copy(alpha = 0.97f)
     }
 
-    val dockBorderColor = if (isDarkBackground) {
+    val dockBorderColor = if (onDark) {
         // 深色背景下，边框使用白色半透明
         Color.White.copy(alpha = 0.15f)
     } else {
@@ -99,8 +99,8 @@ fun NavigationDock(
             .shadow(
                 elevation = 10.dp,
                 shape = RoundedCornerShape(27.dp),
-                ambientColor = if (isDarkBackground) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.4f),
-                spotColor = if (isDarkBackground) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.5f)
+                ambientColor = if (onDark) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.4f),
+                spotColor = if (onDark) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.5f)
             )
             .clip(RoundedCornerShape(27.dp))
             .background(dockBackground)
