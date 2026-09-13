@@ -5,20 +5,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.StatusBarMode
 import com.aesthetic.music.data.settings.ThemeMode
 
-/** 主题与外观设置页：主题模式 / 系统状态栏 */
+/**
+ * 主题与外观设置页：主题模式 / 系统状态栏。
+ *
+ * 两个分段选择都由外部传入当前值（而不是本页去 SettingsStore 一次性读快照）：
+ * 读快照的话改完设置不会触发重组，选中态要退出页面再进来才更新。
+ */
 @Composable
 fun AppearanceSettingsScreen(
     themeMode: ThemeMode,
+    statusBarMode: StatusBarMode,
     onBack: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     onStatusBarModeChange: (StatusBarMode) -> Unit,
 ) {
-    val prefs = SettingsStore.readPrefs()
-
     SettingsPageScaffold(title = "主题与外观", subtitle = "主题模式、状态栏与桌面显示", onBack = onBack) {
         SettingsSection(title = "主题设置") {
             Column(Modifier.padding(top = 4.dp)) {
@@ -48,7 +51,7 @@ fun AppearanceSettingsScreen(
                         SettingOption(StatusBarMode.PLAYER_ONLY.label, StatusBarMode.PLAYER_ONLY.desc),
                         SettingOption(StatusBarMode.HIDDEN.label, StatusBarMode.HIDDEN.desc),
                     ),
-                    selectedIndex = StatusBarMode.entries.indexOf(prefs.statusBarMode).coerceAtLeast(0),
+                    selectedIndex = StatusBarMode.entries.indexOf(statusBarMode).coerceAtLeast(0),
                     onSelect = { idx -> onStatusBarModeChange(StatusBarMode.entries[idx]) },
                 )
             }

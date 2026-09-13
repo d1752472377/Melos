@@ -33,8 +33,10 @@ fun SettingsAppearanceDestination(viewModel: MainViewModel, nav: ShellNav) {
     // 选「自动」时需要立刻按当前系统深浅应用一次，否则要等系统切换才生效
     val systemDark = isSystemInDarkTheme()
     val themeMode by viewModel.themeMode.collectAsState()
+    val userPrefs by viewModel.settings.prefs.collectAsState()
     AppearanceSettingsScreen(
         themeMode = themeMode,
+        statusBarMode = userPrefs.statusBarMode,
         onBack = {
             viewModel.updatePageBackground(null, false)
             nav.popBack()
