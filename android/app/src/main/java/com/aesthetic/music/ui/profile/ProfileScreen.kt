@@ -79,7 +79,6 @@ import com.aesthetic.music.service.UpdateInfo
 import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.AppDialog
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
@@ -207,7 +206,6 @@ fun ProfileScreen(
                 top = 24.dp,
                 start = 20.dp,
                 end = 20.dp,
-                bottom = LocalBottomBarPadding.current,
             ),
         ) {
             // ===== 1. 顶部个性化卡片 =====

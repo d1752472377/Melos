@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LoadingBox
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.SongRow
 import com.aesthetic.music.ui.theme.AccentCyan
@@ -227,7 +226,6 @@ fun ArtistScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxHeight(),
                         verticalArrangement = Arrangement.Top,
-                        contentPadding = PaddingValues(bottom = LocalBottomBarPadding.current),
                     ) {
                         itemsIndexed(
                             songs,

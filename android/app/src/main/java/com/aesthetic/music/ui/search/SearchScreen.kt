@@ -34,7 +34,6 @@ import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.LoadingBox
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.TextMuted
@@ -52,8 +51,7 @@ import com.aesthetic.music.ui.theme.TextMuted
  * 布局说明（方案 B）：
  * - 外层 Column 不再统一加 horizontal padding，搜索框 / tab 各自加 horizontal 20dp；
  * - 结果卡片由 SearchResultLists.kt 的 ResultCard 负责贴到屏幕左右边；
- * - 底部不再统一 padding(bottom = LocalBottomBarPadding)，而是把该高度作为
- *   LazyColumn 的 contentPadding 底部留白，让白卡白底一直探到屏幕底、内容不被底栏遮挡。
+ * - 底部不再为悬浮 Dock 统一预留高度，白卡白底一直探到屏幕底。
  */
 @Composable
 fun SearchScreen(
@@ -153,7 +151,6 @@ fun SearchScreen(
                     Modifier
                         .fillMaxSize()
                         .padding(horizontal = 20.dp)
-                        .padding(bottom = LocalBottomBarPadding.current)
                         .verticalScroll(rememberScrollState()),
                 ) {
                     SearchRecentSearches(
@@ -187,26 +184,26 @@ fun SearchScreen(
                                 emptyHint = searchError ?: "没有找到相关的单曲",
                                 onPlay = { song -> onPlaySong(song, songResults) },
                                 onMore = { song -> songForActionMenu = song },
-                                bottomContentPadding = LocalBottomBarPadding.current,
+                                bottomContentPadding = 0.dp,
                             )
 
                             SearchType.ARTIST -> ArtistResultList(
                                 artists = artistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌手",
                                 onOpen = onOpenArtist,
-                                bottomContentPadding = LocalBottomBarPadding.current,
+                                bottomContentPadding = 0.dp,
                             )
                             SearchType.PLAYLIST -> PlaylistResultList(
                                 playlists = playlistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌单",
                                 onOpen = onOpenPlaylist,
-                                bottomContentPadding = LocalBottomBarPadding.current,
+                                bottomContentPadding = 0.dp,
                             )
                             SearchType.ALBUM -> AlbumResultList(
                                 albums = albumResults,
                                 emptyHint = searchError ?: "没有找到相关的专辑",
                                 onOpen = onOpenAlbum,
-                                bottomContentPadding = LocalBottomBarPadding.current,
+                                bottomContentPadding = 0.dp,
                             )
                         }
                     }

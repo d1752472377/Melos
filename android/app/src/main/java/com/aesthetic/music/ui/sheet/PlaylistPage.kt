@@ -44,7 +44,6 @@ import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LoadingBox
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -189,7 +188,6 @@ fun PlaylistPage(
                             start = 16.dp,
                             end = 16.dp,
                             top = 6.dp,
-                            bottom = LocalBottomBarPadding.current,
                         ),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),

@@ -38,7 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.player.AudioCacheService
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.DangerCapsuleButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.AppConfirmDialog
@@ -74,7 +73,6 @@ fun CacheListScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
             Row(

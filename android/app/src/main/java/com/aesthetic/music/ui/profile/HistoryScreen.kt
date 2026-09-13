@@ -42,7 +42,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
@@ -107,7 +106,6 @@ fun HistoryScreen(
                 .fillMaxSize()
                 // 调整顶部间距，因为去掉了返回按钮
                 .padding(top = 24.dp)
-                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             // ===== 1. 顶部大标题 =====
             Text(

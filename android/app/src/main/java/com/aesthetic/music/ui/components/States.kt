@@ -22,23 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextSoft
-
-import androidx.compose.runtime.compositionLocalOf
-
-/**
- * 底部动态避让高度 CompositionLocal：
- * 供列表页为底部 Dock 预留空间（默认 ~72dp），
- * 消除此前硬编码 150dp 导致未播放歌曲时底部留下近 90dp 巨大空白的问题。
- */
-val LocalBottomBarPadding = compositionLocalOf { 72.dp }
-
-/** 静态默认避让高度兜底 */
-val BottomBarReserved: Dp = 72.dp
 
 /**
  * 加载态（居中 spinner + 文案）。

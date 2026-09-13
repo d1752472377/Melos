@@ -48,7 +48,6 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.Palette
@@ -108,7 +107,6 @@ fun DownloadsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = 24.dp)
-                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             // ===== 1. 顶部大标题 =====
             Text(

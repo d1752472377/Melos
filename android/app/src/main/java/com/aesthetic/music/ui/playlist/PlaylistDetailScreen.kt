@@ -78,7 +78,6 @@ import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.ErrorBox
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
@@ -316,7 +315,7 @@ fun PlaylistDetailScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                bottom = LocalBottomBarPadding.current + 20.dp
+                bottom = 20.dp
             )
         ) {
             // 头部留白与顶部信息区

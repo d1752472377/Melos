@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.UserPrefs
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -90,7 +89,6 @@ fun SettingsScreen(
             .background(Background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(bottom = LocalBottomBarPadding.current),
     ) {
         // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
         Spacer(Modifier.height(24.dp))

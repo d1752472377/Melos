@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.SessionDto
 import com.aesthetic.music.data.api.UserInfo
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
@@ -141,7 +140,6 @@ fun CloudManageScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
-                .padding(bottom = LocalBottomBarPadding.current)
                 .verticalScroll(rememberScrollState()),
         ) {
             // ===== 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键） =====

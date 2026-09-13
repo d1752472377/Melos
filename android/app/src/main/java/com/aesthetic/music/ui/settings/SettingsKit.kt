@@ -39,7 +39,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -72,7 +71,6 @@ fun SettingsPageScaffold(
     /** 保留参数以兼容各子页面调用；顶部已不再渲染返回按钮 */
     onBack: () -> Unit,
     subtitle: String? = null,
-    showBottomBarPadding: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -81,10 +79,7 @@ fun SettingsPageScaffold(
             .background(Background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .then(
-                if (showBottomBarPadding) Modifier.padding(bottom = LocalBottomBarPadding.current)
-                else Modifier.padding(bottom = 24.dp)
-            ),
+            .padding(bottom = 24.dp),
     ) {
         Spacer(Modifier.height(24.dp))
         Text(

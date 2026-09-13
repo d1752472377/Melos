@@ -49,7 +49,6 @@ import com.aesthetic.music.data.settings.SongStat
 import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
@@ -122,7 +121,6 @@ fun ListeningStatsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = LocalBottomBarPadding.current),
         ) {
             StatsHeader(
                 recording = recording,

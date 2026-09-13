@@ -14,7 +14,6 @@ import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,7 +34,6 @@ import androidx.navigation.compose.rememberNavController
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.ui.artist.ArtistAllSongsDestination
-import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.shell.AlbumDetailDestination
 import com.aesthetic.music.ui.shell.ArtistDetailDestination
@@ -212,212 +210,208 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     }
 
     // 底部不再为悬浮 Dock 预留高度：内容一直铺到屏幕底部（列表末尾会从 Dock 底下穿过）
-    CompositionLocalProvider(LocalBottomBarPadding provides 0.dp) {
-        Scaffold(
-            containerColor = Background,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {},
-            // 状态栏隐藏时不再为它预留高度：否则顶部会空出一�?"被底色挡�?"的带子，
-            // 看上去像是用背景盖住了状态栏，而不是真的隐藏并让内容顶上来
-            // 底部与左右也不再为系统栏预留（导航栏本身是透明的），内容一直铺到屏幕边缘
-            contentWindowInsets = if (hideStatusBar) {
-                WindowInsets(0, 0, 0, 0)
-            } else {
-                ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Top)
-            },
-        ) { padding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .background(Background),
+    Scaffold(
+        containerColor = Background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {},
+        // 状态栏隐藏时不再为它预留高度：否则顶部会空出一�?"被底色挡�?"的带子，
+        // 看上去像是用背景盖住了状态栏，而不是真的隐藏并让内容顶上来
+        // 底部与左右也不再为系统栏预留（导航栏本身是透明的），内容一直铺到屏幕边缘
+        contentWindowInsets = if (hideStatusBar) {
+            WindowInsets(0, 0, 0, 0)
+        } else {
+            ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Top)
+        },
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(Background),
+        ) {
+            // ===== Jetpack Navigation 导航容器 =====
+            NavHost(
+                navController = navController,
+                startDestination = ScreenRoute.Home.route,
+                modifier = Modifier.fillMaxSize(),
             ) {
-                // ===== Jetpack Navigation 导航容器 =====
-                NavHost(
-                    navController = navController,
-                    startDestination = ScreenRoute.Home.route,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    // 主页
-                    composable(ScreenRoute.Home.route) {
-                        HomeDestination(viewModel, nav, actions)
-                    }
-
-                    // FM 电台
-                    composable(ScreenRoute.Fm.route) {
-                        FmDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 歌单广场 Tab
-                    composable(ScreenRoute.Playlist.route) {
-                        PlaylistTabDestination(viewModel, nav, actions)
-                    }
-
-                    // 我的/个人中心 Tab
-                    composable(ScreenRoute.Profile.route) {
-                        ProfileTabDestination(viewModel, nav, actions, cacheState)
-                    }
-
-                    // 全局搜索�?
-                    composable(ScreenRoute.Search.route) {
-                        SearchDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 排行榜列表页
-                    composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel, nav) }
-
-                    // 歌单广场（分类标签歌单）
-                    composable(ScreenRoute.SheetSquare.route) {
-                        SheetSquareDestination(viewModel, nav)
-                    }
-
-                    // 歌单详情�?
-                    composable(ScreenRoute.PlaylistDetail.route) {
-                        PlaylistDetailDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 专辑详情�?
-                    composable(ScreenRoute.AlbumDetail.route) {
-                        AlbumDetailDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 歌手�?
-                    composable(ScreenRoute.ArtistDetail.route) {
-                        ArtistDetailDestination(viewModel, nav, actions, playerManager)
-                    }
-                    composable(ScreenRoute.ArtistAllSongs.route) {
-                        ArtistAllSongsDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 我的收藏�?
-                    composable(ScreenRoute.Favorites.route) {
-                        FavoritesDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 缓存列表�?
-                    composable(ScreenRoute.CacheList.route) {
-                        CacheListDestination(viewModel, nav, cacheState, scope)
-                    }
-
-                    // ===== 设置子页面（设置主页只做入口，各项独立成页） =====
-                    composable(ScreenRoute.SettingsAppearance.route) {
-                        SettingsAppearanceDestination(viewModel, nav)
-                    }
-
-                    composable(ScreenRoute.SettingsQuality.route) {
-                        SettingsQualityDestination(viewModel, nav)
-                    }
-
-                    composable(ScreenRoute.SettingsPlayback.route) {
-                        SettingsPlaybackDestination(viewModel, nav)
-                    }
-
-                    composable(ScreenRoute.SettingsLyrics.route) {
-                        SettingsLyricsDestination(viewModel, nav)
-                    }
-
-                    composable(ScreenRoute.SettingsDownload.route) {
-                        SettingsDownloadDestination(viewModel, nav)
-                    }
-
-                    composable(ScreenRoute.SettingsCache.route) {
-                        SettingsCacheDestination(viewModel, nav, cacheState, scope)
-                    }
-
-                    // 最近播放页
-                    composable(ScreenRoute.History.route) {
-                        HistoryDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 编辑个人资料�?
-                    composable(ScreenRoute.ProfileEdit.route) {
-                        ProfileEditDestination(viewModel, nav, actions)
-                    }
-
-                    // 本地下载�?
-                    composable(ScreenRoute.Downloads.route) {
-                        DownloadsDestination(nav, actions, playerManager, cacheState, scope)
-                    }
-
-                    // 听歌时长�?
-                    composable(ScreenRoute.ListeningStats.route) {
-                        ListeningStatsDestination(viewModel, nav)
-                    }
-
-                    // 云端管理�?
-                    composable(ScreenRoute.CloudManage.route) {
-                        CloudManageDestination(viewModel, nav)
-                    }
-
-                    // 插件管理�?
-                    composable(ScreenRoute.PluginManage.route) {
-                        PluginManageDestination(viewModel, nav, actions.toast)
-                    }
-
-                    // 设置�?
-                    composable(ScreenRoute.Settings.route) {
-                        SettingsDestination(viewModel, nav, actions, scope)
-                    }
+                // 主页
+                composable(ScreenRoute.Home.route) {
+                    HomeDestination(viewModel, nav, actions)
                 }
 
-                // ===== 底部导航 Dock =====
-                NavigationDock(
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    currentTab = activeTab,
-                    currentArtwork = playerState.currentSong?.artwork,
-                    isSpinning = playerState.isPlaying,
-                    progressFlow = playerManager.progress,
-                    onHome = { nav.switchTab(ScreenRoute.Home.route, AppTab.HOME) },
-                    onSheet = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
-                    onPlaylist = { nav.switchTab(ScreenRoute.Playlist.route, AppTab.PLAYLIST) },
-                    onProfile = { nav.switchTab(ScreenRoute.Profile.route, AppTab.PROFILE) },
-                    onOpenPlayer = {
-                        playerManager.startProgress()
-                        viewModel.openPlayer()
+                // FM 电台
+                composable(ScreenRoute.Fm.route) {
+                    FmDestination(viewModel, nav, actions, playerManager)
+                }
+
+                // 歌单广场 Tab
+                composable(ScreenRoute.Playlist.route) {
+                    PlaylistTabDestination(viewModel, nav, actions)
+                }
+
+                // 我的/个人中心 Tab
+                composable(ScreenRoute.Profile.route) {
+                    ProfileTabDestination(viewModel, nav, actions, cacheState)
+                }
+
+                // 全局搜索�?
+                composable(ScreenRoute.Search.route) {
+                    SearchDestination(viewModel, nav, actions, playerManager)
+                }
+
+                // 排行榜列表页
+                composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel, nav) }
+
+                // 歌单广场（分类标签歌单）
+                composable(ScreenRoute.SheetSquare.route) {
+                    SheetSquareDestination(viewModel, nav)
+                }
+
+                // 歌单详情�?
+                composable(ScreenRoute.PlaylistDetail.route) {
+                    PlaylistDetailDestination(viewModel, nav, actions, playerManager)
+                }
+
+                // 专辑详情�?
+                composable(ScreenRoute.AlbumDetail.route) {
+                    AlbumDetailDestination(viewModel, nav, actions, playerManager)
+                }
+
+                // 歌手�?
+                composable(ScreenRoute.ArtistDetail.route) {
+                    ArtistDetailDestination(viewModel, nav, actions, playerManager)
+                }
+                composable(ScreenRoute.ArtistAllSongs.route) {
+                    ArtistAllSongsDestination(viewModel, nav, actions, playerManager)
+                }
+
+                // 我的收藏�?
+                composable(ScreenRoute.Favorites.route) {
+                    FavoritesDestination(viewModel, nav, actions, playerManager)
+                }
+
+                // 缓存列表�?
+                composable(ScreenRoute.CacheList.route) {
+                    CacheListDestination(viewModel, nav, cacheState, scope)
+                }
+
+                // ===== 设置子页面（设置主页只做入口，各项独立成页） =====
+                composable(ScreenRoute.SettingsAppearance.route) {
+                    SettingsAppearanceDestination(viewModel, nav)
+                }
+
+                composable(ScreenRoute.SettingsQuality.route) {
+                    SettingsQualityDestination(viewModel, nav)
+                }
+
+                composable(ScreenRoute.SettingsPlayback.route) {
+                    SettingsPlaybackDestination(viewModel, nav)
+                }
+
+                composable(ScreenRoute.SettingsLyrics.route) {
+                    SettingsLyricsDestination(viewModel, nav)
+                }
+
+                composable(ScreenRoute.SettingsDownload.route) {
+                    SettingsDownloadDestination(viewModel, nav)
+                }
+
+                composable(ScreenRoute.SettingsCache.route) {
+                    SettingsCacheDestination(viewModel, nav, cacheState, scope)
+                }
+
+                // 最近播放页
+                composable(ScreenRoute.History.route) {
+                    HistoryDestination(viewModel, nav, actions, playerManager)
+                }
+
+                // 编辑个人资料�?
+                composable(ScreenRoute.ProfileEdit.route) {
+                    ProfileEditDestination(viewModel, nav, actions)
+                }
+
+                // 本地下载�?
+                composable(ScreenRoute.Downloads.route) {
+                    DownloadsDestination(nav, actions, playerManager, cacheState, scope)
+                }
+
+                // 听歌时长�?
+                composable(ScreenRoute.ListeningStats.route) {
+                    ListeningStatsDestination(viewModel, nav)
+                }
+
+                // 云端管理�?
+                composable(ScreenRoute.CloudManage.route) {
+                    CloudManageDestination(viewModel, nav)
+                }
+
+                // 插件管理�?
+                composable(ScreenRoute.PluginManage.route) {
+                    PluginManageDestination(viewModel, nav, actions.toast)
+                }
+
+                // 设置�?
+                composable(ScreenRoute.Settings.route) {
+                    SettingsDestination(viewModel, nav, actions, scope)
+                }
+            }
+
+            // ===== 底部导航 Dock =====
+            NavigationDock(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                currentTab = activeTab,
+                currentArtwork = playerState.currentSong?.artwork,
+                isSpinning = playerState.isPlaying,
+                progressFlow = playerManager.progress,
+                onHome = { nav.switchTab(ScreenRoute.Home.route, AppTab.HOME) },
+                onSheet = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
+                onPlaylist = { nav.switchTab(ScreenRoute.Playlist.route, AppTab.PLAYLIST) },
+                onProfile = { nav.switchTab(ScreenRoute.Profile.route, AppTab.PROFILE) },
+                onOpenPlayer = {
+                    playerManager.startProgress()
+                    viewModel.openPlayer()
+                },
+                isDarkBackground = isDarkPage,
+                containerColor = pageBackground as? Color ?: Color.White,
+            )
+
+            // ===== 全屏播放�? Drawer =====
+            PlayerOverlay(
+                visible = showPlayer,
+                playerState = playerState,
+                playerManager = playerManager,
+                viewModel = viewModel,
+            )
+
+            // ===== 歌单导入弹窗：粘贴链�? / 识别文案 / 登录账号（占位） =====
+            if (showImportDialog) {
+                val importState by viewModel.playlistImportState.collectAsState()
+                ImportPlaylistDialog(
+                    state = importState,
+                    onDismiss = {
+                        viewModel.resetPlaylistImportState()
+                        viewModel.closeImportDialog()
                     },
-                    isDarkBackground = isDarkPage,
-                    containerColor = pageBackground as? Color ?: Color.White,
-                )
-
-                // ===== 全屏播放�? Drawer =====
-                PlayerOverlay(
-                    visible = showPlayer,
-                    playerState = playerState,
-                    playerManager = playerManager,
-                    viewModel = viewModel,
-                )
-
-                // ===== 歌单导入弹窗：粘贴链�? / 识别文案 / 登录账号（占位） =====
-                if (showImportDialog) {
-                    val importState by viewModel.playlistImportState.collectAsState()
-                    ImportPlaylistDialog(
-                        state = importState,
-                        onDismiss = {
-                            viewModel.resetPlaylistImportState()
+                    onImport = { text ->
+                        viewModel.importPlaylistFromText(text) { item ->
                             viewModel.closeImportDialog()
-                        },
-                        onImport = { text ->
-                            viewModel.importPlaylistFromText(text) { item ->
-                                viewModel.closeImportDialog()
-                                viewModel.resetPlaylistImportState()
-                                // 导入结果在收藏歌单里，走与收藏行一致的详情打开路径
-                                viewModel.openPlaylistDetail(item)
-                                navController.navigate(ScreenRoute.PlaylistDetail.route)
-                            }
-                        },
-                        onLoginImport = { platformName ->
-                            viewModel.showToast("�?$platformName」账号导入功能开发中，敬请期�?")
-                        },
-                    )
-                }
+                            viewModel.resetPlaylistImportState()
+                            // 导入结果在收藏歌单里，走与收藏行一致的详情打开路径
+                            viewModel.openPlaylistDetail(item)
+                            navController.navigate(ScreenRoute.PlaylistDetail.route)
+                        }
+                    },
+                    onLoginImport = { platformName ->
+                        viewModel.showToast("�?$platformName」账号导入功能开发中，敬请期�?")
+                    },
+                )
+            }
 
-                // ===== 系统返回键处�? =====
-                // 仅需处理全屏浮层播放器：其余所有页面回退统一�? NavController 回退栈原生全自动接管�?
-                BackHandler(enabled = showPlayer) {
-                    viewModel.closePlayer()
-                }
-
-                // ===== 品牌开�? =====
+            // ===== 系统返回键处�? =====
+            // 仅需处理全屏浮层播放器：其余所有页面回退统一�? NavController 回退栈原生全自动接管�?
+            BackHandler(enabled = showPlayer) {
+                viewModel.closePlayer()
             }
         }
     }
