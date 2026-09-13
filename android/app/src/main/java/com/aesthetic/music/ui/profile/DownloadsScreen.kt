@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.AudioCacheService
-import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
@@ -74,9 +73,7 @@ fun DownloadsScreen(
     onBack: () -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
     onRemoveOne: (String) -> Unit,
-    onClearAll: () -> Unit,
 ) {
-    var showClearConfirm by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val searchFocus = remember { FocusRequester() }
@@ -233,18 +230,6 @@ fun DownloadsScreen(
         }
     }
 
-    if (showClearConfirm) {
-        AppConfirmDialog(
-            onDismissRequest = { showClearConfirm = false },
-            title = "清空所有下载",
-            message = "将删除全部 ${songs.size} 首下载歌曲（释放 $totalSizeText 空间）。\n确认继续吗？",
-            confirmText = "清空",
-            onConfirm = {
-                showClearConfirm = false
-                onClearAll()
-            },
-        )
-    }
 }
 
 /**

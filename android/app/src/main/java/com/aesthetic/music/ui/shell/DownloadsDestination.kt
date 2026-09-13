@@ -34,11 +34,5 @@ fun DownloadsDestination(
                 withContext(Dispatchers.Main) { cacheState.refresh() }
             }
         },
-        onClearAll = {
-            scope.launch(Dispatchers.IO) {
-                AudioCacheService.clearCache(context)
-                withContext(Dispatchers.Main) { cacheState.refresh() }
-            }
-        },
     )
 }
