@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,7 +77,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 官方 Jetpack Navigation 导航控制器：统一管理页面切换与回退栈
+    // 官方 Jetpack Navigation 导航控制器：统一管理页面切换与回退�?
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -95,18 +94,18 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val pageBackground by viewModel.currentPageBackground.collectAsState()
     val isDarkPage by viewModel.isDarkPage.collectAsState()
 
-    // ===== 缓存信息（Profile / Downloads / CacheList 共用） =====
+    // ===== 缓存信息（Profile / Downloads / CacheList 共用�? =====
     val cacheState = rememberCacheState(context, scope)
 
     LaunchedEffect(themeMode, systemDark) {
         applyThemeMode(themeMode, systemDark)
     }
 
-    // ===== 系统状态栏显示方式（设置 → 主题与外观 → 系统状态栏） =====
-    // ALWAYS：始终显示；PLAYER_ONLY：只在播放页沉浸隐藏；HIDDEN：所有页面隐藏
+    // ===== 系统状态栏显示方式（设�? �? 主题与外�? �? 系统状态栏�? =====
+    // ALWAYS：始终显示；PLAYER_ONLY：只在播放页沉浸隐藏；HIDDEN：所有页面隐�?
     val userPrefs by viewModel.settings.prefs.collectAsState()
     val activity = context as? androidx.activity.ComponentActivity
-    // 提到组合外，供下面 Scaffold 决定是否为状态栏预留高度（隐藏时应当让内容顶上去）
+    // 提到组合外，供下�? Scaffold 决定是否为状态栏预留高度（隐藏时应当让内容顶上去�?
     val hideStatusBar = when (userPrefs.statusBarMode) {
         com.aesthetic.music.data.settings.StatusBarMode.ALWAYS -> false
         com.aesthetic.music.data.settings.StatusBarMode.PLAYER_ONLY -> showPlayer
@@ -133,8 +132,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             sessionRestored.value = true
         }
     }
-
-    var splashFinished by rememberSaveable { mutableStateOf(false) }
 
     // 全局错误提示
     val lastError = playerState.lastError
@@ -186,7 +183,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         }
     }
 
-    // 壳层 holder：收敛导航 / 播放 / 提示回调，destination 只接收 holder 而不逐个透传
+    // 壳层 holder：收敛导�? / 播放 / 提示回调，destination 只接�? holder 而不逐个透传
     val nav = remember(navController) {
         ShellNav(
             navigate = { route: String -> navController.navigate(route) },
@@ -220,7 +217,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             containerColor = Background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {},
-            // 状态栏隐藏时不再为它预留高度：否则顶部会空出一条"被底色挡住"的带子，
+            // 状态栏隐藏时不再为它预留高度：否则顶部会空出一�?"被底色挡�?"的带子，
             // 看上去像是用背景盖住了状态栏，而不是真的隐藏并让内容顶上来
             contentWindowInsets = if (hideStatusBar) {
                 ScaffoldDefaults.contentWindowInsets.only(
@@ -262,7 +259,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         ProfileTabDestination(viewModel, nav, actions, cacheState)
                     }
 
-                    // 全局搜索页
+                    // 全局搜索�?
                     composable(ScreenRoute.Search.route) {
                         SearchDestination(viewModel, nav, actions, playerManager)
                     }
@@ -275,17 +272,17 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         SheetSquareDestination(viewModel, nav)
                     }
 
-                    // 歌单详情页
+                    // 歌单详情�?
                     composable(ScreenRoute.PlaylistDetail.route) {
                         PlaylistDetailDestination(viewModel, nav, actions, playerManager)
                     }
 
-                    // 专辑详情页
+                    // 专辑详情�?
                     composable(ScreenRoute.AlbumDetail.route) {
                         AlbumDetailDestination(viewModel, nav, actions, playerManager)
                     }
 
-                    // 歌手页
+                    // 歌手�?
                     composable(ScreenRoute.ArtistDetail.route) {
                         ArtistDetailDestination(viewModel, nav, actions, playerManager)
                     }
@@ -293,12 +290,12 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         ArtistAllSongsDestination(viewModel, nav, actions, playerManager)
                     }
 
-                    // 我的收藏页
+                    // 我的收藏�?
                     composable(ScreenRoute.Favorites.route) {
                         FavoritesDestination(viewModel, nav, actions, playerManager)
                     }
 
-                    // 缓存列表页
+                    // 缓存列表�?
                     composable(ScreenRoute.CacheList.route) {
                         CacheListDestination(viewModel, nav, cacheState, scope)
                     }
@@ -333,32 +330,32 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         HistoryDestination(viewModel, nav, actions, playerManager)
                     }
 
-                    // 编辑个人资料页
+                    // 编辑个人资料�?
                     composable(ScreenRoute.ProfileEdit.route) {
                         ProfileEditDestination(viewModel, nav, actions)
                     }
 
-                    // 本地下载页
+                    // 本地下载�?
                     composable(ScreenRoute.Downloads.route) {
                         DownloadsDestination(nav, actions, playerManager, cacheState, scope)
                     }
 
-                    // 听歌时长页
+                    // 听歌时长�?
                     composable(ScreenRoute.ListeningStats.route) {
                         ListeningStatsDestination(viewModel, nav)
                     }
 
-                    // 云端管理页
+                    // 云端管理�?
                     composable(ScreenRoute.CloudManage.route) {
                         CloudManageDestination(viewModel, nav)
                     }
 
-                    // 插件管理页
+                    // 插件管理�?
                     composable(ScreenRoute.PluginManage.route) {
                         PluginManageDestination(viewModel, nav, actions.toast)
                     }
 
-                    // 设置页
+                    // 设置�?
                     composable(ScreenRoute.Settings.route) {
                         SettingsDestination(viewModel, nav, actions, scope)
                     }
@@ -383,7 +380,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     containerColor = pageBackground as? Color ?: Color.White,
                 )
 
-                // ===== 全屏播放器 Drawer =====
+                // ===== 全屏播放�? Drawer =====
                 PlayerOverlay(
                     visible = showPlayer,
                     playerState = playerState,
@@ -391,7 +388,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     viewModel = viewModel,
                 )
 
-                // ===== 歌单导入弹窗：粘贴链接 / 识别文案 / 登录账号（占位） =====
+                // ===== 歌单导入弹窗：粘贴链�? / 识别文案 / 登录账号（占位） =====
                 if (showImportDialog) {
                     val importState by viewModel.playlistImportState.collectAsState()
                     ImportPlaylistDialog(
@@ -410,21 +407,18 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             }
                         },
                         onLoginImport = { platformName ->
-                            viewModel.showToast("「$platformName」账号导入功能开发中，敬请期待")
+                            viewModel.showToast("�?$platformName」账号导入功能开发中，敬请期�?")
                         },
                     )
                 }
 
-                // ===== 系统返回键处理 =====
-                // 仅需处理全屏浮层播放器：其余所有页面回退统一由 NavController 回退栈原生全自动接管！
+                // ===== 系统返回键处�? =====
+                // 仅需处理全屏浮层播放器：其余所有页面回退统一�? NavController 回退栈原生全自动接管�?
                 BackHandler(enabled = showPlayer) {
                     viewModel.closePlayer()
                 }
 
-                // ===== 品牌开屏 =====
-                if (!splashFinished) {
-                    SplashScreen(onFinished = { splashFinished = true })
-                }
+                // ===== 品牌开�? =====
             }
         }
     }

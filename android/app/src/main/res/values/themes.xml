@@ -4,5 +4,8 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
+        <!-- 品牌开屏页已移除（自建后端不再需要等冷启动）。窗口底色沿用品牌深暖黑，
+             避免冷启动首帧绘制前的白闪（旧机型没有系统启动画面兜底） -->
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
     </style>
 </resources>

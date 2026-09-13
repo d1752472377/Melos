@@ -5,6 +5,7 @@
     <style name="Theme.AestheticMusic" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
         <item name="android:windowLightStatusBar">true</item>
         <!-- 系统启动画面（Android 12+ 自动展示）：深暖黑底 + 应用本身的图标 -->
         <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
