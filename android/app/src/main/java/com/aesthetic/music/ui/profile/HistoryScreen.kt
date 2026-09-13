@@ -47,10 +47,12 @@ import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.components.BottomContentPadding
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone200
+import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
@@ -172,12 +174,28 @@ fun HistoryScreen(
                     color = TextPrimary,
                 )
                 if (songs.isNotEmpty()) {
-                    Text(
-                        text = if (searchQuery.isNotBlank()) "${filtered.size} 首" else "${songs.size} 首",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                        color = TextSoft,
-                        modifier = Modifier.clickable { showClearConfirm = true } // 点击数字触发清空确认
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (searchQuery.isNotBlank()) "${filtered.size} 首" else "${songs.size} 首",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = TextSoft,
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        // 显式的清空入口（之前是点数字触发，太隐蔽）
+                        Text(
+                            text = "清空",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = TextMuted,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Stone100)
+                                .clickable { showClearConfirm = true }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
@@ -193,7 +211,7 @@ fun HistoryScreen(
                     modifier = Modifier.fillMaxSize(),
                     // 移除整体间距，让分割线贴合
                     verticalArrangement = Arrangement.spacedBy(0.dp),
-                    contentPadding = PaddingValues(bottom = BottomContentSpacer)
+                    contentPadding = BottomContentPadding
                 ) {
                     itemsIndexed(
                         filtered,

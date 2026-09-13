@@ -42,6 +42,7 @@ import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.components.DangerCapsuleButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.BottomContentPadding
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
@@ -110,7 +111,7 @@ fun CacheListScreen(
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = BottomContentSpacer)
+                    contentPadding = BottomContentPadding
                 ) {
                     items(songs, key = { it.filePath }) { song ->
                         Row(

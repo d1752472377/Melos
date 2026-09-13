@@ -3,6 +3,7 @@ package com.aesthetic.music.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,15 @@ import com.aesthetic.music.ui.theme.TextSoft
  * 不能加在容器上——加在容器上等于把这段高度当 inset 扣掉，页面还没滚动就先空一块。
  */
 val BottomContentSpacer: Dp = 88.dp
+
+/**
+ * 直接给 LazyColumn / LazyVerticalGrid 用的 contentPadding（底部 = [BottomContentSpacer]）。
+ *
+ * 用法：`LazyColumn(contentPadding = BottomContentPadding) { ... }`
+ * 竖向滚动页（Column + verticalScroll）请用 `Modifier.padding(BottomContentPadding)`
+ * 放在 verticalScroll 之前，效果等同（都是内容末尾的空白，会跟着滚）。
+ */
+val BottomContentPadding: PaddingValues = PaddingValues(bottom = BottomContentSpacer)
 
 /**
  * 加载态（居中 spinner + 文案）。

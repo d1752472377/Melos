@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.pager.VerticalPager
@@ -95,6 +96,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -114,6 +116,8 @@ import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.currentLyricIndex
 
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.components.PlaylistEditorResult
+import com.aesthetic.music.ui.components.PlaylistEditorSheet
 import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.AccentRose
@@ -171,10 +175,11 @@ fun FmScreen(
     onNext: () -> Unit,
     onSeek: (Long) -> Unit,
     onSeekToLyric: (LyricLine) -> Unit,
-    onExport: (List<Song>) -> Unit,
+    onExportToPlaylist: (PlaylistEditorResult) -> Unit,
 ) {
     var showChannelSheet by remember { mutableStateOf(false) }
     var showTreasureSheet by remember { mutableStateOf(false) }
+    var showExportSheet by remember { mutableStateOf(false) }
     var showFullLyrics by remember { mutableStateOf(false) }
     var syncingPager by remember { mutableStateOf(false) }
 
@@ -351,8 +356,22 @@ fun FmScreen(
         if (showTreasureSheet) {
             FmTreasureSheet(
                 songs = fmTreasure,
-                onExport = { onExport(fmTreasure) },
+                onExportToPlaylist = { showExportSheet = true },
                 onDismiss = { showTreasureSheet = false }
+            )
+        }
+
+        // 一键导出到歌单：复用歌单页的新建歌单表单，创建成功后把宝藏歌曲整体放进去
+        if (showExportSheet) {
+            PlaylistEditorSheet(
+                title = "新建歌单",
+                confirmText = "创建歌单",
+                showPlatformImport = false,
+                onDismiss = { showExportSheet = false },
+                onConfirm = { result ->
+                    showExportSheet = false
+                    onExportToPlaylist(result)
+                },
             )
         }
     }
@@ -923,6 +942,7 @@ private fun FmChannelSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp)
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(20.dp)
@@ -1038,7 +1058,7 @@ private fun FmChannelCard(
 @Composable
 private fun FmTreasureSheet(
     songs: List<Song>,
-    onExport: () -> Unit,
+    onExportToPlaylist: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -1049,6 +1069,7 @@ private fun FmTreasureSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp)
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(20.dp)
@@ -1137,7 +1158,7 @@ private fun FmTreasureSheet(
             Spacer(Modifier.height(14.dp))
 
             Button(
-                onClick = onExport,
+                onClick = onExportToPlaylist,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -1150,7 +1171,7 @@ private fun FmTreasureSheet(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(text = "一键导出歌单文本", fontWeight = FontWeight.Bold)
+                Text(text = "一键导出到歌单", fontWeight = FontWeight.Bold)
             }
         }
     }

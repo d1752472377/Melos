@@ -106,6 +106,19 @@ fun FmDestination(
         },
         onSeek = { ms -> playerManager.seekTo(ms) },
         onSeekToLyric = { line -> playerManager.seekToLyric(line) },
-        onExport = { songs -> actions.shareSongs(songs) },
+        onExportToPlaylist = { result ->
+            // 宝藏歌曲整体放进新建的歌单
+            val id = viewModel.createPlaylist(
+                name = result.name,
+                initialSongs = fmTreasure,
+                cover = result.cover,
+                sourcePlatform = result.sourcePlatform,
+                sourcePlaylistId = result.sourcePlaylistId,
+                sourceName = result.sourceName,
+            )
+            if (id != null) {
+                actions.toast("已创建《${result.name}》，收录 ${fmTreasure.size} 首")
+            }
+        },
     )
 }

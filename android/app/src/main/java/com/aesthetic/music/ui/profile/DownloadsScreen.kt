@@ -49,6 +49,7 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
+import com.aesthetic.music.ui.components.BottomContentPadding
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
@@ -86,12 +87,15 @@ fun DownloadsScreen(
     }
 
     // 页内过滤：搜歌名 / 歌手
+    // 先按文件路径去重：同一首歌可能存在多条缓存记录，重复的 filePath 会让
+    // LazyColumn 的 key 冲突直接闪退（IllegalArgumentException: Key was already used）
     val filtered = remember(songs, searchQuery) {
+        val base = songs.distinctBy { it.filePath }
         val q = searchQuery.trim()
         if (q.isEmpty()) {
-            songs
+            base
         } else {
-            songs.filter {
+            base.filter {
                 it.title.contains(q, ignoreCase = true) || it.artist.contains(q, ignoreCase = true)
             }
         }
@@ -198,11 +202,12 @@ fun DownloadsScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(0.dp),
-                    contentPadding = PaddingValues(bottom = BottomContentSpacer)
+                    contentPadding = BottomContentPadding
                 ) {
                     itemsIndexed(
                         filtered,
-                        key = { _, s -> s.filePath },
+                        // key 带上下标兜底：即使上游还有重复路径也不会撞 key 闪退
+                        key = { i, s -> "dl$i:${s.filePath}" },
                         contentType = { _, _ -> "download_song" },
                     ) { index, song ->
                         val isPlayingThis = currentSong != null &&

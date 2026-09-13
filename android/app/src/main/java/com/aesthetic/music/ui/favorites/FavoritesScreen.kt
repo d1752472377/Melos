@@ -46,6 +46,7 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.components.BottomContentPadding
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -186,7 +187,7 @@ fun FavoritesScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(0.dp),
-                    contentPadding = PaddingValues(bottom = BottomContentSpacer)
+                    contentPadding = BottomContentPadding
                 ) {
                     itemsIndexed(
                         filtered,
