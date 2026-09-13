@@ -35,11 +35,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -923,6 +923,8 @@ private fun FmChannelSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(20.dp)
         ) {
             Row(
@@ -962,53 +964,69 @@ private fun FmChannelSheet(
 
             Spacer(Modifier.height(16.dp))
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(380.dp)
-            ) {
-                items(channels) { ch ->
-                    val isSelected = (ch.id == selectedChannel.id)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                if (isSelected) AccentRose.copy(alpha = 0.22f) else FmSheetCardBg
-                            )
-                            .border(
-                                width = if (isSelected) 1.2.dp else 0.5.dp,
-                                color = if (isSelected) AccentRose else FmSheetCardBorder,
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                            .clickable { onSelect(ch) }
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = ch.icon, fontSize = 24.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = ch.name,
-                                color = if (isSelected) AccentRose else fmOn(),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = ch.subtitle,
-                                color = fmOn(0.45f),
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+            // 两列卡片（用普通 Column 排，不再嵌套 Lazy 网格：
+            // 嵌套滚动会让抽屉底部内容被裁掉且必须上滑才能看到）
+            channels.chunked(2).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    row.forEach { ch ->
+                        FmChannelCard(
+                            channel = ch,
+                            isSelected = ch.id == selectedChannel.id,
+                            onClick = { onSelect(ch) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
+                    // 奇数个时补一个占位，保证最后一个卡片不会独占整行
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
+                Spacer(Modifier.height(10.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun FmChannelCard(
+    channel: FmChannel,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                if (isSelected) AccentRose.copy(alpha = 0.22f) else FmSheetCardBg
+            )
+            .border(
+                width = if (isSelected) 1.2.dp else 0.5.dp,
+                color = if (isSelected) AccentRose else FmSheetCardBorder,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = channel.icon, fontSize = 24.sp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = channel.name,
+                color = if (isSelected) AccentRose else fmOn(),
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = channel.subtitle,
+                color = fmOn(0.45f),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -1031,6 +1049,8 @@ private fun FmTreasureSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(20.dp)
         ) {
             Row(
@@ -1070,13 +1090,13 @@ private fun FmTreasureSheet(
 
             Spacer(Modifier.height(14.dp))
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp),
+            // 宝藏列表：用普通 Column 而不是固定高度的 LazyColumn，
+            // 外层已可滚动，固定高度会把下面的导出按钮挤出屏幕
+            Column(
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(songs, key = { it.id }) { song ->
+                songs.forEach { song ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
