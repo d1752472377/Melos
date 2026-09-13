@@ -65,7 +65,9 @@ fun CacheListScreen(
 ) {
     // 清空全部缓存需二次确认：误触一次即删除所有已缓存音频
     var showClearConfirm by remember { mutableStateOf(false) }
-    val totalSizeText = AudioCacheService.formatSize(songs.sumOf { it.size })
+    // 同一首歌可能存在多条缓存记录：按文件路径去重，避免 LazyColumn key 冲突闪退
+    val uniqueSongs = remember(songs) { songs.distinctBy { it.filePath } }
+    val totalSizeText = AudioCacheService.formatSize(uniqueSongs.sumOf { it.size })
     Box(
         Modifier
             .fillMaxSize()
@@ -113,7 +115,7 @@ fun CacheListScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = BottomContentPadding
                 ) {
-                    items(songs, key = { it.filePath }) { song ->
+                    items(uniqueSongs, key = { s -> s.filePath }) { song ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
