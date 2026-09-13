@@ -4,9 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -103,19 +106,20 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     // ALWAYS：始终显示；PLAYER_ONLY：只在播放页沉浸隐藏；HIDDEN：所有页面隐藏
     val userPrefs by viewModel.settings.prefs.collectAsState()
     val activity = context as? androidx.activity.ComponentActivity
-    LaunchedEffect(userPrefs.statusBarMode, showPlayer, currentRoute) {
+    // 提到组合外，供下面 Scaffold 决定是否为状态栏预留高度（隐藏时应当让内容顶上去）
+    val hideStatusBar = when (userPrefs.statusBarMode) {
+        com.aesthetic.music.data.settings.StatusBarMode.ALWAYS -> false
+        com.aesthetic.music.data.settings.StatusBarMode.PLAYER_ONLY -> showPlayer
+        com.aesthetic.music.data.settings.StatusBarMode.HIDDEN -> true
+    }
+    LaunchedEffect(hideStatusBar, currentRoute) {
         val controller = activity?.let {
             androidx.core.view.WindowCompat.getInsetsController(it.window, it.window.decorView)
         } ?: return@LaunchedEffect
-        val shouldHide = when (userPrefs.statusBarMode) {
-            com.aesthetic.music.data.settings.StatusBarMode.ALWAYS -> false
-            com.aesthetic.music.data.settings.StatusBarMode.PLAYER_ONLY -> showPlayer
-            com.aesthetic.music.data.settings.StatusBarMode.HIDDEN -> true
-        }
         // 隐藏时允许从屏幕边缘临时划出（BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE），避免"状态栏再也划不出来"
         controller.systemBarsBehavior =
             androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        if (shouldHide) controller.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+        if (hideStatusBar) controller.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
         else controller.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
     }
 
@@ -216,6 +220,15 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             containerColor = Background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {},
+            // 状态栏隐藏时不再为它预留高度：否则顶部会空出一条"被底色挡住"的带子，
+            // 看上去像是用背景盖住了状态栏，而不是真的隐藏并让内容顶上来
+            contentWindowInsets = if (hideStatusBar) {
+                ScaffoldDefaults.contentWindowInsets.only(
+                    WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
+                )
+            } else {
+                ScaffoldDefaults.contentWindowInsets
+            },
         ) { padding ->
             Box(
                 modifier = Modifier
