@@ -20,7 +20,6 @@ sealed class ScreenRoute(val route: String) {
     data object ArtistDetail : ScreenRoute("artist_detail")
     data object ArtistAllSongs : ScreenRoute("artist_all_songs")
     data object Favorites : ScreenRoute("favorites")
-    data object MyPlaylists : ScreenRoute("my_playlists")
     data object CacheList : ScreenRoute("cache_list")
     data object History : ScreenRoute("history")
     data object Settings : ScreenRoute("settings")

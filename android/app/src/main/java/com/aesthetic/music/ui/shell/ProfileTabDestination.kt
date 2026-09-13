@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import com.aesthetic.music.ui.AppTab
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.profile.ProfileScreen
@@ -52,7 +53,8 @@ fun ProfileTabDestination(
         },
         onOpenEditProfile = { nav.navigate(ScreenRoute.ProfileEdit.route) },
         onOpenFavorites = { nav.navigate(ScreenRoute.Favorites.route) },
-        onOpenMyPlaylists = { nav.navigate(ScreenRoute.MyPlaylists.route) },
+        // 我的歌单已并入「歌单」Tab（其中就有「我的歌单」分组），不再单开页面
+        onOpenMyPlaylists = { nav.switchTab(ScreenRoute.Playlist.route, AppTab.PLAYLIST) },
         onOpenDownloads = {
             cacheState.refresh()
             nav.navigate(ScreenRoute.Downloads.route)

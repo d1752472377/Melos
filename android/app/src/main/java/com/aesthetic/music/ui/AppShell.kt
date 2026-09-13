@@ -44,7 +44,6 @@ import com.aesthetic.music.ui.shell.FmDestination
 import com.aesthetic.music.ui.shell.HistoryDestination
 import com.aesthetic.music.ui.shell.HomeDestination
 import com.aesthetic.music.ui.shell.ListeningStatsDestination
-import com.aesthetic.music.ui.shell.MyPlaylistsDestination
 import com.aesthetic.music.ui.shell.PlayerOverlay
 import com.aesthetic.music.ui.shell.PlaylistDetailDestination
 import com.aesthetic.music.ui.shell.PlaylistTabDestination
@@ -284,11 +283,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     // 我的收藏页
                     composable(ScreenRoute.Favorites.route) {
                         FavoritesDestination(viewModel, nav, actions, playerManager)
-                    }
-
-                    // 我的歌单页
-                    composable(ScreenRoute.MyPlaylists.route) {
-                        MyPlaylistsDestination(viewModel, nav, actions, playerManager)
                     }
 
                     // 缓存列表页

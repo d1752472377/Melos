@@ -24,8 +24,8 @@ fun FavoritesDestination(
             viewModel.updatePageBackground(null, false)
             nav.popBack()
         },
-        onPlaySong = { actions.playSong(it, favoriteSongs) },
-        onPlayAll = { actions.playAll(favoriteSongs) },
+        onPlaySong = { song, list -> actions.playSong(song, list) },
+        onPlayAll = { list -> actions.playAll(list) },
         onRemoveFavorite = viewModel::toggleFavorite,
     )
 }

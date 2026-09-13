@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -72,6 +74,11 @@ fun SongActionSheet(
     onAddToQueue: () -> Unit,
     onDownload: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    /** 可选：打开该歌曲的播放卡片（历史等列表页用） */
+    onViewCard: (() -> Unit)? = null,
+    /** 可选：把该歌曲从当前列表移除（历史页用） */
+    onRemove: (() -> Unit)? = null,
+    removeLabel: String = "移除",
 ) {
     val dismissAfter: (() -> Unit) -> () -> Unit = { action -> { action(); onDismiss() } }
 
@@ -118,6 +125,14 @@ fun SongActionSheet(
                 color = Stone200
             )
 
+            onViewCard?.let { viewCard ->
+                SongActionMenuItem(
+                    icon = Icons.Filled.Album,
+                    title = "查看卡片",
+                    onClick = dismissAfter(viewCard)
+                )
+            }
+
             SongActionMenuItem(
                 icon = Icons.AutoMirrored.Filled.PlaylistAdd,
                 title = "下一首播放",
@@ -148,6 +163,15 @@ fun SongActionSheet(
                 title = "添加到歌单",
                 onClick = onAddToPlaylist
             )
+
+            onRemove?.let { remove ->
+                SongActionMenuItem(
+                    icon = Icons.Filled.Delete,
+                    iconTint = Rose,
+                    title = removeLabel,
+                    onClick = dismissAfter(remove)
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
         }

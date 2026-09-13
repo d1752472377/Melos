@@ -3,8 +3,14 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.components.SongActionsHost
 import com.aesthetic.music.ui.profile.HistoryScreen
 
 /** 最近播放页 */
@@ -15,8 +21,15 @@ fun HistoryDestination(
     actions: ShellActions,
     playerManager: PlayerManager,
 ) {
+    val context = LocalContext.current
     val history by viewModel.history.collectAsState()
+    val myPlaylists by viewModel.myPlaylists.collectAsState()
     val playerState by playerManager.state.collectAsState()
+
+    // 右侧三点打开的单曲操作弹窗 / 级联的「添加到歌单」弹窗
+    var songForActionMenu by remember { mutableStateOf<Song?>(null) }
+    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
+
     HistoryScreen(
         songs = history,
         currentSong = playerState.currentSong,
@@ -25,9 +38,51 @@ fun HistoryDestination(
             viewModel.updatePageBackground(null, false)
             nav.popBack()
         },
-        onPlaySong = { actions.playSong(it, history) },
-        onPlayAll = { actions.playAll(history) },
-        onRemoveOne = viewModel::removeFromHistory,
+        onPlaySong = { song, list -> actions.playSong(song, list) },
+        onPlayAll = { list -> actions.playAll(list) },
+        onMoreSong = { songForActionMenu = it },
         onClearAll = viewModel::clearHistory,
+    )
+
+    SongActionsHost(
+        songForActionMenu = songForActionMenu,
+        songForAddToPlaylist = songForAddToPlaylist,
+        myPlaylists = myPlaylists,
+        isSongFavorite = { viewModel.isFavorite(it) },
+        onDismissActionMenu = { songForActionMenu = null },
+        onDismissAddToPlaylist = { songForAddToPlaylist = null },
+        onToggleFavorite = { viewModel.toggleFavorite(it) },
+        onPlayNext = {
+            playerManager.playNext(it)
+            viewModel.showToast("已设为下一首播放")
+        },
+        onAddToQueue = {
+            playerManager.addToQueue(it)
+            viewModel.showToast("已加入播放队列")
+        },
+        onDownload = { viewModel.downloadSong(context, it) },
+        onRequestAddToPlaylist = { song ->
+            songForActionMenu = null
+            songForAddToPlaylist = song
+        },
+        onSelectPlaylist = { playlistId, song ->
+            viewModel.addSongsToPlaylist(playlistId, listOf(song))
+            songForAddToPlaylist = null
+            viewModel.showToast("已添加到歌单")
+        },
+        onCreatePlaylist = { name, song ->
+            viewModel.createPlaylist(name, listOf(song))
+            songForAddToPlaylist = null
+            viewModel.showToast("已创建并加入「$name」")
+        },
+        // 查看卡片：不是当前播放的歌就先按历史列表播它，再打开全屏播放器
+        onViewCard = { song ->
+            val cur = playerState.currentSong
+            val isCurrent = cur != null && cur.id == song.id && cur.platform == song.platform
+            if (!isCurrent) actions.playSong(song, history)
+            viewModel.openPlayer()
+        },
+        onRemove = { viewModel.removeFromHistory(it) },
+        removeLabel = "移除",
     )
 }

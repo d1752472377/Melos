@@ -27,9 +27,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.EmptyBox
+import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -52,17 +59,40 @@ import com.aesthetic.music.ui.theme.TextSoft
  * 我的收藏列表页：按播放历史页的样式重塑。
  * 1. 大标题 + 顶部汇总卡片；
  * 2. 列表改为无外框、白底 + 分割线；
- * 3. 行内边距与分割线对齐播放历史页。
+ * 3. 页内搜索过滤后，播放全部 / 随机播放 / 点击播放都以「过滤结果」为队列，和显示内容一致。
  */
 @Composable
 fun FavoritesScreen(
     songs: List<Song>,
     currentSong: Song?,
     onBack: () -> Unit,
-    onPlaySong: (Song) -> Unit,
-    onPlayAll: () -> Unit,
+    onPlaySong: (Song, List<Song>) -> Unit,
+    onPlayAll: (List<Song>) -> Unit,
     onRemoveFavorite: (Song) -> Unit,
 ) {
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val searchFocus = remember { FocusRequester() }
+
+    // 点「搜索」展开后自动聚焦，省去再点一次输入框
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) searchFocus.requestFocus()
+    }
+
+    // 页内过滤：搜歌名 / 歌手 / 专辑
+    val filtered = remember(songs, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) {
+            songs
+        } else {
+            songs.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                    it.artist.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
+            }
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -91,12 +121,33 @@ fun FavoritesScreen(
             if (songs.isNotEmpty()) {
                 FavoritesSummaryCard(
                     songCount = songs.size,
-                    onPlayAll = onPlayAll,
-                    onShuffle = { /* TODO: 接入随机播放逻辑 */ },
-                    onSearch = { /* TODO: 接入搜索逻辑 */ },
+                    // 过滤生效时，「播放全部 / 随机播放」只作用于当前可见的结果集
+                    onPlayAll = { if (filtered.isNotEmpty()) onPlayAll(filtered) },
+                    onShuffle = {
+                        if (filtered.isNotEmpty()) {
+                            // 打乱顺序后整队播放（不改全局播放模式）
+                            onPlayAll(filtered.shuffled())
+                        }
+                    },
+                    onSearch = {
+                        isSearchExpanded = !isSearchExpanded
+                        if (!isSearchExpanded) searchQuery = ""
+                    },
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ===== 2.5 列表内搜索（点汇总卡片的「搜索」展开） =====
+            if (isSearchExpanded) {
+                ListSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    placeholder = "搜索收藏的歌曲、歌手…",
+                    focusRequester = searchFocus,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+                Spacer(Modifier.height(16.dp))
             }
 
             // ===== 3. 列表标题栏 =====
@@ -117,7 +168,7 @@ fun FavoritesScreen(
                 )
                 if (songs.isNotEmpty()) {
                     Text(
-                        text = "${songs.size} 首",
+                        text = if (searchQuery.isNotBlank()) "${filtered.size} 首" else "${songs.size} 首",
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                         color = TextSoft,
                     )
@@ -129,13 +180,15 @@ fun FavoritesScreen(
             // ===== 4. 歌曲列表 =====
             if (songs.isEmpty()) {
                 EmptyBox("还没有收藏的歌曲\n在歌曲列表点击 ♡ 即可收藏")
+            } else if (filtered.isEmpty()) {
+                EmptyBox("没有找到与「${searchQuery.trim()}」相关的歌曲")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     itemsIndexed(
-                        songs,
+                        filtered,
                         key = { _, s -> s.platform + ":" + s.id },
                         contentType = { _, _ -> "favorite_song" },
                     ) { index, song ->
@@ -145,9 +198,10 @@ fun FavoritesScreen(
                         FavoriteRow(
                             song = song,
                             playingNow = playingNow,
-                            onClick = { onPlaySong(song) },
+                            // 以过滤后的列表当队列：边搜边播时上一首/下一首仍留在结果内
+                            onClick = { onPlaySong(song, filtered) },
                             onRemove = { onRemoveFavorite(song) },
-                            showDivider = index < songs.size - 1
+                            showDivider = index < filtered.size - 1
                         )
                     }
                 }

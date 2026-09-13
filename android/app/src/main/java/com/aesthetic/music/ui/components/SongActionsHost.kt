@@ -25,6 +25,11 @@ fun SongActionsHost(
     onRequestAddToPlaylist: (Song) -> Unit,
     onSelectPlaylist: (String, Song) -> Unit,
     onCreatePlaylist: (String, Song) -> Unit,
+    /** 可选：打开歌曲的播放卡片（历史等列表页用） */
+    onViewCard: ((Song) -> Unit)? = null,
+    /** 可选：把歌曲从当前列表移除（历史页用）；传 null 则不显示该项 */
+    onRemove: ((Song) -> Unit)? = null,
+    removeLabel: String = "移除",
 ) {
     songForActionMenu?.let { song ->
         SongActionSheet(
@@ -36,6 +41,9 @@ fun SongActionsHost(
             onAddToQueue = { onAddToQueue(song) },
             onDownload = { onDownload(song) },
             onAddToPlaylist = { onRequestAddToPlaylist(song) },
+            onViewCard = onViewCard?.let { cb -> { cb(song) } },
+            onRemove = onRemove?.let { cb -> { cb(song) } },
+            removeLabel = removeLabel,
         )
     }
 

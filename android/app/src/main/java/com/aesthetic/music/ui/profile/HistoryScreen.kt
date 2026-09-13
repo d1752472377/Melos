@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +45,7 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.EmptyBox
+import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -55,23 +58,44 @@ import com.aesthetic.music.ui.theme.TextSoft
 /**
  * 最近播放页（重构样式）：
  * 1. 移除顶部回退按钮，改为大标题。
- * 2. 新增顶部汇总卡片（含播放全部、随机播放、搜索）。
- * 3. 列表改为分割线样式。
+ * 2. 顶部汇总卡片：播放全部 / 随机播放（打乱顺序整队播放）/ 搜索（页内实时过滤）。
+ * 3. 列表改为分割线样式，右侧三点打开单曲操作弹窗（含「移除」）。
+ * 4. 搜索过滤后，播放全部 / 随机播放 / 点击播放都以「过滤结果」为队列，和显示内容一致。
  */
 @Composable
 fun HistoryScreen(
     songs: List<Song>,
     currentSong: Song?,
     onBack: () -> Unit, // 保留参数以防调用处报错，虽然UI不再使用
-    onPlaySong: (Song) -> Unit,
-    onPlayAll: () -> Unit,
-    onRemoveOne: (Song) -> Unit,
+    onPlaySong: (Song, List<Song>) -> Unit,
+    onPlayAll: (List<Song>) -> Unit,
+    /** 点列表右侧三点：打开该歌曲的操作弹窗 */
+    onMoreSong: (Song) -> Unit,
     onClearAll: () -> Unit,
-    // 如果你有搜索和随机播放的回调，可以在这里添加
-    // onShuffle: () -> Unit,
-    // onSearch: () -> Unit,
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val searchFocus = remember { FocusRequester() }
+
+    // 点「搜索」展开后自动聚焦，省去再点一次输入框
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) searchFocus.requestFocus()
+    }
+
+    // 页内过滤：搜歌名 / 歌手 / 专辑
+    val filtered = remember(songs, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) {
+            songs
+        } else {
+            songs.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                    it.artist.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
+            }
+        }
+    }
 
     Box(
         Modifier
@@ -102,12 +126,33 @@ fun HistoryScreen(
             if (songs.isNotEmpty()) {
                 HistorySummaryCard(
                     songCount = songs.size,
-                    onPlayAll = onPlayAll,
-                    onShuffle = { /* TODO: 接入随机播放逻辑 */ },
-                    onSearch = { /* TODO: 接入搜索逻辑 */ },
+                    // 过滤生效时，「播放全部 / 随机播放」只作用于当前可见的结果集
+                    onPlayAll = { if (filtered.isNotEmpty()) onPlayAll(filtered) },
+                    onShuffle = {
+                        if (filtered.isNotEmpty()) {
+                            // 打乱顺序后整队播放（不改全局播放模式）
+                            onPlayAll(filtered.shuffled())
+                        }
+                    },
+                    onSearch = {
+                        isSearchExpanded = !isSearchExpanded
+                        if (!isSearchExpanded) searchQuery = ""
+                    },
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ===== 2.5 列表内搜索（点汇总卡片的「搜索」展开） =====
+            if (isSearchExpanded) {
+                ListSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    placeholder = "搜索播放过的歌曲、歌手…",
+                    focusRequester = searchFocus,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+                Spacer(Modifier.height(16.dp))
             }
 
             // ===== 3. 列表标题栏 =====
@@ -128,7 +173,7 @@ fun HistoryScreen(
                 )
                 if (songs.isNotEmpty()) {
                     Text(
-                        text = "${songs.size} 首",
+                        text = if (searchQuery.isNotBlank()) "${filtered.size} 首" else "${songs.size} 首",
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                         color = TextSoft,
                         modifier = Modifier.clickable { showClearConfirm = true } // 点击数字触发清空确认
@@ -141,6 +186,8 @@ fun HistoryScreen(
             // ===== 4. 歌曲列表 =====
             if (songs.isEmpty()) {
                 EmptyBox("还没有播放记录\n播过的歌会自动出现在这里")
+            } else if (filtered.isEmpty()) {
+                EmptyBox("没有找到与「${searchQuery.trim()}」相关的记录")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -148,7 +195,7 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     itemsIndexed(
-                        songs,
+                        filtered,
                         key = { _, s -> s.platform + ":" + s.id },
                         contentType = { _, _ -> "history_song" },
                     ) { index, song ->
@@ -158,10 +205,11 @@ fun HistoryScreen(
                         HistoryRow(
                             song = song,
                             playingNow = playingNow,
-                            onClick = { onPlaySong(song) },
-                            onRemove = { onRemoveOne(song) },
+                            // 以过滤后的列表当队列：边搜边播时上一首/下一首仍留在结果内
+                            onClick = { onPlaySong(song, filtered) },
+                            onMore = { onMoreSong(song) },
                             // 最后一项不显示分割线
-                            showDivider = index < songs.size - 1
+                            showDivider = index < filtered.size - 1
                         )
                     }
                 }
@@ -319,7 +367,7 @@ private fun HistoryRow(
     song: Song,
     playingNow: Boolean,
     onClick: () -> Unit,
-    onRemove: () -> Unit,
+    onMore: () -> Unit,
     showDivider: Boolean
 ) {
     Column(
@@ -361,18 +409,17 @@ private fun HistoryRow(
                 )
             }
 
-            // 右侧操作按钮 (图2风格是三个点，这里替换为 MoreHoriz 或保留 Close)
-            // 如果你仍然想要直接移除，可以换回 Icons.Filled.Close
+            // 右侧三点：打开单曲操作弹窗（下一首/收藏/下载/队列/歌单/移除）
             Box(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .clickable(onClick = onRemove),
+                    .clickable(onClick = onMore),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.MoreHoriz, // 改为图2的三个点样式
-                    contentDescription = "更多/移除",
+                    imageVector = Icons.Filled.MoreHoriz,
+                    contentDescription = "更多操作",
                     tint = TextMuted,
                     modifier = Modifier.size(20.dp),
                 )

@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +48,7 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.EmptyBox
+import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.LocalBottomBarPadding
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
@@ -62,7 +65,7 @@ import com.aesthetic.music.ui.theme.TextSoft
  * 我的下载 / 下载管理页：按收藏页的样式重塑。
  * 1. 大标题 + 顶部汇总卡片；
  * 2. 列表改为无外框、白底 + 分割线；
- * 3. 去掉清空按钮。
+ * 3. 汇总卡片：播放全部 / 随机播放（打乱顺序整队播放）/ 搜索（页内实时过滤，播放以过滤结果为队列）。
  */
 @Composable
 fun DownloadsScreen(
@@ -74,19 +77,30 @@ fun DownloadsScreen(
     onClearAll: () -> Unit,
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val searchFocus = remember { FocusRequester() }
     val totalSizeText = AudioCacheService.formatSize(songs.sumOf { it.size })
 
-    // 将缓存歌曲模型映射为通用 Song 结构，支持直接接入播放器队列播放
-    val songList = remember(songs) {
-        songs.map { cached ->
-            Song(
-                id = cached.songId.ifBlank { cached.filePath.hashCode().toString() },
-                title = cached.title,
-                artist = cached.artist,
-                platform = cached.platformCode.ifBlank { "local" },
-            )
+    // 点「搜索」展开后自动聚焦，省去再点一次输入框
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) searchFocus.requestFocus()
+    }
+
+    // 页内过滤：搜歌名 / 歌手
+    val filtered = remember(songs, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) {
+            songs
+        } else {
+            songs.filter {
+                it.title.contains(q, ignoreCase = true) || it.artist.contains(q, ignoreCase = true)
+            }
         }
     }
+
+    // 将缓存歌曲模型映射为通用 Song 结构，支持直接接入播放器队列播放
+    val filteredSongList = remember(filtered) { filtered.map { it.toSong() } }
 
     Box(
         modifier = Modifier
@@ -117,16 +131,38 @@ fun DownloadsScreen(
                 DownloadsSummaryCard(
                     songCount = songs.size,
                     totalSizeText = totalSizeText,
+                    // 过滤生效时，「播放全部 / 随机播放」只作用于当前可见的结果集
                     onPlayAll = {
-                        if (songList.isNotEmpty()) {
-                            onPlaySong(songList.first(), songList)
+                        if (filteredSongList.isNotEmpty()) {
+                            onPlaySong(filteredSongList.first(), filteredSongList)
                         }
                     },
-                    onShuffle = { /* TODO: 接入随机播放逻辑 */ },
-                    onSearch = { /* TODO: 接入搜索逻辑 */ },
+                    onShuffle = {
+                        if (filteredSongList.isNotEmpty()) {
+                            // 打乱顺序后整队播放（不改全局播放模式）
+                            val shuffled = filteredSongList.shuffled()
+                            onPlaySong(shuffled.first(), shuffled)
+                        }
+                    },
+                    onSearch = {
+                        isSearchExpanded = !isSearchExpanded
+                        if (!isSearchExpanded) searchQuery = ""
+                    },
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ===== 2.5 列表内搜索（点汇总卡片的「搜索」展开） =====
+            if (isSearchExpanded) {
+                ListSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    placeholder = "搜索已下载的歌曲、歌手…",
+                    focusRequester = searchFocus,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+                Spacer(Modifier.height(16.dp))
             }
 
             // ===== 3. 列表标题栏 =====
@@ -147,7 +183,7 @@ fun DownloadsScreen(
                 )
                 if (songs.isNotEmpty()) {
                     Text(
-                        text = "${songs.size} 首",
+                        text = if (searchQuery.isNotBlank()) "${filtered.size} 首" else "${songs.size} 首",
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                         color = TextSoft,
                     )
@@ -159,13 +195,15 @@ fun DownloadsScreen(
             // ===== 4. 歌曲列表 =====
             if (songs.isEmpty()) {
                 EmptyBox("暂无下载歌曲\n在歌曲详情或播放时点击下载，可在此离线免流收听")
+            } else if (filtered.isEmpty()) {
+                EmptyBox("没有找到与「${searchQuery.trim()}」相关的歌曲")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     itemsIndexed(
-                        songs,
+                        filtered,
                         key = { _, s -> s.filePath },
                         contentType = { _, _ -> "download_song" },
                     ) { index, song ->
@@ -177,16 +215,17 @@ fun DownloadsScreen(
                             song = song,
                             playingNow = isPlayingThis,
                             onClick = {
-                                val target = songList.firstOrNull {
+                                val target = filteredSongList.firstOrNull {
                                     (it.id.isNotBlank() && it.id == song.songId) ||
                                             (it.title == song.title && it.artist == song.artist)
                                 }
                                 if (target != null) {
-                                    onPlaySong(target, songList)
+                                    // 用过滤后的列表当队列：边搜边播时上一首/下一首仍留在结果内
+                                    onPlaySong(target, filteredSongList)
                                 }
                             },
                             onRemove = { onRemoveOne(song.filePath) },
-                            showDivider = index < songs.size - 1
+                            showDivider = index < filtered.size - 1
                         )
                     }
                 }
@@ -436,3 +475,11 @@ private fun DownloadRow(
         }
     }
 }
+
+/** 缓存歌曲 → 通用 Song：id 缺失时用文件路径哈希兜底，保证播放器队列 key 稳定 */
+private fun AudioCacheService.CachedSong.toSong(): Song = Song(
+    id = songId.ifBlank { filePath.hashCode().toString() },
+    title = title,
+    artist = artist,
+    platform = platformCode.ifBlank { "local" },
+)
