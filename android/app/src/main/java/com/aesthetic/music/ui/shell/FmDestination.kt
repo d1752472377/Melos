@@ -95,15 +95,6 @@ fun FmDestination(
                 actions.playSong(nextSong, q)
             }
         },
-        onPrevious = {
-            val q = viewModel.fmQueue.value
-            val prevIdx = (fmIndex - 1).coerceAtLeast(0)
-            val prevSong = q.getOrNull(prevIdx)
-            if (prevSong != null) {
-                viewModel.fmSelect(prevIdx)
-                actions.playSong(prevSong, q)
-            }
-        },
         onSeek = { ms -> playerManager.seekTo(ms) },
         onSeekToLyric = { line -> playerManager.seekToLyric(line) },
         onExport = { songs -> actions.shareSongs(songs) },

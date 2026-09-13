@@ -166,7 +166,6 @@ fun FmScreen(
     onDislike: (Song) -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
-    onPrevious: (() -> Unit)? = null,
     onSeek: (Long) -> Unit,
     onSeekToLyric: (LyricLine) -> Unit,
     onExport: (List<Song>) -> Unit,
