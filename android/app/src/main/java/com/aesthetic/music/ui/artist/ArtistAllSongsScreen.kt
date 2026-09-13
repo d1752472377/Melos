@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,6 +48,7 @@ import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongRow
+import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -63,12 +66,14 @@ private const val PAGE_SIZE = 50
 @Composable
 fun ArtistAllSongsScreen(
     artistName: String,
+    alias: String?,
+    avatar: String?,
     songs: List<Song>,
     favorites: Set<String>,
     currentSong: Song?,
-    onBack: () -> Unit,
     onPlaySong: (Song) -> Unit,
     onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
     onToggleFavorite: (Song) -> Unit,
     onPlayNext: (Song) -> Unit,
     onMoreSong: (Song) -> Unit,
@@ -77,8 +82,25 @@ fun ArtistAllSongsScreen(
     errorMessage: String? = null,
     onRetry: (() -> Unit)? = null,
 ) {
-    var visibleCount by remember(songs.size) {
-        mutableIntStateOf(minOf(PAGE_SIZE, songs.size))
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    // 页内过滤：搜歌名 / 歌手 / 专辑（作用于全量列表，假分页基于过滤结果）
+    val filtered = remember(songs, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) {
+            songs
+        } else {
+            songs.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                    it.artist.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
+            }
+        }
+    }
+
+    var visibleCount by remember(filtered.size) {
+        mutableIntStateOf(minOf(PAGE_SIZE, filtered.size))
     }
 
     Box(
@@ -91,82 +113,82 @@ fun ArtistAllSongsScreen(
                 .fillMaxSize()
                 .padding(top = 24.dp)
         ) {
-            // 顶栏：返回 + 标题
+            // ===== 1. 顶部大标题（与「我的收藏」一致，不再有返回按钮） =====
+            Text(
+                text = "全部演唱",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = TextPrimary,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // ===== 2. 歌手信息卡片（与歌手页同款） =====
+            ArtistSummaryCard(
+                name = artistName,
+                alias = alias,
+                avatar = avatar,
+                songCount = filtered.size,
+                isLoading = isLoading,
+                onPlayAll = onPlayAll,
+                onShuffle = onShuffle,
+                onSearch = {
+                    isSearchExpanded = !isSearchExpanded
+                    if (!isSearchExpanded) searchQuery = ""
+                },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+
+            // ===== 2.5 列表内搜索 =====
+            if (isSearchExpanded) {
+                Spacer(Modifier.height(14.dp))
+                ListSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    placeholder = "搜索该歌手的歌曲…",
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Surface)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = TextMuted,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
                 Text(
-                    text = "全部演唱",
+                    text = "歌曲列表",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     color = TextPrimary,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f),
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (searchQuery.isNotBlank()) "${filtered.size} 首" else "${songs.size} 首",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                        color = TextSoft,
+                    )
+                    if (isLoadingMore) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "(全量加载中…)",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = TextMuted,
+                        )
+                    }
+                }
             }
 
-            // 操作行：播放全部(N) + 全量加载提示
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 12.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onPlayAll)
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = TextPrimary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "播放全部(${songs.size})",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                        color = TextPrimary,
-                    )
-                }
-                if (isLoadingMore) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "(全量曲目加载中…)",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextMuted,
-                    )
-                }
-            }
+            Spacer(Modifier.height(12.dp))
 
             if (isLoading && songs.isEmpty()) {
                 LoadingBox(message = "正在探索全量音乐库…")
@@ -196,7 +218,7 @@ fun ArtistAllSongsScreen(
                     contentPadding = PaddingValues(bottom = BottomContentSpacer),
                 ) {
                     itemsIndexed(
-                        songs.take(visibleCount),
+                        filtered.take(visibleCount),
                         key = { i, s -> "all$i:${s.platform}:${s.id}" },
                     ) { index, song ->
                         val playingNow = currentSong != null &&
@@ -266,7 +288,7 @@ fun ArtistAllSongsScreen(
                                 }
                             },
                         )
-                        if (index != songs.take(visibleCount).lastIndex) {
+                        if (index != filtered.take(visibleCount).lastIndex) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 82.dp, end = 12.dp),
                                 thickness = 0.5.dp,
@@ -275,7 +297,7 @@ fun ArtistAllSongsScreen(
                         }
                     }
                     // 假分页哨兵：滚到底自动追加下一页
-                    if (visibleCount < songs.size) {
+                    if (visibleCount < filtered.size) {
                         item(key = "load_more_sentinel") {
                             LaunchedEffect(visibleCount) {
                                 visibleCount = minOf(visibleCount + PAGE_SIZE, songs.size)
