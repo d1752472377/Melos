@@ -79,7 +79,7 @@ fun DownloadsScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val searchFocus = remember { FocusRequester() }
-    val totalSizeText = AudioCacheService.formatSize(songs.sumOf { it.size })
+
 
     // 点「搜索」展开后自动聚焦，省去再点一次输入框
     LaunchedEffect(isSearchExpanded) {
@@ -92,6 +92,8 @@ fun DownloadsScreen(
     val downloadedSongs = remember(songs) {
         songs.filter { it.manual }.distinctBy { it.filePath }
     }
+
+    val totalSizeText = AudioCacheService.formatSize(downloadedSongs.sumOf { it.size })
 
     val filtered = remember(downloadedSongs, searchQuery) {
         val q = searchQuery.trim()
@@ -133,7 +135,7 @@ fun DownloadsScreen(
             // ===== 2. 顶部汇总卡片 =====
             if (songs.isNotEmpty()) {
                 DownloadsSummaryCard(
-                    songCount = songs.size,
+                    songCount = downloadedSongs.size,
                     totalSizeText = totalSizeText,
                     // 过滤生效时，「播放全部 / 随机播放」只作用于当前可见的结果集
                     onPlayAll = {

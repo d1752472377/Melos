@@ -42,7 +42,8 @@ fun ProfileTabDestination(
         historyCount = history.size,
         favoritesCount = favorites.size,
         playlistsCount = myPlaylists.size,
-        cacheCount = cacheState.count,
+        // 「下载音乐」只数用户主动下载的（播放缓存在「本地缓存」里，不算下载）
+        cacheCount = cacheState.songs.count { it.manual },
         cacheSize = cacheState.size,
         localStats = localStats,
         isSyncConfigured = isSyncConfigured,
