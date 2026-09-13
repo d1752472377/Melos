@@ -170,15 +170,22 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         playerManager.startProgress()
     }
 
+    /**
+     * 底部导航切 Tab：Tab 是一级页面，切走时把该 Tab 上叠加的所有子页面清掉。
+     *
+     * 之前用了 saveState + restoreState，会把"进入多深"的栈原样恢复：
+     * 设置 → 子页 → 子页，切到首页再切回来仍停在最深那页，只能一页页退。
+     * 现在不保存也不恢复，每次点 Tab 都回到该 Tab 的根。
+     */
     fun navigateToTab(route: String, tabEnum: AppTab) {
         viewModel.switchTab(tabEnum)
         viewModel.updatePageBackground(null, false)
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
+                saveState = false
             }
             launchSingleTop = true
-            restoreState = true
+            restoreState = false
         }
     }
 
