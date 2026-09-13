@@ -7,10 +7,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -29,11 +27,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -51,18 +47,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -100,6 +95,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -122,10 +118,16 @@ import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.AccentRose
 import com.aesthetic.music.ui.theme.FmBackground
+import com.aesthetic.music.ui.theme.FmCardBg
+import com.aesthetic.music.ui.theme.FmCardBorder
+import com.aesthetic.music.ui.theme.FmOnSolid
 import com.aesthetic.music.ui.theme.FmScrimBottom
 import com.aesthetic.music.ui.theme.FmScrimMid
 import com.aesthetic.music.ui.theme.FmScrimTop
+import com.aesthetic.music.ui.theme.FmSheetCardBg
+import com.aesthetic.music.ui.theme.FmSheetCardBorder
 import com.aesthetic.music.ui.theme.FmSheetContainer
+import com.aesthetic.music.ui.theme.FmSolidFill
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.fmGlass
 import com.aesthetic.music.ui.theme.fmOn
@@ -165,6 +167,7 @@ fun FmScreen(
     onToggleLike: (Song) -> Unit,
     onDislike: (Song) -> Unit,
     onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
     onNext: () -> Unit,
     onSeek: (Long) -> Unit,
     onSeekToLyric: (LyricLine) -> Unit,
@@ -259,16 +262,15 @@ fun FmScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(bottom = 82.dp) // 避开底部悬浮 NavigationDock
+                        .padding(bottom = 88.dp) // 底部避开悬浮 NavigationDock，并留一点间隙
                 ) {
-                    // ===== 顶部操作栏 =====
+                    // ===== 顶部操作栏（左侧频道卡片 / 右侧宝藏） =====
                     FmTopBar(
                         currentChannel = currentChannel,
                         isPlaying = isPlaying,
                         treasureCount = fmTreasure.size,
                         onOpenChannel = { showChannelSheet = true },
-                        onOpenTreasure = { showTreasureSheet = true },
-                        onRefresh = onRefreshRecommendation
+                        onOpenTreasure = { showTreasureSheet = true }
                     )
 
                     // ===== 中间主内容区（黑胶唱机 / 竖滑页面 / 歌词模式） =====
@@ -279,7 +281,7 @@ fun FmScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         if (showFullLyrics && displaySong != null) {
-                            // 全屏歌词模式
+                            // 全屏歌词模式（点唱片进入，点歌词区退出）
                             FmFullLyricsView(
                                 song = displaySong,
                                 lyrics = lyrics,
@@ -291,7 +293,7 @@ fun FmScreen(
                                 onCloseLyrics = { showFullLyrics = false }
                             )
                         } else {
-                            // 主竖滑 VerticalPager
+                            // 主竖滑 VerticalPager：每页只有一张唱片
                             VerticalPager(
                                 state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
@@ -300,41 +302,32 @@ fun FmScreen(
                                 val song = fmQueue.getOrNull(page)
                                 if (song != null) {
                                     val isCurrentItem = (song.id == currentSong?.id)
-                                    val isFav = favorites.contains("${song.platform}:${song.id}") || favorites.contains(song.id)
 
-                                    FmTrackView(
-                                        song = song,
-                                        isCurrent = isCurrentItem,
+                                    FmTurntable(
+                                        artworkUrl = song.artwork,
                                         isPlaying = isPlaying && isCurrentItem,
-                                        isFavorite = isFav,
-                                        channelName = currentChannel.name,
-                                        progressFlow = progressFlow,
-                                        lyrics = if (isCurrentItem) lyrics else emptyList(),
-                                        onToggleLyrics = { showFullLyrics = true }
+                                        onTapDisc = { showFullLyrics = true }
                                     )
                                 }
                             }
                         }
                     }
 
-                    // ===== 底部控制控制台 =====
+                    // ===== 唱片下方信息区：歌名 → 歌手 → 进度条 → 播放控制 → 两张动作卡 =====
                     if (displaySong != null) {
                         val isFav = favorites.contains("${displaySong.platform}:${displaySong.id}") || favorites.contains(displaySong.id)
 
-                        FmBottomControlBar(
+                        FmInfoPanel(
                             song = displaySong,
                             isPlaying = isPlaying,
                             isBuffering = isBuffering || fmLoading,
                             isFavorite = isFav,
-                            currentIndex = pagerState.currentPage,
-                            totalCount = fmQueue.size,
                             progressFlow = progressFlow,
-                            showFullLyrics = showFullLyrics,
+                            onPrevious = onPrevious,
                             onTogglePlay = onPlayPause,
-                            onToggleLike = { onToggleLike(displaySong) },
-                            onDislike = { onDislike(displaySong) },
                             onNext = onNext,
-                            onToggleLyrics = { showFullLyrics = !showFullLyrics },
+                            onDislike = { onDislike(displaySong) },
+                            onToggleLike = { onToggleLike(displaySong) },
                             onSeek = onSeek
                         )
                     }
@@ -375,7 +368,6 @@ private fun FmTopBar(
     treasureCount: Int,
     onOpenChannel: () -> Unit,
     onOpenTreasure: () -> Unit,
-    onRefresh: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -384,14 +376,14 @@ private fun FmTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左侧：心动电台频道切换胶囊
+        // 左侧：频道卡片（白色玻璃底、无描边，点一下下拉换频道）
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(fmGlass(0.2f))
-                .border(0.8.dp, fmGlass(0.2f), RoundedCornerShape(999.dp))
+                .background(FmCardBg)
+                .border(0.8.dp, FmCardBorder, RoundedCornerShape(999.dp))
                 .clickable(onClick = onOpenChannel)
-                .padding(horizontal = 14.dp, vertical = 7.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = currentChannel.icon, fontSize = 15.sp)
@@ -415,193 +407,28 @@ private fun FmTopBar(
             )
         }
 
-        // 右侧操作组：淘到的宝藏 + 重新调频刷新
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // 宝藏歌单药丸
-            if (treasureCount > 0) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(AccentRose.copy(alpha = 0.25f))
-                        .border(0.8.dp, AccentRose.copy(alpha = 0.5f), RoundedCornerShape(999.dp))
-                        .clickable(onClick = onOpenTreasure)
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "🎁 宝藏 $treasureCount",
-                        color = fmOn(),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            // 重新调频刷新按键
-            Box(
+        // 右侧：淘到的宝藏（刷新入口已移除，需要换口味时走空状态的「重新调频」）
+        if (treasureCount > 0) {
+            Row(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(fmGlass(0.13f))
-                    .clickable {
-                        onRefresh()
-                    },
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(AccentRose.copy(alpha = 0.25f))
+                    .border(0.8.dp, AccentRose.copy(alpha = 0.5f), RoundedCornerShape(999.dp))
+                    .clickable(onClick = onOpenTreasure)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Refresh,
-                    contentDescription = "重新调频",
-                    tint = fmOn(0.85f),
-                    modifier = Modifier.size(18.dp)
+                Text(
+                    text = "🎁 宝藏 $treasureCount",
+                    color = fmOn(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
     }
 }
 
-/**
- * 单曲主展示区：包含拟物黑胶唱片、右上角唱针摆入摆出、歌名与双行即时悬浮歌词
- */
-@Composable
-private fun FmTrackView(
-    song: Song,
-    isCurrent: Boolean,
-    isPlaying: Boolean,
-    isFavorite: Boolean,
-    channelName: String,
-    progressFlow: StateFlow<PlaybackProgress>,
-    lyrics: List<LyricLine>,
-    onToggleLyrics: () -> Unit,
-) {
-    val progress by progressFlow.collectAsState()
-    val lyricIdx = if (isCurrent) currentLyricIndex(lyrics, progress.positionMs) else -1
-    val currentLine = lyrics.getOrNull(lyricIdx)?.text?.takeIf { it.isNotBlank() }
-    val nextLine = lyrics.getOrNull(lyricIdx + 1)?.text?.takeIf { it.isNotBlank() }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // ===== 拟物黑胶唱盘与唱针区域 =====
-        FmTurntable(
-            artworkUrl = song.artwork,
-            isPlaying = isPlaying,
-            onTapDisc = onToggleLyrics
-        )
-
-        Spacer(Modifier.height(30.dp))
-
-        // ===== 歌曲基本信息 =====
-        Text(
-            text = song.title.ifBlank { "未知曲目" },
-            color = fmOn(),
-            style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(0.88f)
-        )
-
-        Spacer(Modifier.height(4.dp))
-
-        Text(
-            text = "${song.artist.ifBlank { "未知歌手" }} · ${song.album.ifBlank { "单曲" }}",
-            color = fmOn(0.65f),
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(0.88f)
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        // 频道风格与品质标签
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(fmGlass(0.13f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "$channelName · 心动推荐",
-                    color = fmOn(0.75f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(AccentRose.copy(alpha = 0.2f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "SQ 超清母带",
-                    color = AccentRose,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Spacer(Modifier.height(18.dp))
-
-        // ===== 双行即时歌词预览卡片（点击直接展开全屏歌词） =====
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .clip(RoundedCornerShape(14.dp))
-                .background(fmGlass(0.09f))
-                .clickable(onClick = onToggleLyrics)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = currentLine ?: "♪ 心动旋律 流淌心间 ♪",
-                    color = if (currentLine != null) fmOn() else fmOn(0.5f),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (nextLine != null) {
-                    Text(
-                        text = nextLine,
-                        color = fmOn(0.35f),
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * 拟物黑胶唱机与唱针组件：
- * 1. 拟物同心圆声轨与金属反光条纹；
- * 2. 连续旋转并在暂停时精准保留角度；
- * 3. 右上角拟物黑胶唱针随播放状态自动平滑落盘/抬起！
- */
 @Composable
 private fun FmTurntable(
     artworkUrl: String?,
@@ -620,13 +447,6 @@ private fun FmTurntable(
             }
         }
     }
-
-    // 唱针落针动效：播放时唱针转动落入唱盘（~24°），暂停时优雅抬回（0°）
-    val tonearmAngle by animateFloatAsState(
-        targetValue = if (isPlaying) 24f else 0f,
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 120f),
-        label = "tonearmAngle"
-    )
 
     // 心动光晕呼吸动画
     val pulseTransition = rememberInfiniteTransition(label = "pulse")
@@ -705,10 +525,10 @@ private fun FmTurntable(
                 )
             }
 
-            // 唱片中心圆形贴纸与封面
+            // 唱片中心圆形贴纸与封面（放大封面，让唱片中心的主体更醒目）
             Box(
                 modifier = Modifier
-                    .size(136.dp)
+                    .size(184.dp)
                     .clip(CircleShape)
                     .border(2.dp, Color.White.copy(alpha = 0.25f), CircleShape),
                 contentAlignment = Alignment.Center
@@ -731,7 +551,7 @@ private fun FmTurntable(
                             imageVector = Icons.Filled.MusicNote,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.4f),
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(48.dp)
                         )
                     }
                 }
@@ -746,112 +566,21 @@ private fun FmTurntable(
                 )
             }
         }
-
-        // 3. 拟物右上角唱针 (Tonearm)
-        FmTonearm(
-            angle = tonearmAngle,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-8).dp, y = (-12).dp)
-        )
     }
 }
 
-/**
- * 拟物黑胶唱针：金属转轴底座 + 弯角合金唱臂 + 唱头探针
- */
 @Composable
-private fun FmTonearm(
-    angle: Float,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .size(width = 85.dp, height = 120.dp)
-            .graphicsLayer {
-                rotationZ = angle
-                transformOrigin = TransformOrigin(0.85f, 0.12f)
-            }
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val pivotX = size.width * 0.85f
-            val pivotY = size.height * 0.12f
-
-            // 转轴底座金属圆环
-            drawCircle(
-                color = Color(0xFF38383F),
-                radius = 16.dp.toPx(),
-                center = Offset(pivotX, pivotY)
-            )
-            drawCircle(
-                color = Color(0xFF5E5E68),
-                radius = 11.dp.toPx(),
-                center = Offset(pivotX, pivotY)
-            )
-            drawCircle(
-                color = Color(0xFF1E1E22),
-                radius = 5.dp.toPx(),
-                center = Offset(pivotX, pivotY)
-            )
-
-            // 唱臂主体（从转轴引向左下）
-            val midX = pivotX - 28.dp.toPx()
-            val midY = pivotY + 54.dp.toPx()
-            val endX = midX - 22.dp.toPx()
-            val endY = midY + 44.dp.toPx()
-
-            // 第一段金属臂
-            drawLine(
-                color = Color(0xFFCCCCCC),
-                start = Offset(pivotX, pivotY),
-                end = Offset(midX, midY),
-                strokeWidth = 3.5.dp.toPx(),
-                cap = StrokeCap.Round
-            )
-            // 第二段弯折至唱头
-            drawLine(
-                color = Color(0xFFCCCCCC),
-                start = Offset(midX, midY),
-                end = Offset(endX, endY),
-                strokeWidth = 3.2.dp.toPx(),
-                cap = StrokeCap.Round
-            )
-
-            // 唱头外壳 (Cartridge)
-            drawRoundRect(
-                color = Color(0xFFE53935),
-                topLeft = Offset(endX - 8.dp.toPx(), endY - 2.dp.toPx()),
-                size = Size(16.dp.toPx(), 22.dp.toPx()),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx(), 3.dp.toPx())
-            )
-            // 针尖小亮点
-            drawCircle(
-                color = Color.White,
-                radius = 2.dp.toPx(),
-                center = Offset(endX, endY + 22.dp.toPx())
-            )
-        }
-    }
-}
-
-/**
- * 底部交互控制台：含细线进度条、时间、不感兴趣(💔)、心动喜欢(❤️)、晶透播放键(⏯️)、下一曲(⏭️)、歌词切换(💬)
- */
-@Composable
-private fun FmBottomControlBar(
+private fun FmInfoPanel(
     song: Song,
     isPlaying: Boolean,
     isBuffering: Boolean,
     isFavorite: Boolean,
-    currentIndex: Int,
-    totalCount: Int,
     progressFlow: StateFlow<PlaybackProgress>,
-    showFullLyrics: Boolean,
+    onPrevious: () -> Unit,
     onTogglePlay: () -> Unit,
-    onToggleLike: () -> Unit,
-    onDislike: () -> Unit,
     onNext: () -> Unit,
-    onToggleLyrics: () -> Unit,
+    onDislike: () -> Unit,
+    onToggleLike: () -> Unit,
     onSeek: (Long) -> Unit,
 ) {
     val progress by progressFlow.collectAsState()
@@ -865,32 +594,34 @@ private fun FmBottomControlBar(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 微型进度条与电台流曲目序号
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = formatDuration(pos),
-                color = fmOn(0.5f),
-                fontSize = 11.sp
-            )
-            Text(
-                text = "心动调频中 · 第 ${currentIndex + 1} 首",
-                color = fmOn(0.4f),
-                fontSize = 10.sp
-            )
-            Text(
-                text = formatDuration(dur),
-                color = fmOn(0.5f),
-                fontSize = 11.sp
-            )
-        }
+        // 歌名
+        Text(
+            text = song.title.ifBlank { "未知曲目" },
+            color = fmOn(),
+            style = MaterialTheme.typography.titleLarge.copy(fontSize = 21.sp),
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(Modifier.height(4.dp))
 
-        // 细线进度条
+        // 歌手名
+        Text(
+            text = "${song.artist.ifBlank { "未知歌手" }} · ${song.album.ifBlank { "单曲" }}",
+            color = fmOn(0.65f),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(14.dp))
+
+        // 细线进度条（点击定位）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -903,7 +634,6 @@ private fun FmBottomControlBar(
                 },
             contentAlignment = Alignment.CenterStart
         ) {
-            // 背景槽
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -911,7 +641,6 @@ private fun FmBottomControlBar(
                     .clip(RoundedCornerShape(999.dp))
                     .background(fmOn(0.15f))
             )
-            // 播放进度高亮条
             Box(
                 modifier = Modifier
                     .fillMaxWidth(fraction)
@@ -925,124 +654,131 @@ private fun FmBottomControlBar(
             )
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // 控制按键行
+        // 播放控制：上一首（小） / 播放暂停（大） / 下一首（小）
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
-            // 1. 不感兴趣 (Dislike / 垃圾桶)
-            FmRoundButton(
-                size = 46.dp,
-                onClick = onDislike,
-                description = "不感兴趣"
-            ) {
+            FmSolidButton(size = 48.dp, onClick = onPrevious) {
                 Icon(
-                    imageVector = Icons.Filled.ThumbDown,
-                    contentDescription = "不感兴趣",
-                    tint = fmOn(0.65f),
-                    modifier = Modifier.size(20.dp)
+                    imageVector = Icons.Filled.SkipPrevious,
+                    contentDescription = "上一首",
+                    tint = FmOnSolid,
+                    modifier = Modifier.size(22.dp)
                 )
             }
-
-            // 2. 心动喜欢 (Like / 红心)
-            val likeScale = remember { Animatable(1f) }
-            val scope = rememberCoroutineScope()
-            FmRoundButton(
-                size = 50.dp,
-                onClick = {
-                    scope.launch {
-                        likeScale.animateTo(1.35f, spring(stiffness = 500f))
-                        likeScale.animateTo(1.0f, spring(stiffness = 300f))
-                    }
-                    onToggleLike()
-                },
-                description = "喜欢"
-            ) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = "喜欢",
-                    tint = if (isFavorite) AccentRose else fmOn(0.8f),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .graphicsLayer {
-                            scaleX = likeScale.value
-                            scaleY = likeScale.value
-                        }
-                )
-            }
-
-            // 3. 晶透播放/暂停按键 (突出大圆键)
-            Box(
-                modifier = Modifier
-                    .size(68.dp)
-                    .shadow(
-                        elevation = 14.dp,
-                        shape = CircleShape,
-                        spotColor = if (isPlaying) AccentRose.copy(alpha = 0.5f) else Color.Black
-                    )
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(fmOn(0.28f), fmOn(0.12f))
-                        )
-                    )
-                    .border(1.5.dp, fmOn(0.45f), CircleShape)
-                    .clickable(onClick = onTogglePlay),
-                contentAlignment = Alignment.Center
-            ) {
+            Spacer(Modifier.width(26.dp))
+            FmSolidButton(size = 68.dp, onClick = onTogglePlay) {
                 if (isBuffering) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(28.dp),
                         strokeWidth = 2.5.dp,
-                        color = fmOn()
+                        color = FmOnSolid
                     )
                 } else {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                         contentDescription = if (isPlaying) "暂停" else "播放",
-                        tint = fmOn(),
-                        modifier = Modifier.size(34.dp)
+                        tint = FmOnSolid,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
-
-            // 4. 下一首切歌 (Skip Next)
-            FmRoundButton(
-                size = 50.dp,
-                onClick = onNext,
-                description = "下一首"
-            ) {
+            Spacer(Modifier.width(26.dp))
+            FmSolidButton(size = 48.dp, onClick = onNext) {
                 Icon(
                     imageVector = Icons.Filled.SkipNext,
                     contentDescription = "下一首",
-                    tint = fmOn(),
-                    modifier = Modifier.size(26.dp)
+                    tint = FmOnSolid,
+                    modifier = Modifier.size(22.dp)
                 )
             }
+        }
 
-            // 5. 歌词模式切换按键
-            FmRoundButton(
-                size = 46.dp,
-                onClick = onToggleLyrics,
-                description = "歌词"
-            ) {
-                Icon(
-                    imageVector = if (showFullLyrics) Icons.Filled.Album else Icons.Filled.Lyrics,
-                    contentDescription = if (showFullLyrics) "唱片模式" else "歌词模式",
-                    tint = if (showFullLyrics) AccentRose else fmOn(0.7f),
-                    modifier = Modifier.size(21.dp)
-                )
-            }
+        Spacer(Modifier.height(18.dp))
+
+        // 两张大圆角动作卡：不合口味 / 收藏这首
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            FmActionCard(
+                text = "不合口味",
+                icon = Icons.Filled.ThumbDown,
+                tint = fmOn(0.75f),
+                onClick = onDislike,
+                modifier = Modifier.weight(1f)
+            )
+            FmActionCard(
+                text = "收藏这首",
+                icon = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                tint = if (isFavorite) AccentRose else fmOn(0.75f),
+                onClick = onToggleLike,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
 
-/**
- * 全屏卡拉OK逐字/逐行动态歌词视图
- */
+/** 实心圆播放控制按钮：浅色纯黑、深色纯白 */
+@Composable
+private fun FmSolidButton(
+    size: Dp,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(FmSolidFill)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
+}
+
+/** 大圆角动作卡（玻璃底）：图标 + 文案 */
+@Composable
+private fun FmActionCard(
+    text: String,
+    icon: ImageVector,
+    tint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(FmCardBg)
+            .border(0.8.dp, FmCardBorder, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp, horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = text,
+            color = tint,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+
 @Composable
 private fun FmFullLyricsView(
     song: Song,
@@ -1241,11 +977,11 @@ private fun FmChannelSheet(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
                             .background(
-                                if (isSelected) AccentRose.copy(alpha = 0.22f) else fmGlass(0.09f)
+                                if (isSelected) AccentRose.copy(alpha = 0.22f) else FmSheetCardBg
                             )
                             .border(
                                 width = if (isSelected) 1.2.dp else 0.5.dp,
-                                color = if (isSelected) AccentRose else fmOn(0.1f),
+                                color = if (isSelected) AccentRose else FmSheetCardBorder,
                                 shape = RoundedCornerShape(14.dp)
                             )
                             .clickable { onSelect(ch) }
@@ -1400,32 +1136,6 @@ private fun FmTreasureSheet(
     }
 }
 
-/**
- * 通用磨砂毛玻璃圆形按钮
- */
-@Composable
-private fun FmRoundButton(
-    size: Dp = 44.dp,
-    onClick: () -> Unit,
-    description: String = "",
-    content: @Composable () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(fmGlass(0.14f))
-            .border(0.8.dp, fmOn(0.2f), CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        content()
-    }
-}
-
-/**
- * 加载中状态
- */
 @Composable
 private fun FmLoadingState(channel: FmChannel) {
     Column(

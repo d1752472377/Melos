@@ -84,6 +84,18 @@ fun fmOn(alpha: Float = 1f): Color =
 fun fmGlass(alpha: Float): Color =
     if (Palette.isDark) Color.White.copy(alpha = alpha) else Color.Black.copy(alpha = alpha)
 
+// FM 卡片（玻璃感）：浅色用白色玻璃 + 柔阴影区分，深色用淡白叠加
+val FmCardBg get() = light(Color.White.copy(alpha = 0.88f), Color.White.copy(alpha = 0.10f))
+val FmCardBorder get() = light(Color.Transparent, Color.White.copy(alpha = 0.16f))
+
+// FM 抽屉里的卡片：抽屉底色是纯白时靠一条浅描边区分
+val FmSheetCardBg get() = light(Color.White, Color.White.copy(alpha = 0.10f))
+val FmSheetCardBorder get() = light(Stone200, Color.White.copy(alpha = 0.14f))
+
+// FM 实心圆按钮：浅色纯黑、深色纯白（图标取反色）
+val FmSolidFill get() = light(Color(0xFF12141A), Color.White)
+val FmOnSolid get() = light(Color.White, Color(0xFF12141A))
+
 // ===== 听歌统计页专用（毛玻璃 + 渐变） =====
 // 页面背景：顶部淡蓝紫 → 下方米白/浅灰（深色下改为墨蓝 → 近黑，保持同样氛围）
 val StatsGradientTop get() = light(Color(0xFFE8ECFF), Color(0xFF1A1B2E))

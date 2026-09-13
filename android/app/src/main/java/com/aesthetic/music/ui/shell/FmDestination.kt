@@ -86,6 +86,15 @@ fun FmDestination(
             }
         },
         onPlayPause = { playerManager.toggle() },
+        onPrevious = {
+            val q = viewModel.fmQueue.value
+            val prevIdx = (fmIndex - 1).coerceAtLeast(0)
+            val prevSong = q.getOrNull(prevIdx)
+            if (prevSong != null) {
+                viewModel.fmSelect(prevIdx)
+                actions.playSong(prevSong, q)
+            }
+        },
         onNext = {
             val q = viewModel.fmQueue.value
             val nextIdx = (fmIndex + 1).coerceAtMost(q.size - 1)
