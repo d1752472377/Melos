@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -41,6 +42,7 @@ import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.components.DangerCapsuleButton
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
@@ -107,7 +109,8 @@ fun CacheListScreen(
                 EmptyBox("暂无缓存歌曲\n播放过的歌曲会自动缓存，下次秒开")
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = BottomContentSpacer)
                 ) {
                     items(songs, key = { it.filePath }) { song ->
                         Row(

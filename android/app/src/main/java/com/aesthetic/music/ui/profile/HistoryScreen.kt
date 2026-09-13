@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -46,6 +47,7 @@ import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone200
@@ -190,7 +192,8 @@ fun HistoryScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     // 移除整体间距，让分割线贴合
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    contentPadding = PaddingValues(bottom = BottomContentSpacer)
                 ) {
                     itemsIndexed(
                         filtered,

@@ -22,10 +22,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextSoft
+
+/**
+ * 页面内容末尾的空白高度。
+ *
+ * 底部悬浮 Dock 是浮在内容之上的（不占布局高度），所以每个可滚动页面要在**内容最后**
+ * 留一段空白：滚到底时最后一个条目能滑到 Dock 上方，而不是被压住。
+ *
+ * 注意必须加在内容末尾（LazyColumn 的 contentPadding / Column 末尾 Spacer），
+ * 不能加在容器上——加在容器上等于把这段高度当 inset 扣掉，页面还没滚动就先空一块。
+ */
+val BottomContentSpacer: Dp = 88.dp
 
 /**
  * 加载态（居中 spinner + 文案）。

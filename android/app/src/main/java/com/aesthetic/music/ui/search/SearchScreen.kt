@@ -35,6 +35,7 @@ import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongActionSheet
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.TextMuted
 
@@ -151,6 +152,7 @@ fun SearchScreen(
                     Modifier
                         .fillMaxSize()
                         .padding(horizontal = 20.dp)
+                        .padding(bottom = BottomContentSpacer)
                         .verticalScroll(rememberScrollState()),
                 ) {
                     SearchRecentSearches(
@@ -184,26 +186,26 @@ fun SearchScreen(
                                 emptyHint = searchError ?: "没有找到相关的单曲",
                                 onPlay = { song -> onPlaySong(song, songResults) },
                                 onMore = { song -> songForActionMenu = song },
-                                bottomContentPadding = 0.dp,
+                                bottomContentPadding = BottomContentSpacer,
                             )
 
                             SearchType.ARTIST -> ArtistResultList(
                                 artists = artistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌手",
                                 onOpen = onOpenArtist,
-                                bottomContentPadding = 0.dp,
+                                bottomContentPadding = BottomContentSpacer,
                             )
                             SearchType.PLAYLIST -> PlaylistResultList(
                                 playlists = playlistResults,
                                 emptyHint = searchError ?: "没有找到相关的歌单",
                                 onOpen = onOpenPlaylist,
-                                bottomContentPadding = 0.dp,
+                                bottomContentPadding = BottomContentSpacer,
                             )
                             SearchType.ALBUM -> AlbumResultList(
                                 albums = albumResults,
                                 emptyHint = searchError ?: "没有找到相关的专辑",
                                 onOpen = onOpenAlbum,
-                                bottomContentPadding = 0.dp,
+                                bottomContentPadding = BottomContentSpacer,
                             )
                         }
                     }

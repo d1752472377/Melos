@@ -58,6 +58,7 @@ import com.aesthetic.music.ui.theme.TextSoft
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.aesthetic.music.ui.components.BottomContentSpacer
 
 /**
  * 账号与同步页。
@@ -140,6 +141,7 @@ fun CloudManageScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp)
                 .padding(top = 24.dp)
+                .padding(bottom = BottomContentSpacer)
                 .verticalScroll(rememberScrollState()),
         ) {
             // ===== 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键） =====

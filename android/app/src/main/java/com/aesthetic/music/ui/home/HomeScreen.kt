@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomContentSpacer
 
 /**
  * 首页：按反 AI 味、高质感、明快分层原则重构
@@ -99,6 +100,7 @@ fun HomeScreen(
             top = 20.dp,
             start = 20.dp,
             end = 20.dp,
+            bottom = BottomContentSpacer,
         ),
         verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {

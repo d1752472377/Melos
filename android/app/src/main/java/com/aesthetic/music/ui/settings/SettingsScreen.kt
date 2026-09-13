@@ -51,6 +51,7 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.components.BottomContentSpacer
 
 private val ThemeMode.label: String
     get() = when (this) {
@@ -87,6 +88,7 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
+            .padding(bottom = BottomContentSpacer)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
     ) {

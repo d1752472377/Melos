@@ -44,6 +44,7 @@ import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.SongRow
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -226,6 +227,7 @@ fun ArtistScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxHeight(),
                         verticalArrangement = Arrangement.Top,
+                        contentPadding = PaddingValues(bottom = BottomContentSpacer),
                     ) {
                         itemsIndexed(
                             songs,

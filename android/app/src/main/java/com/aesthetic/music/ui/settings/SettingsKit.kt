@@ -48,6 +48,7 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.components.BottomContentSpacer
 
 /**
  * 设置子页面共用组件。
@@ -78,8 +79,7 @@ fun SettingsPageScaffold(
             .fillMaxSize()
             .background(Background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 24.dp),
+            .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(24.dp))
         Text(
@@ -101,7 +101,7 @@ fun SettingsPageScaffold(
 
         Spacer(Modifier.height(18.dp))
         content()
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(BottomContentSpacer))
     }
 }
 
