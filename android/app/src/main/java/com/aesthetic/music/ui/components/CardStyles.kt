@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.aesthetic.music.ui.theme.Palette
+import com.aesthetic.music.ui.theme.CardBorder
 
 /**
  * 通用卡片外观：圆角 + 描边 + 渐变背景。
@@ -24,9 +24,8 @@ fun Modifier.appCard(
     shape: RoundedCornerShape = RoundedCornerShape(20.dp),
     borderWidth: Dp = 1.dp,
 ): Modifier {
-    val borderColor = if (Palette.isDark) Color(0xFF33304A) else Color.White.copy(alpha = 0.9f)
     return this
-        .border(borderWidth, borderColor, shape)
+        .border(borderWidth, CardBorder, shape)
         .clip(shape)
         .background(background)
 }
