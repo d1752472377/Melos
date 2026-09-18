@@ -505,6 +505,46 @@ try {
   const newLoginSuccess = await j('POST', '/api/auth/login', { payload: { username: 'admin', password: 'newpassword999' } });
   ok('修改后新密码登录成功 (200)', newLoginSuccess.statusCode === 200 && newLoginSuccess.json().data.token);
 
+  console.log('== 邮箱验证码登录与自动开户 ==');
+  const badSend1 = await j('POST', '/api/auth/send-code', { payload: {} });
+  ok('发送验证码不传邮箱返回 400', badSend1.statusCode === 400);
+
+  const badSend2 = await j('POST', '/api/auth/send-code', { payload: { email: 'not-an-email' } });
+  ok('发送验证码非法邮箱返回 400', badSend2.statusCode === 400);
+
+  const { saveEmailCode } = await import('../src/lib/db.js');
+  // 模拟发送了验证码
+  await saveEmailCode(app.client, { email: 'eva@example.com', code: '123456', expiresAt: Date.now() + 300000 });
+
+  const badCodeLogin = await j('POST', '/api/auth/email-login', {
+    payload: { email: 'eva@example.com', code: '000000' }
+  });
+  ok('错误验证码登录返回 400', badCodeLogin.statusCode === 400);
+
+  const codeLoginSuccess = await j('POST', '/api/auth/email-login', {
+    payload: { email: 'eva@example.com', code: '123456', deviceName: 'phone-eva' }
+  });
+  ok('正确验证码登录并自动开户成功 (200)', codeLoginSuccess.statusCode === 200 && codeLoginSuccess.json().data.token);
+  const evaToken = codeLoginSuccess.json().data.token;
+  const evaUser = codeLoginSuccess.json().data.user;
+  ok('自动开户邮箱字段正确', evaUser.email === 'eva@example.com');
+
+  const replayCode = await j('POST', '/api/auth/email-login', {
+    payload: { email: 'eva@example.com', code: '123456' }
+  });
+  ok('已消费的验证码再次使用返回 400', replayCode.statusCode === 400);
+
+  // 再次发送验证码给老用户登录
+  await saveEmailCode(app.client, { email: 'eva@example.com', code: '654321', expiresAt: Date.now() + 300000 });
+  const reLogin = await j('POST', '/api/auth/email-login', {
+    payload: { email: 'eva@example.com', code: '654321' }
+  });
+  ok('老用户再次验证码登录成功 (200)', reLogin.statusCode === 200);
+  ok('老用户登录保持相同用户ID', reLogin.json().data.user.id === evaUser.id);
+
+  const evaMe = await j('GET', '/api/me', { token: evaToken });
+  ok('新登录用户可正常请求 /api/me', evaMe.statusCode === 200 && evaMe.json().data.email === 'eva@example.com');
+
   console.log(`\n全部通过，共 ${passed} 项断言。`);
 } finally {
   await app.close();

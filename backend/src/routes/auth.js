@@ -11,6 +11,10 @@ import {
   revokeSessionById,
   revokeAllSessions,
   listSessions,
+  saveEmailCode,
+  findLatestValidEmailCode,
+  markEmailCodeUsed,
+  getLatestCodeSentTime,
 } from '../lib/db.js';
 import {
   newSalt,
@@ -23,6 +27,8 @@ import {
   recordLoginFailure,
   clearLoginFailures,
 } from '../lib/auth.js';
+import { sendVerifyCodeEmail } from '../lib/mail.js';
+import crypto from 'node:crypto';
 
 const USERNAME_RE = /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$/;
 
@@ -84,6 +90,118 @@ async function issueSession(client, user, deviceName, ttlMs, maxSessions) {
 export function registerAuthRoutes(app, { config, client }) {
   const allowAuth = requireUser(config, client);
   const SESSION_TTL_MS = config.sessionTtlDays * 24 * 60 * 60 * 1000;
+
+  // 发送邮箱随机验证码
+  app.post('/api/auth/send-code', async (req, reply) => {
+    const { email, scene = 'login' } = req.body || {};
+    const check = normalizeEmail(email);
+    if (!check.ok || !check.email) {
+      return reply.code(400).send({ code: 400, msg: check.error || '请提供有效的邮箱地址' });
+    }
+    const normalizedEmail = check.email;
+    const now = Date.now();
+
+    // 冷却检查：同一个邮箱 60 秒内只能发送一次
+    const lastSentAt = await getLatestCodeSentTime(client, normalizedEmail, scene);
+    const COOL_DOWN_MS = 60 * 1000;
+    if (lastSentAt && now - lastSentAt < COOL_DOWN_MS) {
+      const waitSeconds = Math.ceil((COOL_DOWN_MS - (now - lastSentAt)) / 1000);
+      return reply.code(429).send({ code: 429, msg: `发送太频繁，请在 ${waitSeconds} 秒后再试` });
+    }
+
+    // 生成 6 位随机纯数字验证码
+    const code = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = now + 5 * 60 * 1000; // 5 分钟有效
+
+    try {
+      await saveEmailCode(client, {
+        email: normalizedEmail,
+        code,
+        scene,
+        expiresAt,
+        nowMs: now,
+      });
+
+      // 发送真实邮件（通过 Cloudflare 部署的自建邮件服务）
+      await sendVerifyCodeEmail({
+        toMail: normalizedEmail,
+        code,
+        scene,
+        config,
+      });
+    } catch (err) {
+      req.log.error(err, `发送验证码失败: ${normalizedEmail}`);
+      return reply.code(500).send({ code: 500, msg: `验证码发送失败：${err.message || '邮件服务异常'}` });
+    }
+
+    return { code: 200, msg: '验证码已发送，请注意查收邮件' };
+  });
+
+  // 邮箱验证码快捷登录 / 自动注册
+  app.post('/api/auth/email-login', async (req, reply) => {
+    const { email, code, deviceName } = req.body || {};
+    const check = normalizeEmail(email);
+    if (!check.ok || !check.email) {
+      return reply.code(400).send({ code: 400, msg: check.error || '请提供有效的邮箱地址' });
+    }
+    const codeStr = String(code || '').trim();
+    if (!codeStr || !/^\d{4,8}$/.test(codeStr)) {
+      return reply.code(400).send({ code: 400, msg: '请输入正确的验证码' });
+    }
+    const normalizedEmail = check.email;
+    const now = Date.now();
+
+    // 验证码核对
+    const record = await findLatestValidEmailCode(client, normalizedEmail, 'login', now);
+    if (!record || String(record.code) !== codeStr) {
+      return reply.code(400).send({ code: 400, msg: '验证码错误或已过期' });
+    }
+
+    // 标记验证码已使用（单次消费）
+    await markEmailCodeUsed(client, record.id);
+
+    // 查找用户，若不存在则自动开户
+    let user = await findUserByEmail(client, normalizedEmail);
+    if (!user) {
+      // 自动注册：生成唯一合法用户名（2-20位，字母/数字/下划线/中文）
+      const baseName = normalizedEmail.split('@')[0].replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_').slice(0, 12) || 'user';
+      let candidateUsername = baseName;
+      if (candidateUsername.length < 2) candidateUsername = `m_${candidateUsername}`;
+      let counter = 0;
+      while (await findUserByUsername(client, candidateUsername)) {
+        counter++;
+        candidateUsername = `${baseName.slice(0, 10)}_${Math.random().toString(36).slice(2, 6)}`;
+        if (counter > 10) {
+          candidateUsername = `u_${Date.now().toString(36).slice(-6)}`;
+          break;
+        }
+      }
+
+      const salt = newSalt();
+      const randomPassword = crypto.randomBytes(16).toString('hex');
+      const passwordHash = await hashPassword(randomPassword, salt);
+
+      try {
+        user = await createUser(client, {
+          username: candidateUsername,
+          passwordHash,
+          salt,
+          nickname: normalizedEmail.split('@')[0] || candidateUsername,
+          email: normalizedEmail,
+          nowMs: now,
+        });
+      } catch (e) {
+        if (isEmailConflict(e)) {
+          user = await findUserByEmail(client, normalizedEmail);
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    const session = await issueSession(client, user, deviceName, SESSION_TTL_MS, config.maxSessionsPerUser);
+    return { code: 200, data: { token: session.token, expiresAt: session.expiresAt, user: publicUser(user) } };
+  });
 
   app.post('/api/auth/register', async (req, reply) => {
     const { username, password, nickname, deviceName, email } = req.body || {};

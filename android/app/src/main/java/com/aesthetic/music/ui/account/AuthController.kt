@@ -8,6 +8,8 @@ import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.sync.SyncStateStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,6 +58,16 @@ class AuthController(
 
     private val _isLoadingSessions = MutableStateFlow(false)
     val isLoadingSessions: StateFlow<Boolean> = _isLoadingSessions.asStateFlow()
+
+    /** 验证码重发倒计时（秒） */
+    private val _codeCountdown = MutableStateFlow(0)
+    val codeCountdown: StateFlow<Int> = _codeCountdown.asStateFlow()
+
+    /** 正在发送验证码（用于按钮转圈） */
+    private val _isSendingCode = MutableStateFlow(false)
+    val isSendingCode: StateFlow<Boolean> = _isSendingCode.asStateFlow()
+
+    private var countdownJob: Job? = null
 
     /** 从 [UserStore] 重新读取登录态（`isLoggedIn` 要求 token 与用户信息同时存在） */
     fun refresh() {
@@ -123,6 +135,77 @@ class AuthController(
             ).onSuccess { onAuthSuccess(it, isRegister = true) }
                 .onFailure { _error.value = friendly(it, "注册失败") }
             _isBusy.value = false
+        }
+    }
+
+    fun sendCode(email: String) {
+        val e = email.trim().lowercase()
+        if (e.isBlank()) {
+            _error.value = "请填写邮箱地址"
+            return
+        }
+        if (!EMAIL_PATTERN.matches(e)) {
+            _error.value = "请输入有效的邮箱地址（如 name@domain.com）"
+            return
+        }
+        if (!SyncServerStore.isConfigured()) {
+            _error.value = "请先填写服务器地址"
+            return
+        }
+        if (_codeCountdown.value > 0) {
+            _error.value = "请在 ${_codeCountdown.value} 秒后再请求验证码"
+            return
+        }
+        scope.launch {
+            _isSendingCode.value = true
+            _error.value = null
+            repository.sendCode(e)
+                .onSuccess {
+                    onToast("验证码已发送至 $e，请查收")
+                    startCountdown(60)
+                }
+                .onFailure { _error.value = friendly(it, "发送验证码失败") }
+            _isSendingCode.value = false
+        }
+    }
+
+    fun emailLogin(email: String, code: String) {
+        val e = email.trim().lowercase()
+        val c = code.trim()
+        if (e.isBlank()) {
+            _error.value = "请填写邮箱地址"
+            return
+        }
+        if (!EMAIL_PATTERN.matches(e)) {
+            _error.value = "请输入有效的邮箱地址（如 name@domain.com）"
+            return
+        }
+        if (c.length != 6 || !c.all { it.isDigit() }) {
+            _error.value = "请输入 6 位数字验证码"
+            return
+        }
+        if (!SyncServerStore.isConfigured()) {
+            _error.value = "请先填写服务器地址"
+            return
+        }
+        scope.launch {
+            _isBusy.value = true
+            _error.value = null
+            repository.emailLogin(e, c, deviceName = SyncStateStore.deviceName())
+                .onSuccess { onAuthSuccess(it, isRegister = false) }
+                .onFailure { _error.value = friendly(it, "登录失败") }
+            _isBusy.value = false
+        }
+    }
+
+    private fun startCountdown(seconds: Int) {
+        countdownJob?.cancel()
+        countdownJob = scope.launch {
+            _codeCountdown.value = seconds
+            while (_codeCountdown.value > 0) {
+                delay(1000L)
+                _codeCountdown.value -= 1
+            }
         }
     }
 
@@ -255,5 +338,7 @@ class AuthController(
     private companion object {
         /** 与后端 `USERNAME_RE = /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,20}$/` 完全一致（含中文用户名） */
         val USERNAME_PATTERN = Regex("^[a-zA-Z0-9_\\u4e00-\\u9fa5]{2,20}$")
+        /** 与后端 `EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/` 完全一致 */
+        val EMAIL_PATTERN = Regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
     }
 }

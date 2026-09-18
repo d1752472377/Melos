@@ -48,7 +48,7 @@ export async function buildApp() {
 
     app.addHook('onRequest', async (req, reply) => {
       const path = (req.url || '').split('?')[0];
-      if (path === '/api/auth/login' || path === '/api/auth/register') {
+      if (path.startsWith('/api/auth/')) {
         return authLimiter(req, reply);
       }
       if (path.startsWith('/api/')) {

@@ -105,7 +105,10 @@ class MainViewModel : ViewModel() {
         repository = repository,
         scope = viewModelScope,
         onToast = { _appToast.value = it },
-        onLoggedOut = { library.refreshSyncState() },
+        onLoggedOut = {
+            library.refreshSyncState()
+            auth.refresh()
+        },
     )
 
     /**
@@ -596,11 +599,17 @@ class MainViewModel : ViewModel() {
     val authError get() = auth.error
     val loginSessions get() = auth.sessions
     val isLoadingSessions get() = auth.isLoadingSessions
+    val codeCountdown get() = auth.codeCountdown
+    val isSendingCode get() = auth.isSendingCode
 
     fun login(username: String, password: String) = auth.login(username, password)
 
     fun register(username: String, password: String, nickname: String = "") =
         auth.register(username, password, nickname)
+
+    fun sendCode(email: String) = auth.sendCode(email)
+
+    fun emailLogin(email: String, code: String) = auth.emailLogin(email, code)
 
     fun clearAuthError() = auth.clearError()
 

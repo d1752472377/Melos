@@ -12,6 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.metrics.performance.FrameData
@@ -20,6 +22,7 @@ import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.ui.AppShell
 import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.account.AuthScreen
 import com.aesthetic.music.ui.theme.AestheticMusicTheme
 import com.aesthetic.music.ui.theme.applyThemeMode
 
@@ -46,8 +49,14 @@ class MainActivity : ComponentActivity() {
             applyThemeMode(SettingsStore.getThemeMode(), isSystemInDarkTheme())
             AestheticMusicTheme {
                 val viewModel: MainViewModel = viewModel()
-                val playerManager = PlayerManager.get(this)
-                AppShell(viewModel = viewModel, playerManager = playerManager)
+                val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+
+                if (!isLoggedIn) {
+                    AuthScreen(viewModel = viewModel)
+                } else {
+                    val playerManager = PlayerManager.get(this)
+                    AppShell(viewModel = viewModel, playerManager = playerManager)
+                }
             }
         }
     }

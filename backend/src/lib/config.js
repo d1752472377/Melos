@@ -28,4 +28,10 @@ export const config = {
   // 会话策略
   sessionTtlDays: intEnv('SESSION_TTL_DAYS', 90),
   maxSessionsPerUser: intEnv('MAX_SESSIONS_PER_USER', 10),
+
+  // 邮件服务（Cloudflare 自建邮件系统）
+  mailServiceUrl: process.env.MAIL_SERVICE_URL || 'https://mail.dovislab.com',
+  mailAdminAuth: process.env.MAIL_ADMIN_AUTH || 'REDACTED',
+  mailFromAddress: process.env.MAIL_FROM_ADDRESS || 'melos@dovislab.com',
+  mailFromName: process.env.MAIL_FROM_NAME || 'Melos 音乐',
 };

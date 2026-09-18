@@ -203,6 +203,20 @@ data class ProfileBody(
     val email: String? = null,
 )
 
+/** 请求体：发送验证码 */
+data class SendCodeBody(
+    val email: String,
+    val scene: String = "login",
+)
+
+/** 请求体：邮箱验证码登录 / 自动注册 */
+data class EmailLoginBody(
+    val email: String,
+    val code: String,
+    val deviceName: String? = null,
+)
+
+
 // ==================== 多端增量同步模型 (LWW + 墓碑) ====================
 
 /**
@@ -422,6 +436,12 @@ interface MusicApi {
 
     @POST("api/auth/login")
     suspend fun login(@Body body: LoginBody): ApiResponse<AuthData>
+
+    @POST("api/auth/send-code")
+    suspend fun sendCode(@Body body: SendCodeBody): ApiResponse<Any>
+
+    @POST("api/auth/email-login")
+    suspend fun emailLogin(@Body body: EmailLoginBody): ApiResponse<AuthData>
 
     @POST("api/auth/logout")
     suspend fun logout(): ApiResponse<Any>

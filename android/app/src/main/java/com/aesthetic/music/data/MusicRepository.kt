@@ -10,9 +10,11 @@ import com.aesthetic.music.data.api.AuthData
 import com.aesthetic.music.data.api.CategoriesData
 import com.aesthetic.music.data.api.CloudSyncPullData
 import com.aesthetic.music.data.api.DailyData
+import com.aesthetic.music.data.api.EmailLoginBody
 import com.aesthetic.music.data.api.LoginBody
 import com.aesthetic.music.data.api.LyricData
 import com.aesthetic.music.data.api.MusicApi
+import com.aesthetic.music.data.api.SendCodeBody
 import com.aesthetic.music.data.api.NewSongsData
 import com.aesthetic.music.data.api.PlaylistDetailData
 import com.aesthetic.music.data.api.PlaylistItem
@@ -200,6 +202,20 @@ class MusicRepository(
         deviceName: String = "Android"
     ): Result<AuthData> = apiCatching {
         val resp = api.login(LoginBody(username = username, password = password, deviceName = deviceName))
+        if (resp.code == 200) resp.data ?: throw Exception("登录返回为空") else throw Exception(resp.msg ?: "登录失败")
+    }
+
+    suspend fun sendCode(email: String, scene: String = "login"): Result<Unit> = apiCatching {
+        val resp = api.sendCode(SendCodeBody(email = email, scene = scene))
+        if (resp.code == 200) Unit else throw Exception(resp.msg ?: "发送验证码失败")
+    }
+
+    suspend fun emailLogin(
+        email: String,
+        code: String,
+        deviceName: String = "Android"
+    ): Result<AuthData> = apiCatching {
+        val resp = api.emailLogin(EmailLoginBody(email = email, code = code, deviceName = deviceName))
         if (resp.code == 200) resp.data ?: throw Exception("登录返回为空") else throw Exception(resp.msg ?: "登录失败")
     }
 

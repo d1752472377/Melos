@@ -169,6 +169,17 @@ const SCHEMA = `
       UNIQUE (user_id, event_id)
     );
     CREATE INDEX IF NOT EXISTS idx_play_events_user ON play_events(user_id, id);
+
+    CREATE TABLE IF NOT EXISTS email_codes (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      email       TEXT NOT NULL,
+      code        TEXT NOT NULL,
+      scene       TEXT NOT NULL DEFAULT 'login',
+      expires_at  INTEGER NOT NULL,
+      used        INTEGER NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_codes ON email_codes(email, scene, expires_at);
 `;
 
 function num(v) {
@@ -249,6 +260,21 @@ export async function initDb(dbUrl, authToken) {
   } catch {
     // 不支持部分索引：依赖路由层 findUserByEmail 查重
   }
+  // 验证码表：老库可能未在创建时执行该部分，确保升级
+  try {
+    await client.execute(`CREATE TABLE IF NOT EXISTS email_codes (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      email       TEXT NOT NULL,
+      code        TEXT NOT NULL,
+      scene       TEXT NOT NULL DEFAULT 'login',
+      expires_at  INTEGER NOT NULL,
+      used        INTEGER NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL
+    )`);
+    await client.execute("CREATE INDEX IF NOT EXISTS idx_email_codes ON email_codes(email, scene, expires_at)");
+  } catch {
+    // 忽略
+  }
   return client;
 }
 
@@ -263,6 +289,35 @@ async function first(client, sql, args = []) {
 async function run(client, sql, args = []) {
   const rs = await client.execute({ sql, args });
   return { changes: rs.rowsAffected, lastId: rs.lastInsertRowid != null ? Number(rs.lastInsertRowid) : undefined };
+}
+
+// ==================== 邮箱验证码 ====================
+
+export async function saveEmailCode(client, { email, code, scene = 'login', expiresAt, nowMs = Date.now() }) {
+  const r = await run(client,
+    'INSERT INTO email_codes (email, code, scene, expires_at, used, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+    [email, code, scene, expiresAt, nowMs],
+  );
+  return r.lastId;
+}
+
+export async function findLatestValidEmailCode(client, email, scene, nowMs) {
+  return first(client,
+    'SELECT * FROM email_codes WHERE email = ? AND scene = ? AND used = 0 AND expires_at > ? ORDER BY id DESC LIMIT 1',
+    [email, scene, nowMs],
+  );
+}
+
+export async function markEmailCodeUsed(client, id) {
+  return run(client, 'UPDATE email_codes SET used = 1 WHERE id = ?', [id]);
+}
+
+export async function getLatestCodeSentTime(client, email, scene) {
+  const row = await first(client,
+    'SELECT created_at FROM email_codes WHERE email = ? AND scene = ? ORDER BY id DESC LIMIT 1',
+    [email, scene],
+  );
+  return row ? num(row.created_at) : 0;
 }
 
 // ==================== 用户 ====================
