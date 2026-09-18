@@ -11,8 +11,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import com.aesthetic.music.ui.components.MelosToastHost
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -74,7 +73,6 @@ import kotlinx.coroutines.launch
 fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
 
     // 官方 Jetpack Navigation 导航控制器：统一管理页面切换与回退�?
     val navController = rememberNavController()
@@ -136,17 +134,12 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val lastError = playerState.lastError
     LaunchedEffect(lastError) {
         if (lastError != null) {
-            snackbarHostState.showSnackbar(lastError)
+            viewModel.showToast(lastError)
             playerManager.consumeError()
         }
     }
 
     val appToast by viewModel.appToast.collectAsState()
-    LaunchedEffect(appToast) {
-        val msg = appToast ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(msg)
-        viewModel.consumeToast()
-    }
 
     LaunchedEffect(Unit) {
         playerManager.onPlaybackStarted = { song -> viewModel.addToHistory(song) }
@@ -203,7 +196,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             playSong = { song, list -> playSong(song, list) },
             playAll = { list -> if (list.isNotEmpty()) playSong(list.first(), list) },
             shareSongs = { songs -> shareSongs(songs) },
-            toast = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+            toast = { msg -> viewModel.showToast(msg) },
         )
     }
 
@@ -219,7 +212,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     // 底部不再为悬浮 Dock 预留高度：内容一直铺到屏幕底部（列表末尾会从 Dock 底下穿过）
     Scaffold(
         containerColor = Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {},
         bottomBar = {},
         // 状态栏隐藏时不再为它预留高度：否则顶部会空出一�?"被底色挡�?"的带子，
         // 看上去像是用背景盖住了状态栏，而不是真的隐藏并让内容顶上来
@@ -410,16 +403,22 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         }
                     },
                     onLoginImport = { platformName ->
-                        viewModel.showToast("�?$platformName」账号导入功能开发中，敬请期�?")
+                        viewModel.showToast("?$platformName」账号导入功能开发中，敬请期?")
                     },
                 )
             }
 
-            // ===== 系统返回键处�? =====
-            // 仅需处理全屏浮层播放器：其余所有页面回退统一�? NavController 回退栈原生全自动接管�?
+            // ===== 系统返回键处? =====
+            // 仅需处理全屏浮层播放器：其余所有页面回退统一? NavController 回退栈原生全自动接管?
             BackHandler(enabled = showPlayer) {
                 viewModel.closePlayer()
             }
+
+            // ===== 顶部灵动胶囊通知（Top Floating Capsule Toast，彻底解决原生底部遮挡与丑陋） =====
+            MelosToastHost(
+                message = appToast,
+                onDismiss = { viewModel.consumeToast() },
+            )
         }
     }
 }

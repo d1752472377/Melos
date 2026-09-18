@@ -355,8 +355,8 @@ fun ProfileScreen(
                     ProfileMenuItem(
                         icon = Icons.Filled.CloudSync,
                         iconTint = Color(0xFF6366F1),
-                        title = "云端管理",
-                        subtitle = if (isSyncConfigured) "已连接" else "未配置",
+                        title = "云端同步与设备",
+                        subtitle = if (isSyncConfigured) "云端已连接" else "已连接",
                         onClick = onOpenCloudManage,
                     )
                     ProfileMenuItem(
@@ -405,7 +405,7 @@ fun ProfileScreen(
         AppConfirmDialog(
             onDismissRequest = { showLogoutConfirm = false },
             title = "退出登录",
-            message = "退出登录后将清空私有云同步配置与当前会话。",
+            message = "退出当前账号后，需重新验证账号才能继续使用 Melos。",
             confirmText = "退出",
             onConfirm = {
                 showLogoutConfirm = false

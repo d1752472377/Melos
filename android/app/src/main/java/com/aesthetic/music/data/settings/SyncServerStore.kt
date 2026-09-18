@@ -45,14 +45,20 @@ object SyncServerStore {
             ?.apply()
     }
 
+    /** 默认写死的后端服务地址（开箱即用，免配置） */
+    const val DEFAULT_SERVER_URL = "http://100.64.0.9:8787"
+
     fun saveServerUrl(serverUrl: String) {
         prefs?.edit()?.putString(KEY_SERVER_URL, normalize(serverUrl))?.apply()
     }
 
-    fun getServerUrl(): String = normalize(prefs?.getString(KEY_SERVER_URL, "").orEmpty())
+    fun getServerUrl(): String {
+        val configured = prefs?.getString(KEY_SERVER_URL, "")?.let { normalize(it) }.orEmpty()
+        return if (configured.isNotBlank()) configured else DEFAULT_SERVER_URL
+    }
 
-    /** 是否已填服务器地址（**不代表已登录**：能不能同步还取决于账号登录态） */
-    fun isConfigured(): Boolean = getServerUrl().isNotBlank()
+    /** 开箱即用：默认内置云端服务地址，始终已就绪 */
+    fun isConfigured(): Boolean = true
 
     fun clear() {
         prefs?.edit()?.clear()?.apply()

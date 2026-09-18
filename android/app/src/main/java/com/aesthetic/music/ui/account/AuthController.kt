@@ -85,10 +85,6 @@ class AuthController(
             _error.value = "请填写用户名和密码"
             return
         }
-        if (!SyncServerStore.isConfigured()) {
-            _error.value = "请先填写服务器地址"
-            return
-        }
         scope.launch {
             _isBusy.value = true
             _error.value = null
@@ -99,15 +95,32 @@ class AuthController(
         }
     }
 
-    fun register(username: String, password: String, nickname: String = "") {
+    fun register(
+        username: String,
+        password: String,
+        email: String,
+        code: String,
+        nickname: String = ""
+    ) {
         val u = username.trim()
+        val e = email.trim().lowercase()
+        val c = code.trim()
+        if (e.isBlank()) {
+            _error.value = "请填写注册邮箱"
+            return
+        }
+        if (!EMAIL_PATTERN.matches(e)) {
+            _error.value = "请输入有效的邮箱地址（如 name@domain.com）"
+            return
+        }
+        if (c.length != 6 || !c.all { it.isDigit() }) {
+            _error.value = "请输入 6 位数字验证码"
+            return
+        }
         if (u.isBlank() || password.isBlank()) {
             _error.value = "请填写用户名和密码"
             return
         }
-        // 校验规则与后端保持一致（backend/src/routes/auth.js 的 validateRegister）：
-        // 本地先挡住能少一次"提交后才被拒绝"的往返；两边不一致会导致
-        // 客户端以为合法、服务端拒绝（或反之），是最容易让用户困惑的一类问题。
         if (!USERNAME_PATTERN.matches(u)) {
             _error.value = "用户名需 2-20 位（字母 / 数字 / 下划线 / 中文）"
             return
@@ -120,16 +133,14 @@ class AuthController(
             _error.value = "昵称最长 24 字"
             return
         }
-        if (!SyncServerStore.isConfigured()) {
-            _error.value = "请先填写服务器地址"
-            return
-        }
         scope.launch {
             _isBusy.value = true
             _error.value = null
             repository.register(
                 username = u,
                 password = password,
+                email = e,
+                code = c,
                 nickname = nickname.trim(),
                 deviceName = SyncStateStore.deviceName(),
             ).onSuccess { onAuthSuccess(it, isRegister = true) }
@@ -138,7 +149,7 @@ class AuthController(
         }
     }
 
-    fun sendCode(email: String) {
+    fun sendCode(email: String, scene: String = "login") {
         val e = email.trim().lowercase()
         if (e.isBlank()) {
             _error.value = "请填写邮箱地址"
@@ -148,10 +159,6 @@ class AuthController(
             _error.value = "请输入有效的邮箱地址（如 name@domain.com）"
             return
         }
-        if (!SyncServerStore.isConfigured()) {
-            _error.value = "请先填写服务器地址"
-            return
-        }
         if (_codeCountdown.value > 0) {
             _error.value = "请在 ${_codeCountdown.value} 秒后再请求验证码"
             return
@@ -159,7 +166,7 @@ class AuthController(
         scope.launch {
             _isSendingCode.value = true
             _error.value = null
-            repository.sendCode(e)
+            repository.sendCode(e, scene = scene)
                 .onSuccess {
                     onToast("验证码已发送至 $e，请查收")
                     startCountdown(60)
@@ -182,10 +189,6 @@ class AuthController(
         }
         if (c.length != 6 || !c.all { it.isDigit() }) {
             _error.value = "请输入 6 位数字验证码"
-            return
-        }
-        if (!SyncServerStore.isConfigured()) {
-            _error.value = "请先填写服务器地址"
             return
         }
         scope.launch {

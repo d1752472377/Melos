@@ -18,7 +18,10 @@ export async function sendVerifyCodeEmail({ toMail, code, scene = 'login', confi
   const fromMail = config.mailFromAddress || 'melos@dovislab.com';
   const fromName = config.mailFromName || 'Melos 音乐';
 
-  const sceneText = scene === 'register' ? '注册' : '登录';
+  let sceneText = '登录';
+  if (scene === 'register') sceneText = '注册';
+  else if (scene === 'bind') sceneText = '绑定/更换邮箱';
+  else if (scene === 'unbind') sceneText = '解绑邮箱';
   const subject = `【Melos 音乐】${sceneText}验证码：${code}`;
 
   const textContent = `【Melos 音乐】您正在进行${sceneText}操作。

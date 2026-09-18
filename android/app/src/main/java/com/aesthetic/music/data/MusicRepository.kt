@@ -7,6 +7,7 @@ import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.AuthData
+import com.aesthetic.music.data.api.BindEmailBody
 import com.aesthetic.music.data.api.CategoriesData
 import com.aesthetic.music.data.api.CloudSyncPullData
 import com.aesthetic.music.data.api.DailyData
@@ -25,6 +26,7 @@ import com.aesthetic.music.data.api.SessionDto
 import com.aesthetic.music.data.api.SongUrlData
 import com.aesthetic.music.data.api.SyncPushPayload
 import com.aesthetic.music.data.api.SyncPushResult
+import com.aesthetic.music.data.api.UnbindEmailBody
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.api.platform.PlatformMusicService
 import com.aesthetic.music.data.api.platform.RankCatalog
@@ -189,11 +191,30 @@ class MusicRepository(
     suspend fun register(
         username: String,
         password: String,
+        email: String,
+        code: String,
         nickname: String = "",
         deviceName: String = "Android"
     ): Result<AuthData> = apiCatching {
-        val resp = api.register(RegisterBody(username = username, password = password, nickname = nickname.ifBlank { null }, deviceName = deviceName))
+        val resp = api.register(RegisterBody(
+            username = username,
+            password = password,
+            email = email,
+            code = code,
+            nickname = nickname.ifBlank { null },
+            deviceName = deviceName
+        ))
         if (resp.code == 200) resp.data ?: throw Exception("注册返回为空") else throw Exception(resp.msg ?: "注册失败")
+    }
+
+    suspend fun bindEmail(email: String, code: String): Result<UserInfo> = apiCatching {
+        val resp = api.bindEmail(BindEmailBody(email = email, code = code))
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "绑定邮箱失败")
+    }
+
+    suspend fun unbindEmail(code: String): Result<UserInfo> = apiCatching {
+        val resp = api.unbindEmail(UnbindEmailBody(code = code))
+        if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "解绑邮箱失败")
     }
 
     suspend fun login(
@@ -248,9 +269,6 @@ class MusicRepository(
 
     /**
      * 更新资料。字段为 null = 不改动该项（后端按「缺省即不改」处理）。
-     *
-     * [email] 传空串表示解绑；服务端若尚未支持该字段会被忽略，
-     * 因此调用方必须以**响应体**为准刷新界面，不能假设本地输入已经生效。
      */
     suspend fun updateProfile(
         nickname: String? = null,

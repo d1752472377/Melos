@@ -609,10 +609,15 @@ class MainViewModel : ViewModel() {
 
     fun login(username: String, password: String) = auth.login(username, password)
 
-    fun register(username: String, password: String, nickname: String = "") =
-        auth.register(username, password, nickname)
+    fun register(
+        username: String,
+        password: String,
+        email: String,
+        code: String,
+        nickname: String = ""
+    ) = auth.register(username, password, email, code, nickname)
 
-    fun sendCode(email: String) = auth.sendCode(email)
+    fun sendCode(email: String, scene: String = "login") = auth.sendCode(email, scene)
 
     fun emailLogin(email: String, code: String) = auth.emailLogin(email, code)
 
@@ -687,8 +692,17 @@ class MainViewModel : ViewModel() {
         avatarPath: String? = null,
     ) = profile.saveProfileInfo(nickname, bio, avatarPath)
 
-    /** 绑定 / 解绑邮箱（空串 = 解绑），走服务端并以响应体回写本地状态 */
-    fun bindEmail(email: String) = profile.bindEmail(email)
+    /** 安全绑定 / 更换邮箱（需要验证码） */
+    fun bindEmail(email: String, code: String, onSuccess: () -> Unit = {}) =
+        profile.bindEmail(email, code, onSuccess)
+
+    /** 安全解绑邮箱（需要验证码） */
+    fun unbindEmail(code: String, onSuccess: () -> Unit = {}) =
+        profile.unbindEmail(code, onSuccess)
+
+    /** 发送邮箱安全验证码 */
+    fun sendProfileEmailCode(email: String, scene: String, onSent: () -> Unit = {}) =
+        profile.sendEmailCode(email, scene, onSent)
 
     // ==================== 统计 ====================
 

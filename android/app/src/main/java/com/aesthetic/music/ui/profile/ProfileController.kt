@@ -122,28 +122,67 @@ class ProfileController(
      * 后端若还没有 email 字段，接口会静默忽略，此时界面必须仍然显示"未绑定"，
      * 否则用户会以为绑定成功，直到某天需要邮箱找回密码时才发现是空的。
      */
-    fun bindEmail(email: String) {
+    fun sendEmailCode(email: String, scene: String, onSent: () -> Unit = {}) {
+        val target = email.trim().lowercase()
+        if (target.isBlank() || !ProfileFormat.isValidEmail(target)) {
+            onToast("请输入有效的邮箱地址")
+            return
+        }
+        scope.launch {
+            repository.sendCode(target, scene = scene).onSuccess {
+                onToast("验证码已发送至 $target，请查收")
+                onSent()
+            }.onFailure { e ->
+                onToast("验证码发送失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
+    /** 安全绑定/更换邮箱（核对新邮箱验证码） */
+    fun bindEmail(email: String, code: String, onSuccess: () -> Unit = {}) {
         if (!UserStore.isLoggedIn()) {
             onToast("请先登录后再绑定邮箱")
             return
         }
-        val target = email.trim()
-        if (target.isNotEmpty() && !ProfileFormat.isValidEmail(target)) {
+        val target = email.trim().lowercase()
+        val c = code.trim()
+        if (target.isBlank() || !ProfileFormat.isValidEmail(target)) {
             onToast("邮箱格式不正确")
             return
         }
+        if (c.length != 6 || !c.all { it.isDigit() }) {
+            onToast("请输入 6 位数字验证码")
+            return
+        }
         scope.launch {
-            repository.updateProfile(email = target).onSuccess { updated ->
+            repository.bindEmail(email = target, code = c).onSuccess { updated ->
                 applyUser(updated)
-                val bound = updated.email?.trim().orEmpty()
-                when {
-                    target.isEmpty() && bound.isEmpty() -> onToast("邮箱已解绑")
-                    bound.equals(target, ignoreCase = true) -> onToast("邮箱已绑定")
-                    // 服务端返回的邮箱与我们提交的不一致：只可能是后端没实现这个字段
-                    else -> onToast("服务端未保存邮箱（后端版本较旧）")
-                }
+                onToast("邮箱绑定成功")
+                onSuccess()
             }.onFailure { e ->
-                onToast("邮箱操作失败: ${e.message ?: "网络异常"}")
+                onToast("绑定失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
+    /** 安全解绑邮箱（核对原邮箱验证码） */
+    fun unbindEmail(code: String, onSuccess: () -> Unit = {}) {
+        if (!UserStore.isLoggedIn()) {
+            onToast("请先登录")
+            return
+        }
+        val c = code.trim()
+        if (c.length != 6 || !c.all { it.isDigit() }) {
+            onToast("请输入 6 位数字验证码")
+            return
+        }
+        scope.launch {
+            repository.unbindEmail(code = c).onSuccess { updated ->
+                applyUser(updated)
+                onToast("邮箱已成功解绑")
+                onSuccess()
+            }.onFailure { e ->
+                onToast("解绑失败: ${e.message ?: "网络异常"}")
             }
         }
     }

@@ -204,27 +204,42 @@ export function registerAuthRoutes(app, { config, client }) {
   });
 
   app.post('/api/auth/register', async (req, reply) => {
-    const { username, password, nickname, deviceName, email } = req.body || {};
+    const { username, password, nickname, deviceName, email, code } = req.body || {};
     const name = String(username || '').trim();
     const err = validateRegister(name, password, nickname);
     if (err) return reply.code(400).send({ code: 400, msg: err });
-    // 注册时 email 可选：不传/传空 = 不绑定（保持老客户端行为不变）；
-    // 传了则与 PUT /api/me 同样的归一化 + 查重，占用直接 409 拒绝注册。
-    let normalizedEmail = '';
-    if (email !== undefined && email !== null && String(email).trim() !== '') {
-      const check = normalizeEmail(email);
-      if (!check.ok) {
-        return reply.code(400).send({ code: 400, msg: check.error });
-      }
-      const holder = await findUserByEmail(client, check.email);
-      if (holder) {
-        return reply.code(409).send({ code: 409, msg: '该邮箱已被其它账号绑定' });
-      }
-      normalizedEmail = check.email;
+
+    const check = normalizeEmail(email);
+    if (!check.ok || !check.email) {
+      return reply.code(400).send({ code: 400, msg: check.error || '注册必须提供有效的邮箱地址' });
+    }
+    const normalizedEmail = check.email;
+    const codeStr = String(code || '').trim();
+    if (!codeStr || !/^\d{4,8}$/.test(codeStr)) {
+      return reply.code(400).send({ code: 400, msg: '请输入 6 位数字验证码' });
+    }
+
+    const now = Date.now();
+    // 校验验证码（优先匹配 register 场景，兼容通用场景）
+    let record = await findLatestValidEmailCode(client, normalizedEmail, 'register', now);
+    if (!record || String(record.code) !== codeStr) {
+      record = await findLatestValidEmailCode(client, normalizedEmail, 'login', now);
+    }
+    if (!record || String(record.code) !== codeStr) {
+      return reply.code(400).send({ code: 400, msg: '验证码错误或已过期' });
+    }
+
+    const holder = await findUserByEmail(client, normalizedEmail);
+    if (holder) {
+      return reply.code(409).send({ code: 409, msg: '该邮箱已被其它账号绑定' });
     }
     if (await findUserByUsername(client, name)) {
       return reply.code(409).send({ code: 409, msg: '用户名已存在' });
     }
+
+    // 标记验证码已使用
+    await markEmailCodeUsed(client, record.id);
+
     const salt = newSalt();
     let user;
     try {
@@ -234,10 +249,9 @@ export function registerAuthRoutes(app, { config, client }) {
         salt,
         nickname: nickname ? String(nickname) : undefined,
         email: normalizedEmail,
-        nowMs: Date.now(),
+        nowMs: now,
       });
     } catch (e) {
-      // 查重与写入之间的竞态由唯一索引兜底，转成语义正确的 409 而不是 500
       if (isEmailConflict(e)) {
         return reply.code(409).send({ code: 409, msg: '该邮箱已被其它账号绑定' });
       }
@@ -256,7 +270,10 @@ export function registerAuthRoutes(app, { config, client }) {
     if (isLoginLocked(name, req.ip)) {
       return reply.code(429).send({ code: 429, msg: '失败次数过多，请 15 分钟后再试' });
     }
-    const user = await findUserByUsername(client, name);
+    let user = await findUserByUsername(client, name);
+    if (!user) {
+      user = await findUserByEmail(client, name.toLowerCase());
+    }
     if (!user) {
       recordLoginFailure(name, req.ip);
       return reply.code(401).send({ code: 401, msg: '用户名或密码错误' });
@@ -332,6 +349,72 @@ export function registerAuthRoutes(app, { config, client }) {
         : '邮箱已解绑';
     }
     return result;
+  });
+
+  // 安全绑定 / 更换邮箱（核对新邮箱的验证码）
+  app.post('/api/me/email/bind', { preHandler: allowAuth }, async (req, reply) => {
+    const { email, code } = req.body || {};
+    const check = normalizeEmail(email);
+    if (!check.ok || !check.email) {
+      return reply.code(400).send({ code: 400, msg: check.error || '请提供有效的新邮箱地址' });
+    }
+    const normalizedEmail = check.email;
+    const codeStr = String(code || '').trim();
+    if (!codeStr || !/^\d{4,8}$/.test(codeStr)) {
+      return reply.code(400).send({ code: 400, msg: '请输入 6 位数字验证码' });
+    }
+
+    const now = Date.now();
+    let record = await findLatestValidEmailCode(client, normalizedEmail, 'bind', now);
+    if (!record || String(record.code) !== codeStr) {
+      record = await findLatestValidEmailCode(client, normalizedEmail, 'login', now);
+    }
+    if (!record || String(record.code) !== codeStr) {
+      return reply.code(400).send({ code: 400, msg: '验证码错误或已过期' });
+    }
+
+    const holder = await findUserByEmail(client, normalizedEmail);
+    if (holder && holder.id !== req.user.id) {
+      return reply.code(409).send({ code: 409, msg: '该邮箱已被其它账号绑定' });
+    }
+
+    await markEmailCodeUsed(client, record.id);
+
+    const user = await updateUserProfile(client, req.user.id, {
+      email: normalizedEmail,
+      nowMs: now,
+    });
+    return { code: 200, msg: '邮箱绑定成功', data: publicUser(user) };
+  });
+
+  // 安全解绑邮箱（核对原邮箱的验证码）
+  app.post('/api/me/email/unbind', { preHandler: allowAuth }, async (req, reply) => {
+    const { code } = req.body || {};
+    const currentEmail = req.user.email;
+    if (!currentEmail) {
+      return reply.code(400).send({ code: 400, msg: '当前账号未绑定邮箱，无需解绑' });
+    }
+    const codeStr = String(code || '').trim();
+    if (!codeStr || !/^\d{4,8}$/.test(codeStr)) {
+      return reply.code(400).send({ code: 400, msg: '请输入 6 位数字验证码' });
+    }
+
+    const now = Date.now();
+    let record = await findLatestValidEmailCode(client, currentEmail, 'unbind', now);
+    if (!record || String(record.code) !== codeStr) {
+      record = await findLatestValidEmailCode(client, currentEmail, 'login', now);
+    }
+    if (!record || String(record.code) !== codeStr) {
+      return reply.code(400).send({ code: 400, msg: '验证码错误或已过期' });
+    }
+
+    await markEmailCodeUsed(client, record.id);
+
+    const user = await updateUserProfile(client, req.user.id, {
+      email: '',
+      nowMs: now,
+    });
+    return { code: 200, msg: '邮箱已成功解绑', data: publicUser(user) };
   });
 
   app.put('/api/me/password', { preHandler: allowAuth }, async (req, reply) => {

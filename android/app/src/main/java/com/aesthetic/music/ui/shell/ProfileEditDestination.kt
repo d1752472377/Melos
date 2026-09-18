@@ -30,7 +30,15 @@ fun ProfileEditDestination(
         createdAt = profileCreatedAt,
         onBack = nav.popBack,
         onSave = { nick, bio, avatar -> viewModel.saveProfileInfo(nick, bio, avatar) },
-        onBindEmail = { viewModel.bindEmail(it) },
+        onSendEmailCode = { email, scene, onSent ->
+            viewModel.sendProfileEmailCode(email, scene, onSent)
+        },
+        onBindEmail = { email, code, onSuccess ->
+            viewModel.bindEmail(email, code, onSuccess)
+        },
+        onUnbindEmail = { code, onSuccess ->
+            viewModel.unbindEmail(code, onSuccess)
+        },
         onShowToast = actions.toast,
     )
 }

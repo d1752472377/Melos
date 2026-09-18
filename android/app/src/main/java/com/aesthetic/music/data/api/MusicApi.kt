@@ -182,12 +182,25 @@ data class HomeCategoryDto(
 
 // ==================== 请求体 ====================
 
-/** 请求体：注册 */
+/** 请求体：注册（必传邮箱与验证码） */
 data class RegisterBody(
     val username: String,
     val password: String,
+    val email: String,
+    val code: String,
     val nickname: String? = null,
     val deviceName: String? = null,
+)
+
+/** 请求体：安全绑定/更换邮箱 */
+data class BindEmailBody(
+    val email: String,
+    val code: String,
+)
+
+/** 请求体：安全解绑邮箱 */
+data class UnbindEmailBody(
+    val code: String,
 )
 
 /** 请求体：登录 */
@@ -458,6 +471,12 @@ interface MusicApi {
 
     @PUT("api/me")
     suspend fun updateProfile(@Body body: ProfileBody): ApiResponse<UserInfo>
+
+    @POST("api/me/email/bind")
+    suspend fun bindEmail(@Body body: BindEmailBody): ApiResponse<UserInfo>
+
+    @POST("api/me/email/unbind")
+    suspend fun unbindEmail(@Body body: UnbindEmailBody): ApiResponse<UserInfo>
 
     @GET("api/me/sessions")
     suspend fun sessions(): ApiResponse<List<SessionDto>>

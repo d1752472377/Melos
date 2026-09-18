@@ -1,10 +1,6 @@
 package com.aesthetic.music.ui.account
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,24 +14,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -49,21 +44,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.MainViewModel
-import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
-import com.aesthetic.music.ui.theme.PrimaryGradientEnd
-import com.aesthetic.music.ui.theme.PrimaryGradientStart
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
@@ -72,51 +66,55 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
-private enum class LoginMethod {
-    EMAIL,
-    PASSWORD,
-}
-
-private enum class PasswordSubMode {
+private enum class AuthTab {
     LOGIN,
     REGISTER,
 }
 
+private enum class LoginMode {
+    PASSWORD,
+    EMAIL_CODE,
+}
+
 /**
- * 全屏强制鉴权界面（门禁屏）。
+ * 现代极简一体化鉴权门禁界面（Melos Modern Auth Screen）。
  *
- * 未登录用户彻底拦截在此页面，无法访问应用主界面；
- * 登录成功后自动切换至主界面。
- * 支持：
- *  1. 邮箱验证码免密直登 / 自动开户（主模式）
- *  2. 用户名密码登录 / 注册（兼容模式）
- *  3. 折叠式后端服务器地址配置与连通性测试
+ * 遵循 Stitch 暖调纸质素雅风格：
+ * 1. 顶部 Brand Header：Melos 品牌标志与精致副标题；
+ * 2. 顶级 Segmented Control 胶囊：【登录】与【注册】平滑切换；
+ * 3. 登录面板：
+ *    - 默认账号密码（支持输入用户名或绑定的邮箱 + 密码）
+ *    - 可无缝切换为「邮箱验证码免密登录」
+ * 4. 注册面板：
+ *    - 输入邮箱 -> 获取 6 位邮件验证码（60秒倒计时） -> 输入用户名与密码 -> 开启音乐之旅
+ * 5. 全流程开箱即用，无任何服务器配置冗杂输入。
  */
 @Composable
 fun AuthScreen(viewModel: MainViewModel) {
-    var method by remember { mutableStateOf(LoginMethod.EMAIL) }
-    var passwordMode by remember { mutableStateOf(PasswordSubMode.LOGIN) }
+    var activeTab by remember { mutableStateOf(AuthTab.LOGIN) }
+    var loginMode by remember { mutableStateOf(LoginMode.PASSWORD) }
 
-    // 表单状态
-    var email by remember { mutableStateOf("") }
-    var code by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var nickname by remember { mutableStateOf("") }
+    // 登录表单
+    var loginAccount by remember { mutableStateOf("") }
+    var loginPassword by remember { mutableStateOf("") }
+    var loginEmail by remember { mutableStateOf("") }
+    var loginCode by remember { mutableStateOf("") }
+    var showLoginPassword by remember { mutableStateOf(false) }
 
-    // 服务器设置折叠状态
-    var showServerConfig by remember { mutableStateOf(false) }
+    // 注册表单
+    var regEmail by remember { mutableStateOf("") }
+    var regCode by remember { mutableStateOf("") }
+    var regUsername by remember { mutableStateOf("") }
+    var regPassword by remember { mutableStateOf("") }
+    var regNickname by remember { mutableStateOf("") }
+    var showRegPassword by remember { mutableStateOf(false) }
+    var agreedToTerms by remember { mutableStateOf(true) }
 
     // 观察 ViewModel 状态
     val isBusy by viewModel.isAuthBusy.collectAsState()
     val authError by viewModel.authError.collectAsState()
     val codeCountdown by viewModel.codeCountdown.collectAsState()
     val isSendingCode by viewModel.isSendingCode.collectAsState()
-    val syncServerUrl by viewModel.syncServerUrl.collectAsState()
-    val isTestingSync by viewModel.isTestingSync.collectAsState()
-
-    var serverUrlInput by remember(syncServerUrl) { mutableStateOf(syncServerUrl) }
-    var testResult by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -127,39 +125,40 @@ fun AuthScreen(viewModel: MainViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 36.dp),
+                .padding(horizontal = 24.dp, vertical = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
             // ===== 1. 品牌 Header =====
             Box(
                 modifier = Modifier
-                    .size(76.dp)
+                    .size(72.dp)
                     .clip(RoundedCornerShape(22.dp))
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(PrimaryGradientStart, PrimaryGradientEnd)
+                            colors = listOf(Color(0xFF2C2523), Color(0xFF4A3F35))
                         )
-                    ),
+                    )
+                    .shadow(elevation = 8.dp, shape = RoundedCornerShape(22.dp), spotColor = Color(0x402C2523)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Filled.MusicNote,
                     contentDescription = "Melos Logo",
-                    tint = Color.White,
-                    modifier = Modifier.size(42.dp),
+                    tint = Color(0xFFF7F6F2),
+                    modifier = Modifier.size(38.dp),
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(18.dp))
 
             Text(
-                text = "Melos 音乐",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontSize = 28.sp,
+                text = "Melos",
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
+                    letterSpacing = (-0.5).sp,
                 ),
                 color = TextPrimary,
             )
@@ -167,321 +166,582 @@ fun AuthScreen(viewModel: MainViewModel) {
             Spacer(Modifier.height(6.dp))
 
             Text(
-                text = "轻量 · 纯粹 · 多端实时同步",
+                text = "探索声音与灵感的纯粹栖所",
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                 color = TextMuted,
             )
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(32.dp))
 
-            // ===== 2. 登录方式切换卡片 =====
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(SurfaceSoft)
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                TabChip(
-                    text = "邮箱验证码登录",
-                    selected = method == LoginMethod.EMAIL,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    method = LoginMethod.EMAIL
-                    viewModel.clearAuthError()
-                }
-                TabChip(
-                    text = "账号密码登录",
-                    selected = method == LoginMethod.PASSWORD,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    method = LoginMethod.PASSWORD
-                    viewModel.clearAuthError()
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // ===== 3. 表单卡片 =====
+            // ===== 2. 顶级 Tab 切换 (Segmented Pill Control) =====
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Surface)
-                    .padding(20.dp),
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(9999.dp))
+                    .background(SurfaceSoft)
+                    .border(1.dp, CardBorder, RoundedCornerShape(9999.dp))
+                    .padding(4.dp),
             ) {
-                Column {
-                    if (method == LoginMethod.EMAIL) {
-                        // ---------- 邮箱验证码登录表单 ----------
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // 登录 Tab
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9999.dp))
+                            .background(if (activeTab == AuthTab.LOGIN) Surface else Color.Transparent)
+                            .clickable {
+                                if (activeTab != AuthTab.LOGIN) {
+                                    activeTab = AuthTab.LOGIN
+                                    viewModel.clearAuthError()
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Text(
-                            text = "邮箱免密直登",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
+                            text = "登录",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 14.sp,
+                                fontWeight = if (activeTab == AuthTab.LOGIN) FontWeight.Bold else FontWeight.Medium,
                             ),
-                            color = TextPrimary,
+                            color = if (activeTab == AuthTab.LOGIN) PrimaryBrown else TextMuted,
                         )
-                        Spacer(Modifier.height(4.dp))
+                    }
+
+                    // 注册 Tab
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9999.dp))
+                            .background(if (activeTab == AuthTab.REGISTER) Surface else Color.Transparent)
+                            .clickable {
+                                if (activeTab != AuthTab.REGISTER) {
+                                    activeTab = AuthTab.REGISTER
+                                    viewModel.clearAuthError()
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Text(
-                            text = "输入邮箱获取验证码，新邮箱验证后将自动开户",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextSoft,
-                        )
-
-                        Spacer(Modifier.height(18.dp))
-
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = {
-                                email = it
-                                viewModel.clearAuthError()
-                            },
-                            label = { Text("邮箱地址") },
-                            placeholder = { Text("例如 user@example.com") },
-                            leadingIcon = {
-                                Icon(Icons.Filled.Email, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
-                            },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryBrown,
-                                unfocusedBorderColor = Stone200,
+                            text = "注册",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 14.sp,
+                                fontWeight = if (activeTab == AuthTab.REGISTER) FontWeight.Bold else FontWeight.Medium,
                             ),
+                            color = if (activeTab == AuthTab.REGISTER) PrimaryBrown else TextMuted,
                         )
+                    }
+                }
+            }
 
-                        Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(28.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+            // ===== 3. 表单卡片容器 =====
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Surface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(24.dp))
+                    .padding(22.dp),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (activeTab == AuthTab.LOGIN) {
+                        // ----------------- 【登录面板】 -----------------
+                        if (loginMode == LoginMode.PASSWORD) {
+                            // 账号密码登录
+                            Text(
+                                text = "账号或邮箱",
+                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                                color = TextSoft,
+                            )
+                            Spacer(Modifier.height(6.dp))
                             OutlinedTextField(
-                                value = code,
+                                value = loginAccount,
                                 onValueChange = {
-                                    if (it.length <= 6) {
-                                        code = it
-                                        viewModel.clearAuthError()
-                                    }
+                                    loginAccount = it
+                                    if (authError != null) viewModel.clearAuthError()
                                 },
-                                label = { Text("验证码") },
-                                placeholder = { Text("6位验证码") },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("输入用户名或绑定的邮箱", color = TextMuted, fontSize = 14.sp) },
                                 leadingIcon = {
-                                    Icon(Icons.Filled.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Filled.Person, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
                                 },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = PrimaryBrown,
                                     unfocusedBorderColor = Stone200,
                                 ),
                             )
 
-                            // 获取验证码按钮
-                            val isCountdownActive = codeCountdown > 0
-                            val canSend = !isCountdownActive && !isSendingCode && email.isNotBlank()
-                            Box(
-                                modifier = Modifier
-                                    .height(56.dp)
-                                    .width(118.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (canSend) PrimaryBrown else Stone200
-                                    )
-                                    .clickable(enabled = canSend) {
-                                        viewModel.sendCode(email)
-                                    },
-                                contentAlignment = Alignment.Center,
+                            Spacer(Modifier.height(16.dp))
+
+                            Text(
+                                text = "密码",
+                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                                color = TextSoft,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = loginPassword,
+                                onValueChange = {
+                                    loginPassword = it
+                                    if (authError != null) viewModel.clearAuthError()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("输入登录密码", color = TextMuted, fontSize = 14.sp) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                                },
+                                trailingIcon = {
+                                    IconButton(onClick = { showLoginPassword = !showLoginPassword }) {
+                                        Icon(
+                                            imageVector = if (showLoginPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                            contentDescription = if (showLoginPassword) "隐藏密码" else "显示密码",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                },
+                                visualTransformation = if (showLoginPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = PrimaryBrown,
+                                    unfocusedBorderColor = Stone200,
+                                ),
+                            )
+
+                            Spacer(Modifier.height(12.dp))
+
+                            // 切换到邮箱验证码登录
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
                             ) {
-                                if (isSendingCode) {
-                                    CircularProgressIndicator(
-                                        color = Color.White,
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                    )
-                                } else {
-                                    Text(
-                                        text = if (isCountdownActive) "${codeCountdown}s 后重试" else "获取验证码",
-                                        style = MaterialTheme.typography.labelMedium.copy(
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                        ),
-                                        color = if (canSend) Color.White else TextMuted,
-                                    )
+                                Text(
+                                    text = "使用邮箱验证码免密登录",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                                    color = PrimaryBrown,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable {
+                                            loginMode = LoginMode.EMAIL_CODE
+                                            viewModel.clearAuthError()
+                                        }
+                                        .padding(4.dp),
+                                )
+                            }
+                        } else {
+                            // 邮箱验证码登录
+                            Text(
+                                text = "邮箱地址",
+                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                                color = TextSoft,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = loginEmail,
+                                onValueChange = {
+                                    loginEmail = it
+                                    if (authError != null) viewModel.clearAuthError()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("输入注册/绑定的邮箱", color = TextMuted, fontSize = 14.sp) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Email, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = PrimaryBrown,
+                                    unfocusedBorderColor = Stone200,
+                                ),
+                            )
+
+                            Spacer(Modifier.height(16.dp))
+
+                            Text(
+                                text = "验证码",
+                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                                color = TextSoft,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                OutlinedTextField(
+                                    value = loginCode,
+                                    onValueChange = {
+                                        if (it.length <= 6) loginCode = it
+                                        if (authError != null) viewModel.clearAuthError()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = { Text("6 位数字", color = TextMuted, fontSize = 14.sp) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = PrimaryBrown,
+                                        unfocusedBorderColor = Stone200,
+                                    ),
+                                )
+
+                                // 发送验证码按钮
+                                Box(
+                                    modifier = Modifier
+                                        .height(52.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(if (codeCountdown > 0 || isSendingCode) Stone100 else SurfaceSoft)
+                                        .border(1.dp, if (codeCountdown > 0 || isSendingCode) Stone200 else PrimaryBrown, RoundedCornerShape(14.dp))
+                                        .clickable(enabled = codeCountdown <= 0 && !isSendingCode) {
+                                            viewModel.sendCode(loginEmail, scene = "login")
+                                        }
+                                        .padding(horizontal = 14.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (isSendingCode) {
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = PrimaryBrown)
+                                    } else {
+                                        Text(
+                                            text = if (codeCountdown > 0) "${codeCountdown}s 后重发" else "获取验证码",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                                            color = if (codeCountdown > 0) TextMuted else PrimaryBrown,
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        // 错误提示
-                        if (!authError.isNullOrBlank()) {
                             Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = authError!!,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                color = Color(0xFFFF4757),
-                            )
+
+                            // 切换回密码登录
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                Text(
+                                    text = "使用账号密码登录",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                                    color = PrimaryBrown,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable {
+                                            loginMode = LoginMode.PASSWORD
+                                            viewModel.clearAuthError()
+                                        }
+                                        .padding(4.dp),
+                                )
+                            }
                         }
 
                         Spacer(Modifier.height(20.dp))
 
-                        // 登录按钮
-                        val canSubmit = !isBusy && email.isNotBlank() && code.length == 6
+                        // 错误提示区
+                        AnimatedVisibility(visible = authError != null) {
+                            authError?.let { err ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFFFF1F0))
+                                        .border(1.dp, Color(0xFFFFA39E), RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Color(0xFFCF1322), modifier = Modifier.size(16.dp))
+                                    Text(text = err, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = Color(0xFFCF1322))
+                                }
+                                Spacer(Modifier.height(14.dp))
+                            }
+                        }
+
+                        // 登录主按钮 (52dp Pill)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (canSubmit) PrimaryBrown else Stone200)
-                                .clickable(enabled = canSubmit) {
-                                    viewModel.emailLogin(email, code)
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(9999.dp))
+                                .background(if (isBusy) Color(0xFF6E645F) else Color(0xFF2C2523))
+                                .clickable(enabled = !isBusy) {
+                                    if (loginMode == LoginMode.PASSWORD) {
+                                        viewModel.login(loginAccount, loginPassword)
+                                    } else {
+                                        viewModel.emailLogin(loginEmail, loginCode)
+                                    }
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
                             if (isBusy) {
-                                CircularProgressIndicator(
-                                    color = Color.White,
-                                    modifier = Modifier.size(22.dp),
-                                    strokeWidth = 2.dp,
-                                )
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFFF7F6F2))
                             } else {
                                 Text(
-                                    text = "登录 / 进入 Melos",
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                    ),
-                                    color = if (canSubmit) Color.White else TextMuted,
+                                    text = "登录并进入 Melos",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                                    color = Color(0xFFF7F6F2),
                                 )
                             }
                         }
                     } else {
-                        // ---------- 账号密码登录 / 注册表单 ----------
+                        // ----------------- 【注册面板】 -----------------
+                        // 1. 邮箱
+                        Text(
+                            text = "注册邮箱",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                            color = TextSoft,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = regEmail,
+                            onValueChange = {
+                                regEmail = it
+                                if (authError != null) viewModel.clearAuthError()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("输入您的真实邮箱地址", color = TextMuted, fontSize = 14.sp) },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Email, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryBrown,
+                                unfocusedBorderColor = Stone200,
+                            ),
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // 2. 验证码
+                        Text(
+                            text = "邮箱验证码",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                            color = TextSoft,
+                        )
+                        Spacer(Modifier.height(6.dp))
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.padding(bottom = 14.dp),
                         ) {
-                            SubModeChip(
-                                text = "账号登录",
-                                selected = passwordMode == PasswordSubMode.LOGIN,
-                            ) {
-                                passwordMode = PasswordSubMode.LOGIN
-                                viewModel.clearAuthError()
-                            }
-                            SubModeChip(
-                                text = "新用户注册",
-                                selected = passwordMode == PasswordSubMode.REGISTER,
-                            ) {
-                                passwordMode = PasswordSubMode.REGISTER
-                                viewModel.clearAuthError()
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = username,
-                            onValueChange = {
-                                username = it
-                                viewModel.clearAuthError()
-                            },
-                            label = { Text("用户名") },
-                            placeholder = { Text("2-20 位字母/数字/下划线/中文") },
-                            leadingIcon = {
-                                Icon(Icons.Filled.Person, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
-                            },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryBrown,
-                                unfocusedBorderColor = Stone200,
-                            ),
-                        )
-
-                        Spacer(Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = {
-                                password = it
-                                viewModel.clearAuthError()
-                            },
-                            label = { Text(if (passwordMode == PasswordSubMode.REGISTER) "密码（5-64 位）" else "密码") },
-                            leadingIcon = {
-                                Icon(Icons.Filled.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
-                            },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryBrown,
-                                unfocusedBorderColor = Stone200,
-                            ),
-                        )
-
-                        if (passwordMode == PasswordSubMode.REGISTER) {
-                            Spacer(Modifier.height(10.dp))
                             OutlinedTextField(
-                                value = nickname,
-                                onValueChange = { nickname = it },
-                                label = { Text("个性昵称（选填）") },
+                                value = regCode,
+                                onValueChange = {
+                                    if (it.length <= 6) regCode = it
+                                    if (authError != null) viewModel.clearAuthError()
+                                },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("6 位数字验证码", color = TextMuted, fontSize = 14.sp) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = PrimaryBrown,
                                     unfocusedBorderColor = Stone200,
                                 ),
                             )
+
+                            Box(
+                                modifier = Modifier
+                                    .height(52.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (codeCountdown > 0 || isSendingCode) Stone100 else SurfaceSoft)
+                                    .border(1.dp, if (codeCountdown > 0 || isSendingCode) Stone200 else PrimaryBrown, RoundedCornerShape(14.dp))
+                                    .clickable(enabled = codeCountdown <= 0 && !isSendingCode) {
+                                        viewModel.sendCode(regEmail, scene = "register")
+                                    }
+                                    .padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (isSendingCode) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = PrimaryBrown)
+                                } else {
+                                    Text(
+                                        text = if (codeCountdown > 0) "${codeCountdown}s 后重发" else "获取验证码",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                                        color = if (codeCountdown > 0) TextMuted else PrimaryBrown,
+                                    )
+                                }
+                            }
                         }
 
-                        // 错误提示
-                        if (!authError.isNullOrBlank()) {
-                            Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(14.dp))
+
+                        // 3. 用户名
+                        Text(
+                            text = "用户名",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                            color = TextSoft,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = regUsername,
+                            onValueChange = {
+                                regUsername = it
+                                if (authError != null) viewModel.clearAuthError()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("2-20 位（字母/数字/中文/下划线）", color = TextMuted, fontSize = 14.sp) },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Person, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryBrown,
+                                unfocusedBorderColor = Stone200,
+                            ),
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // 4. 密码
+                        Text(
+                            text = "设置密码",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                            color = TextSoft,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = regPassword,
+                            onValueChange = {
+                                regPassword = it
+                                if (authError != null) viewModel.clearAuthError()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("5-64 位密码", color = TextMuted, fontSize = 14.sp) },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { showRegPassword = !showRegPassword }) {
+                                    Icon(
+                                        imageVector = if (showRegPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                        contentDescription = if (showRegPassword) "隐藏密码" else "显示密码",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
+                            visualTransformation = if (showRegPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryBrown,
+                                unfocusedBorderColor = Stone200,
+                            ),
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // 5. 昵称（选填）
+                        Text(
+                            text = "音乐昵称 (选填)",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                            color = TextSoft,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = regNickname,
+                            onValueChange = {
+                                regNickname = it
+                                if (authError != null) viewModel.clearAuthError()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("展示在个人主页的昵称", color = TextMuted, fontSize = 14.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryBrown,
+                                unfocusedBorderColor = Stone200,
+                            ),
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // 协议勾选
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { agreedToTerms = !agreedToTerms },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(if (agreedToTerms) Color(0xFF2C2523) else Color.Transparent)
+                                    .border(1.5.dp, if (agreedToTerms) Color(0xFF2C2523) else Stone200, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (agreedToTerms) {
+                                    Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                }
+                            }
                             Text(
-                                text = authError!!,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                color = Color(0xFFFF4757),
+                                text = "我已阅读并同意《用户服务协议》与《隐私政策》",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextMuted,
                             )
                         }
 
-                        Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(18.dp))
 
-                        val canSubmit = !isBusy && username.isNotBlank() && password.isNotBlank()
+                        // 错误提示区
+                        AnimatedVisibility(visible = authError != null) {
+                            authError?.let { err ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFFFF1F0))
+                                        .border(1.dp, Color(0xFFFFA39E), RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Color(0xFFCF1322), modifier = Modifier.size(16.dp))
+                                    Text(text = err, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = Color(0xFFCF1322))
+                                }
+                                Spacer(Modifier.height(14.dp))
+                            }
+                        }
+
+                        // 注册主按钮 (52dp Pill)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (canSubmit) PrimaryBrown else Stone200)
-                                .clickable(enabled = canSubmit) {
-                                    if (passwordMode == PasswordSubMode.REGISTER) {
-                                        viewModel.register(username, password, nickname)
-                                    } else {
-                                        viewModel.login(username, password)
-                                    }
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(9999.dp))
+                                .background(if (isBusy || !agreedToTerms) Color(0xFF6E645F) else Color(0xFF2C2523))
+                                .clickable(enabled = !isBusy && agreedToTerms) {
+                                    viewModel.register(
+                                        username = regUsername,
+                                        password = regPassword,
+                                        email = regEmail,
+                                        code = regCode,
+                                        nickname = regNickname
+                                    )
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
                             if (isBusy) {
-                                CircularProgressIndicator(
-                                    color = Color.White,
-                                    modifier = Modifier.size(22.dp),
-                                    strokeWidth = 2.dp,
-                                )
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFFF7F6F2))
                             } else {
                                 Text(
-                                    text = if (passwordMode == PasswordSubMode.REGISTER) "注册并自动登录" else "登 录",
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                    ),
-                                    color = if (canSubmit) Color.White else TextMuted,
+                                    text = "注册并开启音乐之旅",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                                    color = Color(0xFFF7F6F2),
                                 )
                             }
                         }
@@ -489,183 +749,14 @@ fun AuthScreen(viewModel: MainViewModel) {
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-
-            // ===== 4. 底部服务器设置折叠卡片 =====
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Surface)
-                    .clickable { showServerConfig = !showServerConfig }
-                    .padding(14.dp),
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (syncServerUrl.isNotBlank()) Icons.Filled.CloudDone else Icons.Filled.CloudQueue,
-                                contentDescription = null,
-                                tint = if (syncServerUrl.isNotBlank()) AccentMint else TextMuted,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "后端服务器设置",
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                    ),
-                                    color = TextPrimary,
-                                )
-                                Text(
-                                    text = syncServerUrl.ifBlank { "未配置，点击填写" },
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = TextSoft,
-                                    maxLines = 1,
-                                )
-                            }
-                        }
-                        Icon(
-                            imageVector = if (showServerConfig) Icons.Filled.KeyboardArrowDown else Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = TextMuted,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-
-                    AnimatedVisibility(
-                        visible = showServerConfig,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        Column(modifier = Modifier.padding(top = 12.dp)) {
-                            OutlinedTextField(
-                                value = serverUrlInput,
-                                onValueChange = { serverUrlInput = it },
-                                label = { Text("服务器地址") },
-                                placeholder = { Text("例如 https://music.example.com") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (serverUrlInput.isNotBlank()) PrimaryBrown else Stone200)
-                                        .clickable(enabled = serverUrlInput.isNotBlank()) {
-                                            viewModel.saveSyncServerUrl(serverUrlInput)
-                                            testResult = "已保存服务器地址"
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text("保存地址", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .border(1.dp, Stone200, RoundedCornerShape(8.dp))
-                                        .background(Surface)
-                                        .clickable(enabled = !isTestingSync) {
-                                            viewModel.testSyncConnection { _, msg ->
-                                                testResult = msg
-                                            }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = if (isTestingSync) "测试中…" else "测试连接",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary,
-                                    )
-                                }
-                            }
-
-                            if (!testResult.isNullOrBlank()) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    text = testResult!!,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = TextSoft,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(28.dp))
 
             Text(
-                text = "Melos · 自由轻量音乐体验",
+                text = "Melos Music · 云端账号与漫游曲库就绪",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = TextSoft,
                 textAlign = TextAlign.Center,
             )
         }
-    }
-}
-
-@Composable
-private fun TabChip(
-    text: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Surface else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 13.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            ),
-            color = if (selected) PrimaryBrown else TextMuted,
-        )
-    }
-}
-
-@Composable
-private fun SubModeChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) PrimaryBrown else Stone100)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-            color = if (selected) Color.White else TextMuted,
-        )
     }
 }
