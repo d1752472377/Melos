@@ -40,6 +40,7 @@ class MelosApplication : Application() {
         RecentSearchStore.init(this)
         UserStore.init(this)
         SyncServerStore.init(this)
+        com.aesthetic.music.data.sync.SyncStateStore.init(this)
         // 音源插件注册表与检测统计（取代旧版"唯一脚本"存储 ScriptCatalogStore）
         SourceManager.init(this)
         UserApiEngine.init(this)

@@ -65,6 +65,7 @@ data class UserInfo(
     val username: String = "",
     val nickname: String = "",
     val avatar: String = "",
+    val background: String = "",
     val createdAt: Long = 0L,
     /**
      * 绑定邮箱。可空而不是空串：老服务端（或老版本的本地缓存 JSON）没有这个字段，
@@ -99,6 +100,7 @@ data class PlayEventDto(
     val listenedMs: Long = 0,
     val durationMs: Long = 0,
     val listenedAtMs: Long = 0,
+    val deviceId: String = "",
 )
 
 /** 歌手条目（歌手搜索与歌手详情共用） */
@@ -199,6 +201,7 @@ data class LoginBody(
 data class ProfileBody(
     val nickname: String? = null,
     val avatar: String? = null,
+    val background: String? = null,
     /** 传空串表示解绑邮箱；服务端未支持该字段时会被忽略（响应里 email 仍为 null） */
     val email: String? = null,
 )
@@ -281,6 +284,7 @@ data class SyncPlayEventItem(
     val listenedMs: Long = 0L,
     val durationMs: Long = 0L,
     val listenedAtMs: Long = 0L,
+    val deviceId: String = "",
     val updatedAtMs: Long = 0L,
 )
 

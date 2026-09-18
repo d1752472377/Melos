@@ -287,7 +287,7 @@ export function registerAuthRoutes(app, { config, client }) {
   }));
 
   app.put('/api/me', { preHandler: allowAuth }, async (req, reply) => {
-    const { nickname, avatar, email } = req.body || {};
+    const { nickname, avatar, background, email } = req.body || {};
     if (nickname != null && String(nickname).length > 24) {
       return reply.code(400).send({ code: 400, msg: '昵称最长 24 字' });
     }
@@ -312,6 +312,7 @@ export function registerAuthRoutes(app, { config, client }) {
       user = await updateUserProfile(client, req.user.id, {
         nickname: nickname != null ? String(nickname) : undefined,
         avatar: avatar != null ? String(avatar) : undefined,
+        background: background != null ? String(background) : undefined,
         email: normalizedEmail,
         nowMs: Date.now(),
       });

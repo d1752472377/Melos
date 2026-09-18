@@ -27,6 +27,7 @@ const SCHEMA = `
       salt          TEXT NOT NULL,
       nickname      TEXT NOT NULL DEFAULT '',
       avatar        TEXT NOT NULL DEFAULT '',
+      background    TEXT NOT NULL DEFAULT '',
       role          TEXT NOT NULL DEFAULT 'user',
       -- 邮箱仅「登记/绑定」，未做邮件验证（本后端无 SMTP 配置）；空串 = 未绑定
       email         TEXT NOT NULL DEFAULT '',
@@ -158,6 +159,7 @@ const SCHEMA = `
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id        INTEGER NOT NULL,
       event_id       TEXT NOT NULL,
+      device_id      TEXT NOT NULL DEFAULT '',
       platform       TEXT NOT NULL DEFAULT '',
       song_id        TEXT NOT NULL DEFAULT '',
       title          TEXT NOT NULL DEFAULT '',
@@ -242,6 +244,16 @@ export async function initDb(dbUrl, authToken) {
   }
   try {
     await client.execute("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''");
+  } catch {
+    // 字段已存在时忽略错误
+  }
+  try {
+    await client.execute("ALTER TABLE users ADD COLUMN background TEXT NOT NULL DEFAULT ''");
+  } catch {
+    // 字段已存在时忽略错误
+  }
+  try {
+    await client.execute("ALTER TABLE play_events ADD COLUMN device_id TEXT NOT NULL DEFAULT ''");
   } catch {
     // 字段已存在时忽略错误
   }
@@ -343,12 +355,12 @@ export async function createUser(client, { username, passwordHash, salt, nicknam
   return findUserById(client, r.lastId);
 }
 
-export async function updateUserProfile(client, id, { nickname, avatar, email, nowMs }) {
+export async function updateUserProfile(client, id, { nickname, avatar, background, email, nowMs }) {
   const cur = await findUserById(client, id);
   if (!cur) return null;
-  // email 与 nickname/avatar 同款语义：undefined = 不改动；'' = 显式解绑
-  await run(client, 'UPDATE users SET nickname = ?, avatar = ?, email = ?, updated_at = ? WHERE id = ?',
-    [nickname ?? cur.nickname, avatar ?? cur.avatar, email ?? cur.email ?? '', nowMs, id]);
+  // email 与 nickname/avatar/background 同款语义：undefined = 不改动；'' = 显式解绑/清除
+  await run(client, 'UPDATE users SET nickname = ?, avatar = ?, background = ?, email = ?, updated_at = ? WHERE id = ?',
+    [nickname ?? cur.nickname, avatar ?? cur.avatar, background ?? cur.background ?? '', email ?? cur.email ?? '', nowMs, id]);
   return findUserById(client, id);
 }
 
@@ -438,6 +450,7 @@ export function publicUser(row) {
     username: row.username,
     nickname: row.nickname || row.username,
     avatar: row.avatar || '',
+    background: row.background || '',
     role: row.role || 'user',
     email: row.email || '',
     created_at: row.created_at != null ? Number(row.created_at) : undefined,
@@ -689,12 +702,13 @@ export async function applySync(client, userId, changes, nowMs) {
     if (!e) return null;
     const listened = Math.max(0, Math.min(Number(e.listenedMs) || 0, 24 * 60 * 60 * 1000));
     return {
-      sql: `INSERT INTO play_events (user_id, event_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      sql: `INSERT INTO play_events (user_id, event_id, device_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (user_id, event_id) DO NOTHING`,
       args: [
         userId,
         String(e.eventId || `${e.platform || ''}:${e.id || ''}:${e.listenedAtMs || nowMs}`),
+        String(e.deviceId || ''),
         String(e.platform || ''),
         String(e.id || ''),
         String(e.title || ''),
@@ -770,7 +784,7 @@ export async function pullSync(client, userId, { since = 0, eventSince = 0 } = {
     // 下载记录：同样按 (user_id, update_seq) 索引扫描，一次拉取覆盖所有设备的行，
     // 由客户端按 deviceId 决定「本机该建哪几行、该删哪几行」。
     all(client, `SELECT platform, song_id, device_id, title, artist, album, artwork, quality, size_bytes, downloaded_at_ms, device_name, updated_at_ms, deleted FROM downloads WHERE user_id = ? AND update_seq > ? AND update_seq <= ?${deletedFilter} ORDER BY update_seq`, [userId, since, head]),
-    all(client, 'SELECT id, event_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms FROM play_events WHERE user_id = ? AND id > ? ORDER BY id LIMIT 500', [userId, eventSince]),
+    all(client, 'SELECT id, event_id, device_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms FROM play_events WHERE user_id = ? AND id > ? ORDER BY id LIMIT 500', [userId, eventSince]),
   ]);
 
   const nextEventId = events.length ? events[events.length - 1].id : eventSince;
@@ -819,7 +833,7 @@ export async function pullSync(client, userId, { since = 0, eventSince = 0 } = {
       updatedAtMs: r.updated_at_ms, deleted: !!r.deleted,
     })),
     playEvents: events.map((r) => ({
-      eventId: r.event_id, platform: r.platform, songId: r.song_id,
+      eventId: r.event_id, deviceId: r.device_id || '', platform: r.platform, songId: r.song_id,
       title: r.title, artist: r.artist, listenedMs: r.listened_ms, durationMs: r.duration_ms,
       listenedAtMs: r.listened_at_ms, updatedAtMs: r.updated_at_ms,
     })),

@@ -1,11 +1,14 @@
 package com.aesthetic.music.ui.profile
 
 import android.util.Log
+import com.aesthetic.music.MelosApplication
 import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.settings.UserStore
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,6 +81,10 @@ class ProfileController(
         }
     }
 
+    init {
+        UserStore.user()?.let { restoreCloudImages(it) }
+    }
+
     /**
      * 从本地登录态重新读取界面数据。
      *
@@ -86,12 +93,14 @@ class ProfileController(
      * 登出后还留着上一个账号的用户名/邮箱会直接泄露隐私，而登录后不刷新又会出现"登录了但页面没变"。
      */
     fun syncFromStore() {
-        _user.value = UserStore.user()
-        _username.value = UserStore.user()?.username.orEmpty()
-        _email.value = UserStore.user()?.email
-        _createdAt.value = UserStore.user()?.createdAt ?: 0L
+        val u = UserStore.user()
+        _user.value = u
+        _username.value = u?.username.orEmpty()
+        _email.value = u?.email
+        _createdAt.value = u?.createdAt ?: 0L
         _profileNickname.value = UserStore.getNickname()
         _profileUserId.value = UserStore.getUserId()
+        u?.let { restoreCloudImages(it) }
     }
 
     fun updateNickname(nickname: String) {
@@ -151,6 +160,44 @@ class ProfileController(
         _email.value = updated.email
         _createdAt.value = updated.createdAt
         _profileUserId.value = UserStore.getUserId()
+        restoreCloudImages(updated)
+    }
+
+    private fun restoreCloudImages(user: UserInfo) {
+        val context = MelosApplication.instance
+        scope.launch(Dispatchers.IO) {
+            // 头像：若本地无有效文件则从云端恢复
+            if (user.avatar.isNotBlank()) {
+                val curLocal = UserStore.getAvatarPath()
+                if (curLocal.isNullOrBlank() || !File(curLocal).exists()) {
+                    val saved = ProfileUtils.saveBase64ImageToInternal(context, user.avatar, "avatar")
+                    if (saved != null) {
+                        UserStore.setAvatarPath(saved)
+                        _profileAvatar.value = saved
+                    }
+                } else {
+                    _profileAvatar.value = curLocal
+                }
+            } else if (_profileAvatar.value == null) {
+                _profileAvatar.value = UserStore.getAvatarPath()
+            }
+
+            // 背景：若本地无有效文件则从云端恢复
+            if (user.background.isNotBlank()) {
+                val curLocal = UserStore.getBackgroundPath()
+                if (curLocal.isNullOrBlank() || !File(curLocal).exists()) {
+                    val saved = ProfileUtils.saveBase64ImageToInternal(context, user.background, "background")
+                    if (saved != null) {
+                        UserStore.setBackgroundPath(saved)
+                        _profileBackground.value = saved
+                    }
+                } else {
+                    _profileBackground.value = curLocal
+                }
+            } else if (_profileBackground.value == null) {
+                _profileBackground.value = UserStore.getBackgroundPath()
+            }
+        }
     }
 
     // ===== 个人中心个性化管理 =====
@@ -158,11 +205,35 @@ class ProfileController(
     fun setProfileAvatar(path: String?) {
         UserStore.setAvatarPath(path)
         _profileAvatar.value = path
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                if (path == null) {
+                    repository.updateProfile(avatar = "").onSuccess { applyUser(it) }
+                } else {
+                    val base64 = ProfileUtils.compressImageToBase64(path, 256, 75)
+                    if (!base64.isNullOrBlank()) {
+                        repository.updateProfile(avatar = base64).onSuccess { applyUser(it) }
+                    }
+                }
+            }
+        }
     }
 
     fun setProfileBackground(path: String?) {
         UserStore.setBackgroundPath(path)
         _profileBackground.value = path
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                if (path == null) {
+                    repository.updateProfile(background = "").onSuccess { applyUser(it) }
+                } else {
+                    val base64 = ProfileUtils.compressImageToBase64(path, 720, 70)
+                    if (!base64.isNullOrBlank()) {
+                        repository.updateProfile(background = base64).onSuccess { applyUser(it) }
+                    }
+                }
+            }
+        }
     }
 
     fun toggleProfileBgBlur() {
@@ -180,6 +251,11 @@ class ProfileController(
         _profileNickname.value = UserStore.getNickname()
         _profileBio.value = ""
         _profileUserId.value = UserStore.getUserId()
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                repository.updateProfile(background = "").onSuccess { applyUser(it) }
+            }
+        }
         onToast("已恢复默认（头像已保留）")
     }
 
@@ -199,8 +275,21 @@ class ProfileController(
             UserStore.setAvatarPath(avatarPath)
             _profileAvatar.value = avatarPath
         }
-        if (UserStore.isLoggedIn() && nickname.isNotBlank()) {
-            updateNickname(nickname)
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                val avatarBase64 = if (avatarPath != null) {
+                    ProfileUtils.compressImageToBase64(avatarPath, 256, 75)
+                } else null
+                repository.updateProfile(
+                    nickname = nickname.ifBlank { null },
+                    avatar = avatarBase64
+                ).onSuccess { updated ->
+                    applyUser(updated)
+                    onToast("个人信息已保存")
+                }.onFailure { e ->
+                    onToast("保存失败: ${e.message ?: "网络异常"}")
+                }
+            }
         } else {
             onToast("个人信息已保存")
         }

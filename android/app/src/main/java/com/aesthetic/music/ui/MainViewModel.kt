@@ -53,7 +53,12 @@ class MainViewModel : ViewModel() {
     private val repository = MusicRepository()
 
     // 用户音乐库（收藏/历史/我的歌单/云同步）：已抽到 LibraryController（见 ui/library/LibraryController.kt）
-    private val library = LibraryController(repository, viewModelScope, onToast = { _appToast.value = it })
+    private val library = LibraryController(
+        repository = repository,
+        scope = viewModelScope,
+        onToast = { _appToast.value = it },
+        onStatsChanged = { refreshStats() },
+    )
 
     // 外部歌单导入（链接/分享文案）：已抽到 PlaylistImportController（见 ui/library/PlaylistImportController.kt）
     private val playlistImport = PlaylistImportController(

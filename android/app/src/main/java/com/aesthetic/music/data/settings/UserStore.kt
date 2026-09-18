@@ -91,6 +91,7 @@ object UserStore {
     // ===== 个人中心自定义字段 =====
     fun getAvatarPath(): String? = try {
         prefs?.getString(KEY_CUSTOM_AVATAR, null)?.takeIf { it.isNotBlank() }
+            ?: user()?.avatar?.takeIf { it.isNotBlank() }
     } catch (_: Exception) {
         null
     }
@@ -105,6 +106,7 @@ object UserStore {
 
     fun getBackgroundPath(): String? = try {
         prefs?.getString(KEY_CUSTOM_BG, null)?.takeIf { it.isNotBlank() }
+            ?: user()?.background?.takeIf { it.isNotBlank() }
     } catch (_: Exception) {
         null
     }
@@ -128,8 +130,8 @@ object UserStore {
     }
 
     fun getNickname(): String = try {
-        prefs?.getString(KEY_CUSTOM_NICKNAME, null)?.takeIf { it.isNotBlank() }
-            ?: user()?.nickname?.takeIf { it.isNotBlank() }
+        user()?.nickname?.takeIf { it.isNotBlank() }
+            ?: prefs?.getString(KEY_CUSTOM_NICKNAME, null)?.takeIf { it.isNotBlank() }
             ?: user()?.username?.takeIf { it.isNotBlank() }
             ?: "Melos 音乐人"
     } catch (_: Exception) {

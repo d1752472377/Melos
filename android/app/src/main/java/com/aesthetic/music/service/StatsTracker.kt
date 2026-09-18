@@ -71,6 +71,7 @@ object StatsTracker {
                 title = song.title,
                 artist = song.artist,
                 listenedAtMs = now,
+                deviceId = com.aesthetic.music.data.sync.SyncStateStore.deviceId(),
             )
             pending[key] = cur.copy(
                 listenedMs = cur.listenedMs + deltaMs,
@@ -78,6 +79,9 @@ object StatsTracker {
             )
         }
     }
+
+    /** 当积攒了听歌事件且满足条件时，触发云端同步（由 LibraryController 挂接） */
+    var onTriggerSync: (() -> Unit)? = null
 
     /** 取出并清空当前积攒的听歌事件，供 syncPush 打包上报 */
     fun takePendingEvents(): List<PlayEventDto> {
@@ -119,5 +123,10 @@ object StatsTracker {
     /** 暂停/切歌/退出时立即落盘 */
     fun flushNow() {
         StatsStore.flush()
+        synchronized(pendingLock) {
+            if (pending.isNotEmpty()) {
+                onTriggerSync?.invoke()
+            }
+        }
     }
 }

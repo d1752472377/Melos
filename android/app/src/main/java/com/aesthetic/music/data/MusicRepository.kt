@@ -255,9 +255,10 @@ class MusicRepository(
     suspend fun updateProfile(
         nickname: String? = null,
         avatar: String? = null,
+        background: String? = null,
         email: String? = null,
     ): Result<UserInfo> = apiCatching {
-        val resp = api.updateProfile(ProfileBody(nickname = nickname, avatar = avatar, email = email))
+        val resp = api.updateProfile(ProfileBody(nickname = nickname, avatar = avatar, background = background, email = email))
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "更新资料失败")
     }
 

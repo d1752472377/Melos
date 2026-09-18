@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.aesthetic.music.data.api.SyncPlayEventItem
 import com.aesthetic.music.data.model.Song
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -244,6 +245,89 @@ object StatsStore {
                 topSongs = bumpGlobal(stats.topSongs, songStat, playDelta = 0, listenDelta = deltaMs),
             )
             maybeFlushLocked()
+        }
+    }
+
+    private const val KEY_INGESTED_EVENTS = "ingested_cloud_events"
+    private const val MAX_INGESTED_TRACKED = 2000
+
+    /**
+     * 吸收云端拉取到的其它设备播放事件（增量合并入本地全量明细与日记）。
+     *
+     * 幂等防重：
+     * 1. 忽略本设备自身上报的事件（[SyncPlayEventItem.deviceId] == 本地设备 ID）；
+     * 2. 本地记录已处理过的 [SyncPlayEventItem.eventId]，避免重复累加。
+     */
+    fun ingestCloudEvents(events: List<SyncPlayEventItem>) {
+        if (events.isEmpty()) return
+        synchronized(lock) {
+            val p = prefs
+            val ingestedSet = p?.getStringSet(KEY_INGESTED_EVENTS, emptySet())?.toMutableSet() ?: mutableSetOf()
+            val myDevice = com.aesthetic.music.data.sync.SyncStateStore.deviceId()
+
+            val toIngest = events.filter {
+                it.eventId.isNotBlank() &&
+                it.eventId !in ingestedSet &&
+                (it.deviceId.isBlank() || it.deviceId != myDevice) &&
+                it.listenedMs > 0
+            }
+            if (toIngest.isEmpty()) return
+
+            var stats = loadLocked()
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+            for (e in toIngest) {
+                val timeMs = if (e.listenedAtMs > 0) e.listenedAtMs else e.updatedAtMs
+                val dayStr = if (timeMs > 0) dateFormat.format(Date(timeMs)) else todayKey()
+                val hour = if (timeMs > 0) hourOf(timeMs) else 0
+                val song = Song(
+                    platform = e.platform,
+                    id = e.songId,
+                    title = e.title,
+                    artist = e.artist,
+                )
+
+                val day = stats.day(dayStr)
+                val songStat = bumpSong(
+                    existing = day?.songs?.firstOrNull { it.key == songKey(song) },
+                    song = song,
+                    playDelta = 1,
+                    listenDelta = e.listenedMs,
+                    positionMs = 0L,
+                    now = timeMs,
+                )
+                val hourMs = (if (day?.hourMs?.size == HOURS_PER_DAY) day.hourMs else emptyHourMs())
+                    .toMutableList()
+                    .also { it[hour] = it[hour] + e.listenedMs }
+
+                val updatedDay = (day ?: DayStat(day = dayStr)).copy(
+                    listenMs = (day?.listenMs ?: 0L) + e.listenedMs,
+                    plays = (day?.plays ?: 0) + 1,
+                    hourMs = hourMs,
+                    songs = putSong(day?.songs ?: emptyList(), songStat),
+                )
+
+                stats = stats.copy(
+                    totalListenMs = stats.totalListenMs + e.listenedMs,
+                    totalPlays = stats.totalPlays + 1,
+                    firstDay = if (stats.firstDay.isBlank() || (dayStr.isNotBlank() && dayStr < stats.firstDay)) dayStr else stats.firstDay,
+                    lastAtMs = maxOf(stats.lastAtMs, timeMs),
+                    days = putDay(stats.days, updatedDay),
+                    topSongs = bumpGlobal(stats.topSongs, songStat, playDelta = 1, listenDelta = e.listenedMs),
+                )
+                ingestedSet.add(e.eventId)
+            }
+
+            val trimmedSet = if (ingestedSet.size > MAX_INGESTED_TRACKED) {
+                ingestedSet.toList().takeLast(MAX_INGESTED_TRACKED).toSet()
+            } else {
+                ingestedSet
+            }
+            p?.edit()?.putStringSet(KEY_INGESTED_EVENTS, trimmedSet)?.apply()
+
+            cache = stats
+            lastFlushAt = System.currentTimeMillis()
+            persist(serialize(stats))
         }
     }
 

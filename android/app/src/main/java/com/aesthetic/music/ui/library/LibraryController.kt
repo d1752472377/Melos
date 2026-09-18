@@ -14,6 +14,7 @@ import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.data.settings.PlaylistCoverStore
 import com.aesthetic.music.data.settings.PlaylistStore
+import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.sync.AndroidDeviceSyncAdapter
@@ -54,6 +55,8 @@ class LibraryController(
     private val onToast: (String) -> Unit,
     /** 设备相关的同步适配器（音源脚本源码、音频缓存文件）：默认走 Android 实现 */
     private val deviceSync: DeviceSyncAdapter = AndroidDeviceSyncAdapter,
+    /** 漫游统计吸收后的回调通知 */
+    private val onStatsChanged: (() -> Unit)? = null,
 ) {
 
     private companion object {
@@ -126,6 +129,12 @@ class LibraryController(
 
     /** 账号级同步状态的只读投影（未登录时全为默认值） */
     private data class SyncSyncStateView(val lastSyncedAt: Long, val lastSyncStatus: String?)
+
+    init {
+        com.aesthetic.music.service.StatsTracker.onTriggerSync = {
+            scheduleSyncPush()
+        }
+    }
 
     /** 登录/退出后刷新"可同步"派生状态与状态文案（由 MainViewModel 在账号变化时调用） */
     fun refreshSyncState() {
@@ -630,29 +639,30 @@ class LibraryController(
             }
         }
 
-        // ===== 歌单（自建 + 收藏的网络歌单，用 kind 区分）=====
+        // ===== 歌单（自建 + 收藏的网络歌单，用 kind 区分）与 歌单曲目 =====
         run {
-            val collection = SyncCollections.PLAYLISTS
+            val playlistColl = SyncCollections.PLAYLISTS
+            val songColl = SyncCollections.PLAYLIST_SONGS
             var mine = _myPlaylists.value
             var fav = _favoritePlaylists.value
-            var changed = false
+            var mineChanged = false
+            var favChanged = false
+
+            // 1. 处理歌单基本信息（自建 + 收藏）
             cloud.playlists.forEach { item ->
                 val kind = item.kind.takeIf { it == PlaylistKind.FAV } ?: PlaylistKind.MINE
                 val key = SyncKey.playlist(kind, item.id)
-                if (!canApply(collection, key, item.deleted)) return@forEach
+                if (!canApply(playlistColl, key, item.deleted)) return@forEach
                 if (kind == PlaylistKind.MINE) {
                     val next = if (item.deleted) {
                         mine.filterNot { it.id == item.id }
                     } else {
                         val existing = mine.firstOrNull { it.id == item.id }
                         if (existing == null) {
-                            // 云端来的自建歌单：只带名称/封面，歌曲通过 playlistSongs 单独下发
                             listOf(MyPlaylist(id = item.id, name = item.name, cover = item.coverUrl)) + mine
                         } else {
                             mine.map {
                                 if (it.id == item.id) {
-                                    // 封面只认云端发来的 http 封面：**本机图片封面不会被上传**，
-                                    // 若不加判断地 copy(cover = 空串)，换一次同步就会把用户设的本机封面清掉
                                     it.copy(
                                         name = item.name.ifBlank { it.name },
                                         cover = item.coverUrl.ifBlank { it.cover },
@@ -661,14 +671,12 @@ class LibraryController(
                             }
                         }
                     }
-                    if (next != mine) changed = true
+                    if (next != mine) mineChanged = true
                     mine = next
                 } else {
                     val next = if (item.deleted) {
                         fav.filterNot { it.id == item.id }
                     } else {
-                        // 收藏歌单在 wire 上只有 id/名称/封面，其余的本地字段（平台、曲目数、榜单语义与分组）
-                        // 必须从现有条目继承：直接 new 一个 PlaylistItem 会把平台角标、曲目数全部清空
                         val existing = fav.firstOrNull { it.id == item.id }
                         val entry = existing?.copy(
                             name = item.name.ifBlank { existing.name },
@@ -676,52 +684,62 @@ class LibraryController(
                         ) ?: PlaylistItem(id = item.id, name = item.name, coverUrl = item.coverUrl.ifBlank { null })
                         if (existing == null) listOf(entry) + fav else fav.map { if (it.id == item.id) entry else it }
                     }
-                    if (next != fav) changed = true
+                    if (next != fav) favChanged = true
                     fav = next
                 }
-                noteApplied(collection, key, item.deleted)
+                noteApplied(playlistColl, key, item.deleted)
             }
-            if (changed) {
+
+            // 2. 处理歌单曲目（按歌单聚合，先删后按 position 有序插入）
+            if (cloud.playlistSongs.isNotEmpty()) {
+                val songsByPlaylist = cloud.playlistSongs.groupBy { it.playlistId }
+                songsByPlaylist.forEach { (playlistId, items) ->
+                    val target = mine.firstOrNull { it.id == playlistId } ?: return@forEach
+                    val currentSongs = target.songs.toMutableList()
+                    var songsModified = false
+
+                    // 墓碑删除
+                    items.filter { it.deleted }.forEach { item ->
+                        val key = SyncKey.playlistSong(PlaylistKind.MINE, item.playlistId, item.platform, item.songId)
+                        if (!canApply(songColl, key, true)) return@forEach
+                        val idx = currentSongs.indexOfFirst { it.platform == item.platform && it.id == item.songId }
+                        if (idx >= 0) {
+                            currentSongs.removeAt(idx)
+                            songsModified = true
+                        }
+                        noteApplied(songColl, key, true)
+                    }
+
+                    // 增量插入（按 position 升序应用，保证顺序确定）
+                    val upserts = items.filter { !it.deleted && it.song != null }.sortedBy { it.position }
+                    upserts.forEach { item ->
+                        val key = SyncKey.playlistSong(PlaylistKind.MINE, item.playlistId, item.platform, item.songId)
+                        if (!canApply(songColl, key, false)) return@forEach
+                        val song = item.song ?: return@forEach
+                        val idx = currentSongs.indexOfFirst { it.platform == item.platform && it.id == item.songId }
+                        val at = item.position.coerceIn(0, currentSongs.size)
+                        if (idx >= 0) currentSongs.removeAt(idx)
+                        currentSongs.add(at.coerceAtMost(currentSongs.size), song)
+                        songsModified = true
+                        noteApplied(songColl, key, false)
+                    }
+
+                    if (songsModified) {
+                        val updated = target.copy(songs = currentSongs.take(MAX_PLAYLIST_SONGS))
+                        mine = mine.map { if (it.id == playlistId) updated else it }
+                        mineChanged = true
+                    }
+                }
+            }
+
+            if (mineChanged) {
                 _myPlaylists.value = mine
+                saveMyPlaylists()
+            }
+            if (favChanged) {
                 _favoritePlaylists.value = fav
                 _favoritePlaylistIds.value = fav.map { it.id }.toSet()
-                saveMyPlaylists()
                 FavoritePlaylistStore.save(fav)
-            }
-        }
-
-        // ===== 歌单曲目（只属于自建歌单）=====
-        run {
-            val collection = SyncCollections.PLAYLIST_SONGS
-            var mine = _myPlaylists.value
-            var changed = false
-            cloud.playlistSongs.forEach { item ->
-                val key = SyncKey.playlistSong(PlaylistKind.MINE, item.playlistId, item.platform, item.songId)
-                if (!canApply(collection, key, item.deleted)) return@forEach
-                val target = mine.firstOrNull { it.id == item.playlistId }
-                if (target == null) {
-                    // 歌单本身还没到（分页/顺序问题）：不推进基线，下次拉取仍会带上它
-                    return@forEach
-                }
-                val songs = target.songs.toMutableList()
-                val idx = songs.indexOfFirst { it.platform == item.platform && it.id == item.songId }
-                if (item.deleted) {
-                    if (idx >= 0) songs.removeAt(idx) else return@forEach
-                } else {
-                    val song = item.song ?: return@forEach
-                    // position 是云端记录的顺序：目标下标夹在合法范围内，避免脏数据把列表搞乱
-                    val at = item.position.coerceIn(0, songs.size)
-                    if (idx >= 0) songs.removeAt(idx)
-                    songs.add(at.coerceAtMost(songs.size), song)
-                }
-                val updated = target.copy(songs = songs.take(MAX_PLAYLIST_SONGS))
-                if (updated != target) changed = true
-                mine = mine.map { if (it.id == target.id) updated else it }
-                noteApplied(collection, key, item.deleted)
-            }
-            if (changed) {
-                _myPlaylists.value = mine
-                saveMyPlaylists()
             }
         }
 
@@ -763,6 +781,12 @@ class LibraryController(
             if (upserts.isNotEmpty() || deleted.isNotEmpty()) {
                 deviceSync.mergeCloudDownloads(upserts, deleted)
             }
+        }
+
+        // ===== 听歌统计（多端漫游：吸收其它设备的播放事件）=====
+        if (cloud.playEvents.isNotEmpty()) {
+            StatsStore.ingestCloudEvents(cloud.playEvents)
+            onStatsChanged?.invoke()
         }
 
         // ===== 基线推进（用"应用之后的本地指纹"重算，避免回推自己）=====
@@ -911,7 +935,7 @@ class LibraryController(
                 pushPending = false
                 withContext(Dispatchers.IO) {
                     try {
-                        pushChanges(uid, includeEvents = false)
+                        pushChanges(uid, includeEvents = true)
                         val now = System.currentTimeMillis()
                         SyncStateStore.updateSyncStatus(uid, "已同步本地改动", now)
                         _lastSyncedAt.value = now
