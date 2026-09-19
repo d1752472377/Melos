@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -267,10 +270,11 @@ fun ListeningStatsScreen(
 
 @Composable
 private fun StatsHeader(onBack: () -> Unit) {
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 20.dp, bottom = 16.dp),
+            .padding(top = statusBarTop + 14.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(

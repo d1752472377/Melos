@@ -1649,13 +1649,16 @@ object PlatformMusicService {
         val items = arr.mapNotNull { elem ->
             val obj = elem.asJsonObject ?: return@mapNotNull null
             val id = obj.get("id")?.asString ?: return@mapNotNull null
+            val desc = obj.get("description")?.asString?.takeIf { it.isNotBlank() }
+                ?: obj.get("copywriter")?.asString?.takeIf { it.isNotBlank() }
             PlaylistItem(
                 id = id,
                 name = obj.get("name")?.asString.orEmpty(),
                 coverUrl = fixPicUrl(obj.get("coverImgUrl")?.asString ?: obj.get("picUrl")?.asString),
                 playCount = obj.get("playCount")?.asLong,
                 trackCount = obj.get("trackCount")?.asLong,
-                platform = "netease"
+                platform = "netease",
+                description = desc,
             )
         }
         return if (order == "new") items else items.sortedByDescending { it.playCount ?: 0L }

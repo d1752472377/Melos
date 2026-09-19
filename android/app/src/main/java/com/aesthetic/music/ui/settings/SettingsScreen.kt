@@ -20,7 +20,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
+import com.aesthetic.music.ui.home.iosGlassCard
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
@@ -92,21 +94,33 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
             .padding(bottom = BottomContentSpacer)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
     ) {
-        // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
         Spacer(Modifier.height(statusBarTop + 16.dp))
-        Text(
-            text = "设置",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            ),
-            color = TextPrimary,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                tint = TextPrimary,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClick = onBack)
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = "设置",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = TextPrimary,
+            )
+        }
 
         Spacer(Modifier.height(18.dp))
 
@@ -202,9 +216,7 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(Surface)
+            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
             .padding(vertical = 12.dp)
     ) {
         Text(

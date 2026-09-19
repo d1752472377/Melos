@@ -31,6 +31,20 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -112,9 +126,52 @@ fun HomeScreen(
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var bottomPullOffset by remember { mutableFloatStateOf(0f) }
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    val bottomRefreshConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                // 列表触底后继续拉动（拉到最底部之后继续下滑）
+                if (available.y < 0f && !listState.canScrollForward) {
+                    bottomPullOffset = (bottomPullOffset - available.y * 0.5f).coerceAtMost(120f)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (bottomPullOffset > 0f && available.y > 0f) {
+                    val consumed = available.y.coerceAtMost(bottomPullOffset)
+                    bottomPullOffset -= consumed
+                    return Offset(0f, consumed)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (bottomPullOffset > 45f && !isRefreshing) {
+                    isRefreshing = true
+                    bottomPullOffset = 0f
+                    onRetryContent?.invoke()
+                    delay(1200L)
+                    isRefreshing = false
+                } else {
+                    bottomPullOffset = 0f
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(bottomRefreshConnection),
             contentPadding = PaddingValues(
                 top = statusBarTop + 16.dp,
                 start = 20.dp,
@@ -163,6 +220,24 @@ fun HomeScreen(
                         onPlaySong = onPlaySong,
                     )
                 }
+            }
+
+            // 底部触底过卷刷新胶囊（满足"拉到最底部之后继续下滑就刷新"）
+            item(key = "bottom_refresh") {
+                BottomOverscrollRefreshBar(
+                    isRefreshing = isRefreshing,
+                    pullOffset = bottomPullOffset,
+                    onRefresh = {
+                        if (!isRefreshing) {
+                            isRefreshing = true
+                            onRetryContent?.invoke()
+                            scope.launch {
+                                delay(1200L)
+                                isRefreshing = false
+                            }
+                        }
+                    },
+                )
             }
 
             item(key = "bottom_spacer") {
@@ -585,6 +660,64 @@ private fun FeaturedScenePlaylistCard(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * 触底过卷刷新胶囊（iOS 玻璃拟态风格）：
+ * 在列表已经滑动至最底部后，继续向上滑动（拉出底部空白）触发刷新
+ */
+@Composable
+private fun BottomOverscrollRefreshBar(
+    isRefreshing: Boolean,
+    pullOffset: Float,
+    onRefresh: () -> Unit,
+) {
+    val showBar = isRefreshing || pullOffset > 0f
+    if (!showBar) return
+
+    val progress = (pullOffset / 45f).coerceIn(0f, 1f)
+    val text = when {
+        isRefreshing -> "正在刷新推荐内容…"
+        progress >= 1f -> "松手立即刷新"
+        else -> "继续上拉刷新"
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .iosGlassCard(shape = RoundedCornerShape(16.dp), elevation = 3.dp)
+                .clickable(enabled = !isRefreshing) { onRefresh() }
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = AccentAmber,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = null,
+                    tint = TextSoft,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = TextSoft,
+            )
         }
     }
 }

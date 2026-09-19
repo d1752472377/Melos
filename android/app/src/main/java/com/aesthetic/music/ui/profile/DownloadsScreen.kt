@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.MusicNote
@@ -52,6 +53,7 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.AudioCacheService
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
+import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.components.BottomContentPadding
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.AccentMint
@@ -114,9 +116,7 @@ fun DownloadsScreen(
     val filteredSongList = remember(filtered) { filtered.map { it.toSong() } }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
+        modifier = Modifier.fillMaxSize()
     ) {
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
@@ -125,15 +125,30 @@ fun DownloadsScreen(
                 .padding(top = statusBarTop + 16.dp)
         ) {
             // ===== 1. 顶部大标题 =====
-            Text(
-                text = "我的下载",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = TextPrimary,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = TextPrimary,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(onClick = onBack)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "我的下载",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = TextPrimary,
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
 
@@ -211,7 +226,7 @@ fun DownloadsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = BottomContentPadding
                 ) {
                     itemsIndexed(
@@ -238,7 +253,6 @@ fun DownloadsScreen(
                                 }
                             },
                             onRemove = { onRemoveOne(song.filePath) },
-                            showDivider = index < filtered.size - 1
                         )
                     }
                 }
@@ -249,7 +263,7 @@ fun DownloadsScreen(
 }
 
 /**
- * 顶部汇总卡片：已下载 XX 首 + 操作按钮
+ * 顶部汇总卡片：已下载 XX 首 + 操作按钮（iOS 玻璃拟态风格）
  */
 @Composable
 private fun DownloadsSummaryCard(
@@ -263,31 +277,33 @@ private fun DownloadsSummaryCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
-            .padding(16.dp)
+            .iosGlassCard(shape = RoundedCornerShape(22.dp), elevation = 6.dp)
+            .padding(18.dp)
     ) {
         // 标签
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(AccentMint.copy(alpha = 0.12f))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(AccentMint.copy(alpha = 0.15f))
+                .padding(horizontal = 8.dp, vertical = 3.dp)
         ) {
             Text(
                 text = "离线音乐",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 color = AccentMint
             )
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
 
         // 标题
         Text(
             text = "已下载",
             style = MaterialTheme.typography.titleLarge.copy(
-                fontSize = 20.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
             ),
             color = TextPrimary
@@ -298,11 +314,11 @@ private fun DownloadsSummaryCard(
         // 统计信息
         Text(
             text = "共 $songCount 首 · 占用 $totalSizeText",
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
             color = TextSoft
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(18.dp))
 
         // 操作按钮行
         Row(
@@ -313,8 +329,8 @@ private fun DownloadsSummaryCard(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(19.dp))
                     .background(PrimaryBrown)
                     .clickable(onClick = onPlayAll),
                 verticalAlignment = Alignment.CenterVertically,
@@ -324,13 +340,13 @@ private fun DownloadsSummaryCard(
                     Icons.Filled.PlayArrow,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
                     "播放全部",
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                        fontSize = 13.5.sp, fontWeight = FontWeight.Bold
                     ),
                     color = Color.White
                 )
@@ -341,9 +357,8 @@ private fun DownloadsSummaryCard(
             // 随机播放按钮
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceSoft)
+                    .size(38.dp)
+                    .iosGlassCard(shape = CircleShape, elevation = 2.dp)
                     .clickable(onClick = onShuffle),
                 contentAlignment = Alignment.Center
             ) {
@@ -355,14 +370,13 @@ private fun DownloadsSummaryCard(
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
 
             // 搜索按钮
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceSoft)
+                    .size(38.dp)
+                    .iosGlassCard(shape = CircleShape, elevation = 2.dp)
                     .clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center
             ) {
@@ -378,7 +392,7 @@ private fun DownloadsSummaryCard(
 }
 
 /**
- * 列表行：无外框、白底 + 分割线，与收藏页一致
+ * 列表行：iOS 玻璃拟态胶囊卡片
  */
 @Composable
 private fun DownloadRow(
@@ -386,25 +400,24 @@ private fun DownloadRow(
     playingNow: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
-    showDivider: Boolean
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Surface)
+            .padding(horizontal = 20.dp)
+            .iosGlassCard(shape = RoundedCornerShape(16.dp), elevation = 2.dp)
             .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 封面 / 图标
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(if (Palette.isDark) Color(0xFF142E25) else Color(0xFFEBFBF5)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -464,15 +477,6 @@ private fun DownloadRow(
                     modifier = Modifier.size(20.dp),
                 )
             }
-        }
-
-        // 分割线
-        if (showDivider) {
-            HorizontalDivider(
-                modifier = Modifier.padding(start = 80.dp, end = 20.dp),
-                thickness = 0.5.dp,
-                color = Stone200.copy(alpha = 0.5f)
-            )
         }
     }
 }

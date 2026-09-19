@@ -17,11 +17,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
@@ -33,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.aesthetic.music.ui.home.iosGlassCard
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,40 +67,53 @@ import com.aesthetic.music.ui.components.BottomContentSpacer
 data class SettingOption(val label: String, val desc: String? = null)
 
 /**
- * 设置子页面骨架：大标题 + 可滚动内容区。
- * 与「我的收藏」等页保持一致：顶部不再渲染返回按钮，回退统一交给系统返回手势 / 返回键。
- * 底部自动预留底部栏高度，避免最后一项被 Dock 遮挡。
+ * 设置子页面骨架：大标题 + 可滚动内容区（iOS 玻璃拟态风格）。
+ * 顶部带有返回按钮，沉浸式状态栏自适应，背景透明融入全局环境光晕。
  */
 @Composable
 fun SettingsPageScaffold(
     title: String,
-    /** 保留参数以兼容各子页面调用；顶部已不再渲染返回按钮 */
     onBack: () -> Unit,
     subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-            color = TextPrimary,
-        )
+        Spacer(Modifier.height(statusBarTop + 16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                tint = TextPrimary,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClick = onBack)
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = TextPrimary,
+            )
+        }
         if (!subtitle.isNullOrBlank()) {
             Spacer(Modifier.height(6.dp))
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = TextSoft,
+                modifier = Modifier.padding(start = 36.dp),
             )
         }
 
@@ -105,7 +123,7 @@ fun SettingsPageScaffold(
     }
 }
 
-/** 分组卡片 */
+/** 分组卡片（iOS 玻璃拟态风格） */
 @Composable
 fun SettingsSection(
     title: String? = null,
@@ -115,17 +133,18 @@ fun SettingsSection(
         if (!title.isNullOrBlank()) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
                 color = TextSoft,
-                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
             )
         }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                .clip(RoundedCornerShape(16.dp))
-                .background(Surface),
+                .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp),
             content = content,
         )
     }

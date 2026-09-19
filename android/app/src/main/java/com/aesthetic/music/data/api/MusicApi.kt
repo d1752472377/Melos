@@ -57,6 +57,8 @@ data class PlaylistItem(
      * 只有榜单会用到，其它歌单恒为 null：榜单页据它分组显示，缺失时退化为平铺，不影响其它入口。
      */
     val group: String? = null,
+    /** 歌单描述/文案，用于卡片第二行简介展示 */
+    val description: String? = null,
 )
 
 /** 登录用户 */

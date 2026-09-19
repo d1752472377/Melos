@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.DayPoint
 import com.aesthetic.music.data.settings.ListeningInsights
+import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentTeal
@@ -61,25 +62,17 @@ import com.aesthetic.music.ui.theme.TextSoft
  * 不去改动全局组件库（避免把玻璃质感扩散到列表页）。
  */
 
-/** 页面背景：顶部淡蓝紫 → 下方米白/浅灰（深色下为墨蓝 → 近黑） */
+/** 页面背景：透明融入全局环境光晕背景 */
 @Composable
 fun StatsGradientBackground(content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    0f to StatsGradientTop,
-                    0.45f to StatsGradientMid,
-                    1f to StatsGradientBottom,
-                )
-            )
+        modifier = Modifier.fillMaxSize()
     ) {
         content()
     }
 }
 
-/** 毛玻璃卡片：半透明底 + 淡边框 + 柔和阴影 */
+/** iOS 玻璃拟态卡片 */
 @Composable
 fun StatsGlassCard(
     modifier: Modifier = Modifier,
@@ -90,9 +83,7 @@ fun StatsGlassCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(GlassSurface)
-            .border(1.dp, GlassBorder, shape)
+            .iosGlassCard(shape = shape, elevation = 4.dp)
             .padding(padding.dp),
         content = content,
     )

@@ -12,9 +12,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import com.aesthetic.music.ui.components.MelosToastHost
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -194,12 +200,33 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         }
     }
 
-    // 壳层 holder：收敛导�? / 播放 / 提示回调，destination 只接�? holder 而不逐个透传
+    // 壳层 holder：收敛导航 / 播放 / 提示回调，destination 只接收 holder 而不逐个透传
     val nav = remember(navController) {
+        var lastPopBackTime = 0L
+        var lastNavigateTime = 0L
         ShellNav(
-            navigate = { route: String -> navController.navigate(route) },
-            navigateSingleTop = { route: String -> navController.navigate(route) { launchSingleTop = true } },
-            popBack = { navController.popBackStack() },
+            navigate = { route: String ->
+                val now = SystemClock.uptimeMillis()
+                // 返回动效过程中（260ms内）忽略对旧页面的误触跳转，且防重复点击
+                if (now - lastPopBackTime > 260L && now - lastNavigateTime > 300L) {
+                    lastNavigateTime = now
+                    navController.navigate(route)
+                }
+            },
+            navigateSingleTop = { route: String ->
+                val now = SystemClock.uptimeMillis()
+                if (now - lastPopBackTime > 260L && now - lastNavigateTime > 300L) {
+                    lastNavigateTime = now
+                    navController.navigate(route) { launchSingleTop = true }
+                }
+            },
+            popBack = {
+                val now = SystemClock.uptimeMillis()
+                if (now - lastPopBackTime > 200L) {
+                    lastPopBackTime = now
+                    navController.popBackStack()
+                }
+            },
             switchTab = { route: String, tabEnum: AppTab -> navigateToTab(route, tabEnum) },
         )
     }
@@ -287,6 +314,34 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     modifier = Modifier
                         .fillMaxSize()
                         .nestedScroll(nestedScrollConnection),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                            animationSpec = tween(240, easing = FastOutSlowInEasing),
+                            initialOffset = { it / 4 },
+                        ) + fadeIn(animationSpec = tween(200))
+                    },
+                    exitTransition = {
+                        slideOutOfContainer(
+                            towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                            animationSpec = tween(220, easing = FastOutSlowInEasing),
+                            targetOffset = { -it / 5 },
+                        ) + fadeOut(animationSpec = tween(180))
+                    },
+                    popEnterTransition = {
+                        slideIntoContainer(
+                            towards = AnimatedContentTransitionScope.SlideDirection.End,
+                            animationSpec = tween(220, easing = FastOutSlowInEasing),
+                            initialOffset = { -it / 5 },
+                        ) + fadeIn(animationSpec = tween(200))
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = AnimatedContentTransitionScope.SlideDirection.End,
+                            animationSpec = tween(200, easing = FastOutSlowInEasing),
+                            targetOffset = { it },
+                        ) + fadeOut(animationSpec = tween(160))
+                    },
                 ) {
                 // 主页
                 composable(ScreenRoute.Home.route) {

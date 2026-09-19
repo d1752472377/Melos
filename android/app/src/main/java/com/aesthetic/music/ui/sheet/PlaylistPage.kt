@@ -18,50 +18,50 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.DrawerValue
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.PlaylistItem
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
-import com.aesthetic.music.ui.components.BottomContentSpacer
+import com.aesthetic.music.ui.home.iosGlassCard
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
-import kotlinx.coroutines.launch
 
 /**
- * 歌单广场（替代原"发现"页的主 Tab）：
- * - 以方块形式展示歌单；
- * - 顶部可切换 最新 / 最热；
- * - 右上角文字按钮（默认显示当前标签）点开左侧标签抽屉。
+ * 歌单广场（图 2 + 图 3 规范）：
+ * - 顶部：返回键 + 歌单广场标题 + 右侧刷新按钮；
+ * - 分类：移除原先的侧边抽屉，改为横向滚动的标签胶囊栏（图 2）；
+ * - 排序：最热 / 最新 精致胶囊切换；
+ * - 列表：单列垂直 iOS 玻璃拟态卡片流（图 3），透出全局底层环境光背景与状态栏毛玻璃折射。
  */
 @Composable
 fun PlaylistPage(
@@ -77,130 +77,113 @@ fun PlaylistPage(
     onOpenPlaylist: (PlaylistItem) -> Unit,
     onBack: (() -> Unit)? = null,
 ) {
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.fillMaxSize()) {
-                Text(
-                    text = "歌单分类",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
-                )
-                sheetTags.forEach { tag ->
-                    val selected = tag == sheetCat
-                    NavigationDrawerItem(
-                        label = { Text(tag, color = if (selected) PrimaryBrown else TextPrimary) },
-                        selected = selected,
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = PrimaryBrown.copy(alpha = 0.12f),
-                        ),
-                        onClick = {
-                            onSelectCat(tag)
-                            scope.launch { drawerState.close() }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
-                }
-            }
-        },
+    Column(
+        modifier = Modifier.fillMaxSize()
     ) {
-        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        Column(Modifier.fillMaxSize()) {
-            // 标题 + 标签抽屉按钮
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 12.dp, top = statusBarTop + 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (onBack != null) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = TextPrimary,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable(onClick = onBack)
-                            .size(24.dp)
-                    )
-                    Spacer(Modifier.width(10.dp))
-                }
-                Text(
-                    text = "歌单广场",
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    color = TextPrimary,
-                )
-                Spacer(Modifier.weight(1f))
-                Row(
+        // ===== 顶部导航栏（返回键 + 大标题 + 刷新按钮，见图 2） =====
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 16.dp, top = statusBarTop + 14.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onBack != null) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = TextPrimary,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { scope.launch { drawerState.open() } }
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .clip(CircleShape)
+                        .clickable(onClick = onBack)
+                        .padding(4.dp)
+                        .size(24.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(
+                text = "歌单广场",
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = TextPrimary,
+            )
+            Spacer(Modifier.weight(1f))
+            // 右侧刷新按钮（图 2）
+            Icon(
+                imageVector = Icons.Outlined.Refresh,
+                contentDescription = "刷新歌单",
+                tint = TextPrimary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onRetry)
+                    .padding(6.dp)
+                    .size(22.dp)
+            )
+        }
+
+        // ===== 分类标签胶囊栏（横向滚动，彻底替代抽屉，见图 2） =====
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(sheetTags, key = { it }) { tag ->
+                val selected = tag == sheetCat
+                CategoryPill(
+                    label = tag,
+                    selected = selected,
+                    onClick = { onSelectCat(tag) },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        // ===== 排序切换（最热 / 最新，精致紧凑胶囊） =====
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OrderChip(label = "最热", selected = sheetOrder == "hot") {
+                onSelectOrder("hot")
+            }
+            OrderChip(label = "最新", selected = sheetOrder == "new") {
+                onSelectOrder("new")
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // ===== 歌单卡片列表（单列 iOS 玻璃拟态卡片流，见图 3） =====
+        when {
+            isLoading && playlists.isEmpty() -> {
+                LoadingBox(message = "正在加载歌单…", modifier = Modifier.weight(1f).fillMaxWidth())
+            }
+            error != null && playlists.isEmpty() -> {
+                ErrorBox(message = error, onRetry = onRetry, modifier = Modifier.weight(1f).fillMaxWidth())
+            }
+            playlists.isEmpty() -> {
+                EmptyBox(message = "该分类下暂无歌单", modifier = Modifier.weight(1f).fillMaxWidth())
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 18.dp,
+                        end = 18.dp,
+                        top = 8.dp,
+                        bottom = BottomContentSpacer,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        text = sheetCat,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = PrimaryBrown,
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Icon(
-                        Icons.Filled.ExpandMore,
-                        contentDescription = "打开歌单标签抽屉",
-                        tint = PrimaryBrown,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-
-            // 最新 / 最热 切换
-            Row(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                OrderChip(label = "最热", selected = sheetOrder == "hot") {
-                    onSelectOrder("hot")
-                }
-                OrderChip(label = "最新", selected = sheetOrder == "new") {
-                    onSelectOrder("new")
-                }
-            }
-
-            // 方块歌单列表
-            when {
-                isLoading && playlists.isEmpty() -> {
-                    LoadingBox(message = "正在加载歌单…", modifier = Modifier.weight(1f).fillMaxWidth())
-                }
-                error != null && playlists.isEmpty() -> {
-                    ErrorBox(message = error, onRetry = onRetry, modifier = Modifier.weight(1f).fillMaxWidth())
-                }
-                playlists.isEmpty() -> {
-                    EmptyBox(message = "该分类下暂无歌单", modifier = Modifier.weight(1f).fillMaxWidth())
-                }
-                else -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 6.dp,
-                            bottom = BottomContentSpacer,
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        items(playlists, key = { "${it.platform}:${it.id}" }) { playlist ->
-                            SheetCard(playlist = playlist, onClick = { onOpenPlaylist(playlist) })
-                        }
+                    items(playlists, key = { "${it.platform}:${it.id}" }) { playlist ->
+                        PlaylistGlassCard(
+                            playlist = playlist,
+                            onClick = { onOpenPlaylist(playlist) },
+                        )
                     }
                 }
             }
@@ -208,57 +191,183 @@ fun PlaylistPage(
     }
 }
 
-/** 最新/最热描边胶囊 */
+/**
+ * 分类标签胶囊（图 2 样式）：
+ * 选中态：微高光浮起卡片质感，字体加粗加黑
+ * 未选中态：半透明平滑融入背景
+ */
 @Composable
-private fun OrderChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CategoryPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val isDark = Palette.isDark
+    val bgModifier = if (selected) {
+        Modifier.iosGlassCard(shape = RoundedCornerShape(14.dp), elevation = 3.dp)
+    } else {
+        Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isDark) SurfaceSoft.copy(alpha = 0.5f) else Surface.copy(alpha = 0.65f))
+    }
+
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) PrimaryBrown else Surface)
+            .then(bgModifier)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 7.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) androidx.compose.ui.graphics.Color.White else TextSoft,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) TextPrimary else TextSoft,
         )
     }
 }
 
-/** 单张方块歌单卡片 */
+/** 最热/最新胶囊 */
 @Composable
-private fun SheetCard(playlist: PlaylistItem, onClick: () -> Unit) {
-    Column(Modifier.clickable(onClick = onClick)) {
-        SongCover(
-            url = playlist.coverUrl,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
-            corner = 14.dp,
-        )
-        Spacer(Modifier.height(8.dp))
+private fun OrderChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) PrimaryBrown else SurfaceSoft.copy(alpha = 0.75f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    ) {
         Text(
-            text = playlist.name,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
             fontWeight = FontWeight.SemiBold,
-            color = TextPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            color = if (selected) Color.White else TextSoft,
         )
-        Spacer(Modifier.height(3.dp))
-        val played = formatPlayCountText(playlist.playCount)
-        val tracks = playlist.trackCount?.takeIf { it > 0 }?.let { "$it 首" }
-        val meta = listOf(played, tracks).filter { !it.isNullOrBlank() }.joinToString(" · ")
-        if (meta.isNotEmpty()) {
-            Text(
-                text = meta,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = TextMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+    }
+}
+
+/**
+ * 单条 iOS 玻璃拟态歌单卡片（图 3 规范）：
+ * - 左侧：大圆角歌单封面；
+ * - 右侧上方：歌单标题 + 展开箭头；
+ * - 右侧中间：歌单描述/文案，最多两行省略；
+ * - 右侧下方：耳机播放量软胶囊 + 歌曲总数。
+ */
+@Composable
+private fun PlaylistGlassCard(
+    playlist: PlaylistItem,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
+            .clickable(onClick = onClick)
+            .padding(14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 左侧大圆角封面
+            SongCover(
+                url = playlist.coverUrl,
+                modifier = Modifier
+                    .size(76.dp)
+                    .aspectRatio(1f),
+                corner = 14.dp,
             )
+
+            Spacer(Modifier.width(14.dp))
+
+            // 右侧信息流
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                // 第一行：标题 + 右侧箭头
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = playlist.name,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = TextMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // 第二行：描述文案（两行截断）
+                val descText = playlist.description?.takeIf { it.isNotBlank() }
+                    ?: "${playlist.name} · 精选合辑，畅享好音乐"
+                Text(
+                    text = descText,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                    ),
+                    color = TextMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // 第三行：播放量胶囊 + 曲目数
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // 耳机播放量胶囊
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SurfaceSoft.copy(alpha = 0.85f))
+                            .padding(horizontal = 7.dp, vertical = 2.5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Headphones,
+                            contentDescription = null,
+                            tint = TextSoft,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = formatPlayCountText(playlist.playCount),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextSoft,
+                        )
+                    }
+
+                    // 歌曲总数
+                    val trackCount = playlist.trackCount?.takeIf { it > 0 }
+                    if (trackCount != null) {
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "$trackCount 首",
+                            fontSize = 11.sp,
+                            color = TextMuted,
+                        )
+                    }
+                }
+            }
         }
     }
 }
