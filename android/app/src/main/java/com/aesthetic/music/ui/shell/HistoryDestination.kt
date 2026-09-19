@@ -33,6 +33,7 @@ fun HistoryDestination(
     HistoryScreen(
         songs = history,
         currentSong = playerState.currentSong,
+        isPlaying = playerState.isPlaying,
         onBack = {
             viewModel.closeHistory()
             viewModel.updatePageBackground(null, false)

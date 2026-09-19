@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -55,22 +56,67 @@ import com.aesthetic.music.ui.theme.TextSoft
 // ==================== 统一卡片容器 ====================
 
 /**
- * 结果列表统一外层白卡：顶部两角圆角 + 白底，左右贴屏幕边、底部探到屏幕底。
+ * 结果列表统一外层圆角白卡：
+ * 包含“搜索结果 XX 首”标题栏，以及四周圆角（20dp）白底卡片容器，与收藏/歌单/历史页面设计统一。
  */
 @Composable
 private fun ResultCard(
     bottomContentPadding: Dp,
+    title: String? = null,
+    countText: String? = null,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-            .background(Surface),
+            .fillMaxHeight(),
     ) {
-        content()
+        if (!title.isNullOrBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = TextPrimary,
+                )
+                if (!countText.isNullOrBlank()) {
+                    Text(
+                        text = countText,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = TextSoft,
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 20.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Surface)
+            ) {
+                content()
+            }
+        }
     }
 }
 
@@ -99,7 +145,11 @@ fun SongResultList(
         EmptyHint(emptyHint)
         return
     }
-    ResultCard(bottomContentPadding = bottomContentPadding) {
+    ResultCard(
+        bottomContentPadding = bottomContentPadding,
+        title = "搜索结果",
+        countText = "${songs.size} 首"
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxHeight(),
             verticalArrangement = Arrangement.Top,
@@ -153,7 +203,11 @@ fun ArtistResultList(
         EmptyHint(emptyHint)
         return
     }
-    ResultCard(bottomContentPadding = bottomContentPadding) {
+    ResultCard(
+        bottomContentPadding = bottomContentPadding,
+        title = "搜索结果",
+        countText = "${artists.size} 位歌手"
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxHeight(),
             verticalArrangement = Arrangement.Top,
@@ -249,7 +303,11 @@ fun PlaylistResultList(
         EmptyHint(emptyHint)
         return
     }
-    ResultCard(bottomContentPadding = bottomContentPadding) {
+    ResultCard(
+        bottomContentPadding = bottomContentPadding,
+        title = "搜索结果",
+        countText = "${playlists.size} 个歌单"
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxHeight(),
             verticalArrangement = Arrangement.Top,
@@ -315,7 +373,11 @@ fun AlbumResultList(
         EmptyHint(emptyHint)
         return
     }
-    ResultCard(bottomContentPadding = bottomContentPadding) {
+    ResultCard(
+        bottomContentPadding = bottomContentPadding,
+        title = "搜索结果",
+        countText = "${albums.size} 张专辑"
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxHeight(),
             verticalArrangement = Arrangement.Top,
