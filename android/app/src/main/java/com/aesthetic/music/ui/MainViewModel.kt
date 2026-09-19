@@ -180,6 +180,9 @@ class MainViewModel : ViewModel() {
     val homeCategories get() = content.homeCategories
     val isLoadingContent get() = content.isLoadingContent
     val contentError get() = content.contentError
+    val recommendPlaylistSongs get() = content.recommendPlaylistSongs
+    val isLoadingRecommendSongs get() = content.isLoadingRecommendSongs
+    fun loadRecommendPlaylistSongs(playlist: PlaylistItem) = content.loadRecommendPlaylistSongs(playlist)
 
     // 歌单广场（覆盖层，从首页分类歌单进入）：已抽到 SheetController，保留同名只读委托
     val sheetTags get() = sheet.tags

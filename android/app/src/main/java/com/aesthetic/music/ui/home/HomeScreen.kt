@@ -23,10 +23,12 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +72,9 @@ fun HomeScreen(
     ranks: List<PlaylistItem>,
     homeCategories: List<HomeCategoryDto> = emptyList(),
     favorites: Set<String>,
+    recommendSongs: List<Song> = emptyList(),
+    isLoadingRecommendSongs: Boolean = false,
+    onLoadRecommendSongs: (PlaylistItem) -> Unit = {},
     isLoading: Boolean = false,
     contentError: String? = null,
     onRetryContent: (() -> Unit)? = null,
@@ -93,6 +98,14 @@ fun HomeScreen(
 
     // 为你推荐选取的歌单（优先取第2个每日歌单或第1个热门歌单）
     val recommendPlaylist = (if (dailyPlaylists.size > 1) dailyPlaylists[1] else hotPlaylists.firstOrNull()) ?: featuredPlaylist
+
+    // 监听 recommendPlaylist 变化，自动触发获取歌单内部真实歌曲
+    LaunchedEffect(recommendPlaylist?.id, recommendPlaylist?.platform) {
+        val pl = recommendPlaylist
+        if (pl != null && pl.id.isNotBlank()) {
+            onLoadRecommendSongs(pl)
+        }
+    }
 
     // 全部数据区块为空的判定：用于首次加载态与失败横幅
     val hasNoContent = featuredPlaylist == null &&
@@ -160,7 +173,9 @@ fun HomeScreen(
             item(key = "featured_recommend") {
                 FeaturedRecommendPlaylistCard(
                     playlist = recommendPlaylist,
-                    previewSongs = poolSongs.take(3),
+                    previewSongs = recommendSongs.take(3),
+                    allPlaylistSongs = recommendSongs,
+                    isLoadingSongs = isLoadingRecommendSongs,
                     onOpenPlaylistDetail = onOpenPlaylistDetail,
                     onPlaySong = onPlaySong,
                 )
@@ -292,6 +307,8 @@ private fun QuickFeatureItem(
 private fun FeaturedRecommendPlaylistCard(
     playlist: PlaylistItem,
     previewSongs: List<Song>,
+    allPlaylistSongs: List<Song> = emptyList(),
+    isLoadingSongs: Boolean = false,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
 ) {
@@ -373,14 +390,14 @@ private fun FeaturedRecommendPlaylistCard(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "共 ${playlist.trackCount ?: (previewSongs.size.coerceAtLeast(20))} 首歌 · 分类：${playlist.group ?: playlist.kind ?: "流行"}",
+                        text = "共 ${playlist.trackCount ?: (allPlaylistSongs.size.takeIf { it > 0 } ?: 20)} 首歌 · 分类：${playlist.group ?: playlist.kind ?: "流行"}",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = TextMuted,
                     )
                 }
             }
 
-            // 歌单里面的三首音乐
+            // 歌单内部真实歌曲预览
             if (previewSongs.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
                 Box(
@@ -392,12 +409,12 @@ private fun FeaturedRecommendPlaylistCard(
                 Spacer(Modifier.height(12.dp))
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    previewSongs.take(3).forEachIndexed { index, song ->
+                    previewSongs.forEachIndexed { index, song ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { onPlaySong(song, previewSongs) }
+                                .clickable { onPlaySong(song, if (allPlaylistSongs.isNotEmpty()) allPlaylistSongs else previewSongs) }
                                 .padding(horizontal = 6.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -437,6 +454,34 @@ private fun FeaturedRecommendPlaylistCard(
                             )
                         }
                     }
+                }
+            } else if (isLoadingSongs) {
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Stone200.copy(alpha = 0.5f))
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = theme.accent,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "正在加载歌单曲目…",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = TextSoft,
+                    )
                 }
             }
         }

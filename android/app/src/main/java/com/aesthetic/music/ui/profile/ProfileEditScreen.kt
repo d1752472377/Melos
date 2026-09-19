@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,6 +31,11 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -419,7 +425,7 @@ private fun SettingItem(
 
 /**
  * 统一下划线输入框：BasicTextField + 自绘下划线。
- * 线与文字天然左对齐，无任何默认内边距。
+ * 支持密码明暗文切换与占位提示，线与文字天然左对齐。
  */
 @Composable
 private fun UnderlineInput(
@@ -428,7 +434,11 @@ private fun UnderlineInput(
     label: String,
     modifier: Modifier = Modifier,
     maxLength: Int = Int.MAX_VALUE,
+    isPassword: Boolean = false,
+    placeholder: String = "",
 ) {
+    var passwordVisible by remember { mutableStateOf(false) }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = label,
@@ -436,17 +446,46 @@ private fun UnderlineInput(
             color = TextMuted,
         )
         Spacer(Modifier.height(6.dp))
-        BasicTextField(
-            value = value,
-            onValueChange = { if (it.length <= maxLength) onValueChange(it) },
-            singleLine = true,
-            textStyle = TextStyle(
-                fontSize = 16.sp,
-                color = TextPrimary,
-            ),
-            cursorBrush = SolidColor(PrimaryBrown),
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = { if (it.length <= maxLength) onValueChange(it) },
+                singleLine = true,
+                visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text
+                ),
+                textStyle = TextStyle(
+                    fontSize = 16.sp,
+                    color = TextPrimary,
+                ),
+                cursorBrush = SolidColor(PrimaryBrown),
+                modifier = Modifier.weight(1f),
+                decorationBox = { innerTextField ->
+                    if (value.isEmpty() && placeholder.isNotBlank()) {
+                        Text(
+                            text = placeholder,
+                            style = TextStyle(fontSize = 15.sp, color = TextMuted.copy(alpha = 0.6f)),
+                        )
+                    }
+                    innerTextField()
+                },
+            )
+            if (isPassword) {
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                    contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+                    tint = TextMuted,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clickable { passwordVisible = !passwordVisible }
+                )
+            }
+        }
         Spacer(Modifier.height(8.dp))
         Box(
             modifier = Modifier
@@ -538,18 +577,24 @@ private fun ChangePasswordDialog(
                     value = oldPwd,
                     onValueChange = { oldPwd = it },
                     label = "当前密码",
+                    isPassword = true,
+                    placeholder = "请输入原密码",
                 )
                 Spacer(Modifier.height(16.dp))
                 UnderlineInput(
                     value = newPwd,
                     onValueChange = { newPwd = it },
                     label = "新密码",
+                    isPassword = true,
+                    placeholder = "请输入 5-64 位新密码",
                 )
                 Spacer(Modifier.height(16.dp))
                 UnderlineInput(
                     value = confirmPwd,
                     onValueChange = { confirmPwd = it },
                     label = "确认新密码",
+                    isPassword = true,
+                    placeholder = "请再次输入新密码",
                 )
             }
         },

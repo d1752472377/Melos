@@ -47,9 +47,38 @@ class ContentController(
     private val _contentError = MutableStateFlow<String?>(null)
     val contentError = _contentError.asStateFlow()
 
+    /** 为你推荐卡片精选歌单内部的真实曲目列表 */
+    private val _recommendPlaylistSongs = MutableStateFlow<List<Song>>(emptyList())
+    val recommendPlaylistSongs: StateFlow<List<Song>> = _recommendPlaylistSongs.asStateFlow()
+    private val _isLoadingRecommendSongs = MutableStateFlow(false)
+    val isLoadingRecommendSongs = _isLoadingRecommendSongs.asStateFlow()
+
+    @Volatile
+    private var recommendReqId = 0L
+
     /** 内容已成功加载过一次：切 Tab 重入不再全量重拉（重试用 [refreshContent]） */
     @Volatile
     private var contentLoaded = false
+
+    fun loadRecommendPlaylistSongs(playlist: PlaylistItem) {
+        if (playlist.id.isBlank()) return
+        val req = ++recommendReqId
+        scope.launch {
+            _isLoadingRecommendSongs.value = true
+            repository.getPlaylistDetail(playlist.platform, playlist.id).onSuccess { data ->
+                if (req == recommendReqId) {
+                    _recommendPlaylistSongs.value = data.songs
+                }
+            }.onFailure {
+                if (req == recommendReqId) {
+                    _recommendPlaylistSongs.value = emptyList()
+                }
+            }
+            if (req == recommendReqId) {
+                _isLoadingRecommendSongs.value = false
+            }
+        }
+    }
 
     fun loadHotPlaylists(force: Boolean = false) {
         if (!force && _hotPlaylists.value.isNotEmpty()) return
@@ -60,6 +89,9 @@ class ContentController(
             repository.getHotPlaylists(20).onSuccess { list ->
                 _hotPlaylists.value = list
                 _hotPlaylistsError.value = null
+                if (_recommendPlaylistSongs.value.isEmpty() && _dailyPlaylists.value.isEmpty()) {
+                    list.firstOrNull()?.let { loadRecommendPlaylistSongs(it) }
+                }
             }.onFailure { e ->
                 // 失败要可见：此前静默，"热门歌单"区块直接消失且无法重试
                 _hotPlaylistsError.value = e.message ?: "获取热门歌单失败"
@@ -84,8 +116,13 @@ class ContentController(
             val newsD = async { repository.getNewSongs(20) }
             val ranksD = async { repository.getRanks() }
             val catsD = async { repository.getCategories() }
-            dailyD.await().onSuccess { _dailyPlaylists.value = it.playlists }
-                .onFailure { failures++; failureMsg = "每日推荐" }
+            dailyD.await().onSuccess {
+                _dailyPlaylists.value = it.playlists
+                val target = it.playlists.getOrNull(1) ?: it.playlists.firstOrNull()
+                if (target != null) {
+                    loadRecommendPlaylistSongs(target)
+                }
+            }.onFailure { failures++; failureMsg = "每日推荐" }
             newsD.await().onSuccess { _newSongs.value = it.songs }
                 .onFailure { failures++; failureMsg = "新歌速递" }
             catsD.await().onSuccess { _homeCategories.value = it.categories }

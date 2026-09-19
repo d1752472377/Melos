@@ -24,6 +24,8 @@ fun HomeDestination(
     val favorites by viewModel.favorites.collectAsState()
     val contentError by viewModel.contentError.collectAsState()
     val isLoadingContent by viewModel.isLoadingContent.collectAsState()
+    val recommendPlaylistSongs by viewModel.recommendPlaylistSongs.collectAsState()
+    val isLoadingRecommendSongs by viewModel.isLoadingRecommendSongs.collectAsState()
     HomeScreen(
         dailyPlaylists = dailyPlaylists,
         newSongs = newSongs,
@@ -32,6 +34,9 @@ fun HomeDestination(
         ranks = ranks,
         homeCategories = homeCategories,
         favorites = favorites,
+        recommendSongs = recommendPlaylistSongs,
+        isLoadingRecommendSongs = isLoadingRecommendSongs,
+        onLoadRecommendSongs = viewModel::loadRecommendPlaylistSongs,
         contentError = contentError,
         isLoading = isLoadingContent,
         onRetryContent = { viewModel.refreshContent() },
