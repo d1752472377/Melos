@@ -46,7 +46,7 @@ object SyncServerStore {
     }
 
     /** 默认写死的后端服务地址（开箱即用，免配置） */
-    const val DEFAULT_SERVER_URL = "http://100.64.0.9:8787"
+    const val DEFAULT_SERVER_URL = "http://39.96.39.134"
 
     fun saveServerUrl(serverUrl: String) {
         prefs?.edit()?.putString(KEY_SERVER_URL, normalize(serverUrl))?.apply()
