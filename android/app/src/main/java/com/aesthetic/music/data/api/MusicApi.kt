@@ -203,6 +203,12 @@ data class UnbindEmailBody(
     val code: String,
 )
 
+/** 请求体：修改密码 */
+data class PasswordBody(
+    val oldPassword: String,
+    val newPassword: String,
+)
+
 /** 请求体：登录 */
 data class LoginBody(
     val username: String,
@@ -477,6 +483,9 @@ interface MusicApi {
 
     @POST("api/me/email/unbind")
     suspend fun unbindEmail(@Body body: UnbindEmailBody): ApiResponse<UserInfo>
+
+    @PUT("api/me/password")
+    suspend fun updatePassword(@Body body: PasswordBody): ApiResponse<Any>
 
     @GET("api/me/sessions")
     suspend fun sessions(): ApiResponse<List<SessionDto>>

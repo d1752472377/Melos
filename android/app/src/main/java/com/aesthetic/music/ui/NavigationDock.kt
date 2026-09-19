@@ -56,8 +56,8 @@ fun NavigationDock(
     currentTab: AppTab,
     currentArtwork: String?,
     onHome: () -> Unit,
-    onSheet: () -> Unit,
-    onPlaylist: () -> Unit,
+    onSheet: () -> Unit = {},
+    onPlaylist: () -> Unit = {},
     onProfile: () -> Unit,
     onOpenPlayer: () -> Unit,
     isSpinning: Boolean = false,
@@ -112,21 +112,12 @@ fun NavigationDock(
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceAround,
-    ){
+    ) {
         DockIcon(
             icon = Icons.Filled.Home,
             label = "首页",
             selected = currentTab == AppTab.HOME,
             onClick = onHome,
-            selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,
-            unselectedColor = iconColor
-        )
-
-        DockIcon(
-            icon = Icons.Filled.Radio,
-            label = "心动FM",
-            selected = currentTab == AppTab.SHEET,
-            onClick = onSheet,
             selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,
             unselectedColor = iconColor
         )
@@ -137,15 +128,6 @@ fun NavigationDock(
             progressFlow = progressFlow,
             onOpenPlayer = onOpenPlayer,
             isDarkBackground = isDarkBackground,
-        )
-
-        DockIcon(
-            icon = Icons.AutoMirrored.Filled.QueueMusic,
-            label = "我的歌单",
-            selected = currentTab == AppTab.PLAYLIST,
-            onClick = onPlaylist,
-            selectedColor = if (isDarkBackground) Color.White else PrimaryBrown,
-            unselectedColor = iconColor
         )
 
         DockIcon(

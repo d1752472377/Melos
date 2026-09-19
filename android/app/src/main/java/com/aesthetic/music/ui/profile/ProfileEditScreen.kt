@@ -345,6 +345,7 @@ fun ProfileEditScreen(
             BindEmailDialog(
                 isChange = bound,
                 onDismiss = { showBindEmailDialog = false },
+                onOpenUnbind = { showUnbindEmailDialog = true },
                 onSendCode = onSendEmailCode,
                 onConfirm = onBindEmail,
                 onToast = onShowToast,
@@ -592,6 +593,7 @@ private fun ChangePasswordDialog(
 private fun BindEmailDialog(
     isChange: Boolean,
     onDismiss: () -> Unit,
+    onOpenUnbind: () -> Unit = {},
     onSendCode: (email: String, scene: String, onSent: () -> Unit) -> Unit,
     onConfirm: (email: String, code: String, onSuccess: () -> Unit) -> Unit,
     onToast: (String) -> Unit,
@@ -709,8 +711,18 @@ private fun BindEmailDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消", color = TextMuted)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isChange) {
+                    TextButton(onClick = {
+                        onDismiss()
+                        onOpenUnbind()
+                    }) {
+                        Text("解绑邮箱", color = TextSoft)
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("取消", color = TextMuted)
+                }
             }
         },
     )

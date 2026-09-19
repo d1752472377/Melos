@@ -117,7 +117,7 @@ fun ProfileScreen(
     cacheCount: Int,
     cacheSize: Long,
     localStats: LocalStats,
-    isSyncConfigured: Boolean,
+    isSyncConfigured: Boolean = true,
     sourceSummary: String,
     onOpenEditProfile: () -> Unit,
     onOpenFavorites: () -> Unit,
@@ -125,7 +125,7 @@ fun ProfileScreen(
     onOpenDownloads: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenListeningStats: () -> Unit,
-    onOpenCloudManage: () -> Unit,
+    onOpenCloudManage: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenPluginManage: () -> Unit,
     onUpdateAvatar: (String?) -> Unit,
@@ -328,11 +328,11 @@ fun ProfileScreen(
                 }
             }
 
-            // ===== 4. 分组标题：账号与设备 =====
-            item(key = "section_account_and_device") {
+            // ===== 4. 分组标题：系统与设置 =====
+            item(key = "section_system_settings") {
                 Column(modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)) {
                     Text(
-                        text = "账号与设备",
+                        text = "系统与设置",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
@@ -352,13 +352,6 @@ fun ProfileScreen(
                         .background(Surface)
                         .padding(vertical = 4.dp),
                 ) {
-                    ProfileMenuItem(
-                        icon = Icons.Filled.CloudSync,
-                        iconTint = Color(0xFF6366F1),
-                        title = "云端同步与设备",
-                        subtitle = if (isSyncConfigured) "云端已连接" else "已连接",
-                        onClick = onOpenCloudManage,
-                    )
                     ProfileMenuItem(
                         icon = Icons.Filled.Settings,
                         iconTint = TextPrimary,

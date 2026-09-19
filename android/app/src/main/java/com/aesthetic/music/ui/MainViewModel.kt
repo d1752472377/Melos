@@ -704,6 +704,10 @@ class MainViewModel : ViewModel() {
     fun sendProfileEmailCode(email: String, scene: String, onSent: () -> Unit = {}) =
         profile.sendEmailCode(email, scene, onSent)
 
+    /** 修改登录密码 */
+    fun changePassword(oldPwd: String, newPwd: String, onSuccess: () -> Unit = {}) =
+        profile.changePassword(oldPwd, newPwd, onSuccess)
+
     // ==================== 统计 ====================
 
     fun refreshStats() {

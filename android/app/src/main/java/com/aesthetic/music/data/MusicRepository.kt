@@ -17,6 +17,7 @@ import com.aesthetic.music.data.api.LyricData
 import com.aesthetic.music.data.api.MusicApi
 import com.aesthetic.music.data.api.SendCodeBody
 import com.aesthetic.music.data.api.NewSongsData
+import com.aesthetic.music.data.api.PasswordBody
 import com.aesthetic.music.data.api.PlaylistDetailData
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.ProfileBody
@@ -215,6 +216,11 @@ class MusicRepository(
     suspend fun unbindEmail(code: String): Result<UserInfo> = apiCatching {
         val resp = api.unbindEmail(UnbindEmailBody(code = code))
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "解绑邮箱失败")
+    }
+
+    suspend fun updatePassword(oldPassword: String, newPassword: String): Result<Unit> = apiCatching {
+        val resp = api.updatePassword(PasswordBody(oldPassword = oldPassword, newPassword = newPassword))
+        if (resp.code == 200) Unit else throw Exception(resp.msg ?: "修改密码失败")
     }
 
     suspend fun login(

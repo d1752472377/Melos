@@ -187,6 +187,30 @@ class ProfileController(
         }
     }
 
+    /** 修改登录密码 */
+    fun changePassword(oldPwd: String, newPwd: String, onSuccess: () -> Unit = {}) {
+        if (!UserStore.isLoggedIn()) {
+            onToast("请先登录")
+            return
+        }
+        if (oldPwd.isBlank() || newPwd.isBlank()) {
+            onToast("密码不能为空")
+            return
+        }
+        if (newPwd.length < 5 || newPwd.length > 64) {
+            onToast("新密码需 5-64 位")
+            return
+        }
+        scope.launch {
+            repository.updatePassword(oldPwd, newPwd).onSuccess {
+                onToast("密码修改成功")
+                onSuccess()
+            }.onFailure { e ->
+                onToast("修改密码失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
     /**
      * 服务端返回的用户信息是唯一事实来源：本地展示项与 [UserStore] 缓存一起更新，
      * 避免出现"页面刷新后昵称/邮箱又变回去了"（UserStore 里还是旧的）。

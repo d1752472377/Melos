@@ -3,6 +3,7 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.aesthetic.music.ui.AppTab
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.home.HomeScreen
 import com.aesthetic.music.ui.navigation.ScreenRoute
@@ -47,6 +48,7 @@ fun HomeDestination(
             nav.navigate(ScreenRoute.SheetSquare.route)
         },
         onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
+        onOpenFm = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
         onToggleFavorite = viewModel::toggleFavorite,
     )
 }

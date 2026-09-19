@@ -39,6 +39,9 @@ fun ProfileEditDestination(
         onUnbindEmail = { code, onSuccess ->
             viewModel.unbindEmail(code, onSuccess)
         },
+        onChangePassword = { oldPwd, newPwd, onSuccess ->
+            viewModel.changePassword(oldPwd, newPwd, onSuccess)
+        },
         onShowToast = actions.toast,
     )
 }
