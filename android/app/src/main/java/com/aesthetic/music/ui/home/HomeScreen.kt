@@ -14,15 +14,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -44,24 +49,19 @@ import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.components.SongCover
-import com.aesthetic.music.ui.components.rememberAppCardTheme
 import com.aesthetic.music.ui.theme.AccentAmber
-import com.aesthetic.music.ui.theme.AccentCoral
-import com.aesthetic.music.ui.theme.AccentMint
-import com.aesthetic.music.ui.theme.CardBorder
-import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.Stone200
-import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
 /**
- * 首页：
- * 1. 顶部 Header 与搜索框
- * 2. 今日推荐 Banner
- * 3. 快捷入口卡片（排行榜、随心听、分类歌单）
- * 4. 为你推荐精选卡片（展示名称、图片、创建者、3首音乐、总歌曲数、分类）
+ * 首页（iOS 玻璃拟态风格）：
+ * 1. 底层 HomeAmbientGlowBackground 动态光晕画布
+ * 2. 顶部 Header 与搜索框
+ * 3. 快捷入口卡片（排行榜、猜你喜欢、随心听，全圆角 Squircle 拟态）
+ * 4. 沉浸式场景精选推荐卡片（时段氛围 Banner + Hi-Res 徽标 + 此刻旋律曲目试听）
  */
 @Composable
 fun HomeScreen(
@@ -93,160 +93,146 @@ fun HomeScreen(
             .distinctBy { it.id }
     }
 
-    // 今日精选歌单 / 歌曲
-    val featuredPlaylist = dailyPlaylists.firstOrNull() ?: hotPlaylists.firstOrNull()
+    // 推荐选取的精选歌单（优先取每日推荐歌单，次选热门歌单）
+    val targetPlaylist = dailyPlaylists.firstOrNull() ?: hotPlaylists.firstOrNull()
 
-    // 为你推荐选取的歌单（优先取第2个每日歌单或第1个热门歌单）
-    val recommendPlaylist = (if (dailyPlaylists.size > 1) dailyPlaylists[1] else hotPlaylists.firstOrNull()) ?: featuredPlaylist
-
-    // 监听 recommendPlaylist 变化，自动触发获取歌单内部真实歌曲
-    LaunchedEffect(recommendPlaylist?.id, recommendPlaylist?.platform) {
-        val pl = recommendPlaylist
+    // 监听 targetPlaylist 变化，自动触发获取歌单内部真实歌曲
+    LaunchedEffect(targetPlaylist?.id, targetPlaylist?.platform) {
+        val pl = targetPlaylist
         if (pl != null && pl.id.isNotBlank()) {
             onLoadRecommendSongs(pl)
         }
     }
 
     // 全部数据区块为空的判定：用于首次加载态与失败横幅
-    val hasNoContent = featuredPlaylist == null &&
+    val hasNoContent = targetPlaylist == null &&
             poolSongs.isEmpty() &&
             hotPlaylists.isEmpty() &&
             ranks.isEmpty()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            top = 20.dp,
-            start = 20.dp,
-            end = 20.dp,
-            bottom = BottomContentSpacer,
-        ),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        // 1. 顶部 Header 与精致搜索框
-        item(key = "header_and_search") {
-            HomeHeader(onSearchBarClick = onSearchBarClick)
-        }
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-        // 首次加载：全部数据区块为空时显示加载态
-        if (isLoading && hasNoContent) {
-            item(key = "home_loading") {
-                HomeLoadingState()
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = statusBarTop + 16.dp,
+                start = 20.dp,
+                end = 20.dp,
+                bottom = BottomContentSpacer,
+            ),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            // 1. 顶部 Header 与毛玻璃搜索框
+            item(key = "header_and_search") {
+                HomeHeader(onSearchBarClick = onSearchBarClick)
             }
-        }
 
-        // 内容加载失败横幅
-        if (contentError != null && featuredPlaylist == null && poolSongs.isEmpty()) {
-            item(key = "home_error_banner") {
-                HomeErrorBanner(message = contentError, onRetry = onRetryContent)
+            // 首次加载：全部数据区块为空时显示加载态
+            if (isLoading && hasNoContent) {
+                item(key = "home_loading") {
+                    HomeLoadingState()
+                }
             }
-        }
 
-        // 2. 今日推荐 Banner 卡片
-        if (featuredPlaylist != null || poolSongs.isNotEmpty()) {
-            item(key = "today_featured") {
-                TodayFeaturedCard(
-                    playlist = featuredPlaylist,
-                    fallbackSong = poolSongs.firstOrNull(),
-                    onClick = {
-                        if (featuredPlaylist != null) {
-                            onOpenPlaylistDetail(featuredPlaylist)
-                        } else if (poolSongs.isNotEmpty()) {
-                            onPlaySong(poolSongs.first(), poolSongs)
-                        }
-                    }
+            // 内容加载失败横幅
+            if (contentError != null && targetPlaylist == null && poolSongs.isEmpty()) {
+                item(key = "home_error_banner") {
+                    HomeErrorBanner(message = contentError, onRetry = onRetryContent)
+                }
+            }
+
+            // 2. 快捷入口卡片（排行榜、分类歌单、随心听，完全对齐图 2）
+            item(key = "quick_features") {
+                QuickFeaturesCard(
+                    onOpenRanks = onOpenRanksPage,
+                    onOpenCategory = onOpenSheet,
+                    onOpenFm = onOpenFm,
                 )
             }
-        }
 
-        // 3. 快捷入口卡片（排行榜、随心听、分类歌单）
-        item(key = "quick_features") {
-            QuickFeaturesCard(
-                onOpenRanks = onOpenRanksPage,
-                onOpenFm = onOpenFm,
-                onOpenCategory = onOpenSheet,
-            )
-        }
-
-        // 4. 为你推荐精选卡片（名称、图片、创建者、3首音乐预览、歌曲总数、分类）
-        if (recommendPlaylist != null) {
-            item(key = "featured_recommend") {
-                FeaturedRecommendPlaylistCard(
-                    playlist = recommendPlaylist,
-                    previewSongs = recommendSongs.take(3),
-                    allPlaylistSongs = recommendSongs,
-                    isLoadingSongs = isLoadingRecommendSongs,
-                    onOpenPlaylistDetail = onOpenPlaylistDetail,
-                    onPlaySong = onPlaySong,
-                )
+            // 3. 沉浸式场景推荐卡片（融合场景 Banner 与此刻旋律曲目列表）
+            if (targetPlaylist != null) {
+                item(key = "featured_scene_card") {
+                    FeaturedScenePlaylistCard(
+                        playlist = targetPlaylist,
+                        previewSongs = (if (recommendSongs.isNotEmpty()) recommendSongs else poolSongs).take(3),
+                        allPlaylistSongs = if (recommendSongs.isNotEmpty()) recommendSongs else poolSongs,
+                        isLoadingSongs = isLoadingRecommendSongs && recommendSongs.isEmpty(),
+                        onOpenPlaylistDetail = onOpenPlaylistDetail,
+                        onPlaySong = onPlaySong,
+                    )
+                }
             }
-        }
 
-        item(key = "bottom_spacer") {
-            Spacer(Modifier.height(12.dp))
+            item(key = "bottom_spacer") {
+                Spacer(Modifier.height(12.dp))
+            }
         }
     }
 }
 
-/** 快捷入口卡片：排行榜、随心听、分类歌单 */
+/**
+ * 快捷入口卡片：排行榜、分类歌单、随心听（对齐图 2 与 iOS 拟态）
+ */
 @Composable
 private fun QuickFeaturesCard(
     onOpenRanks: () -> Unit,
-    onOpenFm: () -> Unit,
     onOpenCategory: () -> Unit,
+    onOpenFm: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Surface)
-            .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
-            .padding(vertical = 16.dp, horizontal = 8.dp),
+            .iosGlassCard(shape = RoundedCornerShape(22.dp), elevation = 6.dp)
+            .padding(vertical = 14.dp, horizontal = 6.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // 排行榜：天蓝底色 + 白色柱状图
             QuickFeatureItem(
                 icon = Icons.Filled.BarChart,
-                iconTint = AccentAmber,
-                iconBg = AccentAmber.copy(alpha = 0.12f),
+                iconTint = Color.White,
+                iconContainerBg = Color(0xFF4EA4F6),
                 title = "排行榜",
-                subtitle = "热歌飙升",
                 onClick = onOpenRanks,
             )
 
+            // 半透明细分割线
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(36.dp)
-                    .background(Stone200.copy(alpha = 0.5f))
+                    .height(30.dp)
+                    .background(if (Palette.isDark) Color.White.copy(alpha = 0.12f) else Stone200.copy(alpha = 0.5f))
             )
 
-            QuickFeatureItem(
-                icon = Icons.Filled.Radio,
-                iconTint = AccentCoral,
-                iconBg = AccentCoral.copy(alpha = 0.12f),
-                title = "随心听",
-                subtitle = "心动电台",
-                onClick = onOpenFm,
-            )
-
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(36.dp)
-                    .background(Stone200.copy(alpha = 0.5f))
-            )
-
+            // 分类歌单：落日粉红底色 + 白色九宫格（点击直接跳转歌单广场）
             QuickFeatureItem(
                 icon = Icons.Filled.GridOn,
-                iconTint = AccentMint,
-                iconBg = AccentMint.copy(alpha = 0.12f),
+                iconTint = Color.White,
+                iconContainerBg = Color(0xFFFA6B88),
                 title = "分类歌单",
-                subtitle = "风格精选",
                 onClick = onOpenCategory,
+            )
+
+            // 半透明细分割线
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(30.dp)
+                    .background(if (Palette.isDark) Color.White.copy(alpha = 0.12f) else Stone200.copy(alpha = 0.5f))
+            )
+
+            // 随心听：翠绿底色 + 白色随机箭头
+            QuickFeatureItem(
+                icon = Icons.Filled.Shuffle,
+                iconTint = Color.White,
+                iconContainerBg = Color(0xFF34C79F),
+                title = "随心听",
+                onClick = onOpenFm,
             )
         }
     }
@@ -256,23 +242,22 @@ private fun QuickFeaturesCard(
 private fun QuickFeatureItem(
     icon: ImageVector,
     iconTint: Color,
-    iconBg: Color,
+    iconContainerBg: Color,
     title: String,
-    subtitle: String,
     onClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 14.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(iconBg),
+                .size(46.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(iconContainerBg),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -286,25 +271,21 @@ private fun QuickFeatureItem(
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall.copy(
-                fontSize = 14.sp,
+                fontSize = 13.5.sp,
                 fontWeight = FontWeight.Bold,
             ),
             color = TextPrimary,
         )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 11.sp,
-            ),
-            color = TextSoft,
-        )
     }
 }
 
-/** 为你推荐精选卡片 */
+/**
+ * 沉浸式场景精选卡片（完美对齐图 2）：
+ * 上半部：沉浸式封面 Banner（带时段场景、Hi-Res 标、大标题、创建者与毛玻璃播放圆钮）
+ * 下半部：此刻的旋律（歌单曲目总数、带方形封面的 3 首试听曲目、金色播放箭头）
+ */
 @Composable
-private fun FeaturedRecommendPlaylistCard(
+private fun FeaturedScenePlaylistCard(
     playlist: PlaylistItem,
     previewSongs: List<Song>,
     allPlaylistSongs: List<Song> = emptyList(),
@@ -312,169 +293,289 @@ private fun FeaturedRecommendPlaylistCard(
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
 ) {
-    val theme = rememberAppCardTheme(playlist.coverUrl, defaultAccent = PrimaryBrown)
+    val timeScene = rememberTimeScene()
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Surface)
-            .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
-            .clickable { onOpenPlaylistDetail(playlist) }
-            .padding(18.dp),
+            .iosGlassCard(shape = RoundedCornerShape(24.dp), elevation = 8.dp)
+            .padding(10.dp),
     ) {
-        Column {
-            // Header: 标签 + 分类
+        // ==================== 上半部：沉浸式场景 Banner ====================
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(204.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .clickable { onOpenPlaylistDetail(playlist) },
+        ) {
+            // 1. 歌单背景大图
+            SongCover(
+                url = playlist.coverUrl,
+                modifier = Modifier.fillMaxSize(),
+                corner = 18.dp,
+            )
+
+            // 2. 纵向明暗渐变 Scrim（保证文字与胶囊在任何底图上都清晰可见）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.40f),
+                                Color.Black.copy(alpha = 0.12f),
+                                Color.Black.copy(alpha = 0.72f),
+                            )
+                        )
+                    )
+            )
+
+            // 3. 悬浮文字与操作层
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // Top Row: 场景与时段
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    // 左侧：场景 Mood 胶囊（小人/时段图标 + 场景大字与说明）
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(timeScene.accentColor),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = timeScene.icon,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = timeScene.title,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = timeScene.subtitle,
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 10.5.sp,
+                            )
+                        }
+                    }
+
+                    // 右侧：时段胶囊（如 18:00-23:00）
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(alpha = 0.38f))
+                            .border(0.5.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            text = timeScene.timeTag,
+                            color = Color.White.copy(alpha = 0.95f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+
+                // Bottom Row: Hi-Res 标 + 标题 + 创建者 + 悬浮大播放圆钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                    ) {
+                        // Hi-Res AUDIO 黄金小徽标
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color(0xFFE5A038))
+                                .padding(horizontal = 4.dp, vertical = 1.5.dp),
+                        ) {
+                            Text(
+                                text = "Hi-Res AUDIO",
+                                color = Color.Black,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.3.sp,
+                            )
+                        }
+
+                        Spacer(Modifier.height(5.dp))
+
+                        // 歌单标题
+                        Text(
+                            text = playlist.name,
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 22.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+
+                        Spacer(Modifier.height(3.dp))
+
+                        // 创建者
+                        Text(
+                            text = "由 ${playlist.platform?.uppercase() ?: "Melos"} 精选 创建",
+                            color = Color.White.copy(alpha = 0.82f),
+                            fontSize = 11.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    // 右侧大号毛玻璃播放按钮（点击立即播放整单）
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.32f))
+                            .border(1.2.dp, Color.White.copy(alpha = 0.70f), CircleShape)
+                            .clickable {
+                                if (allPlaylistSongs.isNotEmpty()) {
+                                    onPlaySong(allPlaylistSongs.first(), allPlaylistSongs)
+                                } else if (previewSongs.isNotEmpty()) {
+                                    onPlaySong(previewSongs.first(), previewSongs)
+                                } else {
+                                    onOpenPlaylistDetail(playlist)
+                                }
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = "播放全部",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // ==================== 下半部：此刻的旋律曲目试听 ====================
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+        ) {
+            // Header 行：左侧“此刻的旋律”，右侧“歌单共 X 首”
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "为你推荐",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 18.sp,
+                    text = "此刻的旋律",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.3).sp,
                     ),
                     color = TextPrimary,
                 )
-                // 分类标签
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(theme.accent.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                ) {
-                    Text(
-                        text = playlist.group ?: playlist.kind ?: "精选歌单",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = theme.accent,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // 歌单主体：封面 + 名称 + 创建者 + 歌曲数
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SongCover(
-                    url = playlist.coverUrl,
-                    modifier = Modifier.size(80.dp),
-                    corner = 14.dp,
+                Text(
+                    text = "歌单共 ${playlist.trackCount ?: (allPlaylistSongs.size.takeIf { it > 0 } ?: 49)} 首",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = TextSoft,
                 )
-
-                Spacer(Modifier.width(14.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = playlist.name,
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            lineHeight = 20.sp,
-                        ),
-                        color = TextPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "由 ${playlist.platform?.uppercase() ?: "Melos"} 精选 创建",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = TextSoft,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "共 ${playlist.trackCount ?: (allPlaylistSongs.size.takeIf { it > 0 } ?: 20)} 首歌 · 分类：${playlist.group ?: playlist.kind ?: "流行"}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = TextMuted,
-                    )
-                }
             }
 
-            // 歌单内部真实歌曲预览
+            Spacer(Modifier.height(8.dp))
+
+            // 3 首歌曲预览：带封面、歌名、歌手与金色播放图标
             if (previewSongs.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Stone200.copy(alpha = 0.5f))
-                )
-                Spacer(Modifier.height(12.dp))
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    previewSongs.forEachIndexed { index, song ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { onPlaySong(song, if (allPlaylistSongs.isNotEmpty()) allPlaylistSongs else previewSongs) }
-                                .padding(horizontal = 6.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "0${index + 1}",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                                color = theme.accent,
-                                modifier = Modifier.width(26.dp),
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = song.title,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                    ),
-                                    color = TextPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    text = song.artist,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = TextSoft,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                previewSongs.take(3).forEach { song ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                onPlaySong(
+                                    song,
+                                    if (allPlaylistSongs.isNotEmpty()) allPlaylistSongs else previewSongs
                                 )
                             }
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = "播放",
-                                tint = TextMuted,
-                                modifier = Modifier.size(18.dp),
+                            .padding(horizontal = 4.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // 歌曲方形封面（带圆角）
+                        SongCover(
+                            url = song.artwork,
+                            modifier = Modifier.size(42.dp),
+                            corner = 10.dp,
+                        )
+
+                        Spacer(Modifier.width(12.dp))
+
+                        // 歌曲名与歌手
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = song.title,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = song.artist,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                                color = TextSoft,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
+
+                        // 琥珀金色播放三角图标
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = "播放",
+                            tint = AccentAmber,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
                 }
             } else if (isLoadingSongs) {
-                Spacer(Modifier.height(16.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Stone200.copy(alpha = 0.5f))
-                )
-                Spacer(Modifier.height(12.dp))
+                // 歌单歌曲加载中提示
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
                         strokeWidth = 2.dp,
-                        color = theme.accent,
+                        color = AccentAmber,
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(

@@ -25,7 +25,7 @@ fun applyThemeMode(mode: com.aesthetic.music.data.settings.ThemeMode, systemDark
 private fun light(c: Color, d: Color) = if (Palette.isDark) d else c
 
 // ===== 基础底色系统 =====
-val Background get() = light(Color(0xFFF6F8FA), Color(0xFF101114))      // 极简通透象牙冷白 / 深邃曜石黑
+val Background get() = Color.Transparent      // 默认通透，透出全局底层 iOS 拟态环境光
 val Surface get() = light(Color(0xFFFFFFFF), Color(0xFF1B1C22))         // 卡片纯白 / 质感深灰
 val SurfaceSoft get() = light(Color(0xFFEFF2F6), Color(0xFF24262E))     // 浅层容器背景
 val SurfaceElevated get() = light(Color(0xFFFFFFFF), Color(0xFF22242C)) // 悬浮层表面

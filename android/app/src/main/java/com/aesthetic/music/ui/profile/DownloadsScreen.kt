@@ -42,6 +42,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +60,7 @@ import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextFaint
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
@@ -114,10 +118,11 @@ fun DownloadsScreen(
             .fillMaxSize()
             .background(Background)
     ) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 24.dp)
+                .padding(top = statusBarTop + 16.dp)
         ) {
             // ===== 1. 顶部大标题 =====
             Text(
@@ -338,7 +343,7 @@ private fun DownloadsSummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background)
+                    .background(SurfaceSoft)
                     .clickable(onClick = onShuffle),
                 contentAlignment = Alignment.Center
             ) {
@@ -357,7 +362,7 @@ private fun DownloadsSummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background)
+                    .background(SurfaceSoft)
                     .clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center
             ) {

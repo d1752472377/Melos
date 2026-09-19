@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -80,11 +83,12 @@ fun RankPage(
             .fillMaxSize()
             .background(Background),
     ) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         // 顶栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(start = 8.dp, end = 8.dp, top = statusBarTop + 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(

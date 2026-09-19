@@ -38,6 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +57,7 @@ import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -105,11 +109,12 @@ fun HistoryScreen(
             .fillMaxSize()
             .background(Background)
     ) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
             Modifier
                 .fillMaxSize()
-                // 调整顶部间距，因为去掉了返回按钮
-                .padding(top = 24.dp)
+                // 调整顶部间距，适应沉浸式状态栏
+                .padding(top = statusBarTop + 16.dp)
         ) {
             // ===== 1. 顶部大标题 =====
             Text(
@@ -344,7 +349,7 @@ private fun HistorySummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background) // 浅色圆形背景
+                    .background(SurfaceSoft) // 浅色圆形背景
                     .clickable(onClick = onShuffle),
                 contentAlignment = Alignment.Center
             ) {
@@ -363,7 +368,7 @@ private fun HistorySummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background)
+                    .background(SurfaceSoft)
                     .clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center
             ) {

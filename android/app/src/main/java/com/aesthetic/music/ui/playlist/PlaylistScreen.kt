@@ -77,10 +77,11 @@ fun PlaylistScreen(
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 32.dp)
+                .padding(top = statusBarTop + 16.dp)
         ) {
             // ============ Header（固定不滚动） ============
             Column(

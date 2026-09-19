@@ -104,6 +104,7 @@ dependencies {
 
     implementation(libs.androidx.metrics.performance)
     implementation(libs.androidx.compose.ui.geometry)
+    implementation("dev.chrisbanes.haze:haze:1.3.1")
 
     implementation(project(":lyrics"))
 

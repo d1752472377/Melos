@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -118,10 +121,11 @@ fun ArtistScreen(
             .fillMaxSize()
             .background(Background)
     ) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = 24.dp)
+                .padding(top = statusBarTop + 16.dp)
         ) {
             // ===== 1. 顶部大标题（与「我的收藏」一致，不再有返回按钮） =====
             Text(

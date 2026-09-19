@@ -1,12 +1,17 @@
 package com.aesthetic.music.ui.theme
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import com.aesthetic.music.ui.components.ScaleIndication
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -62,6 +67,7 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(22.dp),
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AestheticMusicTheme(content: @Composable () -> Unit) {
     val isDark = Palette.isDark
@@ -75,10 +81,15 @@ fun AestheticMusicTheme(content: @Composable () -> Unit) {
             }
         }
     }
-    MaterialTheme(
-        colorScheme = if (isDark) DarkColors else LightColors,
-        typography = AppTypography,
-        shapes = AppShapes,
-        content = content,
-    )
+    CompositionLocalProvider(
+        LocalIndication provides ScaleIndication,
+        LocalRippleConfiguration provides null,
+    ) {
+        MaterialTheme(
+            colorScheme = if (isDark) DarkColors else LightColors,
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content,
+        )
+    }
 }

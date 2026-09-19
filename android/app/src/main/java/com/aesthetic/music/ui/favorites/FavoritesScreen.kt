@@ -5,15 +5,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -43,16 +46,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomContentPadding
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SongCover
-import com.aesthetic.music.ui.components.BottomContentPadding
-import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -75,6 +79,8 @@ fun FavoritesScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val searchFocus = remember { FocusRequester() }
+
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     // 点「搜索」展开后自动聚焦，省去再点一次输入框
     LaunchedEffect(isSearchExpanded) {
@@ -103,7 +109,7 @@ fun FavoritesScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = 24.dp)
+                .padding(top = statusBarTop + 16.dp)
         ) {
             // ===== 1. 顶部大标题 =====
             Text(
@@ -306,7 +312,7 @@ private fun FavoritesSummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background)
+                    .background(SurfaceSoft)
                     .clickable(onClick = onShuffle),
                 contentAlignment = Alignment.Center
             ) {
@@ -325,7 +331,7 @@ private fun FavoritesSummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background)
+                    .background(SurfaceSoft)
                     .clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center
             ) {

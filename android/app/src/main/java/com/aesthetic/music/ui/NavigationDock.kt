@@ -175,11 +175,7 @@ private fun CenterDisc(
             .size(48.dp)
             .clip(CircleShape)
             .semantics { contentDescription = "打开播放器" }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onOpenPlayer
-            ),
+            .clickable(onClick = onOpenPlayer),
         contentAlignment = Alignment.Center,
     ) {
         // 背景层
@@ -249,11 +245,7 @@ private fun DockIcon(
         modifier = Modifier
             .size(48.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            ),
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

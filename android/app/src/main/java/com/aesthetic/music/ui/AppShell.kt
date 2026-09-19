@@ -12,17 +12,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import com.aesthetic.music.ui.components.MelosToastHost
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -65,8 +73,12 @@ import com.aesthetic.music.ui.shell.SettingsDownloadDestination
 import com.aesthetic.music.ui.shell.SettingsPlaybackDestination
 import com.aesthetic.music.ui.shell.SettingsQualityDestination
 import com.aesthetic.music.ui.shell.rememberCacheState
+import com.aesthetic.music.ui.home.GlobalStatusBarGlass
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.applyThemeMode
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.launch
 
 @Composable
@@ -211,30 +223,71 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
     // 底部不再为悬浮 Dock 预留高度：内容一直铺到屏幕底部（列表末尾会从 Dock 底下穿过）
     Scaffold(
-        containerColor = Background,
+        containerColor = Color.Transparent,
         snackbarHost = {},
         bottomBar = {},
-        // 状态栏隐藏时不再为它预留高度：否则顶部会空出一�?"被底色挡�?"的带子，
-        // 看上去像是用背景盖住了状态栏，而不是真的隐藏并让内容顶上来
-        // 底部与左右也不再为系统栏预留（导航栏本身是透明的），内容一直铺到屏幕边缘
-        contentWindowInsets = if (hideStatusBar) {
-            WindowInsets(0, 0, 0, 0)
-        } else {
-            ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Top)
-        },
-    ) { padding ->
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { _ ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(Background),
+            modifier = Modifier.fillMaxSize(),
         ) {
-            // ===== Jetpack Navigation 导航容器 =====
-            NavHost(
-                navController = navController,
-                startDestination = ScreenRoute.Home.route,
-                modifier = Modifier.fillMaxSize(),
+            var scrollOffset by remember { mutableFloatStateOf(0f) }
+            LaunchedEffect(currentRoute) {
+                scrollOffset = 0f
+            }
+            val nestedScrollConnection = remember {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        val delta = available.y
+                        if (delta < 0f) {
+                            scrollOffset = (scrollOffset - delta).coerceAtMost(160f)
+                        }
+                        return Offset.Zero
+                    }
+
+                    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                        val delta = consumed.y + available.y
+                        if (delta > 0f) {
+                            scrollOffset = (scrollOffset - delta).coerceAtLeast(0f)
+                        }
+                        return Offset.Zero
+                    }
+                }
+            }
+
+            val glassProgress by animateFloatAsState(
+                targetValue = if (scrollOffset > 6f) 1f else 0f,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                label = "statusBarGlassProgress"
+            )
+
+            val hazeState = remember { HazeState() }
+
+            // 整个内容层作为 Haze 真实高斯模糊数据源
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .hazeSource(state = hazeState),
             ) {
+                // 全局底层背景：全应用共享主页同款 iOS 拟态环境光底色（特定页面有 pageBackground 则优先使用）
+                if (pageBackground != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(pageBackground!!)
+                    )
+                } else {
+                    HomeAmbientGlowBackground()
+                }
+
+                // ===== Jetpack Navigation 导航容器 =====
+                NavHost(
+                    navController = navController,
+                    startDestination = ScreenRoute.Home.route,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(nestedScrollConnection),
+                ) {
                 // 主页
                 composable(ScreenRoute.Home.route) {
                     HomeDestination(viewModel, nav, actions)
@@ -346,15 +399,25 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     CloudManageDestination(viewModel, nav)
                 }
 
-                // 插件管理�?
+                // 插件管理?
                 composable(ScreenRoute.PluginManage.route) {
                     PluginManageDestination(viewModel, nav, actions.toast)
                 }
 
-                // 设置�?
+                // 设置页
                 composable(ScreenRoute.Settings.route) {
                     SettingsDestination(viewModel, nav, actions, scope)
                 }
+            }
+        }
+
+            // ===== 全局顶部通知栏/状态栏毛玻璃悬浮遮罩 =====
+            if (!hideStatusBar) {
+                GlobalStatusBarGlass(
+                    hazeState = hazeState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    glassProgress = glassProgress,
+                )
             }
 
             // ===== 底部导航 Dock =====

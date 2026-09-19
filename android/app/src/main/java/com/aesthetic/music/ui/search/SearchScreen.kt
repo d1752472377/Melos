@@ -1,6 +1,9 @@
 package com.aesthetic.music.ui.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -96,10 +99,11 @@ fun SearchScreen(
             .fillMaxSize()
             .background(Background)
     ) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = 24.dp),
+                .padding(top = statusBarTop + 16.dp),
         ) {
             // ===== 顶部：搜索框（内嵌平台选择），自身保留左右 20dp =====
             Box(Modifier.padding(horizontal = 20.dp)) {

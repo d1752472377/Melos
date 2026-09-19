@@ -7,11 +7,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.UserPrefs
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -51,7 +55,6 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
-import com.aesthetic.music.ui.components.BottomContentSpacer
 
 private val ThemeMode.label: String
     get() = when (this) {
@@ -84,6 +87,8 @@ fun SettingsScreen(
     var updateStatus by remember { mutableStateOf("点击检查是否有新版本") }
     var checking by remember { mutableStateOf(false) }
 
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -93,7 +98,7 @@ fun SettingsScreen(
             .padding(horizontal = 20.dp)
     ) {
         // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(statusBarTop + 16.dp))
         Text(
             text = "设置",
             style = MaterialTheme.typography.headlineMedium.copy(

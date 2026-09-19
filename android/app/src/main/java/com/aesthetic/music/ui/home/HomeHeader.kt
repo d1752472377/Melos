@@ -60,20 +60,7 @@ private fun SearchEntry(onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
-            .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(18.dp),
-                // 深色主题下白阴影会变成白光晕，改用黑阴影
-                ambientColor = if (Palette.isDark) Color.Black.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.8f),
-                spotColor = if (Palette.isDark) Color.Black.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.8f)
-            )
-            .border(
-                width = 1.dp,
-                color = CardBorder,  // 浅色白边 / 深色深边，白边在深色下会发亮
-                shape = RoundedCornerShape(18.dp)
-            )
-            .clip(RoundedCornerShape(18.dp))
-            .background(Surface)
+            .iosGlassCapsule(shape = RoundedCornerShape(18.dp), elevation = 6.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,

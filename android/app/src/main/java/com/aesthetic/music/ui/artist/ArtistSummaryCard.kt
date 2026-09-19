@@ -34,11 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.AccentCyan
-import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
@@ -152,7 +152,7 @@ fun ArtistSummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background)
+                    .background(SurfaceSoft)
                     .clickable(onClick = onShuffle),
                 contentAlignment = Alignment.Center
             ) {
@@ -170,7 +170,7 @@ fun ArtistSummaryCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Background)
+                    .background(SurfaceSoft)
                     .clickable(onClick = onSearch),
                 contentAlignment = Alignment.Center
             ) {

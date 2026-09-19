@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -195,6 +198,8 @@ fun ProfileScreen(
         }
     }
 
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -204,7 +209,7 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
-                top = 24.dp,
+                top = statusBarTop + 16.dp,
                 start = 20.dp,
                 end = 20.dp,
                 bottom = BottomContentSpacer,
