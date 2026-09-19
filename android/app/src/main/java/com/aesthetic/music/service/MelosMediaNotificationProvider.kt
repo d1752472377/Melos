@@ -17,6 +17,7 @@ import com.aesthetic.music.MainActivity
 import com.aesthetic.music.R
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.source.SourceManager
+import com.aesthetic.music.player.MediaCardFavorites
 import com.aesthetic.music.player.MediaCardInfo
 import com.aesthetic.music.player.PlayerManager
 import com.google.common.collect.ImmutableList
@@ -127,16 +128,30 @@ class MelosMediaNotificationProvider(private val context: Context) : MediaNotifi
             builder.setContentText(artist)
         }
 
+        val isFav = MediaCardFavorites.isFavorite(song)
+        val favoriteIntent = PendingIntent.getService(
+            context,
+            0,
+            Intent(context, PlaybackService::class.java).apply { action = PlaybackService.ACTION_TOGGLE_FAVORITE },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val favoriteAction = NotificationCompat.Action.Builder(
+            if (isFav) R.drawable.ic_heart_filled else R.drawable.ic_heart_outline,
+            if (isFav) "取消收藏" else "收藏",
+            favoriteIntent,
+        ).build()
+        builder.addAction(favoriteAction)
+
         val actions = buildTransportActions(mediaSession, actionFactory, isPlaying, iconRes)
         actions.forEach { builder.addAction(it) }
-        // 折叠态显示全部按钮：现在最多三个（上一首 / 播放暂停 / 下一首），
-        // 不存在"收藏按钮挤掉下一首"的老问题，也就不需要再挑下标
-        if (actions.isNotEmpty()) {
-            builder.setStyle(
-                MediaStyleNotificationHelper.MediaStyle(mediaSession)
-                    .setShowActionsInCompactView(*IntArray(actions.size) { it })
-            )
-        }
+
+        // 折叠态显示：若有上一首/下一首则显示（上一首 / 播放暂停 / 下一首，对应下标 1, 2, 3），
+        // 若单曲则显示收藏与播放暂停（下标 0, 1）
+        val compactIndices = if (actions.size == 3) intArrayOf(1, 2, 3) else intArrayOf(0, 1)
+        builder.setStyle(
+            MediaStyleNotificationHelper.MediaStyle(mediaSession)
+                .setShowActionsInCompactView(*compactIndices)
+        )
 
         applyLiveUpdate(builder, song?.title)
 

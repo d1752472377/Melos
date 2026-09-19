@@ -177,11 +177,21 @@ class SourceController(
         return "，脚本声明支持 " + declared.joinToString("/") { lxLabel(it) }
     }
 
-    // ==================== 插件管理动作 ====================
-
     fun setEnable(id: String, enable: Boolean) {
         SourceRegistryStore.update(id) { it.copy(enable = enable) }
-        refresh()
+        val currentActive = SourceRegistryStore.activeId()
+        val currentLoaded = loadedPluginId.value
+        if (!enable && (currentActive == id || currentLoaded == id)) {
+            val next = SourceRegistryStore.list().firstOrNull { it.id != id && it.enable }
+            if (next != null) {
+                activate(next.id)
+            } else {
+                SourceRegistryStore.setActiveId(null)
+                unload()
+            }
+        } else {
+            refresh()
+        }
     }
 
     /** 指定平台（空串 = 全平台通用） */

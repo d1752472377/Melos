@@ -192,41 +192,12 @@ fun PluginManageScreen(
             activeId = activeId,
             loadedPluginId = loadedPluginId,
             detecting = detecting,
-            onDetectBuiltin = actions.detectOne,
             onActivate = actions.activate,
             onToggleEnable = actions.setEnable,
             onPickPlatform = { platformSheetPlugin = it },
-            onDetectPlugin = actions.detectOne,
+            onDetectTarget = actions.detectOne,
             onDelete = { pendingDelete = it },
         )
-
-        SettingsGap()
-
-        DetectSection(
-            targets = targets,
-            probes = probes,
-            detecting = detecting,
-            detectProgress = detectProgress,
-            lastDetectAt = lastDetectAt,
-            onDetectAll = actions.detectAll,
-            onDetectOne = actions.detectOne,
-        )
-
-        SettingsGap()
-
-        SettingsSection(title = "关于音源") {
-            Column(Modifier.padding(16.dp)) {
-                SettingsNote(
-                    "· 音源插件是 LX Music 规范的 JS 脚本，在本机 QuickJS 沙箱里执行，" +
-                        "由脚本自己去请求各平台的公开接口，不上传任何账号信息。\n" +
-                        "· 导入后可以「指定平台」：指定后只在播放该平台歌曲时使用它，适合一个平台配一个源。\n" +
-                        "· 检测会对每个源发起真实请求（搜索 + 解析 + 地址可访问性），" +
-                        "耗时是那一次的真实往返时间，网络不同结果会不同。\n" +
-                        "· 咪咕等平台没有内置搜索入口，脚本声明支持也无法自动取证，" +
-                        "这类源会显示「无法自动检测」，以实际播放结果为准。"
-                )
-            }
-        }
     }
 
     // ==================== 抽屉与弹窗 ====================
@@ -353,18 +324,18 @@ private fun CurrentSourceCard(
     onDetectAll: () -> Unit,
     onUnload: () -> Unit,
 ) {
-    val activePlugin = plugins.firstOrNull { it.id == activeId }
-    val running = plugins.firstOrNull { it.id == loadedPluginId }
+    val enabledPlugins = plugins.filter { it.enable }
+    val activePlugin = enabledPlugins.firstOrNull { it.id == activeId } ?: enabledPlugins.firstOrNull()
+    val running = enabledPlugins.firstOrNull { it.id == loadedPluginId }
 
     val title = when {
-        userPrefs.sourceFastest && plugins.isNotEmpty() -> "自动最快"
+        userPrefs.sourceFastest && enabledPlugins.isNotEmpty() -> "自动最快"
         activePlugin != null -> activePlugin.name
-        plugins.isNotEmpty() -> plugins.first().name
         else -> "内置直连"
     }
     val explain = when {
-        plugins.isEmpty() -> "未安装插件，播放使用各平台内置直连"
-        userPrefs.sourceFastest -> "已开启自动最快，将按实测速度在 ${plugins.count { it.enable }} 个启用插件中挑选"
+        enabledPlugins.isEmpty() -> "未启用插件，播放使用各平台内置直连"
+        userPrefs.sourceFastest -> "已开启自动最快，将按实测速度在 ${enabledPlugins.size} 个启用插件中挑选"
         userPrefs.sourceSmartSwitch -> "已开启智能切换，失败或偏慢的源会被跳过"
         activePlugin != null -> "已手动指定该插件"
         else -> "未指定插件，按最近使用顺序尝试"
@@ -401,13 +372,13 @@ private fun CurrentSourceCard(
             Spacer(Modifier.width(10.dp))
             StatusBadge(
                 text = when {
-                    engineReady -> "运行中"
-                    plugins.isEmpty() -> "内置直连"
+                    engineReady && running != null -> "运行中"
+                    enabledPlugins.isEmpty() -> "内置直连"
                     else -> "未加载"
                 },
                 color = when {
-                    engineReady -> AccentMint
-                    plugins.isEmpty() -> AccentCyan
+                    engineReady && running != null -> AccentMint
+                    enabledPlugins.isEmpty() -> AccentCyan
                     else -> AccentAmber
                 },
             )
@@ -680,29 +651,13 @@ private fun SourceListSection(
     activeId: String?,
     loadedPluginId: String?,
     detecting: Boolean,
-    onDetectBuiltin: (String) -> Unit,
     onActivate: (String) -> Unit,
     onToggleEnable: (String, Boolean) -> Unit,
     onPickPlatform: (SourcePlugin) -> Unit,
-    onDetectPlugin: (String) -> Unit,
+    onDetectTarget: (String) -> Unit,
     onDelete: (SourcePlugin) -> Unit,
 ) {
-    SettingsSection(title = "音源列表 · 内置直连") {
-        SourcePlatform.builtins.forEachIndexed { index, platform ->
-            if (index > 0) SettingsDivider()
-            val probe = probes[SourceProbe.builtinTarget(platform)]
-            BuiltinSourceRow(
-                platform = platform,
-                probe = probe,
-                enabled = !detecting,
-                onDetect = { onDetectBuiltin(SourceProbe.builtinTarget(platform)) },
-            )
-        }
-    }
-
-    SettingsGap(10)
-
-    SettingsSection(title = "音源列表 · 已安装插件（${plugins.size}）") {
+    SettingsSection(title = "已安装音源插件（${plugins.size}）") {
         if (plugins.isEmpty()) {
             Column(Modifier.padding(16.dp)) {
                 Text(
@@ -722,14 +677,14 @@ private fun SourceListSection(
                 if (index > 0) SettingsDivider()
                 PluginRow(
                     plugin = plugin,
-                    probe = probeFor(plugin, probes),
+                    probes = probes,
                     isActive = plugin.id == activeId,
                     isRunning = plugin.id == loadedPluginId,
                     detecting = detecting,
                     onActivate = { onActivate(plugin.id) },
                     onToggleEnable = { onToggleEnable(plugin.id, it) },
                     onPickPlatform = { onPickPlatform(plugin) },
-                    onDetect = { onDetectPlugin(pluginProbeTarget(plugin, probes)) },
+                    onDetectTarget = onDetectTarget,
                     onDelete = { onDelete(plugin) },
                 )
             }
@@ -737,82 +692,21 @@ private fun SourceListSection(
     }
 }
 
-/** 插件的检测目标 id：优先取已存在的声明平台，取不到则退回全平台通用（该插件未加载时） */
-private fun pluginProbeTarget(plugin: SourcePlugin, probes: Map<String, SourceProbe>): String {
-    val declared = plugin.declaredPlatforms
-    val platforms = declared.ifEmpty { SourcePlatform.builtins }
-    // 优先挑一个"已经有检测结果"的平台，重测时指向用户刚看到的那一行
-    val existing = platforms.firstOrNull { probes.containsKey(SourceProbe.pluginTarget(plugin.id, it)) }
-    return SourceProbe.pluginTarget(plugin.id, existing ?: platforms.first())
-}
-
-/** 插件在界面上的速度展示：优先展示"已检测过的那个平台"的结论 */
-private fun probeFor(plugin: SourcePlugin, probes: Map<String, SourceProbe>): SourceProbe? {
-    val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
-    return platforms.mapNotNull { probes[SourceProbe.pluginTarget(plugin.id, it)] }
-        .maxByOrNull { it.checkedAt }
-}
-
-@Composable
-private fun BuiltinSourceRow(
-    platform: SourcePlatform,
-    probe: SourceProbe?,
-    enabled: Boolean,
-    onDetect: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(AccentCyan.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = platform.label.take(2),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                color = AccentCyan,
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = platform.label,
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                color = TextPrimary,
-            )
-            Spacer(Modifier.height(1.dp))
-            Text(
-                text = "内置直连：搜索与兜底播放，无需插件即可使用",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = TextSoft,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        ProbeBadge(probe)
-        Spacer(Modifier.width(8.dp))
-        MiniAction(text = "检测", enabled = enabled, onClick = onDetect)
-    }
-}
-
 @Composable
 private fun PluginRow(
     plugin: SourcePlugin,
-    probe: SourceProbe?,
+    probes: Map<String, SourceProbe>,
     isActive: Boolean,
     isRunning: Boolean,
     detecting: Boolean,
     onActivate: () -> Unit,
     onToggleEnable: (Boolean) -> Unit,
     onPickPlatform: () -> Unit,
-    onDetect: () -> Unit,
+    onDetectTarget: (String) -> Unit,
     onDelete: () -> Unit,
 ) {
+    val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -843,16 +737,7 @@ private fun PluginRow(
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = buildString {
-                        append(plugin.targetLabel)
-                        val declared = plugin.declaredPlatforms
-                        if (declared.isNotEmpty()) {
-                            append(" · 支持 ")
-                            append(declared.joinToString("/") { it.label.replace("音乐", "") })
-                        } else {
-                            append(" · 支持平台待加载确认")
-                        }
-                    },
+                    text = plugin.targetLabel,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                     color = TextSoft,
                 )
@@ -877,192 +762,58 @@ private fun PluginRow(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-        // 检测徽章与操作按钮分两行：四个按钮加徽章挤在一行时，窄屏上会被压成一排省略号
-        if (probe != null && probe.status != ProbeStatus.UNKNOWN) {
-            ProbeBadge(probe)
-            Spacer(Modifier.height(8.dp))
+        // 平台连通性列表
+        Spacer(Modifier.height(10.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Stone100.copy(alpha = 0.5f))
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            platforms.forEach { platform ->
+                val targetId = SourceProbe.pluginTarget(plugin.id, platform)
+                val probe = probes[targetId]
+                val status = probe?.status ?: ProbeStatus.UNKNOWN
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = platform.label,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatusBadge(text = status.label, color = statusColor(status))
+                    if (probe != null && probe.latencyMs >= 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = probe.latencyLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = TextSoft,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    MiniAction(
+                        text = "测速",
+                        enabled = !detecting,
+                        onClick = { onDetectTarget(targetId) },
+                    )
+                }
+            }
         }
+
+        Spacer(Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            MiniAction(text = "检测", enabled = !detecting, onClick = onDetect)
             MiniAction(text = "指定平台", enabled = true, onClick = onPickPlatform)
-            // 正在运行的插件这一项变成"重新加载"：脚本改过或沙箱异常时，行内就能重载
             MiniAction(text = if (isRunning) "重新加载" else "设为当前", enabled = true, onClick = onActivate)
             MiniAction(text = "删除", enabled = true, onClick = onDelete, danger = true, icon = Icons.Filled.Delete)
         }
-    }
-}
-
-// ==================== 检测 ====================
-
-@Composable
-private fun DetectSection(
-    targets: List<DetectTarget>,
-    probes: Map<String, SourceProbe>,
-    detecting: Boolean,
-    detectProgress: Pair<Int, Int>,
-    lastDetectAt: Long,
-    onDetectAll: () -> Unit,
-    onDetectOne: (String) -> Unit,
-) {
-    val done = detectProgress.first
-    val total = detectProgress.second
-    val okCount = targets.count { probes[it.id]?.status == ProbeStatus.OK }
-    val failCount = targets.count { probes[it.id]?.status == ProbeStatus.FAIL }
-
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "检测结果",
-                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                color = TextSoft,
-                modifier = Modifier.weight(1f),
-            )
-            MiniAction(
-                text = if (detecting) "检测中 $done/$total" else "全部检测",
-                enabled = !detecting,
-                onClick = onDetectAll,
-                accent = PrimaryBrown,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                .clip(RoundedCornerShape(16.dp))
-                .background(Surface),
-        ) {
-            // 进度条：检测要跑好几秒，明确告知进度比转圈更让人放心
-            if (detecting) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(Stone100),
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(if (total > 0) done.toFloat() / total else 0f)
-                            .height(3.dp)
-                            .background(PrimaryBrown),
-                    )
-                }
-            }
-
-            if (targets.isEmpty()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        text = "暂无可检测的音源",
-                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                        color = TextPrimary,
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = "导入插件后会为每个插件声明的平台各生成一项检测。",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft,
-                    )
-                }
-            } else {
-                targets.forEachIndexed { index, target ->
-                    if (index > 0) SettingsDivider()
-                    DetectRow(
-                        target = target,
-                        probe = probes[target.id],
-                        enabled = !detecting,
-                        onDetect = { onDetectOne(target.id) },
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = buildString {
-                append("检测方式：对每个源发真实请求（平台搜索 → 脚本解析直链 → 校验地址可访问性），")
-                append("耗时即该次真实往返时间。")
-                if (lastDetectAt > 0) append("上次检测：${relativeTime(lastDetectAt)}。")
-                if (okCount + failCount > 0) {
-                    append("当前已测 ${okCount + failCount} 项，其中正常 $okCount、失败 $failCount。")
-                }
-            },
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
-            color = TextMuted,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
-    }
-}
-
-@Composable
-private fun DetectRow(
-    target: DetectTarget,
-    probe: SourceProbe?,
-    enabled: Boolean,
-    onDetect: () -> Unit,
-) {
-    val status = probe?.status ?: ProbeStatus.UNKNOWN
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = target.label,
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
-                color = TextPrimary,
-                maxLines = 1,
-            )
-            if (!probe?.detail.isNullOrBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = probe.detail,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
-                    color = when (status) {
-                        ProbeStatus.FAIL -> AccentRose
-                        ProbeStatus.SLOW -> AccentAmber
-                        ProbeStatus.UNTESTABLE -> TextSoft
-                        else -> TextMuted
-                    },
-                    maxLines = 3,
-                )
-            } else {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = "尚未检测",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = TextSoft,
-                )
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            StatusBadge(text = status.label, color = statusColor(status))
-            if (probe != null && probe.latencyMs >= 0) {
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = probe.latencyLabel,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = TextSoft,
-                )
-            }
-            if (probe != null && probe.observedCount > 0 && probe.observedMs >= 0) {
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = "播放实测 ${probe.observedMs}ms",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                    color = TextMuted,
-                )
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        MiniAction(text = "重测", enabled = enabled, onClick = onDetect)
     }
 }
 

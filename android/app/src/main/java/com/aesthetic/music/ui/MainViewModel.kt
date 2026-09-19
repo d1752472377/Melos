@@ -137,6 +137,17 @@ class MainViewModel : ViewModel() {
         },
     )
 
+    init {
+        // 通知栏媒体卡片的收藏按钮：交给 LibraryController，保证与 App 内 ♡ 同步
+        com.aesthetic.music.player.MediaCardFavorites.register(
+            read = { song -> library.isFavorite(song) },
+            toggle = { song ->
+                library.toggleFavorite(song)
+                library.isFavorite(song)
+            },
+        )
+    }
+
     // 页面/弹层状态
     private val _currentTab = MutableStateFlow(AppTab.HOME)
     val currentTab = _currentTab.asStateFlow()
