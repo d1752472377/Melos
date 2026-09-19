@@ -97,7 +97,7 @@ import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 /**
  * 异步分析图片平均亮度：
  * 返回 true 表示浅色图片（文本使用黑色/深色），false 表示深色图片（文本使用白色/浅色）
@@ -624,30 +624,76 @@ private fun TopProfileCard(
                         )
                     }
 
+                    val isCustomBackground = !backgroundPath.isNullOrBlank() || isBackgroundBlur
+
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { onMenuToggle(false) },
-                        modifier = Modifier.background(Surface),
+                        modifier = Modifier
+                            .background(Color.White)
+                            .clip(RoundedCornerShape(16.dp)),
                     ) {
+                        // 1. 更换背景（带加号图标）
                         DropdownMenuItem(
-                            text = { Text("更换背景", color = TextPrimary, fontSize = 13.sp) },
-                            leadingIcon = { Icon(Icons.Filled.Image, null, tint = TextPrimary, modifier = Modifier.size(18.dp)) },
+                            text = { Text("更换背景", color = Color(0xFF1E2329), fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.AddPhotoAlternate,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1E2329),
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
                             onClick = onChangeBackgroundClick,
                         )
+
+                        // 2. 背景模糊
                         DropdownMenuItem(
-                            text = { Text(if (isBackgroundBlur) "取消模糊" else "背景模糊", color = TextPrimary, fontSize = 13.sp) },
-                            leadingIcon = { Icon(Icons.Filled.BlurOn, null, tint = TextPrimary, modifier = Modifier.size(18.dp)) },
+                            text = {
+                                Text(
+                                    text = if (isBackgroundBlur) "取消模糊" else "背景模糊",
+                                    color = Color(0xFF1E2329),
+                                    fontSize = 13.sp,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.BlurOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1E2329),
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
                             onClick = onToggleBgBlur,
                         )
-                        DropdownMenuItem(
-                            text = { Text("恢复默认", color = TextPrimary, fontSize = 13.sp) },
-                            leadingIcon = { Icon(Icons.Filled.RestartAlt, null, tint = TextPrimary, modifier = Modifier.size(18.dp)) },
-                            onClick = onRestoreDefaults,
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Stone200)
+
+                        // 3. 恢复默认（仅在用户改动了背景图或开启了模糊时显示，默认状态下自动隐藏）
+                        if (isCustomBackground) {
+                            DropdownMenuItem(
+                                text = { Text("恢复默认", color = Color(0xFF1E2329), fontSize = 13.sp) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.RestartAlt,
+                                        contentDescription = null,
+                                        tint = Color(0xFF1E2329),
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                },
+                                onClick = onRestoreDefaults,
+                            )
+                        }
+
+                        // 4. 退出登录（移除了上方横线，紧凑排版）
                         DropdownMenuItem(
                             text = { Text("退出登录", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
                             onClick = onLogoutClick,
                         )
                     }
