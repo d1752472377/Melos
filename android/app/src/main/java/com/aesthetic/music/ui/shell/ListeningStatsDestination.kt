@@ -24,10 +24,6 @@ fun ListeningStatsDestination(viewModel: MainViewModel, nav: ShellNav) {
     ListeningStatsScreen(
         stats = stats,
         recording = prefs.statsRecording,
-        cloudSync = prefs.statsCloudSync,
-        onToggleRecording = { viewModel.settings.setStatsRecording(it) },
-        onToggleCloudSync = { viewModel.settings.setStatsCloudSync(it) },
-        onClearStats = { viewModel.clearListeningStats() },
         onBack = nav.popBack,
     )
 }

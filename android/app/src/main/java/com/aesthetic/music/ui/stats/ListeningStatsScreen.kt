@@ -21,9 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Icon
@@ -45,10 +43,10 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.DayStat
 import com.aesthetic.music.data.settings.ListeningInsights
 import com.aesthetic.music.data.settings.ListeningStats
+import com.aesthetic.music.data.settings.RangeSummary
 import com.aesthetic.music.data.settings.SongStat
 import com.aesthetic.music.data.settings.StatsStore
 import com.aesthetic.music.ui.components.AppBottomSheet
-import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCoral
@@ -66,28 +64,19 @@ import com.aesthetic.music.ui.theme.TextSoft
 /**
  * 听歌统计页（重写版）。
  *
- * 页面结构：累计概览 → 今日/本周/本月切片 → 30 天趋势（可点柱子下钻单日）
- * → 近三月对比 → 歌曲排行 → 时段分布 → 统计设置。
+ * 页面结构：累计概览（含今日/本周/本月）→ 30 天趋势（可点柱子下钻单日）
+ * → 近三月对比 → 歌曲排行 → 时段分布。
  *
- * 所有数字都来自 [StatsStore] 的真实记录（旧版页面里的柱状图是写死的假数据，
- * 那种"看起来有数据、其实是装饰"的实现会误导用户，已删除）。
- * 数据在本地记录，未登录也不影响统计。
- *
- * 本次修改：去除所有卡片阴影，边框统一白色，圆角加大，大数字加粗。
+ * 所有数字都来自 [StatsStore] 的真实记录。
  */
 @Composable
 fun ListeningStatsScreen(
     stats: ListeningStats,
     recording: Boolean,
-    cloudSync: Boolean,
-    onToggleRecording: (Boolean) -> Unit,
-    onToggleCloudSync: (Boolean) -> Unit,
-    onClearStats: () -> Unit,
     onBack: () -> Unit,
 ) {
     val today = remember { StatsStore.todayKey() }
 
-    // 全部派生数据一次算好：统计页是纯只读展示，避免滚动时反复排序/求和
     val todaySum = remember(stats, today) { ListeningInsights.todaySummary(stats, today) }
     val weekSum = remember(stats, today) { ListeningInsights.weekSummary(stats, today) }
     val monthSum = remember(stats, today) { ListeningInsights.monthSummary(stats, today) }
@@ -106,7 +95,6 @@ fun ListeningStatsScreen(
     val slots = remember(stats, today) { ListeningInsights.timeSlots(stats, StatsStore.HOUR_WINDOW_DAYS, today) }
     val dominant = remember(slots) { ListeningInsights.dominantSlot(slots) }
     val spanDays = remember(stats, today) { ListeningInsights.spanDays(stats, today) }
-    // 全期"有记录的天数"：与 hero 里的跨度天数、趋势卡的 30 天活跃天数是三个不同口径
     val recordedDays = remember(stats, today) {
         if (stats.firstDay.isBlank()) 0
         else ListeningInsights.activeDayCount(stats, stats.firstDay, today)
@@ -114,7 +102,6 @@ fun ListeningStatsScreen(
 
     var sheetDay by remember { mutableStateOf<String?>(null) }
     var showAllSongs by remember { mutableStateOf(false) }
-    var showClearConfirm by remember { mutableStateOf(false) }
 
     StatsGradientBackground {
         Column(
@@ -124,47 +111,17 @@ fun ListeningStatsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
         ) {
-            StatsHeader(
-                recording = recording,
-                onBack = onBack,
-            )
+            StatsHeader(onBack = onBack)
 
-            // ===== 累计概览 =====
+            // ===== 累计概览（含今日/本周/本月） =====
             StatsHeroCard(
                 stats = stats,
                 spanDays = spanDays,
-                recordedDays = recordedDays,
+                recording = recording,
+                todaySum = todaySum,
+                weekSum = weekSum,
+                monthSum = monthSum,
             )
-
-            Spacer(Modifier.height(12.dp))
-
-            // ===== 今日 / 本周 / 本月 =====
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                QuickSliceCard(
-                    label = "今日",
-                    durationMs = todaySum.durationMs,
-                    plays = todaySum.plays,
-                    highlight = false,
-                    modifier = Modifier.weight(1f),
-                )
-                QuickSliceCard(
-                    label = "本周",
-                    durationMs = weekSum.durationMs,
-                    plays = weekSum.plays,
-                    highlight = false,
-                    modifier = Modifier.weight(1f),
-                )
-                QuickSliceCard(
-                    label = "本月",
-                    durationMs = monthSum.durationMs,
-                    plays = monthSum.plays,
-                    highlight = true,
-                    modifier = Modifier.weight(1f),
-                )
-            }
 
             Spacer(Modifier.height(12.dp))
 
@@ -186,8 +143,6 @@ fun ListeningStatsScreen(
                     StatsEmptyHint("还没有听歌记录，播放一首歌就会开始统计")
                 } else {
                     StatsBarChart(points = trend, onDayClick = { sheetDay = it })
-                    Spacer(Modifier.height(12.dp))
-                    TrendConclusion(activeDays = activeDays, trend = trend, today = today)
                 }
             }
 
@@ -288,68 +243,6 @@ fun ListeningStatsScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-
-            // ===== 统计设置 =====
-            StatsGlassCard {
-                StatsSectionTitle(
-                    title = "统计设置",
-                    subtitle = "数据存在本机，随时可以停止记录",
-                )
-                Spacer(Modifier.height(4.dp))
-                StatsToggleRow(
-                    icon = Icons.Filled.Mic,
-                    title = "记录听歌数据",
-                    subtitle = if (recording) "正在记录播放时长与次数" else "已停止记录，历史数据保留",
-                    checked = recording,
-                    onCheckedChange = onToggleRecording,
-                    activeColor = AccentMint,
-                )
-                StatsToggleRow(
-                    icon = Icons.Filled.CloudOff,
-                    title = "统计云同步",
-                    subtitle = if (cloudSync) "听歌事件会随同步上传到你的私有云端" else "只在本机记录，不上传云端",
-                    checked = cloudSync,
-                    onCheckedChange = onToggleCloudSync,
-                    activeColor = AccentViolet,
-                )
-                Spacer(Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(AccentCoral.copy(alpha = 0.08f))
-                        .clickable { showClearConfirm = true }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.DeleteSweep,
-                            contentDescription = null,
-                            tint = AccentCoral,
-                            modifier = Modifier.size(17.dp),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = "清空统计记录",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                ),
-                                color = AccentCoral,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = "删除本机全部时长、次数与排行数据，不可恢复",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = TextSoft,
-                            )
-                        }
-                    }
-                }
-            }
-
             Spacer(Modifier.height(24.dp))
         }
 
@@ -367,33 +260,19 @@ fun ListeningStatsScreen(
                 onDismiss = { showAllSongs = false },
             )
         }
-
-        if (showClearConfirm) {
-            AppConfirmDialog(
-                onDismissRequest = { showClearConfirm = false },
-                title = "清空统计记录？",
-                message = "将删除本机保存的全部听歌时长、播放次数与歌曲排行数据，操作不可恢复。",
-                confirmText = "清空",
-                onConfirm = {
-                    showClearConfirm = false
-                    onClearStats()
-                },
-            )
-        }
     }
 }
 
 // ==================== 顶部 ====================
 
 @Composable
-private fun StatsHeader(recording: Boolean, onBack: () -> Unit) {
+private fun StatsHeader(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 20.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 返回按钮：无底框、圆形，只留图标
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -411,7 +290,6 @@ private fun StatsHeader(recording: Boolean, onBack: () -> Unit) {
 
         Spacer(Modifier.width(4.dp))
 
-        // 大标题
         Text(
             text = "听歌统计",
             style = MaterialTheme.typography.headlineSmall.copy(
@@ -419,11 +297,7 @@ private fun StatsHeader(recording: Boolean, onBack: () -> Unit) {
                 fontWeight = FontWeight.Bold,
             ),
             color = TextPrimary,
-            modifier = Modifier.weight(1f),
         )
-
-        // 右上角：记录状态药丸
-        StatRecordingBadge(recording = recording)
     }
 }
 
@@ -453,11 +327,19 @@ private fun StatRecordingBadge(recording: Boolean) {
     }
 }
 
-// ==================== 累计概览 ====================
+// ==================== 累计概览（含今日/本周/本月） ====================
 
 @Composable
-private fun StatsHeroCard(stats: ListeningStats, spanDays: Int, recordedDays: Int) {
+private fun StatsHeroCard(
+    stats: ListeningStats,
+    spanDays: Int,
+    recording: Boolean,
+    todaySum: RangeSummary,
+    weekSum: RangeSummary,
+    monthSum: RangeSummary,
+) {
     StatsGlassCard {
+        // 顶部：图标 + 标题/副标题 + 记录状态
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -474,47 +356,76 @@ private fun StatsHeroCard(stats: ListeningStats, spanDays: Int, recordedDays: In
                 )
             }
             Spacer(Modifier.width(10.dp))
-            Text(
-                text = "累计聆听",
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold),
-                color = TextPrimary,
-            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "累计聆听",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = TextPrimary,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = if (stats.isEmpty) "播放一首歌就会开始统计" else "正在持续记录你的音乐足迹",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = TextSoft,
+                )
+            }
+            StatRecordingBadge(recording = recording)
         }
-        Spacer(Modifier.height(14.dp))
+
+        Spacer(Modifier.height(16.dp))
+
+        // 大数字
         StatsBigDuration(ms = stats.totalListenMs)
+
         Spacer(Modifier.height(8.dp))
+
+        // 一行汇总
         Text(
-            // 有记录但不足 1 分钟时，大数字会显示 "0 分"，这里给一句真实说明，避免看起来像没统计上
-            text = when {
-                stats.isEmpty -> "播放一首歌就会开始统计，数据只存在本机"
-                stats.totalListenMs in 1..59_999 -> "已经有记录了，攒够 1 分钟就会按分钟显示"
-                else -> "从 ${stats.firstDay} 开始统计"
+            text = if (stats.isEmpty) {
+                "数据只存在本机，未登录也不影响统计"
+            } else {
+                "共播放 ${stats.totalPlays} 次 · 跨越 $spanDays 个听歌日"
             },
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
             color = TextSoft,
         )
-        Spacer(Modifier.height(16.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            StatsMiniMetric(
-                label = "总播放次数",
-                value = "${stats.totalPlays} 次",
+
+        Spacer(Modifier.height(18.dp))
+
+        // 今日 / 本周 / 本月
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            QuickSliceCard(
+                label = "今日",
+                durationMs = todaySum.durationMs,
+                plays = todaySum.plays,
+                highlight = false,
                 modifier = Modifier.weight(1f),
             )
-            StatsMiniMetric(
-                label = "跨越听歌日数",
-                value = if (spanDays > 0) "$spanDays 天" else "—",
+            QuickSliceCard(
+                label = "本周",
+                durationMs = weekSum.durationMs,
+                plays = weekSum.plays,
+                highlight = false,
                 modifier = Modifier.weight(1f),
             )
-            StatsMiniMetric(
-                label = "累计记录天数",
-                value = if (recordedDays > 0) "$recordedDays 天" else "—",
+            QuickSliceCard(
+                label = "本月",
+                durationMs = monthSum.durationMs,
+                plays = monthSum.plays,
+                highlight = true,
                 modifier = Modifier.weight(1f),
             )
         }
     }
 }
 
-// ==================== 今日/本周/本月 ====================
+// ==================== 今日/本周/本月小卡 ====================
 
 @Composable
 private fun QuickSliceCard(
@@ -524,23 +435,23 @@ private fun QuickSliceCard(
     highlight: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = modifier
             .clip(shape)
             .background(if (highlight) AccentAmber.copy(alpha = 0.10f) else GlassSurfaceSoft)
             .border(1.dp, GlassBorder, shape)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
             color = if (highlight) AccentAmber else TextSoft,
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
             text = ListeningInsights.formatDurationCompact(durationMs),
-            style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.ExtraBold),
+            style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.ExtraBold),
             color = TextPrimary,
             maxLines = 1,
         )
@@ -553,56 +464,8 @@ private fun QuickSliceCard(
     }
 }
 
-// ==================== 趋势结论 ====================
-
-@Composable
-private fun TrendConclusion(activeDays: Int, trend: List<com.aesthetic.music.data.settings.DayPoint>, today: String) {
-    val total = trend.sumOf { it.durationMs }
-    val average = if (activeDays > 0) total / activeDays else 0L
-    val best = trend.maxByOrNull { it.durationMs }
-    val conclusion = buildString {
-        if (activeDays <= 0) {
-            append("这 ${ListeningInsights.TREND_DAYS} 天还没有听歌记录。")
-        } else {
-            append("这 ${ListeningInsights.TREND_DAYS} 天里有 $activeDays 天听了歌")
-            if (average > 0) append("，活跃日均 ${ListeningInsights.formatDuration(average)}")
-            if (best != null && best.durationMs > 0 && best.day != today) {
-                append("；听最多的是 ${ListeningInsights.relativeLabel(best.day, today)}（${ListeningInsights.formatDuration(best.durationMs)}）")
-            }
-            append("。")
-        }
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(AccentTeal.copy(alpha = 0.10f))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Filled.AccessTime,
-            contentDescription = null,
-            tint = AccentTeal,
-            modifier = Modifier.size(15.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = conclusion,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
-            color = TextMuted,
-        )
-    }
-}
-
 // ==================== 完整排行抽屉 ====================
 
-/**
- * 完整歌曲排行（最多 [StatsStore] 保留的 N 首）。
- *
- * 页面上只展示前 5 首，剩下的走抽屉：统计页首屏不该被长列表占满，
- * 但"排到第 20 名的歌"这类数据用户偶尔确实想看，丢掉又可惜。
- */
 @Composable
 private fun SongRankingSheet(songs: List<SongStat>, onDismiss: () -> Unit) {
     AppBottomSheet(onDismissRequest = onDismiss) {
@@ -653,9 +516,6 @@ private fun SongRankingSheet(songs: List<SongStat>, onDismiss: () -> Unit) {
 
 // ==================== 单日日记抽屉 ====================
 
-/**
- * 单日听歌日记：总时长 / 总次数 / 平均单次 + 当天最常听的歌（含"最后 00:49"这样的播放点）。
- */
 @Composable
 private fun DayDetailSheet(day: String, stat: DayStat?, onDismiss: () -> Unit) {
     AppBottomSheet(onDismissRequest = onDismiss) {
@@ -748,7 +608,6 @@ private fun DayMetricCell(
             maxLines = 1,
         )
         Spacer(Modifier.height(5.dp))
-        // 平均单次是"算出来的派生值"，用暖色小标签和两个原始值区分开
         if (highlight) {
             Box(
                 modifier = Modifier
@@ -772,7 +631,6 @@ private fun DayMetricCell(
     }
 }
 
-/** 单日歌曲行：歌名 + 听 N 次 + "最后 00:49"（当天最后一次播放到的曲内位置） */
 @Composable
 private fun DaySongRow(rank: Int, song: SongStat) {
     Row(
@@ -831,7 +689,6 @@ private fun DaySongRow(rank: Int, song: SongStat) {
 
 // ==================== 文案 ====================
 
-/** 时段画像：把占比最高的时段翻译成一句人话 */
 private fun slotPersona(slotLabel: String, percent: Int): String = when (slotLabel) {
     "凌晨" -> "你常在凌晨听歌——占比 $percent%，是标准的深夜听众。"
     "上午" -> "你偏爱上午听歌——占比 $percent%，用音乐开启一天。"
