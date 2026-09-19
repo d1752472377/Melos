@@ -16,21 +16,31 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,8 +51,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.settings.UserPrefs
@@ -53,9 +66,9 @@ import com.aesthetic.music.data.source.SourcePlugin
 import com.aesthetic.music.data.source.SourceProbe
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.settings.SettingsDivider
 import com.aesthetic.music.ui.settings.SettingsGap
-import com.aesthetic.music.ui.settings.SettingsNote
 import com.aesthetic.music.ui.settings.SettingsPageScaffold
 import com.aesthetic.music.ui.settings.SettingsSection
 import com.aesthetic.music.ui.settings.SettingsSwitchRow
@@ -68,7 +81,6 @@ import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
-import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -76,16 +88,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-/**
- * 插件管理页的动作集合。
- *
- * 用数据类而不是十几个回调参数：页面有 11 个动作，直接铺在函数签名里会让"哪个回调是这个按钮的"
- * 只能靠位置记忆，改动时极易错位。
- */
 data class SourceActions(
-    /** 从文件导入（内容已由页面读出） */
     val importFromContent: (content: String, targetPlatform: String) -> Unit,
-    /** 从链接导入 */
     val importFromUrl: (url: String, targetPlatform: String, onFinished: (Boolean, String) -> Unit) -> Unit,
     val setEnable: (id: String, enable: Boolean) -> Unit,
     val setPlatform: (id: String, platformCode: String) -> Unit,
@@ -100,15 +104,6 @@ data class SourceActions(
     val setSourceFastest: (Boolean) -> Unit,
 )
 
-/**
- * 插件管理（音源管理）页。
- *
- * 页面结构：当前音源总览 → 导入脚本（文件 / 链接，可指定平台）→ 切换策略三开关 →
- * 音源列表（内置直连 + 已安装插件）→ 检测结果（真实请求的正确性与耗时）→ 说明。
- *
- * 设计原则：**所有状态与结论都来自真实数据**。检测不存在的平台就写"无法自动检测"，
- * 脚本没加载成功就写失败原因，而不是给一个好看的绿勾。
- */
 @Composable
 fun PluginManageScreen(
     plugins: List<SourcePlugin>,
@@ -135,7 +130,6 @@ fun PluginManageScreen(
     var showUnloadConfirm by remember { mutableStateOf(false) }
     var platformSheetPlugin by remember { mutableStateOf<SourcePlugin?>(null) }
 
-    // 系统文件选择器：读文本交给页面（只有它拿得到 ContentResolver），登记与加载仍在控制器
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val text = readTextFromUri(context, uri)
@@ -193,14 +187,13 @@ fun PluginManageScreen(
             loadedPluginId = loadedPluginId,
             detecting = detecting,
             onActivate = actions.activate,
+            onReload = actions.reload,
             onToggleEnable = actions.setEnable,
             onPickPlatform = { platformSheetPlugin = it },
             onDetectTarget = actions.detectOne,
             onDelete = { pendingDelete = it },
         )
     }
-
-    // ==================== 抽屉与弹窗 ====================
 
     if (showUrlSheet) {
         AppBottomSheet(onDismissRequest = { if (!importingUrl) showUrlSheet = false }) {
@@ -431,7 +424,7 @@ private fun CurrentSourceCard(
                 enabled = !detecting,
                 onClick = onDetectAll,
                 modifier = Modifier.weight(1f),
-                accent = PrimaryBrown,
+                accent = MaterialTheme.colorScheme.primary,
             )
         }
         if (plugins.isNotEmpty()) {
@@ -517,7 +510,7 @@ private fun PlatformPickerRow(selected: String, onSelect: (String) -> Unit) {
                         fontSize = 11.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     ),
-                    color = if (isSelected) PrimaryBrown else TextSoft,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else TextSoft,
                     maxLines = 1,
                 )
             }
@@ -545,18 +538,18 @@ private fun PlatformOptionsList(selected: String, onSelect: (String) -> Unit) {
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                     ),
-                    color = if (isSelected) PrimaryBrown else TextPrimary,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 if (isSelected) {
-                    StatusBadge(text = "当前", color = PrimaryBrown)
+                    StatusBadge(text = "当前", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
         Spacer(Modifier.height(6.dp))
         Text(
             text = "咪咕等无内置搜索的平台不在列表中：应用无法主动搜索该平台歌曲，" +
-                "脚本若声明支持它，播放该平台歌曲时依然会被使用。",
+                    "脚本若声明支持它，播放该平台歌曲时依然会被使用。",
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
             color = TextMuted,
         )
@@ -567,7 +560,7 @@ private fun PlatformOptionsList(selected: String, onSelect: (String) -> Unit) {
 private fun ImportButton(
     title: String,
     subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -583,10 +576,10 @@ private fun ImportButton(
             modifier = Modifier
                 .size(30.dp)
                 .clip(RoundedCornerShape(9.dp))
-                .background(PrimaryBrown.copy(alpha = 0.12f)),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.width(10.dp))
         Column {
@@ -642,7 +635,7 @@ private fun PolicySection(
     }
 }
 
-// ==================== 音源列表 ====================
+// ==================== 音源卡片列表 ====================
 
 @Composable
 private fun SourceListSection(
@@ -652,188 +645,325 @@ private fun SourceListSection(
     loadedPluginId: String?,
     detecting: Boolean,
     onActivate: (String) -> Unit,
+    onReload: () -> Unit,
     onToggleEnable: (String, Boolean) -> Unit,
     onPickPlatform: (SourcePlugin) -> Unit,
     onDetectTarget: (String) -> Unit,
     onDelete: (SourcePlugin) -> Unit,
 ) {
-    SettingsSection(title = "已安装音源插件（${plugins.size}）") {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "已安装音源插件（${plugins.size}）",
+            style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
+            color = TextSoft,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+        )
+
         if (plugins.isEmpty()) {
-            Column(Modifier.padding(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Surface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    text = "还没有安装插件",
-                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                    color = TextPrimary,
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = "在上方「导入音源插件」里选择文件或填写链接即可导入。内置直连在没有插件时也能播放，但音质与可用性通常不如插件源。",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
-                    color = TextSoft,
+                    text = "暂未安装任何音源插件",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                    color = TextMuted,
                 )
             }
         } else {
-            plugins.forEachIndexed { index, plugin ->
-                if (index > 0) SettingsDivider()
-                PluginRow(
-                    plugin = plugin,
-                    probes = probes,
-                    isActive = plugin.id == activeId,
-                    isRunning = plugin.id == loadedPluginId,
-                    detecting = detecting,
-                    onActivate = { onActivate(plugin.id) },
-                    onToggleEnable = { onToggleEnable(plugin.id, it) },
-                    onPickPlatform = { onPickPlatform(plugin) },
-                    onDetectTarget = onDetectTarget,
-                    onDelete = { onDelete(plugin) },
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                plugins.forEach { plugin ->
+                    PluginCard(
+                        plugin = plugin,
+                        probes = probes,
+                        isActive = plugin.id == activeId,
+                        isRunning = plugin.id == loadedPluginId,
+                        detecting = detecting,
+                        onActivate = { onActivate(plugin.id) },
+                        onReload = onReload,
+                        onToggleEnable = { onToggleEnable(plugin.id, it) },
+                        onPickPlatform = { onPickPlatform(plugin) },
+                        onDetectAllPlatforms = {
+                            val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
+                            platforms.forEach { platform ->
+                                val targetId = SourceProbe.pluginTarget(plugin.id, platform)
+                                onDetectTarget(targetId)
+                            }
+                        },
+                        onDelete = { onDelete(plugin) },
+                    )
+                }
             }
         }
     }
 }
 
+/**
+ * 插件卡片与图 3 下拉菜单
+ */
 @Composable
-private fun PluginRow(
+private fun PluginCard(
     plugin: SourcePlugin,
     probes: Map<String, SourceProbe>,
     isActive: Boolean,
     isRunning: Boolean,
     detecting: Boolean,
     onActivate: () -> Unit,
+    onReload: () -> Unit,
     onToggleEnable: (Boolean) -> Unit,
     onPickPlatform: () -> Unit,
-    onDetectTarget: (String) -> Unit,
+    onDetectAllPlatforms: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
+    var menuExpanded by remember { mutableStateOf(false) }
 
+    // 1. 卡片外层：直接使用你们全局统一的 iosGlassCard 玻璃拟态修饰符！
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
+            .padding(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // 顶部行：左侧插件图标 + 中间标题与状态 + 右侧统一开关与菜单
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PrimaryBrown.copy(alpha = 0.1f)), // 对齐设置页统一透明度
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Extension,
+                    contentDescription = null,
+                    tint = PrimaryBrown,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = plugin.name,
-                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                        color = TextPrimary,
-                        maxLines = 1,
+                Text(
+                    text = plugin.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                Spacer(Modifier.height(3.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    val (statusColor, statusText) = when {
+                        isRunning -> AccentMint to "运行中"
+                        isActive -> PrimaryBrown to "当前指定"
+                        plugin.enable -> AccentCyan to "已启用"
+                        else -> TextMuted to "已停用"
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(statusColor),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                        color = statusColor,
+                    )
+
+                    Text(text = "·", color = TextMuted, fontSize = 11.sp)
                     Text(
                         text = "v${plugin.version}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = TextSoft,
                     )
-                    if (isRunning) {
-                        Spacer(Modifier.width(6.dp))
-                        StatusBadge(text = "运行中", color = AccentMint)
-                    } else if (isActive) {
-                        Spacer(Modifier.width(6.dp))
-                        StatusBadge(text = "当前指定", color = PrimaryBrown)
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = plugin.targetLabel,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = TextSoft,
-                )
-                if (plugin.author.isNotBlank() || plugin.description.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = listOfNotNull(
-                            plugin.author.takeIf { it.isNotBlank() }?.let { "@$it" },
-                            plugin.description.takeIf { it.isNotBlank() },
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                        color = TextMuted,
-                        maxLines = 2,
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            androidx.compose.material3.Switch(
-                checked = plugin.enable,
-                onCheckedChange = onToggleEnable,
-                modifier = Modifier.size(width = 44.dp, height = 26.dp),
-            )
-        }
 
-        // 平台连通性列表
-        Spacer(Modifier.height(10.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(Stone100.copy(alpha = 0.5f))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            platforms.forEach { platform ->
-                val targetId = SourceProbe.pluginTarget(plugin.id, platform)
-                val probe = probes[targetId]
-                val status = probe?.status ?: ProbeStatus.UNKNOWN
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = platform.label,
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
-                        color = TextPrimary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatusBadge(text = status.label, color = statusColor(status))
-                    if (probe != null && probe.latencyMs >= 0) {
-                        Spacer(Modifier.width(6.dp))
+                    if (plugin.author.isNotBlank()) {
+                        Text(text = "·", color = TextMuted, fontSize = 11.sp)
                         Text(
-                            text = probe.latencyLabel,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            text = plugin.author,
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = TextSoft,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
-                    MiniAction(
-                        text = "测速",
-                        enabled = !detecting,
-                        onClick = { onDetectTarget(targetId) },
+                }
+            }
+
+            Spacer(Modifier.width(6.dp))
+
+            // 2. 开关颜色：直接取自你发出来的 SettingsSwitchRow 源码配置！
+            Switch(
+                checked = plugin.enable,
+                onCheckedChange = onToggleEnable,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = PrimaryBrown,
+                    checkedBorderColor = Color.Transparent,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Stone200,
+                    uncheckedBorderColor = Color.Transparent,
+                ),
+            )
+
+            // 右侧更多操作按钮
+            Box {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = "更多选项",
+                        tint = TextSoft,
+                        modifier = Modifier.size(20.dp),
                     )
+                }
+
+                MaterialTheme(
+                    shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(16.dp))
+                ) {
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        offset = DpOffset(x = (-8).dp, y = 4.dp),
+                        modifier = Modifier
+                            .background(Surface)
+                            .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
+                    ) {
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(Icons.Filled.Refresh, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
+                            },
+                            text = { Text("检测更新", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), color = TextPrimary) },
+                            onClick = {
+                                menuExpanded = false
+                                if (isRunning) onReload() else onActivate()
+                            },
+                        )
+
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.FilterAlt, // 或 Icons.Filled.FilterList
+                                    contentDescription = null,
+                                    tint = TextSoft,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            text = { Text("指定平台...", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), color = TextPrimary) },
+                            onClick = {
+                                menuExpanded = false
+                                onPickPlatform()
+                            },
+                        )
+
+                        // 分割线（对齐你的 SettingsDivider 风格）
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            thickness = 0.8.dp,
+                            color = Stone200.copy(alpha = 0.6f),
+                        )
+
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(Icons.Filled.Delete, contentDescription = null, tint = AccentRose, modifier = Modifier.size(18.dp))
+                            },
+                            text = { Text("移除插件...", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), color = AccentRose) },
+                            onClick = {
+                                menuExpanded = false
+                                onDelete()
+                            },
+                        )
+                    }
                 }
             }
         }
 
+        // 平台状态水平展示
         Spacer(Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            MiniAction(text = "指定平台", enabled = true, onClick = onPickPlatform)
-            MiniAction(text = if (isRunning) "重新加载" else "设为当前", enabled = true, onClick = onActivate)
-            MiniAction(text = "删除", enabled = true, onClick = onDelete, danger = true, icon = Icons.Filled.Delete)
+            platforms.take(5).forEach { platform ->
+                val targetId = SourceProbe.pluginTarget(plugin.id, platform)
+                val probe = probes[targetId]
+                val status = probe?.status ?: ProbeStatus.UNKNOWN
+                val dotColor = statusColor(status)
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(dotColor),
+                    )
+                    Text(
+                        text = platform.label.replace("音乐", "").trim(),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = TextSoft,
+                    )
+                }
+            }
+        }
+
+        // 底部居中的【检测】按钮
+        Spacer(Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Stone100)
+                .clickable(enabled = !detecting, onClick = onDetectAllPlatforms)
+                .padding(vertical = 9.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Tune,
+                    contentDescription = null,
+                    tint = AccentCyan,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = if (detecting) "检测中…" else "检测",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = AccentCyan,
+                )
+            }
         }
     }
 }
 
-// ==================== 小组件 ====================
-
-@Composable
-private fun ProbeBadge(probe: SourceProbe?) {
-    val status = probe?.status ?: ProbeStatus.UNKNOWN
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        StatusBadge(text = status.label, color = statusColor(status))
-        if (probe != null && probe.latencyMs >= 0) {
-            Spacer(Modifier.width(5.dp))
-            Text(
-                text = probe.latencyLabel,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = TextSoft,
-            )
-        }
-    }
-}
+// ==================== 通用辅助组件 ====================
 
 @Composable
 private fun StatusBadge(text: String, color: Color) {
@@ -853,44 +983,9 @@ private fun StatusBadge(text: String, color: Color) {
 }
 
 @Composable
-private fun MiniAction(
-    text: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    accent: Color = TextSoft,
-    danger: Boolean = false,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-) {
-    val color = when {
-        !enabled -> TextMuted.copy(alpha = 0.5f)
-        danger -> AccentRose
-        else -> accent
-    }
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Stone100)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 9.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
-            Spacer(Modifier.width(4.dp))
-        }
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-            color = color,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
 private fun OutlineAction(
     text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -926,7 +1021,7 @@ private fun SheetPrimaryButton(text: String, enabled: Boolean, onClick: () -> Un
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) PrimaryBrown else Stone200)
+            .background(if (enabled) MaterialTheme.colorScheme.primary else Stone200)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center,
@@ -948,8 +1043,6 @@ private fun statusColor(status: ProbeStatus): Color = when (status) {
     ProbeStatus.UNKNOWN -> TextSoft
 }
 
-// ==================== 工具 ====================
-
 private fun readTextFromUri(context: Context, uri: android.net.Uri): String? = try {
     context.contentResolver.openInputStream(uri)?.use { input ->
         val bytes = input.readBytes()
@@ -959,7 +1052,6 @@ private fun readTextFromUri(context: Context, uri: android.net.Uri): String? = t
     null
 }
 
-/** "3 分钟前"这种相对时间：检测时间点用绝对时间没意义，用户关心的是"多久以前测的" */
 private fun relativeTime(timestamp: Long): String {
     val diff = System.currentTimeMillis() - timestamp
     return when {
