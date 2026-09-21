@@ -5,19 +5,38 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -26,15 +45,23 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
+import java.util.Locale
+import kotlin.math.abs
 import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -101,6 +128,8 @@ fun KaraokeLyricsView(
     onLineClicked: (ISyncedLine) -> Unit,
     onLinePressed: (ISyncedLine) -> Unit,
     modifier: Modifier = Modifier,
+    onSeek: ((Long) -> Unit)? = null,
+    onToggleLyricMode: (() -> Unit)? = null,
     normalLineTextStyle: TextStyle = LocalTextStyle.current.copy(
         fontSize = 34.sp,
         fontWeight = FontWeight.Bold,
@@ -125,12 +154,12 @@ fun KaraokeLyricsView(
 //        1f to Color.White.copy(0f)
 //    ),
     blendMode: BlendMode = BlendMode.Plus,
-    useBlurEffect: Boolean = true,
+    useBlurEffect: Boolean = false,
     showTranslation: Boolean = true,
     showPhonetic: Boolean = true,
     offset: Dp = 32.dp,
     keepAliveZone: Dp = 100.dp,
-    blurDelta: Float = 3f,
+    blurDelta: Float = 0f,
     showDebugRectangles: Boolean = false
 ) {
     val density = LocalDensity.current
@@ -292,6 +321,18 @@ fun KaraokeLyricsView(
 
     val scrollInCode = remember { mutableStateOf(false) }
 
+    // 记录用户手动翻阅歌词的保护期：当用户主动滑动列表时，顺延 3.5 秒；
+    // 期间绝不抢夺用户手指或突然强行回拉，给予充裕阅读时间；时间过后歌曲唱到新句子时平滑跟进
+    var userBrowsingUntil by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling) {
+                userBrowsingUntil = System.currentTimeMillis() + 3500L
+            }
+        }
+    }
+
     val isManualScrolling by remember {
         derivedStateOf {
             listState.isScrollInProgress && !scrollInCode.value
@@ -304,7 +345,8 @@ fun KaraokeLyricsView(
     ) {
         androidx.compose.runtime.snapshotFlow { lyricsFocusState.firstIndex }
             .collect { firstIndex ->
-                if (!scrollInCode.value) {
+                val now = System.currentTimeMillis()
+                if (!scrollInCode.value && !listState.isScrollInProgress && now >= userBrowsingUntil) {
                     val items = listState.layoutInfo.visibleItemsInfo
                     val targetItem = items.firstOrNull { it.index == firstIndex }
                     val scrollOffset =
@@ -331,7 +373,7 @@ fun KaraokeLyricsView(
             Box(modifier = modifier.clipToBounds()) {
                 LazyColumn(
                     state = listState,
-                    modifier = modifier
+                    modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
                             compositingStrategy = CompositingStrategy.Offscreen
@@ -367,6 +409,9 @@ fun KaraokeLyricsView(
                         },
                     contentPadding = PaddingValues(vertical = stableOffset + keepAliveZone)
                 ) {
+                    item("TopSpacing") {
+                        Spacer(modifier = Modifier.fillMaxWidth().height(160.dp))
+                    }
                     itemsIndexed(
                         items = lyrics.lines,
                         key = { index, line -> "${line.start}-${line.end}-$index" }
@@ -442,9 +487,9 @@ fun KaraokeLyricsView(
 
                             val blurRadiusState = animateFloatAsState(
                                 targetValue = (
-                                        if (!useBlurEffect) 0f
+                                        if (!useBlurEffect || listState.isScrollInProgress) 0f
                                         else if (distanceWeightState.value > 0 && (!listState.isScrollInProgress || scrollInCode.value)) {
-                                            distanceWeightState.value * blurDelta
+                                            (distanceWeightState.value * blurDelta).coerceAtMost(blurDelta * 1.5f)
                                         } else 0f),
                                 animationSpec = tween(300),
                             )
@@ -452,11 +497,19 @@ fun KaraokeLyricsView(
                             when (line) {
                                 is KaraokeLine -> {
                                     if (line is KaraokeLine.MainKaraokeLine) {
-                                        LyricsLineItem(
+                                         LyricsLineItem(
                                             isFocused = isCurrentFocusLine,
                                             isRightAligned = isVisualRightAligned,
-                                            onLineClicked = { onLineClicked(line) },
-                                            onLinePressed = { onLinePressed(line) },
+                                            activeAlpha = 1f,
+                                            inactiveAlpha = 0.55f,
+                                            onLineClicked = {
+                                                userBrowsingUntil = 0L
+                                                onSeek?.invoke(line.start.toLong()) ?: onLineClicked(line)
+                                            },
+                                            onLinePressed = {
+                                                userBrowsingUntil = 0L
+                                                onSeek?.invoke(line.start.toLong()) ?: onLinePressed(line)
+                                            },
                                             blurRadius = { blurRadiusState.value },
                                             blendMode = stableBlendMode,
                                         ) {
@@ -482,8 +535,16 @@ fun KaraokeLyricsView(
                                     LyricsLineItem(
                                         isFocused = isCurrentFocusLine,
                                         isRightAligned = isLineRtl,
-                                        onLineClicked = { onLineClicked(line) },
-                                        onLinePressed = { onLinePressed(line) },
+                                        activeAlpha = 1f,
+                                        inactiveAlpha = 0.55f,
+                                        onLineClicked = {
+                                            userBrowsingUntil = 0L
+                                            onSeek?.invoke(line.start.toLong()) ?: onLineClicked(line)
+                                        },
+                                        onLinePressed = {
+                                            userBrowsingUntil = 0L
+                                            onSeek?.invoke(line.start.toLong()) ?: onLinePressed(line)
+                                        },
                                         blurRadius = { blurRadiusState.value },
                                         blendMode = stableBlendMode,
                                     ) {
@@ -501,7 +562,7 @@ fun KaraokeLyricsView(
                     }
                     item("BottomSpacing") {
                         Spacer(
-                            modifier = Modifier.fillMaxWidth().height(2000.dp)
+                            modifier = Modifier.fillMaxWidth().height(260.dp)
                         )
                     }
                 }

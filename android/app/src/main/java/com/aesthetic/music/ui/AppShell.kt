@@ -494,15 +494,17 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 containerColor = pageBackground as? Color ?: Color.White,
             )
 
-            // ===== 全屏播放�? Drawer =====
+            // ===== 全屏播放器 Drawer =====
             PlayerOverlay(
                 visible = showPlayer,
                 playerState = playerState,
                 playerManager = playerManager,
                 viewModel = viewModel,
+                nav = nav,
+                hazeState = hazeState,
             )
 
-            // ===== 歌单导入弹窗：粘贴链�? / 识别文案 / 登录账号（占位） =====
+            // ===== 歌单导入弹窗：粘贴链? / 识别文案 / 登录账号（占位） =====
             if (showImportDialog) {
                 val importState by viewModel.playlistImportState.collectAsState()
                 ImportPlaylistDialog(

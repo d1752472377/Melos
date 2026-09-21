@@ -788,6 +788,12 @@ class PlayerManager private constructor(private val appContext: Context) {
         notifyState()
     }
 
+    fun setPlayMode(mode: PlayMode) {
+        if (_state.value.playMode == mode) return
+        _state.value = _state.value.copy(playMode = mode)
+        notifyState()
+    }
+
     private fun onSongComplete() {
         val completedSong = _state.value.currentSong
         if (completedSong != null) {

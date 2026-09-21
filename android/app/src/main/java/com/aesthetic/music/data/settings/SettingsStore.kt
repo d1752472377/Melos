@@ -62,6 +62,39 @@ enum class DownloadFailurePolicy(val value: String, val label: String, val desc:
     }
 }
 
+/** 歌词字体大小选项 */
+enum class LyricFontSize(val value: String, val label: String, val spSize: Int) {
+    STANDARD("standard", "标准", 22),
+    LARGE("large", "较大", 26),
+    EXTRA_LARGE("extra_large", "特大", 30);
+
+    companion object {
+        fun fromValue(v: String?): LyricFontSize = entries.firstOrNull { it.value == v } ?: STANDARD
+    }
+}
+
+/** 歌词虚化/聚焦模糊模式 */
+enum class LyricBlurMode(val value: String, val label: String, val maxBlurPx: Float) {
+    OFF("off", "关闭 (清晰)", 0f),
+    SUBTLE("subtle", "轻度景深", 2.5f),
+    DEEP("deep", "柔和质感", 5f);
+
+    companion object {
+        fun fromValue(v: String?): LyricBlurMode = entries.firstOrNull { it.value == v } ?: OFF
+    }
+}
+
+/** 播放页背景专辑图模糊度 */
+enum class BackgroundBlurMode(val value: String, val label: String, val blurDp: Int) {
+    LIGHT("light", "微弱", 20),
+    MEDIUM("medium", "标准", 40),
+    HEAVY("heavy", "浓郁", 65);
+
+    companion object {
+        fun fromValue(v: String?): BackgroundBlurMode = entries.firstOrNull { it.value == v } ?: MEDIUM
+    }
+}
+
 /**
  * 新增设置项快照。
  *
@@ -182,6 +215,41 @@ object SettingsStore {
 
     fun setPlaybackSpeed(speed: Float) = bestEffort(TAG, "保存播放倍速") {
         p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
+    }
+
+    // ===== 歌词与视觉个性化 =====
+    private const val KEY_LYRIC_FONT_SIZE = "lyric_font_size"
+    private const val KEY_LYRIC_BLUR_MODE = "lyric_blur_mode"
+    private const val KEY_BACKGROUND_BLUR_MODE = "background_blur_mode"
+
+    fun getLyricFontSize(): LyricFontSize = try {
+        LyricFontSize.fromValue(p()?.getString(KEY_LYRIC_FONT_SIZE, null))
+    } catch (_: Exception) {
+        LyricFontSize.STANDARD
+    }
+
+    fun setLyricFontSize(size: LyricFontSize) = bestEffort(TAG, "保存歌词字号") {
+        p()?.edit()?.putString(KEY_LYRIC_FONT_SIZE, size.value)?.apply()
+    }
+
+    fun getLyricBlurMode(): LyricBlurMode = try {
+        LyricBlurMode.fromValue(p()?.getString(KEY_LYRIC_BLUR_MODE, null))
+    } catch (_: Exception) {
+        LyricBlurMode.OFF // 默认清晰无模糊
+    }
+
+    fun setLyricBlurMode(mode: LyricBlurMode) = bestEffort(TAG, "保存歌词模糊模式") {
+        p()?.edit()?.putString(KEY_LYRIC_BLUR_MODE, mode.value)?.apply()
+    }
+
+    fun getBackgroundBlurMode(): BackgroundBlurMode = try {
+        BackgroundBlurMode.fromValue(p()?.getString(KEY_BACKGROUND_BLUR_MODE, null))
+    } catch (_: Exception) {
+        BackgroundBlurMode.MEDIUM
+    }
+
+    fun setBackgroundBlurMode(mode: BackgroundBlurMode) = bestEffort(TAG, "保存背景模糊度") {
+        p()?.edit()?.putString(KEY_BACKGROUND_BLUR_MODE, mode.value)?.apply()
     }
 
     // ==================== 设置页（主题与外观 / 播放 / 歌词 / 下载） ====================
