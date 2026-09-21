@@ -17,14 +17,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -47,6 +49,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -54,10 +58,14 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.R
 import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.PrimaryGradientEnd
+import com.aesthetic.music.ui.theme.PrimaryGradientStart
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
@@ -117,39 +125,30 @@ fun AuthScreen(viewModel: MainViewModel) {
     val isSendingCode by viewModel.isSendingCode.collectAsState()
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
+        modifier = Modifier.fillMaxSize()
     ) {
+        // 底层动态光晕背景（解决全黑/底色穿透问题，与全局 iOS 拟态质感保持一致）
+        HomeAmbientGlowBackground()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 40.dp),
+                .padding(horizontal = 24.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(16.dp))
 
             // ===== 1. 品牌 Header =====
-            Box(
+            Image(
+                painter = painterResource(id = R.drawable.ic_melos_logo),
+                contentDescription = "Melos Logo",
                 modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF2C2523), Color(0xFF4A3F35))
-                        )
-                    )
-                    .shadow(elevation = 8.dp, shape = RoundedCornerShape(22.dp), spotColor = Color(0x402C2523)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.MusicNote,
-                    contentDescription = "Melos Logo",
-                    tint = Color(0xFFF7F6F2),
-                    modifier = Modifier.size(38.dp),
-                )
-            }
+                    .size(76.dp)
+                    .clip(CircleShape),
+            )
 
             Spacer(Modifier.height(18.dp))
 
@@ -469,7 +468,10 @@ fun AuthScreen(viewModel: MainViewModel) {
                                 .fillMaxWidth()
                                 .height(52.dp)
                                 .clip(RoundedCornerShape(9999.dp))
-                                .background(if (isBusy) Color(0xFF6E645F) else Color(0xFF2C2523))
+                                .background(
+                                    if (isBusy) SolidColor(PrimaryBrown.copy(alpha = 0.45f))
+                                    else Brush.horizontalGradient(listOf(PrimaryGradientStart, PrimaryGradientEnd))
+                                )
                                 .clickable(enabled = !isBusy) {
                                     if (loginMode == LoginMode.PASSWORD) {
                                         viewModel.login(loginAccount, loginPassword)
@@ -723,7 +725,10 @@ fun AuthScreen(viewModel: MainViewModel) {
                                 .fillMaxWidth()
                                 .height(52.dp)
                                 .clip(RoundedCornerShape(9999.dp))
-                                .background(if (isBusy || !agreedToTerms) Color(0xFF6E645F) else Color(0xFF2C2523))
+                                .background(
+                                    if (isBusy || !agreedToTerms) SolidColor(PrimaryBrown.copy(alpha = 0.45f))
+                                    else Brush.horizontalGradient(listOf(PrimaryGradientStart, PrimaryGradientEnd))
+                                )
                                 .clickable(enabled = !isBusy && agreedToTerms) {
                                     viewModel.register(
                                         username = regUsername,

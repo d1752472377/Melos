@@ -14,8 +14,8 @@ android {
         applicationId = "com.aesthetic.music"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "2.0.0"
+        versionCode = 23
+        versionName = "2.0.1"
     }
     lint {
         abortOnError = false        // 遇到剩余的 40 多个 lint 报错不打断编译
