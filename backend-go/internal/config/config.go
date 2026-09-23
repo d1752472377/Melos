@@ -30,6 +30,12 @@ type Config struct {
 	// APK distribution
 	APKDir   string
 	APKMaxMB int
+
+	// GitHub Release & CI integration
+	ReleaseToken   string
+	GitHubRepo     string
+	GitHubToken    string
+	GitHubProxyURL string
 }
 
 func intEnv(name string, fallback, min int) int {
@@ -67,6 +73,10 @@ func Load() *Config {
 		MailFromName:       envOr("MAIL_FROM_NAME", "Melos 音乐"),
 		APKDir:             envOr("APK_DIR", "data/apk"),
 		APKMaxMB:           intEnv("APK_MAX_MB", 200, 1),
+		ReleaseToken:       strings.TrimSpace(os.Getenv("RELEASE_TOKEN")),
+		GitHubRepo:         envOr("GITHUB_REPO", "d1752472377/Melos"),
+		GitHubToken:        strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
+		GitHubProxyURL:     strings.TrimSpace(os.Getenv("GITHUB_PROXY_URL")),
 	}
 	return cfg
 }

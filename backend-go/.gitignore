@@ -8,5 +8,4 @@ data/
 .env
 
 # 构建产物
-melos-backend
-melos-backend.exe
+melos-backend*

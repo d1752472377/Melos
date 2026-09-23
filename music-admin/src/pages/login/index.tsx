@@ -1,7 +1,6 @@
 import { useLogin } from "@refinedev/core";
-import { Button, Card, Form, Input, Typography, message } from "antd";
+import { Button, Card, Form, Input, Typography, message, theme } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
-import { Link } from "react-router-dom";
 
 interface LoginFormValues {
   username: string;
@@ -10,6 +9,7 @@ interface LoginFormValues {
 
 export const Login = () => {
   const { mutate: login, isPending } = useLogin();
+  const { token } = theme.useToken();
 
   const onFinish = (values: LoginFormValues) => {
     login(values, {
@@ -29,7 +29,7 @@ export const Login = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#f5f5f5",
+        backgroundColor: token.colorBgLayout,
       }}
     >
       <Card style={{ width: 400 }}>

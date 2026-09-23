@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Card,
   Table,
@@ -13,6 +13,7 @@ import {
   message,
   Avatar,
   Typography,
+  Tooltip,
 } from "antd";
 import {
   UserOutlined,
@@ -23,7 +24,9 @@ import {
   EditOutlined,
   DeleteOutlined,
   CrownOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
+import { useGetIdentity } from "@refinedev/core";
 import { request } from "../../providers/api";
 
 const { Title, Text } = Typography;
@@ -38,19 +41,36 @@ interface UserItem {
   updated_at: number;
 }
 
+interface IdentityUser {
+  id: number;
+  name: string;
+  avatar?: string;
+  role?: string;
+}
+
 export const UsersPage: React.FC = () => {
+  const { data: identityUser } = useGetIdentity<IdentityUser>();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState("");
+
+  // 搜索输入状态与实际触发查询的状态分离
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("");
 
-  // 模态框状态
+  // 模态框状态与 loading
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+
   const [resetPassModalVisible, setResetPassModalVisible] = useState(false);
+  const [resetPassLoading, setResetPassLoading] = useState(false);
+
   const [currentUser, setCurrentUser] = useState<UserItem | null>(null);
 
   // 表单实例
@@ -58,47 +78,63 @@ export const UsersPage: React.FC = () => {
   const [editForm] = Form.useForm();
   const [resetPassForm] = Form.useForm();
 
-  // 当前登录账号信息
-  const loginUser = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "{}");
-    } catch {
-      return {};
-    }
-  })();
+  // 请求版本号防止竞态条件覆盖
+  const requestIdRef = useRef(0);
 
   const fetchUsers = useCallback(async () => {
+    const currentRequestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(pageSize),
       });
-      if (search.trim()) params.append("search", search.trim());
+      if (searchQuery.trim()) params.append("search", searchQuery.trim());
       if (roleFilter) params.append("role", roleFilter);
 
       const res = await request<{ items: UserItem[]; total: number }>(`/admin/users?${params.toString()}`);
-      if (res.code === 200 && res.data) {
-        setUsers(res.data.items || []);
-        setTotal(res.data.total || 0);
-      } else {
-        message.error(res.msg || "加载用户列表失败");
+      if (currentRequestId === requestIdRef.current) {
+        if (res.code === 200 && res.data) {
+          setUsers(res.data.items || []);
+          setTotal(res.data.total || 0);
+        } else {
+          message.error(res.msg || "加载用户列表失败");
+        }
       }
     } catch (err: any) {
-      message.error(err.message || "请求失败");
+      if (currentRequestId === requestIdRef.current) {
+        message.error(err.message || "请求失败");
+      }
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [page, pageSize, search, roleFilter]);
+  }, [page, pageSize, searchQuery, roleFilter]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
+  // 执行搜索
+  const handleApplySearch = () => {
+    setPage(1);
+    setSearchQuery(searchInput);
+  };
+
+  // 重置搜索
+  const handleResetSearch = () => {
+    setSearchInput("");
+    setSearchQuery("");
+    setRoleFilter("");
+    setPage(1);
+  };
+
   // 新建用户
   const handleCreate = async () => {
     try {
       const values = await createForm.validateFields();
+      setCreateLoading(true);
       const res = await request("/admin/users", {
         method: "POST",
         body: JSON.stringify(values),
@@ -112,7 +148,9 @@ export const UsersPage: React.FC = () => {
         message.error(res.msg || "创建失败");
       }
     } catch (err: any) {
-      if (err.message) message.error(err.message);
+      if (err.message && !err.errorFields) message.error(err.message);
+    } finally {
+      setCreateLoading(false);
     }
   };
 
@@ -121,6 +159,7 @@ export const UsersPage: React.FC = () => {
     if (!currentUser) return;
     try {
       const values = await editForm.validateFields();
+      setEditLoading(true);
       const res = await request(`/admin/users/${currentUser.id}`, {
         method: "PUT",
         body: JSON.stringify(values),
@@ -133,7 +172,9 @@ export const UsersPage: React.FC = () => {
         message.error(res.msg || "修改失败");
       }
     } catch (err: any) {
-      if (err.message) message.error(err.message);
+      if (err.message && !err.errorFields) message.error(err.message);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -142,6 +183,7 @@ export const UsersPage: React.FC = () => {
     if (!currentUser) return;
     try {
       const values = await resetPassForm.validateFields();
+      setResetPassLoading(true);
       const res = await request(`/admin/users/${currentUser.id}`, {
         method: "PUT",
         body: JSON.stringify({ password: values.newPassword }),
@@ -154,7 +196,9 @@ export const UsersPage: React.FC = () => {
         message.error(res.msg || "重置密码失败");
       }
     } catch (err: any) {
-      if (err.message) message.error(err.message);
+      if (err.message && !err.errorFields) message.error(err.message);
+    } finally {
+      setResetPassLoading(false);
     }
   };
 
@@ -173,6 +217,10 @@ export const UsersPage: React.FC = () => {
     } catch (err: any) {
       message.error(err.message || "删除失败");
     }
+  };
+
+  const isCurrentLoginUser = (userItem: UserItem) => {
+    return identityUser?.id === userItem.id;
   };
 
   const columns = [
@@ -200,7 +248,7 @@ export const UsersPage: React.FC = () => {
       render: (text: string, record: UserItem) => (
         <Space>
           <Text strong>{text}</Text>
-          {record.id === loginUser.id && <Tag color="gold">当前账号</Tag>}
+          {isCurrentLoginUser(record) && <Tag color="gold">当前账号</Tag>}
         </Space>
       ),
     },
@@ -235,57 +283,62 @@ export const UsersPage: React.FC = () => {
       title: "操作",
       key: "action",
       width: 220,
-      render: (_: any, record: UserItem) => (
-        <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setCurrentUser(record);
-              editForm.setFieldsValue({
-                nickname: record.nickname,
-                avatar: record.avatar,
-                role: record.role,
-              });
-              setEditModalVisible(true);
-            }}
-          >
-            编辑
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<KeyOutlined />}
-            onClick={() => {
-              setCurrentUser(record);
-              resetPassForm.resetFields();
-              setResetPassModalVisible(true);
-            }}
-          >
-            重置密码
-          </Button>
-          <Popconfirm
-            title="确认删除该用户？"
-            description="删除后该用户的所有收藏、歌单及历史数据均将被级联删除且不可恢复！"
-            onConfirm={() => handleDelete(record.id)}
-            okText="确认删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            disabled={record.id === loginUser.id}
-          >
+      render: (_: any, record: UserItem) => {
+        const isSelf = isCurrentLoginUser(record);
+        return (
+          <Space size="small">
             <Button
               type="link"
-              danger
               size="small"
-              icon={<DeleteOutlined />}
-              disabled={record.id === loginUser.id}
+              icon={<EditOutlined />}
+              onClick={() => {
+                setCurrentUser(record);
+                editForm.setFieldsValue({
+                  nickname: record.nickname,
+                  avatar: record.avatar,
+                  role: record.role,
+                });
+                setEditModalVisible(true);
+              }}
             >
-              删除
+              编辑
             </Button>
-          </Popconfirm>
-        </Space>
-      ),
+            <Button
+              type="link"
+              size="small"
+              icon={<KeyOutlined />}
+              onClick={() => {
+                setCurrentUser(record);
+                resetPassForm.resetFields();
+                setResetPassModalVisible(true);
+              }}
+            >
+              重置密码
+            </Button>
+            <Popconfirm
+              title="确认删除该用户？"
+              description="删除后该用户的所有收藏、歌单及历史数据均将被级联删除且不可恢复！"
+              onConfirm={() => handleDelete(record.id)}
+              okText="确认删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={isSelf}
+            >
+              <Tooltip title={isSelf ? "不能删除当前登录的管理员账号" : ""}>
+                <Button
+                  type="link"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  disabled={isSelf}
+                >
+                  删除
+                </Button>
+              </Tooltip>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -320,13 +373,15 @@ export const UsersPage: React.FC = () => {
           <Input
             placeholder="搜索用户名或昵称"
             prefix={<SearchOutlined />}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onPressEnter={() => {
-              setPage(1);
-              fetchUsers();
-            }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onPressEnter={handleApplySearch}
             allowClear
+            onClear={() => {
+              setSearchInput("");
+              setSearchQuery("");
+              setPage(1);
+            }}
             style={{ width: 240 }}
           />
           <Select
@@ -343,13 +398,16 @@ export const UsersPage: React.FC = () => {
               { label: "普通用户", value: "user" },
             ]}
           />
-          <Button type="primary" onClick={() => { setPage(1); fetchUsers(); }}>
+          <Button type="primary" onClick={handleApplySearch}>
             筛选
+          </Button>
+          <Button onClick={handleResetSearch}>
+            重置
           </Button>
         </Space>
       </Card>
 
-      <Card bodyStyle={{ padding: 0 }}>
+      <Card styles={{ body: { padding: 0 } }}>
         <Table
           columns={columns}
           dataSource={users}
@@ -375,6 +433,7 @@ export const UsersPage: React.FC = () => {
         title="新建用户"
         open={createModalVisible}
         onOk={handleCreate}
+        confirmLoading={createLoading}
         onCancel={() => setCreateModalVisible(false)}
         destroyOnClose
       >
@@ -422,6 +481,7 @@ export const UsersPage: React.FC = () => {
         title={`编辑用户: ${currentUser?.username}`}
         open={editModalVisible}
         onOk={handleEdit}
+        confirmLoading={editLoading}
         onCancel={() => setEditModalVisible(false)}
         destroyOnClose
       >
@@ -436,8 +496,29 @@ export const UsersPage: React.FC = () => {
           <Form.Item name="avatar" label="头像 URL">
             <Input placeholder="头像图片直链（选填）" />
           </Form.Item>
-          <Form.Item name="role" label="权限角色" rules={[{ required: true }]}>
+          <Form.Item
+            name="role"
+            label={
+              <Space>
+                <span>权限角色</span>
+                {currentUser && isCurrentLoginUser(currentUser) && (
+                  <Tooltip title="当前登录账号无法修改自身角色，防止自锁">
+                    <InfoCircleOutlined style={{ color: "#faad14" }} />
+                  </Tooltip>
+                )}
+              </Space>
+            }
+            rules={[{ required: true }]}
+            extra={
+              currentUser && isCurrentLoginUser(currentUser) ? (
+                <Text type="warning" style={{ fontSize: 12 }}>
+                  提示：当前登录管理员不可修改自身角色，防止权限失效造成自锁。
+                </Text>
+              ) : undefined
+            }
+          >
             <Select
+              disabled={currentUser ? isCurrentLoginUser(currentUser) : false}
               options={[
                 { label: "普通用户 (user) - 仅可使用客户端同步", value: "user" },
                 { label: "管理员 (admin) - 可登录管理后台", value: "admin" },
@@ -452,6 +533,7 @@ export const UsersPage: React.FC = () => {
         title={`重置密码: ${currentUser?.username}`}
         open={resetPassModalVisible}
         onOk={handleResetPassword}
+        confirmLoading={resetPassLoading}
         onCancel={() => setResetPassModalVisible(false)}
         destroyOnClose
       >

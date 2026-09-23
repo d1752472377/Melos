@@ -6,6 +6,8 @@ export interface ApiResponse<T = any> {
   msg?: string;
 }
 
+let isRedirectingToLogin = false;
+
 export async function request<T = any>(
   endpoint: string,
   options: RequestInit = {}
@@ -32,7 +34,7 @@ export async function request<T = any>(
   let json: ApiResponse<T>;
   try {
     json = await res.json();
-  } catch (err) {
+  } catch {
     if (!res.ok) {
       throw new Error(`请求失败 (${res.status})`);
     }
@@ -42,7 +44,10 @@ export async function request<T = any>(
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem("user");
-    window.location.href = "/login";
+    if (!isRedirectingToLogin && window.location.pathname !== "/login") {
+      isRedirectingToLogin = true;
+      window.location.href = "/login";
+    }
     throw new Error(json.msg || "登录已失效，请重新登录");
   }
 

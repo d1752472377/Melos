@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +32,8 @@ func (s *Server) registerVersionPublic(r *gin.Engine) {
 // registerVersionAdmin mounts the admin console endpoints for releases.
 func (s *Server) registerVersionAdmin(r *gin.Engine, admin gin.HandlerFunc) {
 	r.GET("/api/admin/versions", admin, s.handleAdminListVersions)
-	r.POST("/api/admin/versions", admin, s.handleAdminCreateVersion)
+	r.POST("/api/admin/versions", s.requireAdminOrReleaseToken(), s.handleAdminCreateVersion)
+	r.POST("/api/admin/versions/sync-github", s.requireAdminOrReleaseToken(), s.handleAdminSyncGitHub)
 	r.PATCH("/api/admin/versions/:id", admin, s.handleAdminUpdateVersion)
 	r.DELETE("/api/admin/versions/:id", admin, s.handleAdminDeleteVersion)
 }
@@ -211,6 +214,9 @@ func (s *Server) handleAdminCreateVersion(c *gin.Context) {
 		hash = hex.EncodeToString(hasher.Sum(nil))
 	}
 
+	// 自动清理服务器旧版本 APK，本地只保留当前最新版本
+	pruneOldAPKs(s.cfg.APKDir, name)
+
 	row, err := s.store.CreateVersion(ctx, store.CreateVersionParams{
 		VersionCode: code,
 		VersionName: versionName,
@@ -231,6 +237,286 @@ func (s *Server) handleAdminCreateVersion(c *gin.Context) {
 		return
 	}
 	ok(c, row.Public())
+}
+
+type gitHubAsset struct {
+	Name               string `json:"name"`
+	Size               int64  `json:"size"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+type gitHubRelease struct {
+	TagName string        `json:"tag_name"`
+	Name    string        `json:"name"`
+	Body    string        `json:"body"`
+	Assets  []gitHubAsset `json:"assets"`
+}
+
+type releaseUpdateJSON struct {
+	VersionName string `json:"versionName"`
+	VersionCode int64  `json:"versionCode"`
+	ApkSize     int64  `json:"apkSize"`
+	SHA256      string `json:"sha256"`
+	MD5         string `json:"md5"`
+	ForceUpdate bool   `json:"forceUpdate"`
+	UpdateLog   string `json:"updateLog"`
+	PublishTime string `json:"publishTime"`
+}
+
+// handleAdminSyncGitHub fetches the latest release from GitHub, downloads the APK,
+// deletes any old APKs to ensure only the latest APK remains on disk, and records it in the database.
+func (s *Server) handleAdminSyncGitHub(c *gin.Context) {
+	repo := strings.TrimSpace(firstQuery(c, "repo"))
+	tag := strings.TrimSpace(firstQuery(c, "tag"))
+	if repo == "" {
+		repo = s.cfg.GitHubRepo
+	}
+	if repo == "" {
+		repo = "d1752472377/Melos"
+	}
+
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
+	if tag != "" {
+		apiURL = fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/%s", repo, tag)
+	}
+
+	ghToken := strings.TrimSpace(firstQuery(c, "github_token", "token"))
+	if ghToken == "" {
+		ghToken = s.cfg.GitHubToken
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(c.Request.Context(), "GET", apiURL, nil)
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+	req.Header.Set("User-Agent", "Melos-Backend")
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	if ghToken != "" {
+		req.Header.Set("Authorization", "Bearer "+ghToken)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fail(c, http.StatusBadGateway, fmt.Sprintf("请求 GitHub API 失败: %v", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fail(c, resp.StatusCode, fmt.Sprintf("GitHub Release 获取失败 (HTTP %d)，请确认仓库是否存在或公开", resp.StatusCode))
+		return
+	}
+
+	var rel gitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		s.fail500(c, fmt.Errorf("解析 GitHub Release 失败: %w", err))
+		return
+	}
+
+	// 查找 update.json 和 apk asset
+	var updateAsset *gitHubAsset
+	var apkAsset *gitHubAsset
+
+	for i := range rel.Assets {
+		a := &rel.Assets[i]
+		lower := strings.ToLower(a.Name)
+		if lower == "update.json" {
+			updateAsset = a
+		} else if strings.HasSuffix(lower, ".apk") {
+			if apkAsset == nil || strings.Contains(lower, "latest") {
+				apkAsset = a
+			}
+		}
+	}
+
+	if apkAsset == nil {
+		fail(c, http.StatusNotFound, "该 GitHub Release 中未找到 .apk 安装包资产文件")
+		return
+	}
+
+	var updateInfo releaseUpdateJSON
+	hasUpdateJSON := false
+	if updateAsset != nil {
+		uReq, err := http.NewRequestWithContext(c.Request.Context(), "GET", updateAsset.BrowserDownloadURL, nil)
+		if err == nil {
+			uReq.Header.Set("User-Agent", "Melos-Backend")
+			if ghToken != "" {
+				uReq.Header.Set("Authorization", "Bearer "+ghToken)
+			}
+			if uResp, err := client.Do(uReq); err == nil {
+				if uResp.StatusCode == http.StatusOK {
+					if err := json.NewDecoder(uResp.Body).Decode(&updateInfo); err == nil {
+						hasUpdateJSON = true
+					}
+				}
+				uResp.Body.Close()
+			}
+		}
+	}
+
+	var versionCode int64
+	var versionName string
+	var changelog string
+	var forceUpdate bool
+	var expectedHash string
+
+	if hasUpdateJSON {
+		versionCode = updateInfo.VersionCode
+		versionName = updateInfo.VersionName
+		changelog = updateInfo.UpdateLog
+		if changelog == "" {
+			changelog = rel.Body
+		}
+		forceUpdate = updateInfo.ForceUpdate
+		expectedHash = updateInfo.SHA256
+	} else {
+		versionName = strings.TrimPrefix(rel.TagName, "v")
+		changelog = rel.Body
+		codeStr := strings.ReplaceAll(versionName, ".", "")
+		if n, err := strconv.ParseInt(codeStr, 10, 64); err == nil {
+			versionCode = n
+		}
+	}
+
+	if versionCode <= 0 {
+		fail(c, http.StatusBadRequest, "未能从 Release 或 update.json 中解析出合法的 versionCode")
+		return
+	}
+	if versionName == "" {
+		versionName = fmt.Sprintf("v%s", rel.TagName)
+	}
+
+	if err := os.MkdirAll(s.cfg.APKDir, 0o755); err != nil {
+		s.fail500(c, err)
+		return
+	}
+
+	name := fmt.Sprintf("%d-%s.apk", versionCode, sanitizeUsernameSegment(versionName))
+	full := filepath.Join(s.cfg.APKDir, name)
+
+	// 下载 APK (流式下载并计算 SHA256)
+	downloadURL := apkAsset.BrowserDownloadURL
+	if s.cfg.GitHubProxyURL != "" {
+		downloadURL = strings.TrimRight(s.cfg.GitHubProxyURL, "/") + "/" + downloadURL
+	}
+
+	dlClient := &http.Client{Timeout: 10 * time.Minute}
+	dlReq, err := http.NewRequestWithContext(context.Background(), "GET", downloadURL, nil)
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+	dlReq.Header.Set("User-Agent", "Melos-Backend")
+	if ghToken != "" {
+		dlReq.Header.Set("Authorization", "Bearer "+ghToken)
+	}
+
+	dlResp, err := dlClient.Do(dlReq)
+	if err != nil {
+		fail(c, http.StatusBadGateway, fmt.Sprintf("下载 APK 失败: %v", err))
+		return
+	}
+	defer dlResp.Body.Close()
+
+	if dlResp.StatusCode != http.StatusOK {
+		fail(c, dlResp.StatusCode, fmt.Sprintf("下载 APK 响应异常 (HTTP %d)", dlResp.StatusCode))
+		return
+	}
+
+	tmpFile := full + ".tmp"
+	dst, err := os.Create(tmpFile)
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+
+	hasher := sha256.New()
+	size, copyErr := io.Copy(io.MultiWriter(dst, hasher), dlResp.Body)
+	closeErr := dst.Close()
+	if copyErr != nil || closeErr != nil {
+		_ = os.Remove(tmpFile)
+		s.fail500(c, fmt.Errorf("写入 APK 文件失败: %v", copyErr))
+		return
+	}
+
+	computedHash := hex.EncodeToString(hasher.Sum(nil))
+	if expectedHash != "" && !strings.EqualFold(expectedHash, computedHash) {
+		_ = os.Remove(tmpFile)
+		fail(c, http.StatusBadGateway, fmt.Sprintf("APK SHA-256 校验失败 (预期 %s，实际 %s)", expectedHash, computedHash))
+		return
+	}
+
+	if err := os.Rename(tmpFile, full); err != nil {
+		_ = os.Remove(tmpFile)
+		s.fail500(c, err)
+		return
+	}
+
+	// 自动清理服务器历史旧版本 APK，本地磁盘仅保留当前最新版！
+	prunedCount := pruneOldAPKs(s.cfg.APKDir, name)
+
+	ctx := c.Request.Context()
+	existing, err := s.store.FindVersionByCode(ctx, versionCode)
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+
+	var row *store.AppVersion
+	if existing == nil {
+		row, err = s.store.CreateVersion(ctx, store.CreateVersionParams{
+			VersionCode: versionCode,
+			VersionName: versionName,
+			ApkURL:      apkURLPrefix + name,
+			FileSize:    size,
+			HashSHA256:  computedHash,
+			Changelog:   changelog,
+			ForceUpdate: forceUpdate,
+			Enabled:     true,
+		})
+	} else {
+		enabled := true
+		row, err = s.store.UpdateVersion(ctx, existing.ID, store.UpdateVersionParams{
+			Changelog:   &changelog,
+			ForceUpdate: &forceUpdate,
+			Enabled:     &enabled,
+		})
+	}
+
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+
+	ok(c, gin.H{
+		"version":        row.Public(),
+		"prunedOldFiles": prunedCount,
+		"message":        fmt.Sprintf("已成功从 GitHub Release 同步最新版本 %s (#%d)，本地旧安装包已清理", versionName, versionCode),
+	})
+}
+
+// pruneOldAPKs removes all .apk files in dir except keepFileName,
+// ensuring only the latest release APK occupies disk space.
+func pruneOldAPKs(dir, keepFileName string) int {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	pruned := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(strings.ToLower(name), ".apk") && name != keepFileName {
+			if err := os.Remove(filepath.Join(dir, name)); err == nil {
+				pruned++
+			}
+		}
+	}
+	return pruned
 }
 
 // handleAdminUpdateVersion patches enabled / changelog / force_update.

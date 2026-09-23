@@ -244,3 +244,32 @@ func (s *Server) requireAdmin() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+func (s *Server) requireAdminOrReleaseToken() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := strings.TrimSpace(c.GetHeader("X-Release-Token"))
+		if token == "" {
+			if auth := strings.TrimSpace(c.GetHeader("Authorization")); strings.HasPrefix(auth, "Bearer ") {
+				cand := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+				if s.cfg.ReleaseToken != "" && cand == s.cfg.ReleaseToken {
+					token = cand
+				}
+			}
+		}
+		if s.cfg.ReleaseToken != "" && token != "" && token == s.cfg.ReleaseToken {
+			c.Next()
+			return
+		}
+
+		if !s.authenticate(c) {
+			c.Abort()
+			return
+		}
+		if u := currentUser(c); u == nil || u.Role != "admin" {
+			fail(c, http.StatusForbidden, "无权限访问：仅管理员可用")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}

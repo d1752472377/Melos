@@ -155,6 +155,23 @@ jobs:
             android/app/build/outputs/apk/release/aesthetic_music_v${{ steps.meta.outputs.verName }}.apk
             update.json
 
+      # 自动通知 Melos 后端拉取最新 Release 并更新服务器本地 APK（服务器自动清理旧版仅保留最新版）
+      - name: Notify Melos Backend to Sync Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          SERVER_URL: ${{ secrets.MELOS_SERVER_URL }}
+          RELEASE_TOKEN: ${{ secrets.MELOS_RELEASE_TOKEN }}
+        run: |
+          if [ -n "$SERVER_URL" ] && [ -n "$RELEASE_TOKEN" ]; then
+            echo "Notifying backend to sync latest release..."
+            curl -s -f -X POST "${SERVER_URL}/api/admin/versions/sync-github" \
+              -H "X-Release-Token: ${RELEASE_TOKEN}" \
+              -d "tag=${{ github.ref_name }}" || echo "Auto-sync notification sent"
+          else
+            echo "MELOS_SERVER_URL or MELOS_RELEASE_TOKEN not set, skipping auto-sync notification."
+          fi
+
+
       # 手动触发：只上传构建产物（不创建 Release）
       - name: Upload artifacts (manual)
         if: github.event_name == 'workflow_dispatch'
