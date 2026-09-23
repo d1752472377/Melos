@@ -31,6 +31,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.URLEncoder
+import java.util.Base64
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 object PlatformMusicService {
@@ -1717,7 +1719,55 @@ object PlatformMusicService {
         return CategoriesData(title = "分类歌单", categories = categories)
     }
 
-    suspend fun getLyric(song: Song): LyricData {
+    // ==================== 多平台歌词解析 ====================
+
+    internal fun unescapeLyric(text: String): String {
+        if (!text.contains("&")) return text
+        return text
+            .replace("&#10;", "\n")
+            .replace("&#13;", "\r")
+            .replace("&#58;", ":")
+            .replace("&#46;", ".")
+            .replace("&#32;", " ")
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+            .replace("&quot;", "\"")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+    }
+
+    internal fun decodeBase64OrPlain(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val trimmed = raw.trim()
+        val text = if (trimmed.startsWith("[")) {
+            trimmed
+        } else {
+            try {
+                val bytes = Base64.getDecoder().decode(trimmed)
+                val decoded = String(bytes, Charsets.UTF_8).trim()
+                if (decoded.contains("[") || decoded.isNotBlank()) decoded else trimmed
+            } catch (_: Exception) {
+                trimmed
+            }
+        }
+        return unescapeLyric(text).takeIf { it.isNotBlank() }
+    }
+
+    internal fun formatKuwoLrcList(lrclist: JsonArray): String {
+        val sb = StringBuilder()
+        for (item in lrclist) {
+            val obj = item.asJsonObject ?: continue
+            val timeSec = obj.get("time")?.asString?.toDoubleOrNull() ?: continue
+            val text = obj.get("lineLyric")?.asString.orEmpty()
+            val min = (timeSec / 60).toInt()
+            val sec = timeSec % 60
+            sb.append(String.format(Locale.US, "[%02d:%05.2f]%s\n", min, sec, text))
+        }
+        return sb.toString().trim()
+    }
+
+    private suspend fun getNeteaseLyric(song: Song): LyricData {
         return try {
             val url = "https://music.163.com/api/song/lyric?id=${URLEncoder.encode(song.id, "UTF-8")}&lv=-1&tv=-1"
             val root = getJson(url)
@@ -1726,13 +1776,154 @@ object PlatformMusicService {
             LyricData(
                 lyric = lrc,
                 translated = tlyric,
-                platform = song.platform,
+                platform = P_NETEASE,
                 sourceName = "官方直连"
             )
         } catch (e: Exception) {
-            Log.w(TAG, "Get lyric failed for song ${song.id}: ${e.message}")
-            LyricData()
+            Log.w(TAG, "Get Netease lyric failed for song ${song.id}: ${e.message}")
+            LyricData(platform = P_NETEASE)
         }
+    }
+
+    private suspend fun getQqLyric(song: Song): LyricData {
+        return try {
+            val safeMid = song.id.replace("\\", "\\\\").replace("\"", "\\\"")
+            val payload = """{"comm":{"ct":24,"cv":0},"lyric":{"module":"music.musichallSong.PlayLyricInfo","method":"GetPlayLyricInfo","param":{"songMID":"$safeMid","songID":0,"trans_t":0,"roma_t":0,"crypt":0}}}"""
+            val root = qqPost(payload)
+            val lyricObj = root.getAsJsonObject("lyric")?.getAsJsonObject("data")
+            var lrc = decodeBase64OrPlain(lyricObj?.get("lyric")?.asString)
+            var trans = decodeBase64OrPlain(lyricObj?.get("trans")?.asString)
+
+            if (lrc.isNullOrBlank()) {
+                val url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${URLEncoder.encode(song.id, "UTF-8")}&format=json&nobase64=1"
+                val req = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", BROWSER_UA)
+                    .header("Referer", "https://y.qq.com/")
+                    .build()
+                val resp = withContext(Dispatchers.IO) { httpClient.newCall(req).execute() }
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string().orEmpty()
+                    val webRoot = parseJson(url, stripJsonp(body))
+                    lrc = decodeBase64OrPlain(webRoot.get("lyric")?.asString)
+                    if (trans.isNullOrBlank()) {
+                        trans = decodeBase64OrPlain(webRoot.get("trans")?.asString)
+                    }
+                }
+            }
+
+            if (!lrc.isNullOrBlank()) {
+                LyricData(
+                    lyric = lrc,
+                    translated = trans,
+                    platform = P_QQ,
+                    sourceName = "官方直连"
+                )
+            } else {
+                LyricData(platform = P_QQ)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Get QQ lyric failed for song ${song.id}: ${e.message}")
+            LyricData(platform = P_QQ)
+        }
+    }
+
+    private suspend fun getKugouLyric(song: Song): LyricData {
+        return try {
+            var searchUrl = "http://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=&duration=&hash=${URLEncoder.encode(song.id, "UTF-8")}"
+            var root = kugouJson(searchUrl)
+            var candidates = root.getAsJsonArray("candidates")
+            if (candidates == null || candidates.size() == 0) {
+                val kw = "${song.title} ${song.artist}".trim()
+                if (kw.isNotBlank()) {
+                    searchUrl = "http://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=${URLEncoder.encode(kw, "UTF-8")}&duration=&hash="
+                    root = kugouJson(searchUrl)
+                    candidates = root.getAsJsonArray("candidates")
+                }
+            }
+            val first = candidates?.firstOrNull()?.asJsonObject
+            val id = first?.get("id")?.asString
+            val accesskey = first?.get("accesskey")?.asString
+            if (!id.isNullOrBlank() && !accesskey.isNullOrBlank()) {
+                val dlUrl = "http://lyrics.kugou.com/download?ver=1&client=pc&id=$id&accesskey=$accesskey&fmt=lrc&charset=utf8"
+                val dlRoot = kugouJson(dlUrl)
+                val rawContent = dlRoot.get("content")?.asString
+                val lrc = decodeBase64OrPlain(rawContent)
+                if (!lrc.isNullOrBlank()) {
+                    return LyricData(
+                        lyric = lrc,
+                        platform = P_KUGOU,
+                        sourceName = "官方直连"
+                    )
+                }
+            }
+            LyricData(platform = P_KUGOU)
+        } catch (e: Exception) {
+            Log.w(TAG, "Get Kugou lyric failed for song ${song.id}: ${e.message}")
+            LyricData(platform = P_KUGOU)
+        }
+    }
+
+    private suspend fun getKuwoLyric(song: Song): LyricData {
+        return try {
+            val url = "http://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${URLEncoder.encode(song.id, "UTF-8")}"
+            val body = kuwoBody(url)
+            val root = parseJson(url, body)
+            val lrclist = root.getAsJsonObject("data")?.getAsJsonArray("lrclist")
+            if (lrclist != null && lrclist.size() > 0) {
+                val lrc = formatKuwoLrcList(lrclist)
+                if (lrc.isNotBlank()) {
+                    return LyricData(
+                        lyric = lrc,
+                        platform = P_KUWO,
+                        sourceName = "官方直连"
+                    )
+                }
+            }
+            LyricData(platform = P_KUWO)
+        } catch (e: Exception) {
+            Log.w(TAG, "Get Kuwo lyric failed for song ${song.id}: ${e.message}")
+            LyricData(platform = P_KUWO)
+        }
+    }
+
+    private suspend fun searchFallbackLyric(song: Song): LyricData {
+        val kw = "${song.title} ${song.artist}".trim()
+        if (kw.isBlank()) return LyricData(platform = song.platform)
+        return try {
+            val searchRoot = cloudSearch(kw, type = 1, limit = 5)
+            val songs = searchRoot.getAsJsonObject("result")?.getAsJsonArray("songs")
+            val candidate = songs?.firstOrNull()?.asJsonObject
+            val candidateId = candidate?.get("id")?.asString
+            if (!candidateId.isNullOrBlank()) {
+                val dummySong = Song(id = candidateId, title = song.title, artist = song.artist, platform = P_NETEASE)
+                val lyricData = getNeteaseLyric(dummySong)
+                if (!lyricData.lyric.isNullOrBlank()) {
+                    return lyricData.copy(
+                        platform = song.platform,
+                        sourceName = "网易云匹配"
+                    )
+                }
+            }
+            LyricData(platform = song.platform)
+        } catch (e: Exception) {
+            Log.w(TAG, "Fallback lyric search failed for ${song.title}: ${e.message}")
+            LyricData(platform = song.platform)
+        }
+    }
+
+    suspend fun getLyric(song: Song): LyricData {
+        val direct = when (song.platform.lowercase()) {
+            P_NETEASE, "wy", "163" -> getNeteaseLyric(song)
+            P_QQ, "tx", "tencent" -> getQqLyric(song)
+            P_KUGOU, "kg" -> getKugouLyric(song)
+            P_KUWO, "kw" -> getKuwoLyric(song)
+            else -> LyricData(platform = song.platform)
+        }
+        if (!direct.lyric.isNullOrBlank()) {
+            return direct
+        }
+        return searchFallbackLyric(song)
     }
 
     fun getDirectSongUrl(song: Song, quality: String = "lossless"): SongUrlData {
