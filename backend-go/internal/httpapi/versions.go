@@ -26,7 +26,9 @@ const apkURLPrefix = "/api/app/download/"
 // registerVersionPublic mounts the unauthenticated client-facing endpoints.
 func (s *Server) registerVersionPublic(r *gin.Engine) {
 	r.GET("/api/app/version/latest", s.handleAppLatestVersion)
+	r.HEAD("/api/app/version/latest", s.handleAppLatestVersion)
 	r.GET("/api/app/download/:file", s.handleAppDownload)
+	r.HEAD("/api/app/download/:file", s.handleAppDownload)
 }
 
 // registerVersionAdmin mounts the admin console endpoints for releases.
@@ -240,9 +242,11 @@ func (s *Server) handleAdminCreateVersion(c *gin.Context) {
 }
 
 type gitHubAsset struct {
+	ID                 int64  `json:"id"`
 	Name               string `json:"name"`
 	Size               int64  `json:"size"`
 	BrowserDownloadURL string `json:"browser_download_url"`
+	URL                string `json:"url"`
 }
 
 type gitHubRelease struct {
@@ -339,9 +343,21 @@ func (s *Server) handleAdminSyncGitHub(c *gin.Context) {
 	var updateInfo releaseUpdateJSON
 	hasUpdateJSON := false
 	if updateAsset != nil {
-		uReq, err := http.NewRequestWithContext(c.Request.Context(), "GET", updateAsset.BrowserDownloadURL, nil)
+		updateURL := updateAsset.BrowserDownloadURL
+		isAssetAPI := false
+		if ghToken != "" && updateAsset.URL != "" {
+			updateURL = updateAsset.URL
+			isAssetAPI = true
+		} else if s.cfg.GitHubProxyURL != "" {
+			updateURL = strings.TrimRight(s.cfg.GitHubProxyURL, "/") + "/" + updateURL
+		}
+
+		uReq, err := http.NewRequestWithContext(c.Request.Context(), "GET", updateURL, nil)
 		if err == nil {
 			uReq.Header.Set("User-Agent", "Melos-Backend")
+			if isAssetAPI {
+				uReq.Header.Set("Accept", "application/octet-stream")
+			}
 			if ghToken != "" {
 				uReq.Header.Set("Authorization", "Bearer "+ghToken)
 			}
@@ -398,7 +414,11 @@ func (s *Server) handleAdminSyncGitHub(c *gin.Context) {
 
 	// 下载 APK (流式下载并计算 SHA256)
 	downloadURL := apkAsset.BrowserDownloadURL
-	if s.cfg.GitHubProxyURL != "" {
+	isAssetAPI := false
+	if ghToken != "" && apkAsset.URL != "" {
+		downloadURL = apkAsset.URL
+		isAssetAPI = true
+	} else if s.cfg.GitHubProxyURL != "" {
 		downloadURL = strings.TrimRight(s.cfg.GitHubProxyURL, "/") + "/" + downloadURL
 	}
 
@@ -409,6 +429,9 @@ func (s *Server) handleAdminSyncGitHub(c *gin.Context) {
 		return
 	}
 	dlReq.Header.Set("User-Agent", "Melos-Backend")
+	if isAssetAPI {
+		dlReq.Header.Set("Accept", "application/octet-stream")
+	}
 	if ghToken != "" {
 		dlReq.Header.Set("Authorization", "Bearer "+ghToken)
 	}
