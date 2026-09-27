@@ -526,6 +526,10 @@ object UserApiEngine {
                         obj.get("url")?.asString
                             ?: obj.getAsJsonObject("data")?.get("url")?.asString
                             ?: obj.get("musicUrl")?.asString
+                            ?: obj.get("lyric")?.asString
+                            ?: obj.getAsJsonObject("data")?.get("lyric")?.asString
+                            ?: obj.get("lrc")?.asString
+                            ?: obj.getAsJsonObject("data")?.get("lrc")?.asString
                     }
                     else -> resultElem.toString()
                 }

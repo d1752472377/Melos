@@ -1,5 +1,16 @@
 import { useState, useEffect } from "react";
-import { Card, Col, Row, Statistic, Typography, Button, Tag, Space, Descriptions } from "antd";
+import {
+  Card,
+  Col,
+  Row,
+  Statistic,
+  Typography,
+  Button,
+  Tag,
+  Space,
+  Descriptions,
+  theme,
+} from "antd";
 import {
   UserOutlined,
   DatabaseOutlined,
@@ -12,24 +23,51 @@ import {
   HeartOutlined,
   HistoryOutlined,
   UnorderedListOutlined,
+  PlayCircleOutlined,
+  CloseCircleOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
+import { useGetIdentity } from "@refinedev/core";
 import { request, versionApi, AppVersion } from "../../providers/api";
 
 const { Title, Text } = Typography;
 
+interface HealthData {
+  ok: boolean;
+  time: number;
+  version: string;
+}
+
+interface IdentityUser {
+  id?: number;
+  name?: string;
+  username?: string;
+  nickname?: string;
+  avatar?: string;
+  role?: string;
+}
+
 export const DashboardPage = () => {
+  const { data: identityUser } = useGetIdentity<IdentityUser>();
+  const { token } = theme.useToken();
+  const navigate = useNavigate();
+
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncData, setSyncData] = useState<any>(null);
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [latestVersion, setLatestVersion] = useState<AppVersion | null>(null);
-  const navigate = useNavigate();
+
+  // 后端健康状态探针
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
+  const [healthLatency, setHealthLatency] = useState<number | null>(null);
+  const [healthError, setHealthError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    setSyncLoading(true);
 
-    // 获取系统总用户数
+    // 1. 获取系统总用户数
     request<{ items: any[]; total: number }>("/admin/users?limit=1")
       .then((res) => {
         if (active && res.code === 200 && res.data) {
@@ -38,7 +76,32 @@ export const DashboardPage = () => {
       })
       .catch(() => {});
 
-    // 获取当前管理员自身同步数据
+    // 2. 探针检测后端服务健康度
+    const checkHealth = async () => {
+      setHealthLoading(true);
+      const startTime = performance.now();
+      try {
+        const res = await request<HealthData>("/health");
+        const latency = Math.round(performance.now() - startTime);
+        if (active) {
+          if (res.code === 200 && res.data?.ok) {
+            setHealthData(res.data);
+            setHealthLatency(latency);
+            setHealthError(false);
+          } else {
+            setHealthError(true);
+          }
+        }
+      } catch {
+        if (active) setHealthError(true);
+      } finally {
+        if (active) setHealthLoading(false);
+      }
+    };
+    checkHealth();
+
+    // 3. 获取当前管理员账号个人同步数据概览
+    setSyncLoading(true);
     request("/sync/pull?since=0&eventSince=0")
       .then((res) => {
         if (active && res.code === 200 && res.data) {
@@ -50,7 +113,7 @@ export const DashboardPage = () => {
         if (active) setSyncLoading(false);
       });
 
-    // 获取最新 APK 发布版本
+    // 4. 获取最新 APK 发布版本
     versionApi
       .getLatest()
       .then((res) => {
@@ -65,14 +128,26 @@ export const DashboardPage = () => {
     };
   }, []);
 
-  const userStr = localStorage.getItem("user");
-  const user = userStr ? JSON.parse(userStr) : null;
+  const localUserStr = localStorage.getItem("user");
+  const localUser = localUserStr ? JSON.parse(localUserStr) : null;
+  const adminName =
+    identityUser?.nickname ||
+    identityUser?.username ||
+    identityUser?.name ||
+    localUser?.nickname ||
+    localUser?.username ||
+    localUser?.name ||
+    "管理员";
 
   const favoritesCount = syncData?.favorites?.length || 0;
   const historyCount = syncData?.history?.length || 0;
   const playlistsCount = syncData?.playlists?.length || 0;
   const eventsCount = syncData?.playEvents?.length || 0;
-  const totalSyncRecords = favoritesCount + historyCount + playlistsCount + (syncData?.playlistSongs?.length || 0);
+  const totalSyncRecords =
+    favoritesCount +
+    historyCount +
+    playlistsCount +
+    (syncData?.playlistSongs?.length || 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -127,7 +202,7 @@ export const DashboardPage = () => {
           <Card bordered style={{ borderRadius: 10, borderColor: "#e2e8f0" }}>
             <Statistic
               title={<span style={{ fontWeight: 600, color: "#64748b" }}>当前管理员</span>}
-              value={user?.nickname || user?.username || "管理员"}
+              value={adminName}
               prefix={<UserOutlined style={{ color: "#7c3aed", marginRight: 8 }} />}
               valueStyle={{ fontWeight: 700, color: "#0f172a" }}
             />
@@ -148,16 +223,38 @@ export const DashboardPage = () => {
 
         <Col xs={24} sm={12} lg={6}>
           <Card bordered style={{ borderRadius: 10, borderColor: "#e2e8f0" }}>
-            <Statistic
-              title={<span style={{ fontWeight: 600, color: "#64748b" }}>最新发布版本</span>}
-              value={latestVersion ? latestVersion.version_name || latestVersion.versionName : "暂无发布"}
-              prefix={<RocketOutlined style={{ color: "#e11d48", marginRight: 8 }} />}
-              valueStyle={{
-                fontWeight: 700,
-                color: "#0f172a",
-                fontSize: latestVersion ? 22 : 18,
-              }}
-            />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ color: "#64748b", fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                  服务健康状态
+                </div>
+                <div style={{ fontSize: 20, fontWeight: "bold", display: "flex", alignItems: "center", gap: 8, height: 32 }}>
+                  {healthLoading ? (
+                    <SyncOutlined spin style={{ fontSize: 18, color: token.colorPrimary }} />
+                  ) : healthError ? (
+                    <>
+                      <CloseCircleOutlined style={{ color: "#ef4444" }} />
+                      <span style={{ color: "#ef4444", fontSize: 18 }}>异常 / 离线</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlayCircleOutlined style={{ color: "#10b981" }} />
+                      <span style={{ color: "#10b981", fontSize: 18 }}>运行正常</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              {!healthError && healthData && (
+                <div style={{ textAlign: "right" }}>
+                  <Tag color="blue">v{healthData.version}</Tag>
+                  {healthLatency !== null && (
+                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+                      {healthLatency} ms
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </Card>
         </Col>
       </Row>
@@ -229,7 +326,10 @@ export const DashboardPage = () => {
               <Descriptions.Item label="最近收藏示例" span={2}>
                 {syncData?.favorites && syncData.favorites.length > 0 ? (
                   <span>
-                    {syncData.favorites.slice(0, 3).map((f: any) => f.title || f.name || f.songId || f.id).join("、")}
+                    {syncData.favorites
+                      .slice(0, 3)
+                      .map((f: any) => f.title || f.name || f.songId || f.id)
+                      .join("、")}
                     {syncData.favorites.length > 3 ? " 等..." : ""}
                   </span>
                 ) : (

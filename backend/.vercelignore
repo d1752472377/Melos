@@ -1,9 +1,0 @@
-# Vercel 部署排除项（项目根 = backend/）
-node_modules
-data
-.env
-*.mjs
-diag-*.mjs
-test
-src.bak.*
-src_new_tmp

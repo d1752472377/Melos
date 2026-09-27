@@ -8,8 +8,7 @@ data/
 .env
 
 # 构建产物
-melos-backend
-melos-backend.exe
+melos-backend*
 
 # 构建产物（交叉编译）
 .deploy/melos-backend-linux-amd64

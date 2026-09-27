@@ -31,6 +31,8 @@ import {
   CopyOutlined,
   FileZipOutlined,
   MobileOutlined,
+  GithubOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { versionApi, AppVersion } from "../../providers/api";
 
@@ -40,6 +42,7 @@ export const VersionsPage: React.FC = () => {
   const [versions, setVersions] = useState<AppVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [syncGithubLoading, setSyncGithubLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -80,6 +83,24 @@ export const VersionsPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // 从 GitHub 同步最新 Release
+  const handleSyncGitHub = async () => {
+    setSyncGithubLoading(true);
+    try {
+      const res = await versionApi.syncGitHub();
+      if (res.code === 200) {
+        message.success(res.data?.message || "已成功从 GitHub Release 同步最新版本并清理旧包");
+        fetchData();
+      } else {
+        message.error(res.msg || "同步失败，请检查 GitHub Release 是否存在");
+      }
+    } catch (err: any) {
+      message.error(err.message || "请求失败");
+    } finally {
+      setSyncGithubLoading(false);
+    }
+  };
 
   // 格式化文件大小
   const formatSize = (bytes: number) => {
@@ -142,7 +163,6 @@ export const VersionsPage: React.FC = () => {
     setPublishing(true);
     try {
       const formData = new FormData();
-      // 先追加文本元数据，再追加大文件流
       formData.append("versionCode", String(values.versionCode));
       formData.append("versionName", values.versionName.trim());
       formData.append("forceUpdate", values.forceUpdate ? "true" : "false");
@@ -391,6 +411,7 @@ export const VersionsPage: React.FC = () => {
             <Popconfirm
               title="确定要删除该版本吗？"
               description="删除后服务器上的安装包文件也将被彻底移除！"
+              icon={<ExclamationCircleOutlined style={{ color: "red" }} />}
               okText="确定删除"
               cancelText="取消"
               okButtonProps={{ danger: true }}
@@ -445,6 +466,18 @@ export const VersionsPage: React.FC = () => {
           >
             打开公开下载页
           </Button>
+          <Popconfirm
+            title="从 GitHub 同步最新 Release？"
+            description="服务端将直连 GitHub 拉取最新 Release APK 与 update.json，下载后自动清理本地旧版 APK（仅保留最新版）。"
+            icon={<GithubOutlined style={{ color: "#1677ff" }} />}
+            onConfirm={handleSyncGitHub}
+            okText="开始同步"
+            cancelText="取消"
+          >
+            <Button icon={<GithubOutlined />} loading={syncGithubLoading}>
+              从 GitHub 同步最新版
+            </Button>
+          </Popconfirm>
           <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
             刷新列表
           </Button>
@@ -650,7 +683,9 @@ export const VersionsPage: React.FC = () => {
             current: page,
             pageSize,
             total,
+            showTotal: (t) => `共 ${t} 个版本`,
             showSizeChanger: true,
+            pageSizeOptions: ["10", "20", "50"],
             onChange: (p, ps) => {
               setPage(p);
               setPageSize(ps);

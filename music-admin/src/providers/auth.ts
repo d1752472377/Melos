@@ -94,52 +94,6 @@ export const authProvider: AuthProvider = {
     }
   },
 
-  register: async (params: any) => {
-    try {
-      const username = params?.username || "";
-      const password = params?.password || "";
-      const nickname = params?.nickname || "";
-
-      if (!username || !password) {
-        return {
-          success: false,
-          error: { name: "RegisterError", message: "请输入用户名和密码" },
-        };
-      }
-
-      const res = await fetch(`${API_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username,
-          password,
-          nickname: nickname || undefined,
-          deviceName: "Admin",
-        }),
-      });
-
-      const json: AuthResponse = await res.json();
-
-      if (json.code === 200 && json.data?.token) {
-        saveSession(json.data.token, json.data.user);
-        return { success: true, redirectTo: "/" };
-      }
-
-      const msg =
-        json.code === 409 ? "用户名已存在" : json.msg || "注册失败，请重试";
-      return {
-        success: false,
-        error: { name: "RegisterError", message: msg },
-      };
-    } catch (error) {
-      console.error("Register error:", error);
-      return {
-        success: false,
-        error: { name: "NetworkError", message: "无法连接到服务器，请检查后端是否运行" },
-      };
-    }
-  },
-
   logout: async () => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
