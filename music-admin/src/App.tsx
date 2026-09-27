@@ -20,6 +20,7 @@ import routerProvider, {
 } from "@refinedev/react-router";
 import { dataProvider } from "./providers/data";
 import { ColorModeContextProvider } from "./contexts/color-mode";
+import { CustomSider } from "./components";
 import { Header } from "./components/header";
 import { authProvider } from "./providers/auth";
 import { DashboardPage } from "./pages/dashboard";
@@ -27,15 +28,30 @@ import { Login } from "./pages/login";
 import { SyncPage } from "./pages/sync";
 import { UsersPage } from "./pages/users";
 import { ProfilePage } from "./pages/profile";
+import { VersionsPage } from "./pages/versions";
+import { DownloadPage } from "./pages/download";
 
-import { DashboardOutlined, SyncOutlined, TeamOutlined } from "@ant-design/icons";
+import {
+  DashboardOutlined,
+  SyncOutlined,
+  TeamOutlined,
+  AndroidOutlined,
+} from "@ant-design/icons";
 
 function App() {
   return (
     <BrowserRouter>
       <RefineKbarProvider>
         <ColorModeContextProvider>
-          <ConfigProvider theme={{ token: { colorPrimary: "#1677ff" } }}>
+          <ConfigProvider
+            theme={{
+              token: {
+                colorPrimary: "#4f46e5",
+                borderRadius: 8,
+                fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              },
+            }}
+          >
             <AntdApp>
               <DevtoolsProvider>
                 <Refine
@@ -55,6 +71,11 @@ function App() {
                       meta: { label: "用户管理", icon: <TeamOutlined /> },
                     },
                     {
+                      name: "versions",
+                      list: "/versions",
+                      meta: { label: "版本发布", icon: <AndroidOutlined /> },
+                    },
+                    {
                       name: "sync",
                       list: "/sync",
                       meta: { label: "同步监控", icon: <SyncOutlined /> },
@@ -70,7 +91,7 @@ function App() {
                     <Route
                       element={
                         <Authenticated key="authenticated-routes" fallback={<CatchAllNavigate to="/login" />}>
-                          <ThemedLayout Header={Header} Sider={ThemedSider}>
+                          <ThemedLayout Header={Header} Sider={CustomSider}>
                             <Outlet />
                           </ThemedLayout>
                         </Authenticated>
@@ -78,9 +99,13 @@ function App() {
                     >
                       <Route index element={<DashboardPage />} />
                       <Route path="/users" element={<UsersPage />} />
+                      <Route path="/versions" element={<VersionsPage />} />
                       <Route path="/profile" element={<ProfilePage />} />
                       <Route path="/sync" element={<SyncPage />} />
                     </Route>
+
+                    {/* 公开下载落地页（适配手机与PC） */}
+                    <Route path="/download" element={<DownloadPage />} />
 
                     <Route
                       element={
@@ -95,7 +120,7 @@ function App() {
                     <Route
                       element={
                         <Authenticated key="authenticated-error">
-                          <ThemedLayout Header={Header} Sider={ThemedSider}>
+                          <ThemedLayout Header={Header} Sider={CustomSider}>
                             <Outlet />
                           </ThemedLayout>
                         </Authenticated>

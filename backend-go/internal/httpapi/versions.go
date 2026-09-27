@@ -117,6 +117,7 @@ func (s *Server) handleAdminCreateVersion(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
+		log.Printf("[melos-backend] 读取上传的 APK 失败: %v", err)
 		if isBodyTooLarge(err) {
 			fail(c, http.StatusRequestEntityTooLarge, fmt.Sprintf("APK 文件过大（上限 %dMB）", s.cfg.APKMaxMB))
 			return

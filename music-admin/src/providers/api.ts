@@ -4,6 +4,7 @@ export interface ApiResponse<T = any> {
   code: number;
   data?: T;
   msg?: string;
+  headers?: Headers;
 }
 
 export async function request<T = any>(
@@ -36,8 +37,10 @@ export async function request<T = any>(
     if (!res.ok) {
       throw new Error(`请求失败 (${res.status})`);
     }
-    return { code: res.status } as ApiResponse<T>;
+    return { code: res.status, headers: res.headers } as ApiResponse<T>;
   }
+
+  json.headers = res.headers;
 
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
@@ -52,3 +55,77 @@ export async function request<T = any>(
 
   return json;
 }
+
+export interface AppVersion {
+  id: number;
+  version_code: number;
+  versionCode: number;
+  version_name: string;
+  versionName: string;
+  apk_url: string;
+  apkUrl: string;
+  file_size: number;
+  fileSize: number;
+  hash_sha256: string;
+  hashSha256: string;
+  changelog: string;
+  force_update: boolean;
+  forceUpdate: boolean;
+  enabled: boolean;
+  created_at: string;
+  createdAt: string;
+}
+
+export const versionApi = {
+  list: async (params: { page?: number; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.append("page", String(params.page));
+    if (params.limit) query.append("limit", String(params.limit));
+    const res = await request<{ items: AppVersion[]; total: number; page: number; limit: number }>(
+      `/admin/versions?${query.toString()}`
+    );
+    const totalCountHeader = res.headers?.get("x-total-count");
+    const total = totalCountHeader ? parseInt(totalCountHeader, 10) : res.data?.total || 0;
+    return {
+      items: res.data?.items || [],
+      total,
+      page: res.data?.page || params.page || 1,
+      limit: res.data?.limit || params.limit || 10,
+    };
+  },
+
+  create: async (formData: FormData) => {
+    return request<AppVersion>("/admin/versions", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  update: async (
+    id: number,
+    data: { enabled?: boolean; forceUpdate?: boolean; changelog?: string }
+  ) => {
+    return request<AppVersion>(`/admin/versions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: number) => {
+    return request(`/admin/versions/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  getLatest: async () => {
+    return request<AppVersion | null>("/app/version/latest");
+  },
+
+  getDownloadUrl: (apkUrl: string) => {
+    if (apkUrl.startsWith("http")) return apkUrl;
+    // apkUrl is typically "/api/app/download/:file"
+    const prefix = API_URL.endsWith("/api") ? API_URL.slice(0, -4) : API_URL;
+    return `${prefix}${apkUrl.startsWith("/") ? "" : "/"}${apkUrl}`;
+  },
+};
+
