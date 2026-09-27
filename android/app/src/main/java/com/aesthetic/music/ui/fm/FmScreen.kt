@@ -838,9 +838,6 @@ private fun FmFullLyricsView(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 24.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { onCloseLyrics() })
-            }
     ) {
         if (lyrics.isNotEmpty()) {
             MelosLyricsView(
