@@ -96,7 +96,7 @@ class MelosMediaNotificationProvider(private val context: Context) : MediaNotifi
             .setContentTitle(song?.title ?: "Melos")
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
-            .setOngoing(isPlaying)
+            .setOngoing(isPlaying || (state.isLoading && song != null))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)

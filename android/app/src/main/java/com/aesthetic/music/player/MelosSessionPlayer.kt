@@ -41,9 +41,25 @@ import androidx.media3.common.Player
 class MelosSessionPlayer(
     player: Player,
     private val hasQueueNavigation: () -> Boolean,
+    private val isLoading: () -> Boolean,
     private val onNext: () -> Unit,
     private val onPrevious: () -> Unit,
 ) : ForwardingPlayer(player) {
+
+    /**
+     * 当处于切歌/直链解析中（isLoading = true）时，对外伪装为 STATE_BUFFERING，
+     * 防止 Media3 在单曲播放结束（STATE_ENDED）与下一首就绪之间的间隙误判为播放终止，
+     * 进而导致后台前台服务被降级/关闭、网络请求被系统防火墙截断。
+     */
+    override fun getPlaybackState(): Int {
+        if (isLoading()) return Player.STATE_BUFFERING
+        return super.getPlaybackState()
+    }
+
+    override fun getPlayWhenReady(): Boolean {
+        if (isLoading()) return true
+        return super.getPlayWhenReady()
+    }
 
     /** 对系统声明可用的播放命令（媒体控件的按钮可用性就是按这个算的） */
     override fun getAvailableCommands(): Player.Commands {

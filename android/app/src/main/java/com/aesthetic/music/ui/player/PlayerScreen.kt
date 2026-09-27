@@ -55,6 +55,9 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
@@ -118,7 +121,7 @@ import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.PlayerBg
 import com.aesthetic.music.ui.theme.PlayerBgDark
 import com.aesthetic.music.ui.theme.Rose
-import com.mocharealm.accompanist.lyrics.ui.composable.lyrics.KaraokeLyricsView
+import com.aesthetic.music.ui.player.lyrics.MelosLyricsView
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
@@ -181,6 +184,7 @@ fun PlayerScreen(
     var showLyric by remember { mutableStateOf(true) }
     var showQueueSheet by remember { mutableStateOf(false) }
     var showControlCenterSheet by remember { mutableStateOf(false) }
+    var showAudioDetailSheet by remember { mutableStateOf(false) }
     var playerTheme by remember { mutableStateOf(SettingsStore.getPlayerTheme()) }
     var lyricFontSize by remember { mutableStateOf(SettingsStore.getLyricFontSize()) }
     var lyricBlurMode by remember { mutableStateOf(SettingsStore.getLyricBlurMode()) }
@@ -229,6 +233,8 @@ fun PlayerScreen(
             TopBar(
                 onClose = onClose,
                 onOpenControlCenter = { showControlCenterSheet = true },
+                onOpenAudioDetail = { showAudioDetailSheet = true },
+                audioFormatTag = state.audioSpec.format,
                 speed = state.speed,
                 sleepRemainingMs = state.sleepRemainingMs,
             )
@@ -339,41 +345,16 @@ fun PlayerScreen(
                     .fillMaxWidth()
             ) {
                 if (showLyric) {
-                    val synced = state.syncedLyrics
-                    if (synced != null && synced.lines.isNotEmpty()) {
-                        KaraokeLyricsView(
-                            listState = karaokeListState,
-                            lyrics = synced,
-                            currentPosition = currentPositionProvider,
-                            onSeek = onSeek,
-                            onToggleLyricMode = { showLyric = false },
-                            onLineClicked = { line -> onSeek(line.start.toLong()) },
-                            onLinePressed = { line -> onSeek(line.start.toLong()) },
-                            showTranslation = true,
-                            showPhonetic = false,
-                            textColor = Color.White,
-                            normalLineTextStyle = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = lyricFontSize.spSize.sp
-                            ),
-                            accompanimentLineTextStyle = MaterialTheme.typography.bodyLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = (lyricFontSize.spSize - 5).coerceAtLeast(14).sp
-                            ),
-                            useBlurEffect = (lyricBlurMode != LyricBlurMode.OFF),
-                            blurDelta = lyricBlurMode.maxBlurPx,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        LyricList(
-                            lyrics = state.lyrics,
-                            currentIndex = lyricIndex,
-                            fontSizeSp = lyricFontSize.spSize,
-                            onLyricClick = { line -> onSeekToLyric(line) },
-                            onToggleLyricMode = { showLyric = false },
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                    MelosLyricsView(
+                        lyrics = state.lyrics,
+                        currentPositionMs = { animatedPositionState.longValue },
+                        onSeek = onSeek,
+                        fontSizeSp = lyricFontSize.spSize,
+                        showTranslation = true,
+                        onToggleLyricMode = { showLyric = false },
+                        onLineLongClick = { showAudioDetailSheet = true },
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 } else {
                     AnimatedCoverBox(
                         artworkUrl = song?.artwork,
@@ -511,6 +492,16 @@ fun PlayerScreen(
                 bgBlurMode = it
                 SettingsStore.setBackgroundBlurMode(it)
             },
+            hazeState = hazeState,
+        )
+    }
+
+    if (showAudioDetailSheet) {
+        SongAudioDetailSheet(
+            onDismissRequest = { showAudioDetailSheet = false },
+            song = song,
+            audioSpec = state.audioSpec,
+            lyricSpec = state.lyricSpec,
             hazeState = hazeState,
         )
     }
@@ -737,12 +728,14 @@ private fun AnimatedCoverBox(
  * - 松手停稳后保持选中约 3.5 秒（期间不跟唱），随后平滑回正到当前播放行；
  * - 自动回正先等待进行中的惯性滚动自然结束，避免动画互相打断造成跳变。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LyricList(
     lyrics: List<LyricLine>,
     currentIndex: Int,
     fontSizeSp: Int = 22,
     onLyricClick: (LyricLine) -> Unit,
+    onLyricLongClick: (() -> Unit)? = null,
     onToggleLyricMode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -802,13 +795,14 @@ private fun LyricList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(
+                        .combinedClickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {
                                 userBrowsingUntil = 0L
                                 onLyricClick(line)
-                            }
+                            },
+                            onLongClick = onLyricLongClick
                         )
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                 ) {
@@ -1153,6 +1147,8 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
 private fun TopBar(
     onClose: () -> Unit,
     onOpenControlCenter: () -> Unit,
+    onOpenAudioDetail: () -> Unit,
+    audioFormatTag: String,
     speed: Float,
     sleepRemainingMs: Long,
 ) {
@@ -1175,8 +1171,39 @@ private fun TopBar(
             letterSpacing = 2.sp,
         )
 
-        // 右侧操作区：速度/定时微胶囊 + 液化中控胶囊
+        // 右侧操作区：规格胶囊 + 速度/定时微胶囊 + 液化中控胶囊
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // 实时规格胶囊 (点击直接打开音频技术规格与歌词元数据详情)
+            val displayTag = if (audioFormatTag.isNotBlank() && audioFormatTag != "—") audioFormatTag else "规格"
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onOpenAudioDetail)
+                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.GraphicEq,
+                        contentDescription = "音频技术规格",
+                        tint = AmberLight,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = displayTag,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        ),
+                        color = Color.White.copy(alpha = 0.92f),
+                    )
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+
             if (speed != 1f) {
                 PlayerChip(
                     icon = Icons.Filled.Speed,

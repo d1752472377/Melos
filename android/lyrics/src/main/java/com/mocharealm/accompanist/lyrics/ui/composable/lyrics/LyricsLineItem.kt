@@ -63,9 +63,9 @@ fun LyricsLineItem(
                 scaleY = scaleState
                 alpha = alphaState
                 transformOrigin = TransformOrigin(if (isRightAligned) 1f else 0f, 1f)
-                compositingStrategy = CompositingStrategy.Offscreen
 
                 val radius = blurRadius()
+                compositingStrategy = if (radius > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
                 if (radius > 0f) {
                     renderEffect = BlurEffect(
                         radiusX = radius,

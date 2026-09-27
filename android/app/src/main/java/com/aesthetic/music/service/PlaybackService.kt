@@ -81,10 +81,8 @@ class PlaybackService : MediaSessionService() {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                if (foregroundedWithId != NOTIFICATION_ID) {
-                    startForeground(NOTIFICATION_ID, buildForegroundNotification())
-                    foregroundedWithId = NOTIFICATION_ID
-                }
+                startForeground(NOTIFICATION_ID, buildForegroundNotification())
+                foregroundedWithId = NOTIFICATION_ID
             } catch (_: Exception) {
             }
         }
@@ -95,6 +93,8 @@ class PlaybackService : MediaSessionService() {
         val session = mediaSession
         val song = PlayerManager.get(this).state.value.currentSong
         val isPlaying = session?.player?.isPlaying ?: PlayerManager.get(this).state.value.isPlaying
+        val isLoading = PlayerManager.get(this).state.value.isLoading
+        val isOngoing = isPlaying || isLoading
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
@@ -105,7 +105,7 @@ class PlaybackService : MediaSessionService() {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(song?.title ?: "Melos")
             .setContentText(song?.artist ?: "本地播放")
-            .setOngoing(isPlaying)
+            .setOngoing(isOngoing)
             .setContentIntent(contentIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -208,6 +208,17 @@ class PlaybackService : MediaSessionService() {
                 val signature = "${song?.platform}:${song?.id}|loading=${state.isLoading}|playing=${state.isPlaying}"
                 if (signature == lastSignature) return@collect
                 lastSignature = signature
+
+                // 当正在播放或正在切歌缓冲时，保持前台服务存活，防止后台切歌间隙服务被系统杀掉或网络被断
+                if ((state.isPlaying || state.isLoading) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    try {
+                        startForeground(NOTIFICATION_ID, buildForegroundNotification())
+                        foregroundedWithId = NOTIFICATION_ID
+                    } catch (e: Exception) {
+                        android.util.Log.w("PlaybackService", "保持前台服务失败: ${e.message}")
+                    }
+                }
+
                 // 新歌封面预取：解码完再补一次重绘，把封面补上
                 // （服务已销毁时 refreshCard 会因实例为空直接返回，这里无需再判断存活）
                 MediaCardArtwork.prefetch(this@PlaybackService, song?.artwork) {
