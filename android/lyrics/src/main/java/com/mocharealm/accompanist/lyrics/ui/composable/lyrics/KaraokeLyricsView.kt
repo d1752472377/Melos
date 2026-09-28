@@ -11,13 +11,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,7 +61,6 @@ import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.abs
 import androidx.compose.ui.layout.LookaheadScope
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -325,10 +322,31 @@ fun KaraokeLyricsView(
     // 期间绝不抢夺用户手指或突然强行回拉，给予充裕阅读时间；时间过后歌曲唱到新句子时平滑跟进
     var userBrowsingUntil by remember { mutableStateOf(0L) }
 
+    // 标记用户是否刚刚松手（用于触发独立的冷却倒计时协程）
+    var userJustReleasedScroll by remember { mutableStateOf(false) }
+
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-            if (scrolling) {
+            if (scrolling && !scrollInCode.value) {
+                // 用户主动滑动：延长保护期，取消冷却
                 userBrowsingUntil = System.currentTimeMillis() + 3500L
+                userJustReleasedScroll = false
+            } else if (!scrolling && !scrollInCode.value && userBrowsingUntil > 0L) {
+                // 松手：触发冷却倒计时
+                userJustReleasedScroll = true
+            }
+        }
+    }
+
+    // 松手后的独立冷却协程：到期后清除保护期
+    LaunchedEffect(userJustReleasedScroll) {
+        if (!userJustReleasedScroll) return@LaunchedEffect
+        userJustReleasedScroll = false
+        while (isActive) {
+            delay(200)
+            if (System.currentTimeMillis() >= userBrowsingUntil) {
+                userBrowsingUntil = 0L
+                break
             }
         }
     }
@@ -347,19 +365,19 @@ fun KaraokeLyricsView(
             .collect { firstIndex ->
                 val now = System.currentTimeMillis()
                 if (!scrollInCode.value && !listState.isScrollInProgress && now >= userBrowsingUntil) {
+                    val viewportHeight = listState.layoutInfo.viewportSize.height
                     val items = listState.layoutInfo.visibleItemsInfo
                     val targetItem = items.firstOrNull { it.index == firstIndex }
-                    val scrollOffset =
-                        (targetItem?.offset?.minus(listState.layoutInfo.viewportStartOffset + stableOffsetPx + keepAliveZonePx))
                     try {
                         scrollInCode.value = true
-                        if (scrollOffset != null) {
-                            listState.scrollBy(scrollOffset)
+                        if (targetItem != null) {
+                            // 精确居中：scrollOffset = -(viewportH/2 - itemH/2)
+                            // 让 item 中心对齐视口中心，使用平滑动画
+                            val centeredOffset = -(viewportHeight / 2 - targetItem.size / 2)
+                            listState.animateScrollToItem(firstIndex, centeredOffset)
                         } else {
-                            listState.animateScrollToItem(
-                                firstIndex,
-                                0
-                            )
+                            // item 不在可见范围：animateScrollToItem 跳到附近
+                            listState.animateScrollToItem(firstIndex, 0)
                         }
                     } catch (_: Exception) {
                     } finally {
@@ -370,7 +388,10 @@ fun KaraokeLyricsView(
     }
     LookaheadScope {
         Crossfade(lyrics) { lyrics ->
-            Box(modifier = modifier.clipToBounds()) {
+            // BoxWithConstraints 提供实际视口尺寸，用于动态计算 contentPadding：
+            // 上下各留半屏，确保首行和末行都能滚动到正中央，不再依赖固定 Spacer 或 layout hack
+            androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier.clipToBounds()) {
+                val halfViewport = maxHeight / 2
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -393,25 +414,10 @@ fun KaraokeLyricsView(
                                     blendMode = BlendMode.DstIn
                                 )
                             }
-                        }
-                        .layout { measurable, constraints ->
-                            val extraHeightPx = (keepAliveZone * 2).roundToPx()
-
-                            val placeable = measurable.measure(
-                                constraints.copy(
-                                    maxHeight = constraints.maxHeight + extraHeightPx
-                                )
-                            )
-
-                            layout(constraints.maxWidth, constraints.maxHeight) {
-                                placeable.place(0, -(keepAliveZone.roundToPx()))
-                            }
                         },
-                    contentPadding = PaddingValues(vertical = stableOffset + keepAliveZone)
+                    // 用动态半视口高度替代旧的 (stableOffset + keepAliveZone) + 160dp Spacer 组合
+                    contentPadding = PaddingValues(vertical = halfViewport)
                 ) {
-                    item("TopSpacing") {
-                        Spacer(modifier = Modifier.fillMaxWidth().height(160.dp))
-                    }
                     itemsIndexed(
                         items = lyrics.lines,
                         key = { index, line -> "${line.start}-${line.end}-$index" }
@@ -559,11 +565,6 @@ fun KaraokeLyricsView(
                                 }
                             }
                         }
-                    }
-                    item("BottomSpacing") {
-                        Spacer(
-                            modifier = Modifier.fillMaxWidth().height(260.dp)
-                        )
                     }
                 }
             }

@@ -10,10 +10,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import com.aesthetic.music.player.currentLyricIndex
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -842,7 +839,9 @@ private fun FmFullLyricsView(
         if (lyrics.isNotEmpty()) {
             MelosLyricsView(
                 lyrics = lyrics,
-                currentPositionMs = { animatedPos.longValue },
+                activeIndexProvider = {
+                    currentLyricIndex(lyrics, animatedPos.longValue)
+                },
                 onSeek = onSeek,
                 fontSizeSp = 22,
                 showTranslation = true,
@@ -858,6 +857,7 @@ private fun FmFullLyricsView(
                 )
             }
         }
+
 
         // 浮动返回黑胶标签
         Row(
