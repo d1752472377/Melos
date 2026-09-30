@@ -79,6 +79,8 @@ export interface AppVersion {
   enabled: boolean;
   created_at: string;
   createdAt: string;
+  has_local_file?: boolean;
+  hasLocalFile?: boolean;
 }
 
 export const versionApi = {
@@ -133,11 +135,46 @@ export const versionApi = {
     );
   },
 
-  getDownloadUrl: (apkUrl: string) => {
+  getDownloadUrl: (apkUrl?: string) => {
+    if (!apkUrl) return "";
     if (apkUrl.startsWith("http")) return apkUrl;
     // apkUrl is typically "/api/app/download/:file"
     const prefix = API_URL.endsWith("/api") ? API_URL.slice(0, -4) : API_URL;
     return `${prefix}${apkUrl.startsWith("/") ? "" : "/"}${apkUrl}`;
+  },
+};
+
+export interface SyncStats {
+  totalUsers: number;
+  syncUsers: number;
+  totalFavorites: number;
+  totalPlaylists: number;
+  totalPlaylistSongs: number;
+  totalHistory: number;
+  totalDownloads: number;
+  totalScripts: number;
+  totalPlayEvents: number;
+  recentPlayEvents: number;
+}
+
+export interface SyncGlobalEvent {
+  id: number;
+  userId: number;
+  username: string;
+  eventId: string;
+  deviceId: string;
+  platform: string;
+  songId: string;
+  title: string;
+  artist: string;
+  listenedMs: number;
+  listenedAtMs: number;
+  updatedAtMs: number;
+}
+
+export const syncAdminApi = {
+  getStats: async () => {
+    return request<{ stats: SyncStats; events: SyncGlobalEvent[]; time: number }>("/admin/sync/stats");
   },
 };
 

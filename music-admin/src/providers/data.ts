@@ -18,6 +18,13 @@ const { dataProvider: rawProvider, kyInstance } = createSimpleRestDataProvider({
   },
 });
 
+// 映射 Refine 资源名称到后端真实的 /admin/* 接口路径
+const mapResource = (resource: string) => {
+  if (resource === "users") return "admin/users";
+  if (resource === "versions") return "admin/versions";
+  return resource;
+};
+
 // 适配 Melos 后端的业务包裹响应 { code: 200, data: { items: [...], total: ... } }
 const adaptData = (raw: any) => {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
@@ -36,7 +43,10 @@ const adaptData = (raw: any) => {
 export const dataProvider: DataProvider = {
   ...rawProvider,
   getList: async (params) => {
-    const res = await rawProvider.getList(params);
+    const res = await rawProvider.getList({
+      ...params,
+      resource: mapResource(params.resource),
+    });
     let items = res.data;
     let total = res.total;
     if (items && typeof items === "object" && !Array.isArray(items)) {
@@ -51,19 +61,31 @@ export const dataProvider: DataProvider = {
     return { data: items as any, total };
   },
   getOne: async (params) => {
-    const res = await rawProvider.getOne(params);
+    const res = await rawProvider.getOne({
+      ...params,
+      resource: mapResource(params.resource),
+    });
     return { data: adaptData(res.data) };
   },
   create: async (params) => {
-    const res = await rawProvider.create(params);
+    const res = await rawProvider.create({
+      ...params,
+      resource: mapResource(params.resource),
+    });
     return { data: adaptData(res.data) };
   },
   update: async (params) => {
-    const res = await rawProvider.update(params);
+    const res = await rawProvider.update({
+      ...params,
+      resource: mapResource(params.resource),
+    });
     return { data: adaptData(res.data) };
   },
   deleteOne: async (params) => {
-    const res = await rawProvider.deleteOne(params);
+    const res = await rawProvider.deleteOne({
+      ...params,
+      resource: mapResource(params.resource),
+    });
     return { data: adaptData(res.data) };
   },
 };

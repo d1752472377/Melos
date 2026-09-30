@@ -841,3 +841,83 @@ func (s *Store) pullEvents(ctx context.Context, userID, eventSince int64, res *P
 	res.NextEventID = nextEventID
 	return nil
 }
+
+// GlobalSyncStats contains aggregate sync health metrics across all users.
+type GlobalSyncStats struct {
+	TotalUsers         int64 `json:"totalUsers"`
+	SyncUsers          int64 `json:"syncUsers"`
+	TotalFavorites     int64 `json:"totalFavorites"`
+	TotalPlaylists     int64 `json:"totalPlaylists"`
+	TotalPlaylistSongs int64 `json:"totalPlaylistSongs"`
+	TotalHistory       int64 `json:"totalHistory"`
+	TotalDownloads     int64 `json:"totalDownloads"`
+	TotalScripts       int64 `json:"totalScripts"`
+	TotalPlayEvents    int64 `json:"totalPlayEvents"`
+	RecentPlayEvents   int64 `json:"recentPlayEvents"`
+}
+
+// GlobalSyncEvent is an audit record of a user's recent listening activity.
+type GlobalSyncEvent struct {
+	ID           int64  `json:"id"`
+	UserID       int64  `json:"userId"`
+	Username     string `json:"username"`
+	EventID      string `json:"eventId"`
+	DeviceID     string `json:"deviceId"`
+	Platform     string `json:"platform"`
+	SongID       string `json:"songId"`
+	Title        string `json:"title"`
+	Artist       string `json:"artist"`
+	ListenedMs   int64  `json:"listenedMs"`
+	ListenedAtMs int64  `json:"listenedAtMs"`
+	UpdatedAtMs  int64  `json:"updatedAtMs"`
+}
+
+// GetGlobalSyncStats queries aggregate counts from all sync tables.
+func (s *Store) GetGlobalSyncStats(ctx context.Context, nowMs int64) (*GlobalSyncStats, error) {
+	st := &GlobalSyncStats{}
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&st.TotalUsers)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_state WHERE sync_seq > 0`).Scan(&st.SyncUsers)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM favorites WHERE deleted = 0`).Scan(&st.TotalFavorites)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM playlists WHERE deleted = 0`).Scan(&st.TotalPlaylists)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM playlist_songs WHERE deleted = 0`).Scan(&st.TotalPlaylistSongs)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM history WHERE deleted = 0`).Scan(&st.TotalHistory)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM downloads WHERE deleted = 0`).Scan(&st.TotalDownloads)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_scripts WHERE deleted = 0`).Scan(&st.TotalScripts)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM play_events`).Scan(&st.TotalPlayEvents)
+
+	oneDayAgo := nowMs - 24*60*60*1000
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM play_events WHERE listened_at_ms >= ?`, oneDayAgo).Scan(&st.RecentPlayEvents)
+
+	return st, nil
+}
+
+// ListRecentGlobalEvents returns the newest play events across all users for monitoring.
+func (s *Store) ListRecentGlobalEvents(ctx context.Context, limit int) ([]GlobalSyncEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 30
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.id, e.user_id, COALESCE(NULLIF(u.nickname, ''), u.username, '用户#' || e.user_id),
+		       e.event_id, e.device_id, e.platform, e.song_id, e.title, e.artist,
+		       e.listened_ms, e.listened_at_ms, e.updated_at_ms
+		FROM play_events e
+		LEFT JOIN users u ON u.id = e.user_id
+		ORDER BY e.id DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []GlobalSyncEvent
+	for rows.Next() {
+		var ev GlobalSyncEvent
+		if err := rows.Scan(&ev.ID, &ev.UserID, &ev.Username, &ev.EventID, &ev.DeviceID, &ev.Platform,
+			&ev.SongID, &ev.Title, &ev.Artist, &ev.ListenedMs, &ev.ListenedAtMs, &ev.UpdatedAtMs); err != nil {
+			return nil, err
+		}
+		events = append(events, ev)
+	}
+	return events, rows.Err()
+}

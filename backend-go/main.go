@@ -47,18 +47,21 @@ func main() {
 	server := httpapi.NewServer(cfg, st)
 	engine := server.Router()
 
-	// Startup cleanup: expired sessions + play events older than 180 days.
-	now := time.Now().UnixMilli()
-	if n, err := st.PruneExpiredSessions(ctx, now); err != nil {
-		log.Printf("[melos-backend] 清理过期会话失败: %v", err)
-	} else if n > 0 {
-		log.Printf("[melos-backend] 启动清理：过期会话 %d 条", n)
-	}
-	if n, err := st.PruneOldPlayEvents(ctx, 180, now); err != nil {
-		log.Printf("[melos-backend] 清理旧听歌明细失败: %v", err)
-	} else if n > 0 {
-		log.Printf("[melos-backend] 启动清理：旧听歌明细 %d 条", n)
-	}
+	// Startup cleanup + periodic background cleaner (every 24h).
+	runPrune(ctx, st)
+	stopPrune := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				runPrune(context.Background(), st)
+			case <-stopPrune:
+				return
+			}
+		}
+	}()
 
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
 	httpSrv := &http.Server{
@@ -77,11 +80,26 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
+	close(stopPrune)
 	log.Printf("[melos-backend] 正在关闭...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("[melos-backend] 关闭超时: %v", err)
+	}
+}
+
+func runPrune(ctx context.Context, st *store.Store) {
+	now := time.Now().UnixMilli()
+	if n, err := st.PruneExpiredSessions(ctx, now); err != nil {
+		log.Printf("[melos-backend] 清理过期会话失败: %v", err)
+	} else if n > 0 {
+		log.Printf("[melos-backend] 清理过期会话 %d 条", n)
+	}
+	if n, err := st.PruneOldPlayEvents(ctx, 180, now); err != nil {
+		log.Printf("[melos-backend] 清理旧听歌明细失败: %v", err)
+	} else if n > 0 {
+		log.Printf("[melos-backend] 清理旧听歌明细 %d 条", n)
 	}
 }

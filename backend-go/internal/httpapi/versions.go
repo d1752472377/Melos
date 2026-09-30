@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,19 @@ import (
 
 // apkURLPrefix is the public download path stored in app_versions.apk_url.
 const apkURLPrefix = "/api/app/download/"
+
+func (s *Server) enrichVersionPublic(v *store.AppVersion) map[string]any {
+	if v == nil {
+		return nil
+	}
+	m := v.Public()
+	apkFile := strings.TrimPrefix(v.ApkURL, apkURLPrefix)
+	_, statErr := os.Stat(filepath.Join(s.cfg.APKDir, apkFile))
+	hasLocal := statErr == nil
+	m["has_local_file"] = hasLocal
+	m["hasLocalFile"] = hasLocal
+	return m
+}
 
 // registerVersionPublic mounts the unauthenticated client-facing endpoints.
 func (s *Server) registerVersionPublic(r *gin.Engine) {
@@ -109,7 +123,7 @@ func (s *Server) handleAdminListVersions(c *gin.Context) {
 	}
 	mapped := make([]map[string]any, 0, len(items))
 	for _, v := range items {
-		mapped = append(mapped, v.Public())
+		mapped = append(mapped, s.enrichVersionPublic(v))
 	}
 	c.Header("x-total-count", strconv.FormatInt(total, 10))
 	ok(c, gin.H{"items": mapped, "total": total, "page": page, "limit": limit})
@@ -240,7 +254,7 @@ func (s *Server) handleAdminCreateVersion(c *gin.Context) {
 		s.fail500(c, err)
 		return
 	}
-	ok(c, row.Public())
+	ok(c, s.enrichVersionPublic(row))
 }
 
 type gitHubAsset struct {
@@ -516,29 +530,44 @@ func (s *Server) handleAdminSyncGitHub(c *gin.Context) {
 	}
 
 	ok(c, gin.H{
-		"version":        row.Public(),
+		"version":        s.enrichVersionPublic(row),
 		"prunedOldFiles": prunedCount,
 		"message":        fmt.Sprintf("已成功从 GitHub Release 同步最新版本 %s (#%d)，本地旧安装包已清理", versionName, versionCode),
 	})
 }
 
-// pruneOldAPKs removes all .apk files in dir except keepFileName,
-// ensuring only the latest release APK occupies disk space.
+// pruneOldAPKs keeps keepFileName plus up to 2 other newest .apk files,
+// ensuring disk space is reclaimed while retaining recently published versions.
 func pruneOldAPKs(dir, keepFileName string) int {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return 0
 	}
-	pruned := 0
+	type apkEntry struct {
+		name    string
+		modTime time.Time
+	}
+	var others []apkEntry
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
 		name := entry.Name()
 		if strings.HasSuffix(strings.ToLower(name), ".apk") && name != keepFileName {
-			if err := os.Remove(filepath.Join(dir, name)); err == nil {
-				pruned++
+			info, err := entry.Info()
+			if err == nil {
+				others = append(others, apkEntry{name: name, modTime: info.ModTime()})
 			}
+		}
+	}
+	sort.Slice(others, func(i, j int) bool {
+		return others[i].modTime.After(others[j].modTime)
+	})
+	const maxOthers = 2
+	pruned := 0
+	for i := maxOthers; i < len(others); i++ {
+		if err := os.Remove(filepath.Join(dir, others[i].name)); err == nil {
+			pruned++
 		}
 	}
 	return pruned
@@ -600,7 +629,7 @@ func (s *Server) handleAdminUpdateVersion(c *gin.Context) {
 		s.fail500(c, err)
 		return
 	}
-	ok(c, updated.Public())
+	ok(c, s.enrichVersionPublic(updated))
 }
 
 // handleAdminDeleteVersion removes the row and its local APK file.
@@ -626,7 +655,11 @@ func (s *Server) handleAppLatestVersion(c *gin.Context) {
 		s.fail500(c, err)
 		return
 	}
-	ok(c, row.Public())
+	if row == nil {
+		ok(c, nil)
+		return
+	}
+	ok(c, s.enrichVersionPublic(row))
 }
 
 // handleAppDownload serves a stored APK file (public).
@@ -639,7 +672,7 @@ func (s *Server) handleAppDownload(c *gin.Context) {
 	full := filepath.Join(s.cfg.APKDir, name)
 	info, err := os.Stat(full)
 	if err != nil || info.IsDir() {
-		fail(c, http.StatusNotFound, "文件不存在")
+		fail(c, http.StatusNotFound, "该版本的安装包文件已从服务器归档移除或不存在，请下载最新版本")
 		return
 	}
 	c.Header("Content-Type", "application/vnd.android.package-archive")

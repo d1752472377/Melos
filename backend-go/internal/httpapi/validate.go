@@ -85,12 +85,14 @@ func validateRegister(username string, password, nickname any) string {
 	return ""
 }
 
-// isEmailConflict detects a UNIQUE violation on users.email.
+// isEmailConflict detects a UNIQUE violation on users.email or idx_users_email.
 func isEmailConflict(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "unique constraint failed: users.email")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique constraint failed: users.email") ||
+		strings.Contains(msg, "idx_users_email")
 }
 
 // randomInt returns a uniform random int in [min, max).

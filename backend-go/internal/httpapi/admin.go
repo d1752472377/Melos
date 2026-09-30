@@ -20,6 +20,7 @@ func (s *Server) registerAdmin(r *gin.Engine) {
 	r.POST("/api/admin/users", admin, s.handleAdminCreateUser)
 	r.PUT("/api/admin/users/:id", admin, s.handleAdminUpdateUser)
 	r.DELETE("/api/admin/users/:id", admin, s.handleAdminDeleteUser)
+	r.GET("/api/admin/sync/stats", admin, s.handleAdminSyncStats)
 	s.registerVersionAdmin(r, admin)
 }
 
@@ -298,4 +299,24 @@ func (s *Server) handleAdminDeleteUser(c *gin.Context) {
 		return
 	}
 	okMsg(c, "用户已删除")
+}
+
+func (s *Server) handleAdminSyncStats(c *gin.Context) {
+	ctx := c.Request.Context()
+	now := time.Now().UnixMilli()
+	stats, err := s.store.GetGlobalSyncStats(ctx, now)
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+	events, err := s.store.ListRecentGlobalEvents(ctx, 50)
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+	ok(c, gin.H{
+		"stats":  stats,
+		"events": events,
+		"time":   now,
+	})
 }

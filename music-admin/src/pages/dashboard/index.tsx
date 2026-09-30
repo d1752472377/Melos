@@ -29,7 +29,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useGetIdentity } from "@refinedev/core";
-import { request, versionApi, AppVersion } from "../../providers/api";
+import { request, versionApi, syncAdminApi, AppVersion, SyncStats } from "../../providers/api";
 
 const { Title, Text } = Typography;
 
@@ -54,7 +54,7 @@ export const DashboardPage = () => {
   const navigate = useNavigate();
 
   const [syncLoading, setSyncLoading] = useState(false);
-  const [syncData, setSyncData] = useState<any>(null);
+  const [syncStats, setSyncStats] = useState<SyncStats | null>(null);
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [latestVersion, setLatestVersion] = useState<AppVersion | null>(null);
 
@@ -100,12 +100,16 @@ export const DashboardPage = () => {
     };
     checkHealth();
 
-    // 3. 获取当前管理员账号个人同步数据概览
+    // 3. 获取全站真实数据同步统计概览
     setSyncLoading(true);
-    request("/sync/pull?since=0&eventSince=0")
+    syncAdminApi
+      .getStats()
       .then((res) => {
-        if (active && res.code === 200 && res.data) {
-          setSyncData(res.data);
+        if (active && res.code === 200 && res.data?.stats) {
+          setSyncStats(res.data.stats);
+          if (res.data.stats.totalUsers !== undefined) {
+            setTotalUsers(res.data.stats.totalUsers);
+          }
         }
       })
       .catch(() => {})
@@ -139,15 +143,16 @@ export const DashboardPage = () => {
     localUser?.name ||
     "管理员";
 
-  const favoritesCount = syncData?.favorites?.length || 0;
-  const historyCount = syncData?.history?.length || 0;
-  const playlistsCount = syncData?.playlists?.length || 0;
-  const eventsCount = syncData?.playEvents?.length || 0;
-  const totalSyncRecords =
-    favoritesCount +
-    historyCount +
-    playlistsCount +
-    (syncData?.playlistSongs?.length || 0);
+  const totalUsersCount = totalUsers !== null ? totalUsers : (syncStats?.totalUsers ?? "-");
+  const syncUsersCount = syncStats ? syncStats.syncUsers : "-";
+  const favoritesCount = syncStats?.totalFavorites || 0;
+  const playlistsCount = syncStats?.totalPlaylists || 0;
+  const playlistSongsCount = syncStats?.totalPlaylistSongs || 0;
+  const historyCount = syncStats?.totalHistory || 0;
+  const playEventsCount = syncStats?.totalPlayEvents || 0;
+  const recentEventsCount = syncStats?.recentPlayEvents || 0;
+  const downloadsCount = syncStats?.totalDownloads || 0;
+  const scriptsCount = syncStats?.totalScripts || 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -191,7 +196,7 @@ export const DashboardPage = () => {
           <Card bordered style={{ borderRadius: 10, borderColor: "#e2e8f0" }}>
             <Statistic
               title={<span style={{ fontWeight: 600, color: "#64748b" }}>系统总用户数</span>}
-              value={totalUsers !== null ? totalUsers : "-"}
+              value={totalUsersCount}
               prefix={<TeamOutlined style={{ color: "#4f46e5", marginRight: 8 }} />}
               valueStyle={{ fontWeight: 700, color: "#0f172a" }}
             />
@@ -201,9 +206,10 @@ export const DashboardPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card bordered style={{ borderRadius: 10, borderColor: "#e2e8f0" }}>
             <Statistic
-              title={<span style={{ fontWeight: 600, color: "#64748b" }}>当前管理员</span>}
-              value={adminName}
-              prefix={<UserOutlined style={{ color: "#7c3aed", marginRight: 8 }} />}
+              title={<span style={{ fontWeight: 600, color: "#64748b" }}>多端同步活跃用户</span>}
+              value={syncUsersCount}
+              prefix={<CloudSyncOutlined style={{ color: "#7c3aed", marginRight: 8 }} />}
+              loading={syncLoading}
               valueStyle={{ fontWeight: 700, color: "#0f172a" }}
             />
           </Card>
@@ -212,9 +218,9 @@ export const DashboardPage = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card bordered style={{ borderRadius: 10, borderColor: "#e2e8f0" }}>
             <Statistic
-              title={<span style={{ fontWeight: 600, color: "#64748b" }}>当前账号同步记录数</span>}
-              value={totalSyncRecords}
-              prefix={<DatabaseOutlined style={{ color: "#059669", marginRight: 8 }} />}
+              title={<span style={{ fontWeight: 600, color: "#64748b" }}>全站云端歌曲收藏</span>}
+              value={favoritesCount}
+              prefix={<HeartOutlined style={{ color: "#059669", marginRight: 8 }} />}
               loading={syncLoading}
               valueStyle={{ fontWeight: 700, color: "#0f172a" }}
             />
@@ -267,7 +273,7 @@ export const DashboardPage = () => {
             title={
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <CloudSyncOutlined style={{ color: "#4f46e5" }} />
-                <span>管理员账号数据同步概况</span>
+                <span>全站云端数据同步概况</span>
               </div>
             }
             extra={
@@ -281,7 +287,7 @@ export const DashboardPage = () => {
               <Col span={6}>
                 <Card size="small" style={{ background: "#f8fafc", borderRadius: 8 }}>
                   <Statistic
-                    title="收藏歌曲"
+                    title="收藏曲目"
                     value={favoritesCount}
                     prefix={<HeartOutlined style={{ color: "#ef4444" }} />}
                   />
@@ -290,7 +296,7 @@ export const DashboardPage = () => {
               <Col span={6}>
                 <Card size="small" style={{ background: "#f8fafc", borderRadius: 8 }}>
                   <Statistic
-                    title="播放列表"
+                    title="云端歌单"
                     value={playlistsCount}
                     prefix={<UnorderedListOutlined style={{ color: "#3b82f6" }} />}
                   />
@@ -308,8 +314,8 @@ export const DashboardPage = () => {
               <Col span={6}>
                 <Card size="small" style={{ background: "#f8fafc", borderRadius: 8 }}>
                   <Statistic
-                    title="播放事件"
-                    value={eventsCount}
+                    title="听歌总打点"
+                    value={playEventsCount}
                     prefix={<CustomerServiceOutlined style={{ color: "#10b981" }} />}
                   />
                 </Card>
@@ -317,24 +323,17 @@ export const DashboardPage = () => {
             </Row>
 
             <Descriptions size="small" bordered column={2}>
-              <Descriptions.Item label="同步版本号">
-                {syncData?.version ?? 0}
+              <Descriptions.Item label="24小时内听歌打点">
+                <Tag color="cyan">{recentEventsCount} 次</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="歌单内歌曲总数">
-                {syncData?.playlistSongs?.length || 0}
+                {playlistSongsCount} 首
               </Descriptions.Item>
-              <Descriptions.Item label="最近收藏示例" span={2}>
-                {syncData?.favorites && syncData.favorites.length > 0 ? (
-                  <span>
-                    {syncData.favorites
-                      .slice(0, 3)
-                      .map((f: any) => f.title || f.name || f.songId || f.id)
-                      .join("、")}
-                    {syncData.favorites.length > 3 ? " 等..." : ""}
-                  </span>
-                ) : (
-                  <Text type="secondary">暂无收藏记录</Text>
-                )}
+              <Descriptions.Item label="离线下载记录总数">
+                {downloadsCount} 条
+              </Descriptions.Item>
+              <Descriptions.Item label="自定义音源脚本">
+                {scriptsCount} 个
               </Descriptions.Item>
             </Descriptions>
           </Card>

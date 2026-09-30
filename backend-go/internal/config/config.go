@@ -68,7 +68,7 @@ func Load() *Config {
 		SessionTTLDays:     intEnv("SESSION_TTL_DAYS", 90, 1),
 		MaxSessionsPerUser: intEnv("MAX_SESSIONS_PER_USER", 10, 1),
 		MailServiceURL:     envOr("MAIL_SERVICE_URL", "https://mail.dovislab.com"),
-		MailAdminAuth:      envOr("MAIL_ADMIN_AUTH", "REDACTED"),
+		MailAdminAuth:      envOr("MAIL_ADMIN_AUTH", ""),
 		MailFromAddress:    envOr("MAIL_FROM_ADDRESS", "melos@dovislab.com"),
 		MailFromName:       envOr("MAIL_FROM_NAME", "Melos 音乐"),
 		APKDir:             envOr("APK_DIR", "data/apk"),

@@ -25,6 +25,8 @@ import {
   DeleteOutlined,
   CrownOutlined,
   InfoCircleOutlined,
+  MailOutlined,
+  CopyOutlined,
 } from "@ant-design/icons";
 import { useGetIdentity } from "@refinedev/core";
 import { request } from "../../providers/api";
@@ -36,6 +38,7 @@ interface UserItem {
   username: string;
   nickname: string;
   avatar: string;
+  email?: string;
   role: "admin" | "user";
   created_at: number;
   updated_at: number;
@@ -259,6 +262,32 @@ export const UsersPage: React.FC = () => {
       render: (text: string) => text || "-",
     },
     {
+      title: "绑定邮箱",
+      dataIndex: "email",
+      key: "email",
+      width: 200,
+      render: (email: string) =>
+        email ? (
+          <Space size={4}>
+            <Text style={{ fontSize: 13 }}>{email}</Text>
+            <Tooltip title="复制完整邮箱">
+              <Button
+                type="text"
+                size="small"
+                icon={<CopyOutlined style={{ fontSize: 12, color: "#94a3b8" }} />}
+                onClick={() => {
+                  navigator.clipboard.writeText(email);
+                  message.success("邮箱已复制");
+                }}
+                style={{ padding: "0 2px", height: 20 }}
+              />
+            </Tooltip>
+          </Space>
+        ) : (
+          <Tag color="default">未绑定</Tag>
+        ),
+    },
+    {
       title: "角色权限",
       dataIndex: "role",
       key: "role",
@@ -297,6 +326,7 @@ export const UsersPage: React.FC = () => {
                   nickname: record.nickname,
                   avatar: record.avatar,
                   role: record.role,
+                  email: record.email || "",
                 });
                 setEditModalVisible(true);
               }}
@@ -371,7 +401,7 @@ export const UsersPage: React.FC = () => {
       <Card style={{ marginBottom: 16 }}>
         <Space wrap size="middle">
           <Input
-            placeholder="搜索用户名或昵称"
+            placeholder="搜索用户名、昵称或邮箱"
             prefix={<SearchOutlined />}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -382,7 +412,7 @@ export const UsersPage: React.FC = () => {
               setSearchQuery("");
               setPage(1);
             }}
-            style={{ width: 240 }}
+            style={{ width: 260 }}
           />
           <Select
             placeholder="角色筛选"
@@ -492,6 +522,9 @@ export const UsersPage: React.FC = () => {
             rules={[{ max: 24, message: "昵称最长 24 字" }]}
           >
             <Input placeholder="用户昵称" />
+          </Form.Item>
+          <Form.Item name="email" label="绑定邮箱">
+            <Input disabled prefix={<MailOutlined />} placeholder="未绑定邮箱" />
           </Form.Item>
           <Form.Item name="avatar" label="头像 URL">
             <Input placeholder="头像图片直链（选填）" />

@@ -297,7 +297,7 @@ func (s *Store) CreateSession(ctx context.Context, userID int64, tokenHash, devi
 func (s *Store) FindSessionByTokenHash(ctx context.Context, tokenHash string) (*SessionUser, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT s.id, s.user_id, s.token_hash, s.device_name, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at,
-		        u.id, u.username, u.password_hash, u.salt, u.nickname, u.avatar, '', u.role, u.email, u.created_at, u.updated_at
+		        u.id, u.username, u.password_hash, u.salt, u.nickname, u.avatar, u.background, u.role, u.email, u.created_at, u.updated_at
 		 FROM sessions s JOIN users u ON u.id = s.user_id
 		 WHERE s.token_hash = ?`, tokenHash)
 

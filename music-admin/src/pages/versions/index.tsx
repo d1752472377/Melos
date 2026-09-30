@@ -130,13 +130,13 @@ export const VersionsPage: React.FC = () => {
       const parsedName = `v${vMatch[1]}`;
       form.setFieldsValue({ versionName: parsedName });
 
-      // 智能生成构建号：例如 2.0.0 -> 200, 2.1.3 -> 213
+      // 智能生成构建号：例如 2.0.0 -> 20000, 2.1.3 -> 20103, 避免低版本号碰撞
       const parts = vMatch[1].split(".").map((p) => parseInt(p, 10) || 0);
       if (parts.length >= 2) {
         const major = parts[0];
         const minor = parts[1];
         const patch = parts[2] || 0;
-        const calcCode = major * 100 + minor * 10 + patch;
+        const calcCode = major * 10000 + minor * 100 + patch;
         if (calcCode > 0 && !form.getFieldValue("versionCode")) {
           form.setFieldsValue({ versionCode: calcCode });
         }
@@ -388,14 +388,16 @@ export const VersionsPage: React.FC = () => {
       align: "right",
       render: (_, r) => {
         const downloadUrl = versionApi.getDownloadUrl(r.apk_url || r.apkUrl);
+        const hasFile = r.has_local_file ?? r.hasLocalFile ?? true;
         return (
           <Space size={4}>
-            <Tooltip title="下载 APK 文件">
+            <Tooltip title={hasFile ? "下载 APK 文件" : "该历史版本安装包已被服务器归档清理，仅保留发布记录"}>
               <Button
                 type="text"
                 size="small"
-                icon={<DownloadOutlined style={{ color: "#4f46e5" }} />}
-                href={downloadUrl}
+                disabled={!hasFile}
+                icon={<DownloadOutlined style={{ color: hasFile ? "#4f46e5" : "#cbd5e1" }} />}
+                href={hasFile ? downloadUrl : undefined}
                 target="_blank"
                 download
               />
