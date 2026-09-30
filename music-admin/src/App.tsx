@@ -7,11 +7,10 @@ import {
   ErrorComponent,
   useNotificationProvider,
   ThemedLayout,
-  ThemedSider,
 } from "@refinedev/antd";
 import "@refinedev/antd/dist/reset.css";
 
-import { App as AntdApp, Spin } from "antd";
+import { App as AntdApp, ConfigProvider, Spin } from "antd";
 import { BrowserRouter, Route, Routes, Outlet } from "react-router-dom";
 import routerProvider, {
   NavigateToResource,
@@ -23,11 +22,12 @@ import {
   DashboardOutlined,
   SyncOutlined,
   TeamOutlined,
-  CloudUploadOutlined,
+  AndroidOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/data";
 import { ColorModeContextProvider } from "./contexts/color-mode";
+import { CustomSider } from "./components";
 import { Header } from "./components/header";
 import { authProvider } from "./providers/auth";
 
@@ -46,6 +46,9 @@ const SyncPage = React.lazy(() =>
 );
 const ProfilePage = React.lazy(() =>
   import("./pages/profile").then((m) => ({ default: m.ProfilePage }))
+);
+const DownloadPage = React.lazy(() =>
+  import("./pages/download").then((m) => ({ default: m.DownloadPage }))
 );
 const Login = React.lazy(() =>
   import("./pages/login").then((m) => ({ default: m.Login }))
@@ -80,7 +83,7 @@ function AppContent() {
         {
           name: "versions",
           list: "/versions",
-          meta: { label: "版本发布", icon: <CloudUploadOutlined /> },
+          meta: { label: "版本发布", icon: <AndroidOutlined /> },
         },
         {
           name: "sync",
@@ -99,7 +102,7 @@ function AppContent() {
           <Route
             element={
               <Authenticated key="authenticated-routes" fallback={<CatchAllNavigate to="/login" />}>
-                <ThemedLayout Header={Header} Sider={ThemedSider}>
+                <ThemedLayout Header={Header} Sider={CustomSider}>
                   <Outlet />
                 </ThemedLayout>
               </Authenticated>
@@ -111,6 +114,9 @@ function AppContent() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/sync" element={<SyncPage />} />
           </Route>
+
+          {/* 公开下载落地页（适配手机与PC） */}
+          <Route path="/download" element={<DownloadPage />} />
 
           <Route
             element={
@@ -125,7 +131,7 @@ function AppContent() {
           <Route
             element={
               <Authenticated key="authenticated-error">
-                <ThemedLayout Header={Header} Sider={ThemedSider}>
+                <ThemedLayout Header={Header} Sider={CustomSider}>
                   <Outlet />
                 </ThemedLayout>
               </Authenticated>
@@ -148,16 +154,26 @@ function App() {
     <BrowserRouter>
       <RefineKbarProvider>
         <ColorModeContextProvider>
-          <AntdApp>
-            {isDev ? (
-              <DevtoolsProvider>
+          <ConfigProvider
+            theme={{
+              token: {
+                colorPrimary: "#4f46e5",
+                borderRadius: 8,
+                fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              },
+            }}
+          >
+            <AntdApp>
+              {isDev ? (
+                <DevtoolsProvider>
+                  <AppContent />
+                  <DevtoolsPanel />
+                </DevtoolsProvider>
+              ) : (
                 <AppContent />
-                <DevtoolsPanel />
-              </DevtoolsProvider>
-            ) : (
-              <AppContent />
-            )}
-          </AntdApp>
+              )}
+            </AntdApp>
+          </ConfigProvider>
         </ColorModeContextProvider>
       </RefineKbarProvider>
     </BrowserRouter>

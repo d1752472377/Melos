@@ -10,10 +10,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import com.aesthetic.music.player.currentLyricIndex
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -142,8 +139,8 @@ import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.fmGlass
 import com.aesthetic.music.ui.theme.fmOn
+import com.aesthetic.music.ui.player.lyrics.MelosLyricsView
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
-import com.mocharealm.accompanist.lyrics.ui.composable.lyrics.KaraokeLyricsView
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
@@ -838,70 +835,29 @@ private fun FmFullLyricsView(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 24.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { onCloseLyrics() })
-            }
     ) {
-        if (syncedLyrics != null && syncedLyrics.lines.isNotEmpty()) {
-            KaraokeLyricsView(
-                listState = listState,
-                lyrics = syncedLyrics,
-                currentPosition = { animatedPos.longValue.toInt() },
-                onLineClicked = { line -> onSeek(line.start.toLong()) },
-                onLinePressed = { line -> onSeek(line.start.toLong()) },
+        if (lyrics.isNotEmpty()) {
+            MelosLyricsView(
+                lyrics = lyrics,
+                activeIndexProvider = {
+                    currentLyricIndex(lyrics, animatedPos.longValue)
+                },
+                onSeek = onSeek,
+                fontSizeSp = 22,
                 showTranslation = true,
-                showPhonetic = false,
-                textColor = fmOn(),
-                normalLineTextStyle = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp
-                ),
-                accompanimentLineTextStyle = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
-                ),
-                useBlurEffect = true,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (lyrics.isNotEmpty()) {
-            val activeIdx = currentLyricIndex(lyrics, progress.positionMs)
-            LaunchedEffect(activeIdx) {
-                if (activeIdx >= 0) {
-                    listState.animateScrollToItem((activeIdx - 2).coerceAtLeast(0))
-                }
-            }
-            LazyColumn(
-                state = listState,
+                onToggleLyricMode = onCloseLyrics,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                items(lyrics.size) { idx ->
-                    val line = lyrics[idx]
-                    val isCurrent = (idx == activeIdx)
-                    Text(
-                        text = line.text,
-                        color = if (isCurrent) fmOn() else fmOn(0.4f),
-                        fontSize = if (isCurrent) 20.sp else 16.sp,
-                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSeekToLyric(line) }
-                            .padding(vertical = 4.dp)
-                    )
-                }
-            }
+            )
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "暂无逐字歌词 · 随旋律漫游",
+                    text = "暂无歌词 · 随旋律漫游",
                     color = fmOn(0.5f),
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
+
 
         // 浮动返回黑胶标签
         Row(

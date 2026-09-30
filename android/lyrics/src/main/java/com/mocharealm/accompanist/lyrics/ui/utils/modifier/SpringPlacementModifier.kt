@@ -36,10 +36,11 @@ class SpringPlacementModifierNode(
     override fun Placeable.PlacementScope.isPlacementApproachInProgress(
         lookaheadCoordinates: LayoutCoordinates
     ): Boolean {
+        if (isManualScrolling) return false
         val target = with(lookaheadScope) {
             lookaheadScopeCoordinates.localLookaheadPositionOf(lookaheadCoordinates).round()
         }
-        -offsetAnimation.updateTarget(target, coroutineScope, if (isFirstFrame || isManualScrolling) snap() else spring(dampingRatio = 0.95f, stiffness = stiffness))
+        offsetAnimation.updateTarget(target, coroutineScope, if (isFirstFrame) snap() else spring(dampingRatio = 0.95f, stiffness = stiffness))
         return !offsetAnimation.isIdle
     }
 
@@ -48,6 +49,11 @@ class SpringPlacementModifierNode(
         constraints: Constraints
     ): MeasureResult {
         val placeable = measurable.measure(constraints)
+        if (isManualScrolling) {
+            return layout(placeable.width, placeable.height) {
+                placeable.place(0, 0)
+            }
+        }
         return layout(placeable.width, placeable.height) {
             val coordinates = coordinates
             if (coordinates != null) {
@@ -58,7 +64,7 @@ class SpringPlacementModifierNode(
                 val animatedOffset = offsetAnimation.updateTarget(
                     target,
                     coroutineScope,
-                    if (isFirstFrame || isManualScrolling) snap() else spring(dampingRatio = 0.95f, stiffness = stiffness)
+                    if (isFirstFrame) snap() else spring(dampingRatio = 0.95f, stiffness = stiffness)
                 )
 
                 isFirstFrame = false

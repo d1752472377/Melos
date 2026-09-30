@@ -4,8 +4,10 @@ import android.content.Context
 import android.media.AudioManager
 import android.media.AudioRecordingConfiguration
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -38,6 +40,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import androidx.media3.common.Format
+import androidx.media3.exoplayer.DecoderReuseEvaluation
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import com.aesthetic.music.data.source.SourceManager
+
 /** 播放模式（参考 App 的 PlayMode） */
 enum class PlayMode { SEQUENCE, REPEAT, SHUFFLE }
 
@@ -52,6 +59,54 @@ private const val FADE_STEP_MS = 30L
 data class PlaybackProgress(
     val positionMs: Long = 0,
     val durationMs: Long = 0,
+)
+
+/** 实时音频技术规格（对应播放页与详情面板） */
+@androidx.compose.runtime.Immutable
+data class AudioRealtimeSpec(
+    val format: String = "RAW",
+    val sampleRateHz: Int = 44100,
+    val bitDepth: Int = 16,
+    val bitrateKbps: Int = 0,
+    val channelCount: Int = 2,
+    val durationMs: Long = 0,
+    val decodeMode: String = "PCM 直通（未解码）",
+    val decoderName: String = "—",
+    val qualityRequested: String = "标准",
+    val sourceChannel: String = "LX 插件",
+    val sourcePlugin: String = "内置音源",
+) {
+    val sampleRateFormatted: String get() = if (sampleRateHz >= 1000) {
+        if (sampleRateHz % 1000 == 0) "${sampleRateHz / 1000} kHz"
+        else "%.1f kHz".format(sampleRateHz / 1000.0)
+    } else "$sampleRateHz Hz"
+
+    val bitDepthFormatted: String get() = if (bitDepth > 0) "$bitDepth bit" else "—"
+
+    val bitrateFormatted: String get() = if (bitrateKbps > 0) "$bitrateKbps kbps" else "—"
+
+    val channelCountFormatted: String get() = when (channelCount) {
+        1 -> "单声道"
+        2 -> "立体声"
+        else -> if (channelCount > 2) "$channelCount 声道" else "立体声"
+    }
+
+    val durationFormatted: String get() {
+        val totalSec = (durationMs / 1000).coerceAtLeast(0)
+        val m = totalSec / 60
+        val s = totalSec % 60
+        return "%d:%02d".format(m, s)
+    }
+}
+
+/** 歌词技术元数据与模式 */
+@androidx.compose.runtime.Immutable
+data class LyricMetaSpec(
+    val isKaraoke: Boolean = false,
+    val formatType: String = "LRC",
+    val loadChannel: String = "在线",
+    val matchSource: String = "本地",
+    val totalLines: Int = 0,
 )
 
 /** 播放器全局状态（歌级/低频状态；不含高频进度，见 [PlaybackProgress]） */
@@ -73,6 +128,10 @@ data class PlayerState(
     val speed: Float = 1f,
     /** 睡眠定时剩余毫秒；0 = 未开启 */
     val sleepRemainingMs: Long = 0,
+    /** 实时音频技术规格 */
+    val audioSpec: AudioRealtimeSpec = AudioRealtimeSpec(),
+    /** 实时歌词元数据规格 */
+    val lyricSpec: LyricMetaSpec = LyricMetaSpec(),
 ) {
     val currentSong: Song? get() = queue.getOrNull(currentIndex)
 }
@@ -87,8 +146,8 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     val player: ExoPlayer by lazy {
         // handleAudioFocus=true：来电/导航/其他 App 播放时自动让出焦点（暂停或降音量）；
-        // setHandleAudioBecomingNoisy(true)：拔耳机（AUDIO_BECOMING_NOISY）自动暂停。
-        // 此前两者均未启用：通话中/拔耳机后音乐会继续外放
+        // setHandleAudioBecomingNoisy(true)：拔耳机（AUDIO_BECOMING_NOISY）自动暂停；
+        // setWakeMode(C.WAKE_MODE_NETWORK)：后台播放时持有 CPU WakeLock 和 WifiLock，防止息屏时音频流中断。
         ExoPlayer.Builder(appContext)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -98,6 +157,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                 true,
             )
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .apply {
                 setPlaybackSpeed(SettingsStore.getPlaybackSpeed())
@@ -118,6 +178,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         MelosSessionPlayer(
             player,
             hasQueueNavigation = { _state.value.queue.size > 1 },
+            isLoading = { _state.value.isLoading },
             onNext = { next() },
             onPrevious = { previous() },
         )
@@ -166,6 +227,66 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     private val audioManager: AudioManager?
         get() = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+    private val powerManager: PowerManager?
+        get() = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+
+    private val wifiManager: WifiManager?
+        get() = appContext.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+
+    private var transitionWakeLock: PowerManager.WakeLock? = null
+    private var transitionWifiLock: WifiManager.WifiLock? = null
+
+    /**
+     * 在切歌/解析直链过渡期获取锁（CPU WakeLock + WifiLock），
+     * 避免手机锁屏或 App 切后台时系统进入 Deep Sleep（Doze），
+     * 导致 QuickJS 执行脚本、OkHttp 调度网络请求被系统防火墙截断或超时（15s）。
+     * 带 45 秒超时兜底，杜绝永久持锁耗电。
+     */
+    private fun acquireTransitionLock() {
+        try {
+            if (transitionWakeLock == null) {
+                transitionWakeLock = powerManager?.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "melos:transition_wakelock",
+                )?.apply { setReferenceCounted(false) }
+            }
+            transitionWakeLock?.acquire(45_000L)
+        } catch (e: Exception) {
+            android.util.Log.w("PlayerManager", "acquireTransitionLock failed: ${e.message}")
+        }
+
+        try {
+            if (transitionWifiLock == null) {
+                @Suppress("DEPRECATION")
+                transitionWifiLock = wifiManager?.createWifiLock(
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                    "melos:transition_wifilock",
+                )?.apply { setReferenceCounted(false) }
+            }
+            transitionWifiLock?.acquire()
+        } catch (e: Exception) {
+            android.util.Log.w("PlayerManager", "acquireTransitionWifiLock failed: ${e.message}")
+        }
+    }
+
+    private fun releaseTransitionLock() {
+        try {
+            if (transitionWakeLock?.isHeld == true) {
+                transitionWakeLock?.release()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("PlayerManager", "releaseTransitionWakeLock failed: ${e.message}")
+        }
+
+        try {
+            if (transitionWifiLock?.isHeld == true) {
+                transitionWifiLock?.release()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("PlayerManager", "releaseTransitionWifiLock failed: ${e.message}")
+        }
+    }
 
     /** 已预加载的下一首 key，避免同一首反复预取 */
     private var preloadedKey: String? = null
@@ -258,7 +379,8 @@ class PlayerManager private constructor(private val appContext: Context) {
     }
 
     /** 淡出后暂停：避免"啪"的一声直接断掉 */
-    private fun fadeOutThenPause() {        if (!userPrefs.crossFade) {
+    private fun fadeOutThenPause() {
+        if (!userPrefs.crossFade) {
             player.pause()
             return
         }
@@ -281,29 +403,45 @@ class PlayerManager private constructor(private val appContext: Context) {
         if (!userPrefs.preloadNext) return
         val s = _state.value
         if (s.queue.size <= 1) return
-        val next = s.queue.getOrNull(s.currentIndex + 1) ?: return
+        val nextIndex = (s.currentIndex + 1) % s.queue.size
+        val next = s.queue.getOrNull(nextIndex) ?: return
         if (next.id.isBlank()) return
         val key = next.platform + ":" + next.id
         if (key == preloadedKey) return
         if (!DownloadPolicy.allowed(appContext, userPrefs, manual = false)) return
         preloadedKey = key
         scope.launch {
-            val quality = SettingsStore.getQuality().value
-            val cached = withContext(Dispatchers.IO) {
-                AudioCacheService.getCachedPath(appContext, next.platform, next.id, quality)
+            try {
+                val quality = SettingsStore.getQuality().value
+                val cached = withContext(Dispatchers.IO) {
+                    AudioCacheService.getCachedPath(appContext, next.platform, next.id, quality)
+                }
+                if (cached != null) return@launch
+                val r = repository.getSongUrl(next, quality)
+                val url = r.getOrNull()?.url
+                if (url.isNullOrBlank()) {
+                    if (preloadedKey == key) preloadedKey = null
+                    return@launch
+                }
+                AudioCacheService.cacheAudio(
+                    context = appContext,
+                    platformCode = next.platform,
+                    songId = next.id,
+                    quality = quality,
+                    url = url,
+                    name = next.title,
+                    artist = next.artist,
+                    scope = scope,
+                ) { path ->
+                    if (path != null) {
+                        saveSidecars(next)
+                    } else {
+                        if (preloadedKey == key) preloadedKey = null
+                    }
+                }
+            } catch (e: Exception) {
+                if (preloadedKey == key) preloadedKey = null
             }
-            if (cached != null) return@launch
-            val url = repository.getSongUrl(next, quality).getOrNull()?.url ?: return@launch
-            AudioCacheService.cacheAudio(
-                context = appContext,
-                platformCode = next.platform,
-                songId = next.id,
-                quality = quality,
-                url = url,
-                name = next.title,
-                artist = next.artist,
-                scope = scope,
-            ) { path -> if (path != null) saveSidecars(next) }
         }
     }
 
@@ -331,7 +469,123 @@ class PlayerManager private constructor(private val appContext: Context) {
     /** 一首歌完整播完（FM 漂移信号；不区分模式，单曲循环/切歌也各计一次） */
     var onSongCompleted: ((Song) -> Unit)? = null
 
+    private var currentDecoderName: String? = null
+
+    private fun updateAudioDecoder(decoderName: String) {
+        currentDecoderName = decoderName
+        updateAudioSpec(player.audioFormat)
+    }
+
+    private fun updateAudioSpec(format: Format?) {
+        val s = _state.value
+        val song = s.currentSong
+        val duration = player.duration.takeIf { it > 0 } ?: _progress.value.durationMs
+
+        val sampleMime = format?.sampleMimeType?.lowercase().orEmpty()
+        val containerMime = format?.containerMimeType?.lowercase().orEmpty()
+
+        val formatName = when {
+            sampleMime.contains("flac") || containerMime.contains("flac") -> "FLAC"
+            sampleMime.contains("mp4") || sampleMime.contains("aac") || containerMime.contains("aac") -> "AAC"
+            sampleMime.contains("mpeg") || sampleMime.contains("mp3") || containerMime.contains("mp3") -> "MP3"
+            sampleMime.contains("ogg") || sampleMime.contains("vorbis") -> "OGG"
+            sampleMime.contains("opus") -> "OPUS"
+            sampleMime.contains("wav") -> "WAV"
+            sampleMime.contains("raw") || sampleMime.contains("pcm") -> "RAW"
+            else -> {
+                val q = SettingsStore.getQuality().value.lowercase()
+                if (q.contains("master") || q.contains("hi-res")) "RAW"
+                else if (q.contains("lossless") || q.contains("无损")) "FLAC"
+                else "MP3"
+            }
+        }
+
+        val sampleRate = format?.sampleRate?.takeIf { it > 0 } ?: when (SettingsStore.getQuality().value.lowercase()) {
+            "master", "hires", "hi-res" -> 192000
+            else -> 44100
+        }
+
+        val channelCount = format?.channelCount?.takeIf { it > 0 } ?: 2
+
+        val bitDepth = when (format?.pcmEncoding) {
+            C.ENCODING_PCM_24BIT -> 24
+            C.ENCODING_PCM_32BIT, C.ENCODING_PCM_FLOAT -> 32
+            C.ENCODING_PCM_16BIT -> 16
+            else -> {
+                val q = SettingsStore.getQuality().value.lowercase()
+                if (q.contains("master") || q.contains("hi-res") || sampleRate >= 96000) 24
+                else 16
+            }
+        }
+
+        val bitrateKbps = if (format != null && format.bitrate > 0) {
+            format.bitrate / 1000
+        } else {
+            // 实时估算比特率：如 RAW/无损：sampleRate * channels * bitDepth / 1000
+            if (formatName == "RAW") {
+                (sampleRate.toLong() * channelCount * bitDepth / 1000).toInt()
+            } else if (formatName == "FLAC") {
+                ((sampleRate.toLong() * channelCount * bitDepth / 1000) * 0.6).toInt()
+            } else {
+                when (SettingsStore.getQuality().value.lowercase()) {
+                    "master" -> 9216
+                    "hi-res", "hires" -> 4608
+                    "lossless", "无损" -> 960
+                    "high", "极高" -> 320
+                    else -> 128
+                }
+            }
+        }
+
+        val decoder = currentDecoderName
+        val decodeMode = when {
+            decoder.isNullOrBlank() || decoder == "—" -> "PCM 直通（未解码）"
+            decoder.contains("c2.android") || decoder.contains("ffmpeg") -> "软件解码"
+            decoder.contains("c2.") || decoder.contains("omx", ignoreCase = true) || decoder.contains("qti") -> "硬件解码"
+            else -> "PCM 直通（未解码）"
+        }
+
+        val qualityRequested = SettingsStore.getQuality().value.replaceFirstChar { it.uppercase() }
+        val sourceChannel = "LX 插件"
+        val sourcePlugin = SourceManager.lastSourceName.value ?: "长青 SVIP 音源(二改修复版)"
+
+        val newSpec = AudioRealtimeSpec(
+            format = formatName,
+            sampleRateHz = sampleRate,
+            bitDepth = bitDepth,
+            bitrateKbps = bitrateKbps,
+            channelCount = channelCount,
+            durationMs = duration,
+            decodeMode = decodeMode,
+            decoderName = if (decodeMode.contains("直通")) "—" else (decoder ?: "—"),
+            qualityRequested = qualityRequested,
+            sourceChannel = sourceChannel,
+            sourcePlugin = sourcePlugin,
+        )
+
+        _state.value = _state.value.copy(audioSpec = newSpec)
+    }
+
     init {
+        player.addAnalyticsListener(object : AnalyticsListener {
+            override fun onAudioInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: Format,
+                decoderReuseEvaluation: DecoderReuseEvaluation?
+            ) {
+                updateAudioSpec(format)
+            }
+
+            override fun onAudioDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long
+            ) {
+                updateAudioDecoder(decoderName)
+            }
+        })
+
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
@@ -380,21 +634,28 @@ class PlayerManager private constructor(private val appContext: Context) {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_READY -> {
+                        consecutivePlayFailures = 0
+                        releaseTransitionLock()
                         val duration = player.duration.takeIf { it > 0 } ?: _progress.value.durationMs
                         _progress.value = _progress.value.copy(durationMs = duration)
                         _state.value = _state.value.copy(isLoading = false)
+                        updateAudioSpec(player.audioFormat)
                         notifyState()
                     }
                     Player.STATE_BUFFERING -> {
                         _state.value = _state.value.copy(isLoading = true)
                         notifyState()
                     }
-                    Player.STATE_ENDED -> onSongComplete()
+                    Player.STATE_ENDED -> {
+                        acquireTransitionLock()
+                        onSongComplete()
+                    }
                     else -> Unit
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                releaseTransitionLock()
                 // 播放中途出错（解码失败/数据流中断）：停止并提示
                 val msg = friendlyError(error)
                 _state.value = _state.value.copy(
@@ -563,6 +824,7 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     /** 清空队列并停止 */
     fun clearQueue() {
+        releaseTransitionLock()
         player.stop()
         PlayerSessionStore.clear()
         AudioCacheService.setProtectedPath(null)
@@ -570,10 +832,17 @@ class PlayerManager private constructor(private val appContext: Context) {
         notifyState()
     }
 
+    private var consecutivePlayFailures = 0
+
     private fun playCurrent() {
         val s = _state.value
-        val song = s.currentSong ?: return
+        val song = s.currentSong ?: run {
+            releaseTransitionLock()
+            return
+        }
         val gen = ++playGeneration
+        acquireTransitionLock()
+        startPlaybackService()
         // 重置歌词/进度
         _progress.value = PlaybackProgress()
         _state.value = _state.value.copy(lyrics = emptyList(), syncedLyrics = null, errorMessage = null, isLoading = true)
@@ -600,13 +869,25 @@ class PlayerManager private constructor(private val appContext: Context) {
                 r.getOrNull()?.url
             }
             if (gen != playGeneration) return@launch
-            if (cached == null && onlineUrl.isNullOrBlank()) return@launch // 错误已提示
+            if (cached == null && onlineUrl.isNullOrBlank()) {
+                consecutivePlayFailures++
+                if (consecutivePlayFailures < 3 && s.queue.size > 1) {
+                    android.util.Log.w("PlayerManager", "获取播放地址失败，1.5秒后尝试跳下一首 (连续失败: $consecutivePlayFailures)")
+                    delay(1500)
+                    if (gen == playGeneration) {
+                        next()
+                    }
+                } else {
+                    releaseTransitionLock()
+                }
+                return@launch
+            }
 
             val playPath = cached ?: onlineUrl!!
             // 受保护路径 = 正在播放的本地缓存文件；在线播放时上一首的缓存文件不再受保护
             AudioCacheService.setProtectedPath(cached)
             if (cached == null) {
-                // 未命中：后台缓存（不阻塞播放）。上方 395 行已保证 onlineUrl 非空，这里再兜一层
+                // 未命中：后台缓存（不阻塞播放）。上方已保证 onlineUrl 非空，这里再兜一层
                 val downloadUrl = onlineUrl ?: return@launch
                 AudioCacheService.cacheAudio(
                     context = appContext,
@@ -691,7 +972,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                 LocalLyricStore.loadLocalLyric(appContext, song, cached)
             }
             if (!local.isNullOrBlank()) {
-                applyLyrics(local, null, gen)
+                applyLyrics(local, null, gen, isLocal = true)
                 return
             }
         }
@@ -701,19 +982,23 @@ class PlayerManager private constructor(private val appContext: Context) {
             return
         }
         repository.getLyric(song).onSuccess { d ->
-            applyLyrics(d.lyric, d.translated, gen)
+            applyLyrics(d.lyric, d.translated, gen, isLocal = false)
         }
     }
 
     /** 清空歌词（来源被关掉，或本地没有可用歌词） */
     private fun clearLyrics(gen: Long) {
         if (gen != playGeneration) return
-        _state.value = _state.value.copy(lyrics = emptyList(), syncedLyrics = null)
+        _state.value = _state.value.copy(
+            lyrics = emptyList(),
+            syncedLyrics = null,
+            lyricSpec = LyricMetaSpec(),
+        )
         notifyState()
     }
 
     /** 解析并落地歌词：关闭「翻译歌词」时丢弃译文，只保留原文 */
-    private fun applyLyrics(rawLyricIn: String?, rawTranslatedIn: String?, gen: Long) {
+    private fun applyLyrics(rawLyricIn: String?, rawTranslatedIn: String?, gen: Long, isLocal: Boolean = false) {
         if (gen != playGeneration) return
         val rawLyric = rawLyricIn ?: ""
         val rawTranslated = if (userPrefs.lyricTranslation) rawTranslatedIn else null
@@ -769,9 +1054,34 @@ class PlayerManager private constructor(private val appContext: Context) {
             else -> null
         }
 
+        val currentSong = _state.value.currentSong
+        val isKaraoke = finalSynced != null && finalSynced.lines.any { it is KaraokeLine }
+        val formatType = if (isKaraoke) "YRC" else "LRC"
+        val loadChannel = if (isLocal) "本地" else "在线"
+        val platformMap = mapOf(
+            "netease" to "网易云音乐",
+            "qq" to "QQ音乐",
+            "kugou" to "酷狗音乐",
+            "kuwo" to "酷我音乐",
+            "migu" to "咪咕音乐",
+            "bilibili" to "哔哩哔哩",
+            "local" to "本地文件",
+        )
+        val matchSource = platformMap[currentSong?.platform] ?: (currentSong?.platform ?: "网易云音乐")
+        val totalLines = finalSynced?.lines?.size ?: merged.size
+
+        val lyricMeta = LyricMetaSpec(
+            isKaraoke = isKaraoke,
+            formatType = formatType,
+            loadChannel = loadChannel,
+            matchSource = matchSource,
+            totalLines = totalLines,
+        )
+
         _state.value = _state.value.copy(
             lyrics = merged,
-            syncedLyrics = finalSynced
+            syncedLyrics = finalSynced,
+            lyricSpec = lyricMeta,
         )
         notifyState()
     }
@@ -869,6 +1179,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     fun next() {
         val s = _state.value
         if (s.queue.isEmpty()) return
+        acquireTransitionLock()
         val idx = if (s.playMode == PlayMode.SHUFFLE && s.queue.size > 1) {
             (0 until s.queue.size).filterNot { it == s.currentIndex }.random()
         } else {
@@ -883,6 +1194,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     fun previous() {
         val s = _state.value
         if (s.queue.isEmpty()) return
+        acquireTransitionLock()
         val idx = (s.currentIndex - 1 + s.queue.size) % s.queue.size
         pendingSeekMs = 0
         _state.value = s.copy(currentIndex = idx, isLoading = true)
@@ -999,6 +1311,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     }
 
     fun release() {
+        releaseTransitionLock()
         StatsTracker.flushNow()
         scope.launch(Dispatchers.Main) { player.release() }
     }
