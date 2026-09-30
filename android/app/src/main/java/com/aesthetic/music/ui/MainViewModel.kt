@@ -12,6 +12,8 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.LocalLyricStore
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.service.PlaybackService
+import com.aesthetic.music.service.UpdateInfo
+import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.album.AlbumController
 import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.artist.ArtistRef
@@ -308,6 +310,8 @@ class MainViewModel : ViewModel() {
         // 桥没有任何调用方，因此连同实现一起删了 —— 留着只会让人以为卡片收藏还活着。
         // 底层（缓存失败提示等）没有 UI 通道：统一接到全局 Snackbar
         UserNotice.register { msg -> _appToast.value = msg }
+        // 启动时静默检查更新，若有新版本（或后台强制推送更新），上线即弹窗提醒
+        triggerAppStartupUpdateCheck()
     }
 
     // ==================== 全局搜索（委托 SearchController） ====================
@@ -784,5 +788,24 @@ class MainViewModel : ViewModel() {
     fun updatePageBackground(color: Color?, isDark: Boolean) {
         _currentPageBackground.value = color
         _isDarkPage.value = isDark
+    }
+
+    // ==================== 全局应用更新弹窗（支持上线即弹窗提醒与强制更新） ====================
+    private val _appUpdateInfo = MutableStateFlow<UpdateInfo?>(null)
+    val appUpdateInfo: StateFlow<UpdateInfo?> = _appUpdateInfo.asStateFlow()
+
+    fun dismissAppUpdate() {
+        _appUpdateInfo.value = null
+    }
+
+    fun triggerAppStartupUpdateCheck() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            when (val res = UpdateService.checkUpdate()) {
+                is UpdateService.CheckResult.Available -> {
+                    _appUpdateInfo.value = res.info
+                }
+                else -> { /* 启动静默检查，无新版本或网络异常不打扰用户 */ }
+            }
+        }
     }
 }

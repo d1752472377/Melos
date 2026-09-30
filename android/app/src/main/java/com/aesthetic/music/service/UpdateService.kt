@@ -10,6 +10,8 @@ import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.settings.SyncServerStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -125,69 +127,121 @@ object UpdateService {
         }
     }
 
-    /** 下载 APK 到外部存储 updates 目录，返回本地路径 */
+    private val downloadMutex = Mutex()
+
+    /**
+     * 获取下载目标文件对象。
+     */
+    fun getApkFile(context: Context, info: UpdateInfo): File {
+        val dir = File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
+        val safeVersion = info.versionName.replace(Regex("[^A-Za-z0-9_.-]"), "_").ifBlank { "latest" }
+        return File(dir, "aesthetic_music_${safeVersion}.apk")
+    }
+
+    /**
+     * 校验本地是否已存在完整合法的安装包。
+     * 若已就绪，可直接调系统安装程序，无需重复发起网络下载。
+     */
+    fun isApkReady(context: Context, info: UpdateInfo): Boolean {
+        val file = getApkFile(context, info)
+        if (!file.exists() || !file.isFile || file.length() <= 0L) return false
+
+        // 大小校验
+        if (info.apkSize > 0L && file.length() != info.apkSize) return false
+
+        // 摘要校验
+        selectDigestSpec(sha256 = info.sha256, md5 = info.md5)?.let { spec ->
+            val actual = computeFileDigest(file, spec.algorithm)
+            if (!actual.equals(spec.expected, ignoreCase = true)) return false
+        }
+
+        // 签名一致性校验
+        if (!verifyApkSignature(context, file.absolutePath)) return false
+
+        return true
+    }
+
+    /** 下载 APK 到外部存储 updates 目录，返回本地路径。若本地已有完整合法安装包则直接秒开，绝不重复下载。 */
     suspend fun downloadApk(
         context: Context,
         info: UpdateInfo,
         onProgress: (Long, Long) -> Unit,
     ): String = withContext(Dispatchers.IO) {
-        val dir = File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
-        val safeVersion = info.versionName.replace(Regex("[^A-Za-z0-9_.-]"), "_").ifBlank { "latest" }
-        val file = File(dir, "aesthetic_music_${safeVersion}.apk")
-        if (file.exists()) file.delete()
-        // 清理历史版本 APK：此前只删同名版本文件，旧版本永久占用 updates/ 且不计入缓存统计
-        dir.listFiles()?.forEach { it.isFile && it != file && it.name.startsWith("aesthetic_music_") && it.delete() }
+        downloadMutex.withLock {
+            val file = getApkFile(context, info)
+            val dir = file.parentFile ?: File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
 
-        val downloadUrl = if (info.apkUrl.startsWith("http://") || info.apkUrl.startsWith("https://")) {
-            info.apkUrl
-        } else {
-            val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
-            "$serverBase/${info.apkUrl.trimStart('/')}"
-        }
+            // 1. 若本地已经存在完整合法的安装包，直接复用秒开，绝不重复发起网络下载
+            if (isApkReady(context, info)) {
+                if (info.apkSize > 0) onProgress(info.apkSize, info.apkSize)
+                return@withLock file.absolutePath
+            }
 
-        val client = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
-        // resp.use 保证失败/异常分支也释放连接（此前 !isSuccessful 直接 throw，连接泄漏）
-        client.newCall(Request.Builder().url(downloadUrl).build()).execute().use { resp ->
-            if (!resp.isSuccessful) throw Exception("下载失败: HTTP ${resp.code}")
-            val body = resp.body ?: throw Exception("下载失败: 空响应")
-            val total = body.contentLength()
-            var received = 0L
-            body.byteStream().use { input ->
-                file.outputStream().use { output ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        output.write(buf, 0, n)
-                        received += n
-                        if (total > 0) onProgress(received, total)
+            // 2. 清理历史遗留的旧版本 APK（只保留目标文件），但先写 .tmp 临时文件，避免半包污染
+            dir.listFiles()?.forEach { it.isFile && it != file && it.name.startsWith("aesthetic_music_") && it.delete() }
+            if (file.exists()) file.delete()
+
+            val tmpFile = File(dir, "${file.name}.tmp")
+            if (tmpFile.exists()) tmpFile.delete()
+
+            val downloadUrl = if (info.apkUrl.startsWith("http://") || info.apkUrl.startsWith("https://")) {
+                info.apkUrl
+            } else {
+                val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
+                "$serverBase/${info.apkUrl.trimStart('/')}"
+            }
+
+            val client = OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .build()
+            // resp.use 保证无论成功/失败/异常都释放连接
+            client.newCall(Request.Builder().url(downloadUrl).build()).execute().use { resp ->
+                if (!resp.isSuccessful) throw Exception("下载失败: HTTP ${resp.code}")
+                val body = resp.body ?: throw Exception("下载失败: 空响应")
+                val total = body.contentLength()
+                var received = 0L
+                body.byteStream().use { input ->
+                    tmpFile.outputStream().use { output ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            output.write(buf, 0, n)
+                            received += n
+                            if (total > 0) onProgress(received, total)
+                        }
                     }
                 }
-            }
 
-            // 大小 + 摘要双重校验，避免坏包/半包进入系统安装器（会表现为“解析软件包时出现问题”）
-            if (info.apkSize > 0 && received != info.apkSize) {
-                file.delete()
-                throw Exception("安装包大小校验失败（$received / ${info.apkSize}），请重新检查更新")
-            }
-            // 优先 SHA-256；服务端未下发时回退 MD5（兼容历史 update.json）
-            selectDigestSpec(sha256 = info.sha256, md5 = info.md5)?.let { spec ->
-                val actual = computeFileDigest(file, spec.algorithm)
-                if (!actual.equals(spec.expected, ignoreCase = true)) {
-                    file.delete()
-                    throw Exception("安装包校验失败（${spec.algorithm}），请重新检查更新")
+                // 大小 + 摘要双重校验，避免坏包/半包进入系统安装器
+                if (info.apkSize > 0 && received != info.apkSize) {
+                    tmpFile.delete()
+                    throw Exception("安装包大小校验失败（$received / ${info.apkSize}），请重新检查更新")
+                }
+                // 优先 SHA-256；服务端未下发时回退 MD5
+                selectDigestSpec(sha256 = info.sha256, md5 = info.md5)?.let { spec ->
+                    val actual = computeFileDigest(tmpFile, spec.algorithm)
+                    if (!actual.equals(spec.expected, ignoreCase = true)) {
+                        tmpFile.delete()
+                        throw Exception("安装包校验失败（${spec.algorithm}），请重新检查更新")
+                    }
+                }
+                // 签名一致性校验：防服务端/更新通道被攻陷后分发伪造 APK
+                if (!verifyApkSignature(context, tmpFile.absolutePath)) {
+                    tmpFile.delete()
+                    throw Exception("安装包签名与当前应用不一致，已拦截，请通过官方渠道更新")
+                }
+
+                // 校验完全通过，原子重命名为正式 apk 文件
+                if (tmpFile.renameTo(file)) {
+                    file.absolutePath
+                } else {
+                    tmpFile.copyTo(file, overwrite = true)
+                    tmpFile.delete()
+                    file.absolutePath
                 }
             }
-            // 签名一致性校验：防服务端/更新通道被攻陷后分发伪造 APK
-            // （md5/url 都出自同一 TLS 通道，属于"自证"，签名校验才是独立信任锚点）
-            if (!verifyApkSignature(context, file.absolutePath)) {
-                file.delete()
-                throw Exception("安装包签名与当前应用不一致，已拦截，请通过官方渠道更新")
-            }
-            file.absolutePath
         }
     }
 

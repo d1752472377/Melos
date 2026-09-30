@@ -3,15 +3,32 @@ package com.aesthetic.music.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.aesthetic.music.player.AudioCacheService
+import com.aesthetic.music.service.UpdateService
+import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.MelosToastHost
+import com.aesthetic.music.ui.theme.TextSoft
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -526,6 +543,88 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         viewModel.showToast("?$platformName」账号导入功能开发中，敬请期?")
                     },
                 )
+            }
+
+            // ===== 自动版本更新提醒弹窗（支持上线即弹窗提醒与强制更新拦截） =====
+            val appUpdateInfo by viewModel.appUpdateInfo.collectAsState()
+            if (appUpdateInfo != null) {
+                val info = appUpdateInfo!!
+                var updateProgressText by remember { mutableStateOf<String?>(null) }
+                val isReady = remember(info, updateProgressText) { UpdateService.isApkReady(context, info) }
+
+                AppDialog(
+                    onDismissRequest = {
+                        if (updateProgressText == null && !info.forceUpdate) {
+                            viewModel.dismissAppUpdate()
+                        }
+                    },
+                    title = if (info.forceUpdate) "发现重要更新 ${info.versionName}" else "发现新版本 ${info.versionName}",
+                    confirmText = if (updateProgressText == null) {
+                        if (isReady) "立即安装" else "立即更新"
+                    } else null,
+                    onConfirm = {
+                        scope.launch {
+                            val alreadyDownloaded = UpdateService.isApkReady(context, info)
+                            updateProgressText = if (alreadyDownloaded) "正在打开安装程序…" else "准备下载…"
+                            try {
+                                val path = UpdateService.downloadApk(context, info) { received, total ->
+                                    if (total > 0) {
+                                        updateProgressText = "下载中 ${received * 100 / total}%"
+                                    }
+                                }
+                                updateProgressText = "正在打开安装程序…"
+                                if (UpdateService.installApk(context, path)) {
+                                    if (!info.forceUpdate) viewModel.dismissAppUpdate()
+                                    updateProgressText = null
+                                } else {
+                                    viewModel.showToast("请允许「安装未知应用」后重新安装")
+                                    updateProgressText = null
+                                }
+                            } catch (e: Exception) {
+                                viewModel.showToast("更新失败: ${e.message ?: "未知错误"}")
+                                updateProgressText = null
+                                if (!info.forceUpdate) viewModel.dismissAppUpdate()
+                            }
+                        }
+                    },
+                    cancelText = if (updateProgressText == null && !info.forceUpdate) "稍后再说" else null,
+                    onCancel = { viewModel.dismissAppUpdate() },
+                ) {
+                    Column {
+                        if (updateProgressText != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text(updateProgressText ?: "正在处理…", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        } else {
+                            Text(
+                                text = if (info.updateLog.isNotBlank()) info.updateLog else "修复已知问题，提升使用体验。",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "大小: ${AudioCacheService.formatSize(info.apkSize)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSoft,
+                                )
+                                if (isReady) {
+                                    Text(
+                                        text = "已就绪 (免流量)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // ===== 系统返回键处? =====

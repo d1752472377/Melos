@@ -19,12 +19,17 @@ fun launchUpdateCheck(
         when (val result = UpdateService.checkUpdate()) {
             is UpdateService.CheckResult.Available -> {
                 val info = result.info
-                onResult("发现新版本 ${info.versionName}，开始下载…")
+                val isReady = UpdateService.isApkReady(context, info)
+                if (isReady) {
+                    onResult("安装包已就绪，正在打开安装程序…")
+                } else {
+                    onResult("发现新版本 ${info.versionName}，开始下载…")
+                }
                 try {
                     val path = UpdateService.downloadApk(context, info) { received, total ->
                         if (total > 0) onResult("下载中 ${received * 100 / total}%")
                     }
-                    onResult("下载完成，正在打开安装程序…")
+                    onResult("正在打开安装程序…")
                     if (UpdateService.installApk(context, path)) {
                         onResult("已打开安装程序")
                     } else {

@@ -440,15 +440,19 @@ fun ProfileScreen(
     // ===== 发现新版本更新弹窗 =====
     val updateInfo = updateAvailableInfo
     if (updateInfo != null) {
+        val isReady = remember(updateInfo, updateProgressText) { UpdateService.isApkReady(context, updateInfo) }
         AppDialog(
             onDismissRequest = {
-                if (updateProgressText == null) updateAvailableInfo = null
+                if (updateProgressText == null && !updateInfo.forceUpdate) updateAvailableInfo = null
             },
-            title = "发现新版本 ${updateInfo.versionName}",
-            confirmText = if (updateProgressText == null) "立即更新" else null,
+            title = if (updateInfo.forceUpdate) "发现重要更新 ${updateInfo.versionName}" else "发现新版本 ${updateInfo.versionName}",
+            confirmText = if (updateProgressText == null) {
+                if (isReady) "立即安装" else "立即更新"
+            } else null,
             onConfirm = {
                 scope.launch {
-                    updateProgressText = "准备下载…"
+                    val alreadyDownloaded = UpdateService.isApkReady(context, updateInfo)
+                    updateProgressText = if (alreadyDownloaded) "正在打开安装程序…" else "准备下载…"
                     try {
                         val path = UpdateService.downloadApk(context, updateInfo) { received, total ->
                             if (total > 0) {
@@ -457,7 +461,7 @@ fun ProfileScreen(
                         }
                         updateProgressText = "正在打开安装程序…"
                         if (UpdateService.installApk(context, path)) {
-                            updateAvailableInfo = null
+                            if (!updateInfo.forceUpdate) updateAvailableInfo = null
                             updateProgressText = null
                         } else {
                             onShowToast("请允许「安装未知应用」后重新安装")
@@ -466,7 +470,7 @@ fun ProfileScreen(
                     } catch (e: Exception) {
                         onShowToast("更新失败: ${e.message ?: "未知错误"}")
                         updateProgressText = null
-                        updateAvailableInfo = null
+                        if (!updateInfo.forceUpdate) updateAvailableInfo = null
                     }
                 }
             },
@@ -478,7 +482,7 @@ fun ProfileScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(12.dp))
-                        Text(updateProgressText ?: "正在下载…", style = MaterialTheme.typography.bodyMedium)
+                        Text(updateProgressText ?: "正在处理…", style = MaterialTheme.typography.bodyMedium)
                     }
                 } else {
                     Text(
@@ -486,11 +490,25 @@ fun ProfileScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "大小: ${AudioCacheService.formatSize(updateInfo.apkSize)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSoft,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "大小: ${AudioCacheService.formatSize(updateInfo.apkSize)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSoft,
+                        )
+                        if (isReady) {
+                            Text(
+                                text = "已就绪 (免流量)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
                 }
             }
         }
