@@ -33,22 +33,30 @@ object ApiClient {
             .addInterceptor { chain ->
                 var request = chain.request()
 
-                // 1. 动态重定向至用户配置的私有云服务器
+                // 1. 动态重定向至用户配置的私有云服务器（保留子路径前缀，兼容反向代理与多级路由）
                 val configuredServerUrl = SyncServerStore.getServerUrl()
                 if (configuredServerUrl.isNotBlank()) {
                     val targetHttpUrl = configuredServerUrl.toHttpUrlOrNull()
                     if (targetHttpUrl != null) {
+                        val serverBasePath = targetHttpUrl.encodedPath.trimEnd('/')
+                        val reqPath = request.url.encodedPath
+                        val finalPath = if (serverBasePath.isNotEmpty() && serverBasePath != "/") {
+                            serverBasePath + if (reqPath.startsWith("/")) reqPath else "/$reqPath"
+                        } else {
+                            reqPath
+                        }
                         val newUrl = request.url.newBuilder()
                             .scheme(targetHttpUrl.scheme)
                             .host(targetHttpUrl.host)
                             .port(targetHttpUrl.port)
+                            .encodedPath(finalPath)
                             .build()
                         request = request.newBuilder().url(newUrl).build()
                     }
                 } else {
                     // 若未配置私有服务器且试图请求后端云接口，直接拦截并友好提示
                     val path = request.url.encodedPath
-                    if (path.startsWith("/api/sync") || path.startsWith("/api/auth") || path.startsWith("/api/me")) {
+                    if (path.startsWith("/api/sync") || path.startsWith("/api/auth") || path.startsWith("/api/me") || path.startsWith("/api/app")) {
                         throw IOException("未配置服务器地址，请先在「账号与同步」中填写后端地址")
                     }
                 }

@@ -4,6 +4,7 @@ import android.util.Log
 import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.api.AlbumDetailData
 import com.aesthetic.music.data.api.AlbumItem
+import com.aesthetic.music.data.api.AppVersionDto
 import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.AuthData
@@ -308,5 +309,16 @@ class MusicRepository(
     suspend fun syncPush(payload: SyncPushPayload): Result<SyncPushResult> = apiCatching {
         val resp = api.syncPush(payload)
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "同步上传失败")
+    }
+
+    // ==================== 客户端版本检查 ====================
+
+    /**
+     * 向当前连接的后端获取最新启用的客户端版本。
+     * 若未发布版本或接口异常返回失败。
+     */
+    suspend fun getLatestVersion(): Result<AppVersionDto?> = apiCatching {
+        val resp = api.latestVersion()
+        if (resp.code == 200) resp.data else throw Exception(resp.msg ?: "检查更新失败")
     }
 }

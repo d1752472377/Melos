@@ -1,6 +1,7 @@
 package com.aesthetic.music.data.api
 
 import com.aesthetic.music.data.model.Song
+import com.google.gson.annotations.SerializedName
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -441,6 +442,28 @@ data class SyncPushResult(
     val serverTime: Long = 0L,
 )
 
+/** 客户端版本发布条目（对应后端 GET /api/app/version/latest） */
+data class AppVersionDto(
+    val id: Long = 0L,
+    @SerializedName("version_code", alternate = ["versionCode"])
+    val versionCode: Long = 0L,
+    @SerializedName("version_name", alternate = ["versionName"])
+    val versionName: String = "",
+    @SerializedName("apk_url", alternate = ["apkUrl"])
+    val apkUrl: String = "",
+    @SerializedName("file_size", alternate = ["fileSize"])
+    val fileSize: Long = 0L,
+    @SerializedName("hash_sha256", alternate = ["hashSha256"])
+    val hashSha256: String = "",
+    val changelog: String = "",
+    @SerializedName("force_update", alternate = ["forceUpdate"])
+    val forceUpdate: Boolean = false,
+    @SerializedName("has_local_file", alternate = ["hasLocalFile"])
+    val hasLocalFile: Boolean = true,
+    @SerializedName("created_at", alternate = ["createdAt"])
+    val createdAt: Long = 0L,
+)
+
 // ==================== Retrofit 接口 ====================
 
 interface MusicApi {
@@ -453,6 +476,13 @@ interface MusicApi {
      */
     @GET("api/health")
     suspend fun health(): ApiResponse<HealthData>
+
+    /**
+     * 检查客户端最新发布版本（**不需要登录**）。
+     * 当无可用版本时返回 data: null。
+     */
+    @GET("api/app/version/latest")
+    suspend fun latestVersion(): ApiResponse<AppVersionDto?>
 
     // ==================== 用户体系 (Auth) ====================
 

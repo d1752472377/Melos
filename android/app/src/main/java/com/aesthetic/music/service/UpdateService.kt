@@ -7,12 +7,17 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.aesthetic.music.BuildConfig
+import com.aesthetic.music.data.api.ApiClient
+import com.aesthetic.music.data.settings.SyncServerStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /** 更新信息（对应服务器 update.json 字段，参考 App 的 UpdateInfo） */
@@ -31,12 +36,13 @@ data class UpdateInfo(
 )
 
 /**
- * 在线更新服务（移植自参考 App 的 UpdateService）：
- * 拉取 update.json → 比对 versionCode → 下载 APK → FileProvider 调系统安装。
+ * 在线更新服务：
+ * 优先向当前自建/云端后端探测最新版本 → 若无新版本或不可达回退至 GitHub 静态 update.json →
+ * 比对 versionCode → 下载 APK（支持相对路径自动补全） → FileProvider 调系统安装。
  */
 object UpdateService {
 
-    /** 服务器更新描述文件地址（GitHub Release 资产，经 Vercel 转发） */
+    /** 官方服务器更新描述文件地址（GitHub Release 资产，经 Vercel 转发） */
     const val UPDATE_URL = "https://music.dovislab.com/update.json"
 
     /** 更新检查结果三态：此前"网络失败"与"确无更新"都返回 null，UI 会把断网误报成已是最新版 */
@@ -47,16 +53,57 @@ object UpdateService {
     }
 
     suspend fun checkUpdate(): CheckResult = withContext(Dispatchers.IO) {
+        // 1. 若配置了后端服务器（或默认内置服务器），优先向自建后端查询最新发布的版本
+        var serverHasNoNewerVersion = false
+        if (SyncServerStore.isConfigured()) {
+            try {
+                val resp = ApiClient.api.latestVersion()
+                val data = resp.data
+                if (resp.code == 200 && data != null) {
+                    if (data.versionCode > BuildConfig.VERSION_CODE) {
+                        val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
+                        val fullApkUrl = if (data.apkUrl.startsWith("http://") || data.apkUrl.startsWith("https://")) {
+                            data.apkUrl
+                        } else {
+                            "$serverBase/${data.apkUrl.trimStart('/')}"
+                        }
+                        val pubTime = if (data.createdAt > 0) {
+                            val ms = if (data.createdAt < 10000000000L) data.createdAt * 1000L else data.createdAt
+                            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
+                        } else ""
+                        val info = UpdateInfo(
+                            versionName = data.versionName,
+                            versionCode = data.versionCode.toInt(),
+                            apkUrl = fullApkUrl,
+                            apkSize = data.fileSize,
+                            md5 = "",
+                            sha256 = data.hashSha256,
+                            forceUpdate = data.forceUpdate,
+                            updateLog = data.changelog,
+                            publishTime = pubTime,
+                        )
+                        return@withContext CheckResult.Available(info)
+                    } else {
+                        // 后端有版本记录，但版本号不高于当前客户端
+                        serverHasNoNewerVersion = true
+                    }
+                }
+            } catch (_: Exception) {
+                // 后端查询失败（如离线、404、反代异常等），继续向下回退到官方 UPDATE_URL
+            }
+        }
+
+        // 2. 回退机制：若自建后端无更高版本或请求异常，回退检查官方静态 update.json
         try {
             val client = OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(15, TimeUnit.SECONDS)
                 .build()
-            // resp.use 保证无论成功/失败/异常都释放连接（此前非 2xx 与空响应分支直接 return，
-            // Response 未 close，OkHttp 连接池里的连接泄漏）
             client.newCall(Request.Builder().url(UPDATE_URL).build()).execute().use { resp ->
-                if (!resp.isSuccessful) return@withContext CheckResult.Failed("HTTP ${resp.code}")
-                val body = resp.body?.string() ?: return@withContext CheckResult.Failed("空响应")
+                if (!resp.isSuccessful) {
+                    return@withContext if (serverHasNoNewerVersion) CheckResult.UpToDate else CheckResult.Failed("HTTP ${resp.code}")
+                }
+                val body = resp.body?.string() ?: return@withContext if (serverHasNoNewerVersion) CheckResult.UpToDate else CheckResult.Failed("空响应")
                 val json = JSONObject(body)
                 val info = UpdateInfo(
                     versionName = json.optString("versionName"),
@@ -74,7 +121,7 @@ object UpdateService {
             }
         } catch (e: Exception) {
             // 网络异常必须显式区分，不能静默当成"无更新"
-            CheckResult.Failed(e.message)
+            if (serverHasNoNewerVersion) CheckResult.UpToDate else CheckResult.Failed(e.message)
         }
     }
 
@@ -85,17 +132,25 @@ object UpdateService {
         onProgress: (Long, Long) -> Unit,
     ): String = withContext(Dispatchers.IO) {
         val dir = File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
-        val file = File(dir, "aesthetic_music_${info.versionName}.apk")
+        val safeVersion = info.versionName.replace(Regex("[^A-Za-z0-9_.-]"), "_").ifBlank { "latest" }
+        val file = File(dir, "aesthetic_music_${safeVersion}.apk")
         if (file.exists()) file.delete()
         // 清理历史版本 APK：此前只删同名版本文件，旧版本永久占用 updates/ 且不计入缓存统计
         dir.listFiles()?.forEach { it.isFile && it != file && it.name.startsWith("aesthetic_music_") && it.delete() }
+
+        val downloadUrl = if (info.apkUrl.startsWith("http://") || info.apkUrl.startsWith("https://")) {
+            info.apkUrl
+        } else {
+            val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
+            "$serverBase/${info.apkUrl.trimStart('/')}"
+        }
 
         val client = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .build()
         // resp.use 保证失败/异常分支也释放连接（此前 !isSuccessful 直接 throw，连接泄漏）
-        client.newCall(Request.Builder().url(info.apkUrl).build()).execute().use { resp ->
+        client.newCall(Request.Builder().url(downloadUrl).build()).execute().use { resp ->
             if (!resp.isSuccessful) throw Exception("下载失败: HTTP ${resp.code}")
             val body = resp.body ?: throw Exception("下载失败: 空响应")
             val total = body.contentLength()
@@ -146,9 +201,19 @@ object UpdateService {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val archive = pm.getPackageArchiveInfo(filePath, PackageManager.GET_SIGNING_CERTIFICATES) ?: return false
                 val current = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES) ?: return false
-                val a = archive.signingInfo?.apkContentsSigners?.firstOrNull() ?: return false
-                val c = current.signingInfo?.apkContentsSigners?.firstOrNull() ?: return false
-                a.toByteArray().contentEquals(c.toByteArray())
+                val a = archive.signingInfo?.apkContentsSigners?.firstOrNull()
+                val c = current.signingInfo?.apkContentsSigners?.firstOrNull()
+                if (a != null && c != null) {
+                    return a.toByteArray().contentEquals(c.toByteArray())
+                }
+                // 若 signingInfo 为空（部分 Android 9+ 定制 ROM 或特定打包方式），回退旧版签名方式
+                @Suppress("DEPRECATION")
+                val archiveLegacy = pm.getPackageArchiveInfo(filePath, PackageManager.GET_SIGNATURES) ?: return false
+                @Suppress("DEPRECATION")
+                val currentLegacy = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES) ?: return false
+                val aLegacy = archiveLegacy.signatures?.firstOrNull() ?: return false
+                val cLegacy = currentLegacy.signatures?.firstOrNull() ?: return false
+                aLegacy.toByteArray().contentEquals(cLegacy.toByteArray())
             } else {
                 @Suppress("DEPRECATION")
                 val archive = pm.getPackageArchiveInfo(filePath, PackageManager.GET_SIGNATURES) ?: return false
