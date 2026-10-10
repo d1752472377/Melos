@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.BlurOn
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Extension
@@ -43,6 +44,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -84,6 +87,9 @@ import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.BottomContentSpacer
+import com.aesthetic.music.ui.components.glassBorder
+import com.aesthetic.music.ui.home.iosGlassCard
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentMint
@@ -175,6 +181,7 @@ fun ProfileScreen(
     onOpenHistory: () -> Unit,
     onOpenListeningStats: () -> Unit,
     onOpenCloudManage: () -> Unit = {},
+    onOpenEqualizer: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenPluginManage: () -> Unit,
     onUpdateAvatar: (String?) -> Unit,
@@ -251,6 +258,9 @@ fun ProfileScreen(
             .fillMaxSize()
             .background(Background)
     ) {
+        // 全局动态呼吸极光光斑背景
+        HomeAmbientGlowBackground()
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -271,6 +281,7 @@ fun ProfileScreen(
                     avatarPath = avatarPath,
                     backgroundPath = backgroundPath,
                     isBackgroundBlur = isBackgroundBlur,
+                    localStats = localStats,
                     showMenu = showMenu,
                     onMenuToggle = { showMenu = it },
                     onAvatarClick = { avatarPickerLauncher.launch("image/*") },
@@ -294,7 +305,7 @@ fun ProfileScreen(
                 )
             }
 
-            // ===== 2. 功能入口：上排4个图标 + 下排统计横条 =====
+            // ===== 2. 功能入口：上排4个独立毛玻璃卡片 + 下排快速功能入口 =====
             item(key = "music_entry_section") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     MusicStatsRow(
@@ -308,21 +319,22 @@ fun ProfileScreen(
                         onOpenDownloads = onOpenDownloads,
                     )
 
+                    // 听歌统计大卡片
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Surface)
-                            .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
+                            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
+                            // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
+                            .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
                             .clickable(onClick = onOpenListeningStats)
-                            .padding(horizontal = 20.dp, vertical = 18.dp),
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(AccentCyan.copy(alpha = 0.12f)),
+                                .background(AccentCyan.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
@@ -343,7 +355,123 @@ fun ProfileScreen(
                                 color = TextPrimary,
                             )
                             Text(
-                                text = "时间脉络 · 数据回顾",
+                                text = "时间脉络 · 数据回顾 · 喜好洞察",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextSoft,
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+
+                    // 专业调音台 / 均衡器 (NEW! 深度对齐 GZ)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
+                            // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
+                            .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
+                            .clickable(onClick = onOpenEqualizer)
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF38BDF8).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Tune,
+                                contentDescription = null,
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "专业调音台",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                    color = TextPrimary,
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF38BDF8).copy(alpha = 0.2f))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "10段EQ",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        color = Color(0xFF0284C7)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "大师级频响预设 · 动态平滑曲线",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextSoft,
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+
+                    // 云端管理
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
+                            // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
+                            .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
+                            .clickable(onClick = onOpenCloudManage)
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFA855F7).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CloudSync,
+                                contentDescription = null,
+                                tint = Color(0xFFA855F7),
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "云端备份与同步",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                                color = TextPrimary,
+                            )
+                            Text(
+                                text = "WebDAV / 多端云歌单同步",
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                 color = TextSoft,
                             )
@@ -372,38 +500,40 @@ fun ProfileScreen(
                 }
             }
 
-            // 剩余系统功能列表
+            // 剩余系统功能列表 (毛玻璃卡片组)
             item(key = "feature_menu_card") {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Surface)
+                        .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
+                        // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
+                        .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
                         .padding(vertical = 4.dp),
                 ) {
-                    ProfileMenuItem(
-                        icon = Icons.Filled.Settings,
-                        iconTint = TextPrimary,
-                        title = "设置",
-                        subtitle = "偏好与外观",
-                        onClick = onOpenSettings,
-                    )
-                    ProfileMenuItem(
-                        icon = Icons.Filled.Extension,
-                        iconTint = AccentMint,
-                        title = "插件管理",
-                        subtitle = sourceSummary,
-                        onClick = onOpenPluginManage,
-                    )
-                    ProfileMenuItem(
-                        icon = Icons.Filled.SystemUpdate,
-                        iconTint = AccentCoral,
-                        title = "检查更新",
-                        subtitle = if (checkingUpdate) "检查中…" else "v${BuildConfig.VERSION_NAME}",
-                        isLoading = checkingUpdate,
-                        onClick = { triggerCheckUpdate() },
-                    )
+                    Column {
+                        ProfileMenuItem(
+                            icon = Icons.Filled.Settings,
+                            iconTint = TextPrimary,
+                            title = "设置",
+                            subtitle = "偏好与外观",
+                            onClick = onOpenSettings,
+                        )
+                        ProfileMenuItem(
+                            icon = Icons.Filled.Extension,
+                            iconTint = AccentMint,
+                            title = "插件管理",
+                            subtitle = sourceSummary,
+                            onClick = onOpenPluginManage,
+                        )
+                        ProfileMenuItem(
+                            icon = Icons.Filled.SystemUpdate,
+                            iconTint = AccentCoral,
+                            title = "检查更新",
+                            subtitle = if (checkingUpdate) "检查中…" else "v${BuildConfig.VERSION_NAME}",
+                            isLoading = checkingUpdate,
+                            onClick = { triggerCheckUpdate() },
+                        )
+                    }
                 }
             }
         }
@@ -527,6 +657,7 @@ private fun TopProfileCard(
     avatarPath: String?,
     backgroundPath: String?,
     isBackgroundBlur: Boolean,
+    localStats: LocalStats,
     showMenu: Boolean,
     onMenuToggle: (Boolean) -> Unit,
     onAvatarClick: () -> Unit,
@@ -621,7 +752,7 @@ private fun TopProfileCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "MUSIC PROFILE",
+                    text = "MELOS MUSIC PROFILE",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -725,11 +856,26 @@ private fun TopProfileCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // 奢华双环发光头像
                 Box(
                     modifier = Modifier
-                        .size(68.dp)
+                        .size(70.dp)
                         .clip(CircleShape)
-                        .border(2.dp, avatarBorderColor, CircleShape)
+                        .border(
+                            2.dp,
+                            Brush.sweepGradient(
+                                listOf(
+                                    Color(0xFFF59E0B),
+                                    Color(0xFF38BDF8),
+                                    Color(0xFFEC4899),
+                                    Color(0xFFF59E0B)
+                                )
+                            ),
+                            CircleShape
+                        )
+                        .padding(2.5.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, avatarBorderColor, CircleShape)
                         .clickable(onClick = onAvatarClick),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -753,15 +899,51 @@ private fun TopProfileCard(
                 Spacer(Modifier.width(16.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = nickname,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                        ),
-                        color = primaryTextColor,
-                        maxLines = 1,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = nickname,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = 21.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                            ),
+                            color = primaryTextColor,
+                            maxLines = 1,
+                        )
+
+                        // 100% 永久全解锁尊享金标 (对齐 GZ Pro 勋章)
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFFF59E0B), Color(0xFFD97706))
+                                    )
+                                )
+                                .border(0.8.dp, Color(0xFFFEF3C7).copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.WorkspacePremium,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = "永久尊享",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                                color = Color.White
+                            )
+                        }
+                    }
+
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = "@${ProfileFormat.usernameDisplay(username)}",
@@ -769,21 +951,39 @@ private fun TopProfileCard(
                         color = secondaryTextColor,
                     )
 
-                    val joined = ProfileFormat.registerDate(createdAt)
-                    if (joined != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.DateRange,
-                                contentDescription = null,
-                                tint = secondaryTextColor,
-                                modifier = Modifier.size(13.dp),
-                            )
-                            Spacer(Modifier.width(5.dp))
+                    // 听歌时长与统计概览微胶囊
+                    val totalMinutes = (localStats.totalPlayMs / 60000L).coerceAtLeast(0)
+                    val totalHours = totalMinutes / 60
+                    val remainMin = totalMinutes % 60
+                    val durationStr = if (totalHours > 0) "${totalHours}h${remainMin}m" else "${remainMin}m"
+
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(primaryTextColor.copy(alpha = 0.08f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
                             Text(
-                                text = "$joined 注册",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                color = secondaryTextColor,
+                                text = "听歌 ${localStats.totalPlays} 首",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                                color = secondaryTextColor
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(primaryTextColor.copy(alpha = 0.08f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "时长 $durationStr",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                                color = secondaryTextColor
                             )
                         }
                     }
@@ -853,39 +1053,42 @@ private fun MusicStatsRow(
     onOpenDownloads: () -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Surface)
-            .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
-            .padding(vertical = 20.dp, horizontal = 4.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        IconStatItem(
+        ModernStatCard(
+            modifier = Modifier.weight(1f),
             icon = Icons.Filled.Favorite,
             iconTint = Color(0xFFFF4D6D),
-            label = "音乐收藏",
+            bgGradient = listOf(Color(0x33FF4D6D), Color(0x10FF4D6D)),
+            label = "收藏",
             count = "$favoritesCount",
             onClick = onOpenFavorites,
         )
-        IconStatItem(
+        ModernStatCard(
+            modifier = Modifier.weight(1f),
             icon = Icons.AutoMirrored.Filled.QueueMusic,
             iconTint = Color(0xFF6366F1),
-            label = "我的歌单",
+            bgGradient = listOf(Color(0x336366F1), Color(0x106366F1)),
+            label = "歌单",
             count = "$playlistsCount",
             onClick = onOpenMyPlaylists,
         )
-        IconStatItem(
+        ModernStatCard(
+            modifier = Modifier.weight(1f),
             icon = Icons.Filled.History,
             iconTint = AccentCoral,
-            label = "播放历史",
+            bgGradient = listOf(Color(0x33FF6B6B), Color(0x10FF6B6B)),
+            label = "历史",
             count = "$historyCount",
             onClick = onOpenHistory,
         )
-        IconStatItem(
+        ModernStatCard(
+            modifier = Modifier.weight(1f),
             icon = Icons.Filled.DownloadDone,
             iconTint = Color(0xFF10B981),
-            label = "下载音乐",
+            bgGradient = listOf(Color(0x3310B981), Color(0x1010B981)),
+            label = "下载",
             count = "$cacheCount",
             onClick = onOpenDownloads,
         )
@@ -893,41 +1096,60 @@ private fun MusicStatsRow(
 }
 
 @Composable
-private fun IconStatItem(
+private fun ModernStatCard(
+    modifier: Modifier = Modifier,
     icon: ImageVector,
     iconTint: Color,
+    bgGradient: List<Color>,
     label: String,
     count: String,
     onClick: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+    Box(
+        modifier = modifier
+            .iosGlassCard(shape = RoundedCornerShape(18.dp), elevation = 2.dp)
+            // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
+            .border(1.dp, glassBorder(), RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(vertical = 14.dp, horizontal = 4.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(26.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = TextPrimary,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = count,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-            color = TextSoft,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Brush.linearGradient(bgGradient)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = count,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                ),
+                color = TextPrimary,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                color = TextSoft,
+            )
+        }
     }
 }
 

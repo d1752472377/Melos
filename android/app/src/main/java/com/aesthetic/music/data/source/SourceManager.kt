@@ -78,27 +78,34 @@ object SourceManager {
             activeId = SourceRegistryStore.activeId(),
         )
 
+        val qualityList = when (quality.lowercase()) {
+            "hires", "master", "flac", "lossless" -> listOf(quality, "320k", "128k")
+            "320k" -> listOf("320k", "128k")
+            else -> listOf(quality)
+        }
+
         val tried = mutableListOf<String>()
         for (plugin in candidates) {
             val started = System.currentTimeMillis()
             val target = SourcePlatform.of(song.platform)
                 ?.let { SourceProbe.pluginTarget(plugin.id, it) }
-            val url = try {
-                resolveWithPlugin(plugin, song, quality)
-            } catch (e: Exception) {
-                Log.w(TAG, "音源[${plugin.name}]解析失败: ${e.message}")
-                null
+            var url: String? = null
+            for (q in qualityList) {
+                url = try {
+                    resolveWithPlugin(plugin, song, q)
+                } catch (e: Exception) {
+                    Log.w(TAG, "音源[${plugin.name}]音质[$q]解析失败: ${e.message}")
+                    null
+                }
+                if (!url.isNullOrBlank()) break
             }
             val cost = System.currentTimeMillis() - started
             if (!url.isNullOrBlank()) {
                 target?.let {
                     SourceStatsStore.recordObserved(it, cost, ok = true)
-                    // 失败记录在同一次成功后被覆盖：源已经证明可用，不该继续背着"失败"标签
                 }
                 SourceRegistryStore.markUsed(plugin.id)
                 _lastSourceName.value = plugin.name
-                // 智能切换：本次实测明显变慢时不给提示也不强行换（播放不该被打断），
-                // 但速度样本会让下一次"自动最快"改选更快的源。
                 return SongUrlData(
                     url = url,
                     platform = song.platform,
@@ -110,16 +117,46 @@ object SourceManager {
             if (!SourcePolicy.shouldContinueAfterFailure(prefs)) break
         }
 
-        // 兜底：内置平台直连（见 SourcePolicy.builtinFallbackAvailable 的说明）
+        // 兜底一：内置平台直连（自动尝试音质逐级回退）
         if (SourcePolicy.builtinFallbackAvailable(song.platform)) {
-            try {
-                val direct = PlatformMusicService.getDirectSongUrl(song, quality)
-                if (!direct.url.isNullOrBlank()) {
-                    _lastSourceName.value = direct.sourceName?.takeIf { it.isNotBlank() } ?: "内置直连"
-                    return direct
+            for (q in qualityList) {
+                try {
+                    val direct = PlatformMusicService.getDirectSongUrl(song, q)
+                    if (!direct.url.isNullOrBlank()) {
+                        _lastSourceName.value = direct.sourceName?.takeIf { it.isNotBlank() } ?: "内置直连"
+                        return direct
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "内置直连音质[$q]兜底失败 ${song.platform}:${song.id}", e)
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "内置直连兜底失败 ${song.platform}:${song.id}", e)
+            }
+        }
+
+        // 兜底二：全网跨平台同名曲智能换源（基于 SongMatcher 字符二元组相似度）
+        val altPlatforms = listOf("kuwo", "netease", "kugou", "qq").filter { it != song.platform }
+        val searchKeyword = "${song.title} ${song.artist}".trim()
+        if (searchKeyword.isNotBlank()) {
+            for (altPlatform in altPlatforms) {
+                try {
+                    val searchCandidates = PlatformMusicService.search(searchKeyword, limit = 5, platform = altPlatform)
+                    val matchedPair = SongMatcher.findBestMatch(song, searchCandidates, minScore = 0.75f)
+                    if (matchedPair != null) {
+                        val matchedSong = matchedPair.first
+                        Log.i(TAG, "跨平台智能换源命中: [${song.platform}] ${song.title} -> [${matchedSong.platform}] ${matchedSong.title} (相似度: ${(matchedPair.second * 100).toInt()}%)")
+                        for (q in qualityList) {
+                            try {
+                                val altDirect = PlatformMusicService.getDirectSongUrl(matchedSong, q)
+                                if (!altDirect.url.isNullOrBlank()) {
+                                    val sourceLabel = "换源: ${matchedSong.platform.uppercase()}"
+                                    _lastSourceName.value = sourceLabel
+                                    return altDirect.copy(sourceName = sourceLabel)
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "跨平台换源搜索失败 [$altPlatform]: ${e.message}")
+                }
             }
         }
 
@@ -127,7 +164,7 @@ object SourceManager {
             if (tried.isEmpty()) {
                 "未获取到播放直链：请先在「插件管理」中导入音源插件"
             } else {
-                "已尝试 ${tried.joinToString("、")}，均未取到播放直链"
+                "已尝试 ${tried.joinToString("、")}及跨平台换源，均未取到播放直链"
             }
         )
     }

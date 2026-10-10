@@ -23,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.components.DangerTextButton
+import com.aesthetic.music.ui.components.glassCard
+import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
@@ -69,20 +71,19 @@ fun SearchRecentSearches(
     }
 }
 
-/** 最近搜索词条：无边框 + 浅灰实底，圆角 8dp，文字弱化 */
+/** 最近搜索词条：高质感毛玻璃胶囊，圆角 99dp，文字清晰弱化 */
 @Composable
 private fun WordChip(word: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Stone100)
+            .glassCard(shape = RoundedCornerShape(99.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Text(
             word,
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-            color = TextMuted,
+            color = textMedium(),
             maxLines = 1,
         )
     }

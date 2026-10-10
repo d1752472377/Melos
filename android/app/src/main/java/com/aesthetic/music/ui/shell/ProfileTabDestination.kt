@@ -65,6 +65,8 @@ fun ProfileTabDestination(
             nav.navigate(ScreenRoute.History.route)
         },
         onOpenListeningStats = { nav.navigate(ScreenRoute.ListeningStats.route) },
+        onOpenCloudManage = { nav.navigate(ScreenRoute.CloudManage.route) },
+        onOpenEqualizer = { nav.navigate(ScreenRoute.Equalizer.route) },
         onOpenSettings = { nav.navigate(ScreenRoute.Settings.route) },
         onOpenPluginManage = { nav.navigate(ScreenRoute.PluginManage.route) },
         onUpdateAvatar = { path -> viewModel.setProfileAvatar(path) },

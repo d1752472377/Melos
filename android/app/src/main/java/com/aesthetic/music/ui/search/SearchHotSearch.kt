@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
@@ -67,8 +68,7 @@ private fun HotSearchCard(words: List<HotSearchWord>, onPick: (String) -> Unit) 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Surface),
+            .glassCard(shape = RoundedCornerShape(16.dp)),
     ) {
         words.forEachIndexed { idx, item ->
             Row(

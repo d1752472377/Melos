@@ -25,7 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
@@ -38,9 +40,9 @@ import com.aesthetic.music.ui.theme.TextSoft
  * - [showPlatformTag] 控制标题下方是否显示平台彩色小标签（搜索页 true，歌手页 false）；
  * - [leading] 左侧插槽（如序号），默认不显示；
  * - [actions] 右侧按钮组插槽，默认一个「...」；传入后完全替换默认内容；
- * - 播放中整行浅棕底 + 标题棕色（[isPlaying]）。
+ * - 播放中整行浅色高光 + 标题主题色（[isPlaying]）。
  *
- * 注意：行本身不带边框/背景圆角，白底与分隔线由外层列表容器提供。
+ * 注意：行本身使用半透融合底色，与毛玻璃卡片容器完美融合。
  */
 @Composable
 fun SongRow(
@@ -51,15 +53,24 @@ fun SongRow(
     leading: (@Composable () -> Unit)? = null,
     actions: (@Composable () -> Unit)? = null,
 ) {
+    val isDark = Palette.isDark
     val subtitle = listOfNotNull(
         song.artist.ifBlank { null },
         song.album.ifBlank { null },
     ).joinToString(" · ")
 
+    val rowBg = when {
+        isPlaying -> if (isDark) Color(0x2838BDF8) else PrimaryBrown.copy(alpha = 0.08f)
+        else -> Color.Transparent
+    }
+    val activeTitleColor = if (isDark) Color(0xFF38BDF8) else PrimaryBrown
+    val titleColor = if (isPlaying) activeTitleColor else if (isDark) Color(0xFFF1F5F9) else TextPrimary
+    val subtitleColor = if (isDark) Color(0xFF94A3B8) else TextSoft
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isPlaying) PrimaryBrown.copy(alpha = 0.06f) else Surface)
+            .background(rowBg)
             .clickable(onClick = onPlay)
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -74,7 +85,7 @@ fun SongRow(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
-                color = if (isPlaying) PrimaryBrown else TextPrimary,
+                color = titleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -88,13 +99,21 @@ fun SongRow(
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = TextSoft,
+                        color = subtitleColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                 }
             }
+        }
+        if (isPlaying) {
+            // [GZ 真值] PlayingBarsKt.java:122 固定条高 16.dp，GZ 调用点自行用 modifier 限制高度
+            PlayingBars(
+                isPlaying = true,
+                color = activeTitleColor,
+                modifier = Modifier.height(13.dp).padding(horizontal = 6.dp),
+            )
         }
         Spacer(Modifier.width(4.dp))
         if (actions != null) {

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -670,7 +671,7 @@ private fun LiquidThemeCards(
         ),
         Triple(
             PlayerTheme.COVER,
-            "封面黑胶",
+            "黑胶唱机",
             Brush.verticalGradient(listOf(Color(0xFF5E2B16), Color(0xFF281109)))
         ),
         Triple(
@@ -678,17 +679,29 @@ private fun LiquidThemeCards(
             "Apple 流光",
             Brush.linearGradient(listOf(Color(0xFF3B1E82), Color(0xFF881958), Color(0xFF1E2675)))
         ),
+        Triple(
+            PlayerTheme.RECORD_SHELF,
+            "唱片封套",
+            Brush.linearGradient(listOf(Color(0xFF2D3748), Color(0xFF1A202C), Color(0xFF0F172A)))
+        ),
+        Triple(
+            PlayerTheme.LUMINOUS_CD,
+            "流光 CD",
+            Brush.linearGradient(listOf(Color(0xFF64748B), Color(0xFFCBD5E1), Color(0xFF475569)))
+        ),
     )
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         themes.forEach { (theme, name, brush) ->
             val isSelected = theme == currentTheme
 
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.width(92.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(

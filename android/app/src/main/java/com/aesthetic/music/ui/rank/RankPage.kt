@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.rank
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,9 +46,12 @@ import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ErrorBox
+import com.aesthetic.music.ui.components.DefaultCoverTone
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
+import com.aesthetic.music.ui.components.glassBorder
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -75,90 +81,97 @@ fun RankPage(
     val current = RankCatalog.normalize(platform)
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    Column(
-        modifier = Modifier.fillMaxSize(),
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        // ===== 顶栏（对齐歌单广场规范：返回键 + 大标题 + 刷新按钮） =====
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 16.dp, top = statusBarTop + 14.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
-                tint = TextPrimary,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable(onClick = onBack)
-                    .padding(4.dp)
-                    .size(24.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = "排行榜",
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                color = TextPrimary,
-            )
-            Spacer(Modifier.weight(1f))
-            // 右侧刷新按钮
-            Icon(
-                imageVector = Icons.Outlined.Refresh,
-                contentDescription = "刷新",
-                tint = if (isLoading) TextSoft else TextPrimary,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable(enabled = !isLoading, onClick = onRetry)
-                    .padding(6.dp)
-                    .size(22.dp),
-            )
-        }
+        // 全局动态呼吸极光光斑背景
+        HomeAmbientGlowBackground()
 
-        // ===== 平台胶囊栏（横向滚动，对齐歌单广场 CategoryPill 规范） =====
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            modifier = Modifier.fillMaxSize(),
         ) {
-            items(RankCatalog.platforms, key = { it.id }) { item ->
-                PlatformPill(
-                    label = item.label,
-                    selected = item.id == current,
-                    onClick = { onSelectPlatform(item.id) },
+            // ===== 顶栏（对齐歌单广场规范：返回键 + 大标题 + 刷新按钮） =====
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 16.dp, top = statusBarTop + 14.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = TextPrimary,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable(onClick = onBack)
+                        .padding(4.dp)
+                        .size(24.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "排行榜",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = TextPrimary,
+                )
+                Spacer(Modifier.weight(1f))
+                // 右侧刷新按钮
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = "刷新",
+                    tint = if (isLoading) TextSoft else TextPrimary,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable(enabled = !isLoading, onClick = onRetry)
+                        .padding(6.dp)
+                        .size(22.dp),
                 )
             }
-        }
 
-        Spacer(Modifier.height(12.dp))
+            // ===== 平台胶囊栏（横向滚动，对齐歌单广场 CategoryPill 规范） =====
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(RankCatalog.platforms, key = { it.id }) { item ->
+                    PlatformPill(
+                        label = item.label,
+                        selected = item.id == current,
+                        onClick = { onSelectPlatform(item.id) },
+                    )
+                }
+            }
 
-        // ===== 内容呈现（支持分状态展示） =====
-        when {
-            isLoading && ranks.isEmpty() -> LoadingBox(
-                message = "正在获取${RankCatalog.label(current)}榜单…",
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
+            Spacer(Modifier.height(12.dp))
 
-            ranks.isEmpty() && error != null -> ErrorBox(
-                message = error,
-                onRetry = onRetry,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
+            // ===== 内容呈现（支持分状态展示） =====
+            when {
+                isLoading && ranks.isEmpty() -> LoadingBox(
+                    message = "正在获取${RankCatalog.label(current)}榜单…",
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
 
-            ranks.isEmpty() -> EmptyBox(
-                message = "暂无排行榜",
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
+                ranks.isEmpty() && error != null -> ErrorBox(
+                    message = error,
+                    onRetry = onRetry,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
 
-            else -> RankList(
-                ranks = ranks,
-                refreshing = isLoading,
-                onOpenRank = onOpenRank,
-                modifier = Modifier.weight(1f),
-            )
+                ranks.isEmpty() -> EmptyBox(
+                    message = "暂无排行榜",
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+
+                else -> RankList(
+                    ranks = ranks,
+                    refreshing = isLoading,
+                    onOpenRank = onOpenRank,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -169,17 +182,31 @@ fun RankPage(
 @Composable
 private fun PlatformPill(label: String, selected: Boolean, onClick: () -> Unit) {
     val isDark = Palette.isDark
-    val bgModifier = if (selected) {
-        Modifier.iosGlassCard(shape = RoundedCornerShape(14.dp), elevation = 3.dp)
-    } else {
-        Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isDark) SurfaceSoft.copy(alpha = 0.5f) else Surface.copy(alpha = 0.65f))
-    }
+    val activeGradient = Brush.linearGradient(
+        listOf(
+            if (isDark) Color(0xFF38BDF8) else PrimaryBrown,
+            if (isDark) Color(0xFF6366F1) else Color(0xFF818CF8)
+        )
+    )
 
     Box(
         modifier = Modifier
-            .then(bgModifier)
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                if (selected) activeGradient
+                else Brush.linearGradient(
+                    listOf(
+                        (if (isDark) Color(0xFF1E293B) else Color.White).copy(alpha = 0.75f),
+                        (if (isDark) Color(0xFF1E293B) else Color.White).copy(alpha = 0.75f)
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
+                color = if (selected) DefaultCoverTone else glassBorder(),
+                shape = RoundedCornerShape(14.dp)
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
@@ -188,7 +215,7 @@ private fun PlatformPill(label: String, selected: Boolean, onClick: () -> Unit) 
             text = label,
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) TextPrimary else TextSoft,
+            color = if (selected) Color.White else TextPrimary,
         )
     }
 }
@@ -257,33 +284,41 @@ private fun GroupHeader(title: String, count: Int) {
 }
 
 /**
- * 单张排行榜玻璃拟态卡片（iOS 风格）
+ * 单张排行榜玻璃拟态卡片（对齐 GZ Music 现代设计规范）
  */
 @Composable
 private fun RankGlassCard(rank: PlaylistItem, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .iosGlassCard(shape = RoundedCornerShape(18.dp), elevation = 3.dp)
+            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
+            // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
+            .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
-            .padding(12.dp),
+            .padding(14.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SongCover(url = rank.coverUrl, modifier = Modifier.size(64.dp), corner = 12.dp)
-            Spacer(Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .shadow(4.dp, RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(14.dp))
+            ) {
+                SongCover(url = rank.coverUrl, modifier = Modifier.size(64.dp), corner = 14.dp)
+            }
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = rank.name,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp),
+                    fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val kindLabel = rankKindLabel(rank.kind ?: RankCatalog.kindOf(rank.name))
                     if (kindLabel.isNotEmpty()) {
@@ -295,19 +330,19 @@ private fun RankGlassCard(rank: PlaylistItem, onClick: () -> Unit) {
                         Text(
                             text = meta,
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                            color = TextMuted,
+                            color = TextSoft,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = TextMuted,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }
@@ -315,17 +350,23 @@ private fun RankGlassCard(rank: PlaylistItem, onClick: () -> Unit) {
 
 @Composable
 private fun KindBadge(text: String) {
+    val bgBrush = when (text) {
+        "飙升" -> Brush.horizontalGradient(listOf(Color(0xFFFF5722), Color(0xFFFF9800)))
+        "热歌" -> Brush.horizontalGradient(listOf(Color(0xFFE11D48), Color(0xFFF43F5E)))
+        "新歌" -> Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF10B981)))
+        "原创" -> Brush.horizontalGradient(listOf(Color(0xFF7C3AED), Color(0xFF8B5CF6)))
+        else -> Brush.horizontalGradient(listOf(Color(0xFF64748B), Color(0xFF94A3B8)))
+    }
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(PrimaryBrown.copy(alpha = 0.12f))
+            .background(bgBrush)
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-            color = PrimaryBrown,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+            color = Color.White,
         )
     }
 }

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -44,8 +45,7 @@ import com.aesthetic.music.ui.theme.TextSoft
 
 /**
  * 歌手信息卡片（歌手页 / 全部演唱页共用）：
- * 头像 + 名字/别名 + 单曲数，下排「播放全部 / 随机播放 / 搜索」。
- * 版式参照「我的收藏」的汇总卡片。
+ * 拟态毛玻璃头像 + 名字/别名 + 单曲数，下排「播放全部 / 随机播放 / 搜索」。
  */
 @Composable
 fun ArtistSummaryCard(
@@ -62,10 +62,8 @@ fun ArtistSummaryCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
-            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-            .padding(16.dp)
+            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
+            .padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(

@@ -14,6 +14,7 @@ fun HomeDestination(
     viewModel: MainViewModel,
     nav: ShellNav,
     actions: ShellActions,
+    isPlaying: Boolean = false,
 ) {
     val dailyPlaylists by viewModel.dailyPlaylists.collectAsState()
     val newSongs by viewModel.newSongs.collectAsState()
@@ -42,6 +43,9 @@ fun HomeDestination(
         onRetryContent = { viewModel.refreshContent() },
         onPlaySong = { song, list -> actions.playSong(song, list) },
         onSearchBarClick = { nav.navigateSingleTop(ScreenRoute.Search.route) },
+        // GZ 的搜索栏末尾是「听歌识曲」（HomeScreenKt.java:11352-11378）。Melos 暂无识曲能力，
+        // 这里沿用项目既有的「功能开发中」提示写法（AppShell 里对账号导入也是这么处理的）。
+        onMicClick = { viewModel.showToast("听歌识曲功能开发中，敬请期待") },
         onOpenPlaylistDetail = { pl ->
             viewModel.openPlaylistDetail(pl)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
@@ -55,5 +59,6 @@ fun HomeDestination(
         onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
         onOpenFm = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
         onToggleFavorite = viewModel::toggleFavorite,
+        isPlaying = isPlaying,
     )
 }

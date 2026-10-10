@@ -75,6 +75,7 @@ import com.aesthetic.music.ui.components.QuadCover
 import com.aesthetic.music.ui.components.SelectionBottomSheet
 import com.aesthetic.music.ui.components.SelectionItem
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.AccentCoral
@@ -221,24 +222,46 @@ fun PlaylistScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
+        HomeAmbientGlowBackground()
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(top = statusBarTop + 16.dp)
         ) {
-            // ===== 1. 顶部大卡片 =====
-            PlaylistHeaderCard(
-                covers = topCovers,
-                platformLabel = filterLabel,
-                onPlatformClick = { showPlatformSheet = true },
-                onSearchClick = {
+            // ===== 1. 顶部 Apple Bento 网格媒体库大卡片 =====
+            LibraryBentoSection(
+                playlistCount = allUnifiedPlaylists.size,
+                songCount = totalSongCount,
+                customCount = platformStats.second,
+                favoriteCount = allUnifiedPlaylists.size - platformStats.second,
+                selectedFilter = selectedPlatformFilter,
+                onSelectFilter = { selectedPlatformFilter = it },
+                topCovers = topCovers,
+                onPlayAll = {
+                    val allSongs = allUnifiedPlaylists.flatMap { item ->
+                        when (item) {
+                            is UnifiedPlaylistItem.Custom -> item.playlist.songs
+                            else -> emptyList()
+                        }
+                    }
+                    if (allSongs.isNotEmpty()) onPlayPlaylist(allSongs)
+                },
+                onShufflePlay = {
+                    val allSongs = allUnifiedPlaylists.flatMap { item ->
+                        when (item) {
+                            is UnifiedPlaylistItem.Custom -> item.playlist.songs
+                            else -> emptyList()
+                        }
+                    }.shuffled()
+                    if (allSongs.isNotEmpty()) onPlayPlaylist(allSongs)
+                },
+                onToggleSearch = {
                     isSearchExpanded = !isSearchExpanded
                     if (!isSearchExpanded) searchQuery = ""
                 },
-                playlistCount = allUnifiedPlaylists.size,
-                songCount = totalSongCount,
                 onCreatePlaylist = { showCreateSheet = true },
                 onImportPlaylist = onOpenImport,
+                platformList = platformStats.third.toList(),
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
 
@@ -827,7 +850,7 @@ private fun PlaylistRowItem(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.QueueMusic,
+                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                         contentDescription = null,
                         tint = TextMuted,
                         modifier = Modifier.size(24.dp)

@@ -51,13 +51,14 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.R
 // --- 1. 更新数据模型：加入图标资源字段 ---
 data class PlatformItem(
     val name: String,
     val id: String?,
     val fallbackColor: Color, // 备用颜色（没图标时显示彩色圆圈）
-    @DrawableRes val iconRes: Int? = null // 真实的图片资源 ID
+    @param:DrawableRes val iconRes: Int? = null // 真实的图片资源 ID
 )
 
 // --- 2. 配置平台数据源 ---
@@ -86,8 +87,7 @@ fun SearchInputBar(
         modifier = modifier
             .fillMaxWidth()
             .height(44.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(Stone100)
+            .glassCard(shape = RoundedCornerShape(22.dp))
             .clickable {
                 focusRequester.requestFocus()
                 keyboard?.show()

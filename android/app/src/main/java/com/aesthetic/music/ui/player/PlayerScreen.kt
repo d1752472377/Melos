@@ -100,6 +100,7 @@ import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.PlayerBg
 import com.aesthetic.music.ui.theme.PlayerBgDark
+import com.aesthetic.music.ui.components.FavoriteBurstButton
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.player.lyrics.MelosLyricsView
 import kotlinx.coroutines.android.awaitFrame
@@ -172,6 +173,12 @@ fun PlayerScreen(
             PlayerTheme.COVER -> Brush.verticalGradient(listOf(Color(0xFF5C2612), Color(0xFF1F0D06)))
             PlayerTheme.APPLE -> Brush.verticalGradient(
                 listOf(Color(0xFF311B92), Color(0xFF880E4F), Color(0xFF1A237E))
+            )
+            PlayerTheme.RECORD_SHELF -> Brush.verticalGradient(
+                listOf(Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF020617))
+            )
+            PlayerTheme.LUMINOUS_CD -> Brush.verticalGradient(
+                listOf(Color(0xFF334155), Color(0xFF1E293B), Color(0xFF0F172A))
             )
         }
     }
@@ -302,21 +309,17 @@ fun PlayerScreen(
                             modifier = Modifier.size(20.dp),
                         )
                     }
-                    Box(
+                    FavoriteBurstButton(
+                        isFavorite = isFavorite,
+                        onToggle = onToggleFavorite,
+                        iconSize = 20.dp,
+                        activeColor = Rose,
+                        inactiveColor = Color.White.copy(alpha = 0.85f),
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.12f))
-                            .clickable(onClick = onToggleFavorite),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                            tint = if (isFavorite) Rose else Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
+                    )
                 }
             }
 
@@ -334,6 +337,7 @@ fun PlayerScreen(
                         activeIndexProvider = {
                             currentLyricIndex(state.lyrics, animatedPositionState.longValue)
                         },
+                        currentTimeMsProvider = { animatedPositionState.longValue },
                         onSeek = onSeek,
                         fontSizeSp = lyricFontSize.spSize,
                         showTranslation = true,
@@ -573,84 +577,100 @@ private fun AnimatedCoverBox(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            if (theme == PlayerTheme.COVER) {
-                Box(
-                    modifier = Modifier
-                        .size(285.dp)
-                        .graphicsLayer { rotationZ = vinylRotation.value % 360f }
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFF222226),
-                                    Color(0xFF141416),
-                                    Color(0xFF1F1F23),
-                                    Color(0xFF101012),
-                                    Color(0xFF26262B),
-                                    Color(0xFF0C0C0D)
-                                )
-                            )
-                        )
-                        .border(2.dp, Color.White.copy(alpha = 0.12f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val centerOffset = Offset(size.width / 2, size.height / 2)
-                        val maxRadius = size.width / 2
-                        val grooveRadii = listOf(0.92f, 0.84f, 0.76f, 0.68f)
-                        grooveRadii.forEach { factor ->
-                            drawCircle(
-                                color = Color.White.copy(alpha = 0.045f),
-                                radius = maxRadius * factor,
-                                center = centerOffset,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
-                            )
-                        }
-                    }
-
-                    if (!artworkUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = artworkUrl,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(175.dp)
-                                .clip(CircleShape)
-                                .border(2.dp, Color(0xFF111113), CircleShape),
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(175.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF2A1C16)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Melos", color = AmberLight.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
-                        }
-                    }
-
+            when (theme) {
+                PlayerTheme.RECORD_SHELF -> {
+                    RecordShelfCover(
+                        artworkUrl = artworkUrl,
+                        isPlaying = isPlaying,
+                        vinylRotation = vinylRotation.value % 360f,
+                    )
+                }
+                PlayerTheme.LUMINOUS_CD -> {
+                    LuminousCdCover(
+                        artworkUrl = artworkUrl,
+                        isPlaying = isPlaying,
+                        cdRotation = vinylRotation.value % 360f,
+                    )
+                }
+                PlayerTheme.COVER -> {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(285.dp)
+                            .graphicsLayer { rotationZ = vinylRotation.value % 360f }
                             .clip(CircleShape)
                             .background(
                                 Brush.radialGradient(
-                                    listOf(Color(0xFFD4AF37), Color(0xFF8A6D1C), Color(0xFF261D09))
+                                    colors = listOf(
+                                        Color(0xFF222226),
+                                        Color(0xFF141416),
+                                        Color(0xFF1F1F23),
+                                        Color(0xFF101012),
+                                        Color(0xFF26262B),
+                                        Color(0xFF0C0C0D)
+                                    )
                                 )
                             )
-                            .border(1.dp, AmberLight.copy(alpha = 0.4f), CircleShape),
+                            .border(2.dp, Color.White.copy(alpha = 0.12f), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val centerOffset = Offset(size.width / 2, size.height / 2)
+                            val maxRadius = size.width / 2
+                            val grooveRadii = listOf(0.92f, 0.84f, 0.76f, 0.68f)
+                            grooveRadii.forEach { factor ->
+                                drawCircle(
+                                    color = Color.White.copy(alpha = 0.045f),
+                                    radius = maxRadius * factor,
+                                    center = centerOffset,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                                )
+                            }
+                        }
+
+                        if (!artworkUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = artworkUrl,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(175.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, Color(0xFF111113), CircleShape),
+                                contentScale = ContentScale.Crop,
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(175.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF2A1C16)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Melos", color = AmberLight.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
+                            }
+                        }
+
                         Box(
                             modifier = Modifier
-                                .size(12.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF09090A))
-                        )
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(Color(0xFFD4AF37), Color(0xFF8A6D1C), Color(0xFF261D09))
+                                    )
+                                )
+                                .border(1.dp, AmberLight.copy(alpha = 0.4f), CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF09090A))
+                            )
+                        }
                     }
                 }
-            } else {
+                else -> {
                 if (theme == PlayerTheme.APPLE && !artworkUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = artworkUrl,
@@ -697,6 +717,7 @@ private fun AnimatedCoverBox(
             }
         }
     }
+}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -949,6 +970,47 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
                                         Color(0xFA100603)
                                     ),
                                     radius = 1200f,
+                                )
+                            )
+                    )
+                }
+                PlayerTheme.RECORD_SHELF -> {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context).data(artworkUrl).size(240).build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().blur(bgBlurDp.dp).graphicsLayer { alpha = 0.5f },
+                        contentScale = ContentScale.Crop,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0x880F172A),
+                                        Color(0xEE020617)
+                                    )
+                                )
+                            )
+                    )
+                }
+                PlayerTheme.LUMINOUS_CD -> {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context).data(artworkUrl).size(240).build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().blur(bgBlurDp.dp).graphicsLayer { alpha = 0.45f },
+                        contentScale = ContentScale.Crop,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        Color(0x66475569),
+                                        Color(0xEE0F172A)
+                                    ),
+                                    radius = 1100f
                                 )
                             )
                     )

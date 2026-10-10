@@ -14,6 +14,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.player.LyricLine
+import com.aesthetic.music.player.LyricWord
 import com.aesthetic.music.ui.components.BindUserInteraction
 import com.aesthetic.music.ui.components.centerItemIndex
 import com.aesthetic.music.ui.components.rememberAutoScrollController
@@ -72,8 +76,10 @@ fun MelosLyricsView(
     activeIndexProvider: () -> Int,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    currentTimeMsProvider: (() -> Long)? = null,
     fontSizeSp: Int = 22,
     showTranslation: Boolean = true,
+    showRomanization: Boolean = true,
     onToggleLyricMode: (() -> Unit)? = null,
     onLineLongClick: (() -> Unit)? = null,
 ) {
@@ -212,18 +218,42 @@ fun MelosLyricsView(
                         .padding(horizontal = 14.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
-                    Text(
-                        text = line.text,
-                        color = if (isHighlighted) {
-                            if (isFocused) Color.White else AmberLight
-                        } else Color.White,
-                        fontSize = if (isHighlighted) fontSizeSp.sp
-                        else (fontSizeSp - 3).coerceAtLeast(14).sp,
-                        fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.SemiBold,
-                        lineHeight = if (isHighlighted) (fontSizeSp * 1.38f).sp
-                        else (fontSizeSp * 1.28f).sp,
-                        textAlign = TextAlign.Start,
-                    )
+                    if (showRomanization && !line.romanization.isNullOrBlank() && line.romanization != line.text) {
+                        Text(
+                            text = line.romanization,
+                            color = if (isHighlighted) AmberLight.copy(alpha = 0.70f)
+                            else Color.White.copy(alpha = 0.25f),
+                            fontSize = if (isHighlighted) (fontSizeSp - 9).coerceAtLeast(11).sp
+                            else (fontSizeSp - 11).coerceAtLeast(10).sp,
+                            fontWeight = FontWeight.Normal,
+                            lineHeight = (fontSizeSp * 0.85f).sp,
+                            textAlign = TextAlign.Start,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                    }
+
+                    if (line.isWordByWord && isHighlighted) {
+                        val currentMs = currentTimeMsProvider?.invoke() ?: line.timeMs
+                        WordByWordFlowLine(
+                            words = line.words,
+                            currentTimeMs = currentMs,
+                            fontSizeSp = fontSizeSp,
+                            isFocused = isFocused
+                        )
+                    } else {
+                        Text(
+                            text = line.text,
+                            color = if (isHighlighted) {
+                                if (isFocused) Color.White else AmberLight
+                            } else Color.White,
+                            fontSize = if (isHighlighted) fontSizeSp.sp
+                            else (fontSizeSp - 3).coerceAtLeast(14).sp,
+                            fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.SemiBold,
+                            lineHeight = if (isHighlighted) (fontSizeSp * 1.38f).sp
+                            else (fontSizeSp * 1.28f).sp,
+                            textAlign = TextAlign.Start,
+                        )
+                    }
 
                     if (showTranslation && !line.translated.isNullOrBlank() &&
                         line.translated != line.text
@@ -361,4 +391,48 @@ private fun formatLyricTime(ms: Long): String {
     val m = totalSec / 60
     val s = totalSec % 60
     return String.format(Locale.US, "%02d:%02d", m, s)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WordByWordFlowLine(
+    words: List<LyricWord>,
+    currentTimeMs: Long,
+    fontSizeSp: Int,
+    isFocused: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalArrangement = Arrangement.Center
+    ) {
+        words.forEach { word ->
+            val isCurrent = isFocused && currentTimeMs in word.startMs..word.endMs
+            val isPast = isFocused && currentTimeMs > word.endMs
+            val scale = if (isCurrent) {
+                calculateWordLiftScale(currentTimeMs, word.startMs, word.endMs)
+            } else {
+                1.0f
+            }
+            val textColor = when {
+                !isFocused -> Color.White.copy(alpha = 0.6f)
+                isCurrent -> AmberLight
+                isPast -> Color.White
+                else -> Color.White.copy(alpha = 0.40f)
+            }
+            Text(
+                text = word.text,
+                color = textColor,
+                fontSize = fontSizeSp.sp,
+                fontWeight = if (isCurrent || isPast) FontWeight.Bold else FontWeight.SemiBold,
+                lineHeight = (fontSizeSp * 1.38f).sp,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    transformOrigin = TransformOrigin(0.5f, 1.0f)
+                }
+            )
+        }
+    }
 }

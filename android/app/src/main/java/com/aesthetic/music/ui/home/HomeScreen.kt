@@ -1,11 +1,16 @@
 package com.aesthetic.music.ui.home
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.overscroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,69 +19,78 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.unit.Velocity
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.BottomContentSpacer
-import com.aesthetic.music.ui.components.SongCover
-import com.aesthetic.music.ui.theme.AccentAmber
-import com.aesthetic.music.ui.theme.Palette
-import com.aesthetic.music.ui.theme.Stone200
-import com.aesthetic.music.ui.theme.TextMuted
-import com.aesthetic.music.ui.theme.TextPrimary
-import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.components.glassCard
+import com.aesthetic.music.ui.components.liquidGlassCardSurface
+import com.aesthetic.music.ui.components.rememberIOSOverScrollEffect
+import com.aesthetic.music.ui.components.textHigh
+import com.aesthetic.music.ui.components.textLow
+import com.aesthetic.music.ui.components.textMedium
+import com.aesthetic.music.ui.theme.appIsDark
 
 /**
- * 首页（iOS 玻璃拟态风格）：
- * 1. 底层 HomeAmbientGlowBackground 动态光晕画布
- * 2. 顶部 Header 与搜索框
- * 3. 快捷入口卡片（排行榜、猜你喜欢、随心听，全圆角 Squircle 拟态）
- * 4. 沉浸式场景精选推荐卡片（时段氛围 Banner + Hi-Res 徽标 + 此刻旋律曲目试听）
+ * 首页。
+ *
+ * ## 版块顺序 = GZ Music 真值
+ * 从 `gz_decompiled/.../feature/home/HomeScreenKt.java` 逐段解出（调用点行号见下），
+ * 与页面内各组件自身的 `// xxx.java:行号` 注释共同构成完整溯源链：
+ *
+ * | # | 版块 | GZ 调用点 |
+ * |---|---|---|
+ * | 1 | 标题「发现好音乐」 | `HomeScreenKt.java:8698` → `:9571` `HomeTopBar` |
+ * | 2 | 搜索栏（顶栏的平级兄弟节点） | `:8714` |
+ * | 3 | 时段场景大卡 `DailyStackHero` | `:8790` |
+ * | 4 | 三大拟态入口 `HomeEntryCards` | `:8815` |
+ * | 5 | 分类盲盒 `CategoryBlindBoxRow` | `:497`（按 3 个切块） |
+ * | 6 | 新碟首发 `NewAlbumSection` | `:8845` |
+ * | 7 | 情绪电台 `MoodRadioChannelTabs` + `MoodRadioArtwork` | `:10049` / `:10634` |
+ * | 8 | 折叠排行榜 `ChartCard` / `PhoneChartCard` | `:10798` / `:9208` |
+ *
+ * ## 刷新交互 = GZ 真值（**没有下拉刷新**）
+ * 主控做过 5 项决定性检索：GZ 全仓 `PullToRefreshBox` / `rememberPullToRefreshState` /
+ * `pullToRefresh` / `SwipeRefresh` / `PullRefreshIndicator` **均为 0 命中**；
+ * `HomeScreenKt` 里也没有 `onRefresh` / `NestedScrollConnection`。
+ * GZ 首页的「刷新」由两件事构成：
+ *  1. **列表过卷 = iOS 回弹**：`rememberIOSOverScrollEffect(Orientation.Vertical)`
+ *     （`IOSOverscrollEffectKt.java:16`，`fm5.c` = Vertical；实现在 `defpackage/li3.java`，
+ *      构造器只收 CoroutineScope + Orientation，**不触发刷新**）
+ *  2. **需要重试时 = 一行可点文字**「部分盲盒未刷新 · 点击重试」（`HomeScreenKt.java:512`）
+ *
+ * 因此本文件**删除了** Melos 原有的「触底继续上拉 → 玻璃胶囊 → 继续上拉刷新 / 松手立即刷新 /
+ * 正在刷新推荐内容…」那套底部上拉刷新（那是 Antigravity 自造的交互，GZ 中不存在）。
+ *
+ * ## 横向留白
+ * GZ 的每个版块都自己带 16.dp 横向内边距（`HomeScreenKt.java:3067`、`:7503`、
+ * `CategoryBlindBoxRowKt.java:199`），列表层不加横向 padding，避免双重缩进。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     dailyPlaylists: List<PlaylistItem>,
@@ -94,12 +108,19 @@ fun HomeScreen(
     onRetryContent: (() -> Unit)? = null,
     onPlaySong: (Song, List<Song>) -> Unit,
     onSearchBarClick: () -> Unit,
+    /**
+     * 搜索栏末尾的「听歌识曲」按钮回调。
+     * GZ 的 `SearchBar` 只在回调非空时才渲染这颗圆钮（`HomeScreenKt.java:11352`）；
+     * Melos 目前没有识曲能力，默认 null（即不渲染），由宿主决定是否打开。
+     */
+    onMicClick: (() -> Unit)? = null,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
     onOpenSheet: () -> Unit,
     onOpenSheetCategory: (String) -> Unit,
     onOpenRanksPage: () -> Unit,
     onOpenFm: () -> Unit = {},
     onToggleFavorite: (Song) -> Unit,
+    isPlaying: Boolean = false,
 ) {
     // 候选歌曲池（优先新歌、热歌），去重防止下游 key 冲突
     val poolSongs = remember(newSongs, hotSongs) {
@@ -124,65 +145,104 @@ fun HomeScreen(
             hotPlaylists.isEmpty() &&
             ranks.isEmpty()
 
-    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    var bottomPullOffset by remember { mutableFloatStateOf(0f) }
-    var isRefreshing by remember { mutableStateOf(false) }
-
-    val bottomRefreshConnection = remember {
-        object : NestedScrollConnection {
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                // 列表触底后继续拉动（拉到最底部之后继续下滑）
-                if (available.y < 0f && !listState.canScrollForward) {
-                    bottomPullOffset = (bottomPullOffset - available.y * 0.5f).coerceAtMost(120f)
-                    return Offset(0f, available.y)
-                }
-                return Offset.Zero
-            }
-
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (bottomPullOffset > 0f && available.y > 0f) {
-                    val consumed = available.y.coerceAtMost(bottomPullOffset)
-                    bottomPullOffset -= consumed
-                    return Offset(0f, consumed)
-                }
-                return Offset.Zero
-            }
-
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                if (bottomPullOffset > 45f && !isRefreshing) {
-                    isRefreshing = true
-                    bottomPullOffset = 0f
-                    onRetryContent?.invoke()
-                    delay(1200L)
-                    isRefreshing = false
-                } else {
-                    bottomPullOffset = 0f
-                }
-                return Velocity.Zero
-            }
+    // 新碟数据转换
+    val newAlbums = remember(dailyPlaylists, hotPlaylists) {
+        (dailyPlaylists + hotPlaylists).distinctBy { it.id }.take(8).map { playlist ->
+            AlbumDisplayItem(
+                id = playlist.id,
+                title = playlist.name,
+                artist = playlist.description?.take(15) ?: "精选专辑",
+                coverUrl = playlist.coverUrl,
+                onClick = { onOpenPlaylistDetail(playlist) }
+            )
         }
     }
 
+    // [GZ 真值] 时段场景（defpackage/me3.java:1031-1043）—— 旧实现里的「时段问候」是编造的
+    val timeScene = remember { resolveTimeScene(currentHourOfDay()) }
+
+    // 盲盒已从首页移除（见下方板块列表处的说明）；其随机取数逻辑（GZ me3.java:39 的 6 个分类名
+    // 经 me3.java:1096 `shuffled().take(3)`）随组件一起留在 CategoryBlindBoxRow 的使用方那里。
+
+    val songsMap = remember(newSongs, hotSongs, poolSongs) {
+        mapOf(
+            RankingTab.RISING to poolSongs.take(10),
+            RankingTab.NEW to (if (newSongs.isNotEmpty()) newSongs else poolSongs).take(10),
+            RankingTab.ORIGINAL to poolSongs.reversed().take(10),
+            RankingTab.HOT to (if (hotSongs.isNotEmpty()) hotSongs else poolSongs).take(10)
+        )
+    }
+
+    val listState = rememberLazyListState()
+
+    // [GZ 真值] iOS 风格回弹过卷：GZ 首页的 LazyColumn 挂的就是
+    // `rememberIOSOverScrollEffect(Orientation.Vertical)`（IOSOverscrollEffectKt.java:16，
+    // 实现在 defpackage/li3.java）。GZ 没有下拉刷新，这套回弹就是它残留的过卷手感。
+    val iosOverscroll = rememberIOSOverScrollEffect()
+
     Box(modifier = Modifier.fillMaxSize()) {
+        // 极光流光背景 —— GZ 真值实现（AuroraBackgroundKt.java:29-40 + defpackage/p70.java:38-83）
+        HomeAmbientGlowBackground()
+
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .nestedScroll(bottomRefreshConnection),
+                // 1.7.4 里 LazyColumn 没有 overscrollEffect 形参，需用 Modifier.overscroll 挂载
+                // （androidx.compose.foundation/Overscroll.kt:151）
+                .overscroll(iosOverscroll),
+            // 横向不加 padding：GZ 每个版块自带 16.dp（见本函数 KDoc）
             contentPadding = PaddingValues(
-                top = statusBarTop + 16.dp,
-                start = 20.dp,
-                end = 20.dp,
+                top = 0.dp,
+                start = 0.dp,
+                end = 0.dp,
                 bottom = BottomContentSpacer,
             ),
+            // 18.dp 是 Melos 原有的版块间距（非 GZ token）——GZ 的版块间距由各版块自己给定
+            // （例如场景大卡前的公告条间隔 12.dp，HomeScreenKt.java:3963）
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // 1. 顶部 Header 与毛玻璃搜索框
-            item(key = "header_and_search") {
-                HomeHeader(onSearchBarClick = onSearchBarClick)
+            // 1. 标题「发现好音乐」（HomeScreenKt.java:8698 → :9571 HomeTopBar；内部自带 statusBarsPadding）
+            item(key = "home_top_bar") {
+                HomeHeader()
+            }
+
+            // 2. 搜索栏（与顶栏平级的兄弟节点，HomeScreenKt.java:8714）
+            item(key = "home_search_bar") {
+                HomeSearchEntry(onClick = onSearchBarClick, onMicClick = onMicClick)
+            }
+
+            // 3. 时段场景大卡 / 轮播（DailyStackHero，HomeScreenKt.java:8790 → :3765 DailyHeroCard）
+            //    GZ 传的是 `z81.L0(list4, 3)` = 最多 3 页的 HorizontalPager（配 HeroPageIndicator）
+            if (targetPlaylist != null) {
+                item(key = "daily_hero") {
+                    HomeDailyHero(
+                        title = timeScene.title,
+                        subtitle = timeScene.category,
+                        pages = (dailyPlaylists + hotPlaylists).distinctBy { it.id }.take(3),
+                        previewSongs = (if (recommendSongs.isNotEmpty()) recommendSongs else poolSongs).take(3),
+                        isLoadingSongs = isLoadingRecommendSongs && recommendSongs.isEmpty(),
+                        isPlaying = isPlaying,
+                        onPlaySong = onPlaySong,
+                        onOpenPlaylist = onOpenPlaylistDetail,
+                    )
+                }
+            }
+
+            // 4. 三大拟态入口（HomeEntryCards，HomeScreenKt.java:8815）
+            item(key = "home_entry_cards") {
+                HomeEntryCards(
+                    onOpenRecommend = {
+                        if (targetPlaylist != null) {
+                            onOpenPlaylistDetail(targetPlaylist)
+                        } else {
+                            onOpenSheet()
+                        }
+                    },
+                    onOpenRanks = onOpenRanksPage,
+                    onOpenFm = onOpenFm,
+                    isPlaying = isPlaying,
+                )
             }
 
             // 首次加载：全部数据区块为空时显示加载态
@@ -199,44 +259,46 @@ fun HomeScreen(
                 }
             }
 
-            // 2. 快捷入口卡片（排行榜、分类歌单、随心听，完全对齐图 2）
-            item(key = "quick_features") {
-                QuickFeaturesCard(
-                    onOpenRanks = onOpenRanksPage,
-                    onOpenCategory = onOpenSheet,
-                    onOpenFm = onOpenFm,
+            // ── [已移除] 分类盲盒 ──
+            // 依据：GZ 真机截图上，手机端首页在「三大入口」下方**直接就是心情电台**
+            // （见 .shots/compare/ref_gz_home.png），并没有盲盒那一排。
+            // `CategoryBlindBoxRow` 的真实调用点在 HomeScreenKt.java:497-1945，那是**另一个内容函数**
+            // （不是 8072 起的这个 HomeScreen），此前按调用行号把它排进首页属于排序错误。
+            // 组件本身保留在 ui/home/CategoryBlindBoxRow.kt，可供歌单广场等页面复用。
+
+            // 5. 情绪电台（HomeScreenKt.java:10049 频道标签 + :10634 插画）
+            //    顺序依据：GZ 真机截图里「心情电台」在「新碟首发」**之前**
+            item(key = "mood_radio") {
+                MoodRadioPanel(
+                    // playingMood 留空：Melos 的播放层没有「情绪」元数据，
+                    // 面板会用自身的本地选中态驱动颜色与文案（见 MoodRadioPanel 内注释）
+                    isPlaying = isPlaying,
+                    onPlayMood = { mood ->
+                        if (poolSongs.isNotEmpty()) {
+                            onPlaySong(poolSongs.random(), poolSongs)
+                        } else {
+                            onOpenFm()
+                        }
+                    }
                 )
             }
 
-            // 3. 沉浸式场景推荐卡片（融合场景 Banner 与此刻旋律曲目列表）
-            if (targetPlaylist != null) {
-                item(key = "featured_scene_card") {
-                    FeaturedScenePlaylistCard(
-                        playlist = targetPlaylist,
-                        previewSongs = (if (recommendSongs.isNotEmpty()) recommendSongs else poolSongs).take(3),
-                        allPlaylistSongs = if (recommendSongs.isNotEmpty()) recommendSongs else poolSongs,
-                        isLoadingSongs = isLoadingRecommendSongs && recommendSongs.isEmpty(),
-                        onOpenPlaylistDetail = onOpenPlaylistDetail,
-                        onPlaySong = onPlaySong,
+            // 6. 新碟首发（NewAlbumSection，HomeScreenKt.java:8845）
+            if (newAlbums.isNotEmpty()) {
+                item(key = "new_album_section") {
+                    NewAlbumSection(
+                        albums = newAlbums,
+                        onOpenMore = onOpenSheet
                     )
                 }
             }
 
-            // 底部触底过卷刷新胶囊（满足"拉到最底部之后继续下滑就刷新"）
-            item(key = "bottom_refresh") {
-                BottomOverscrollRefreshBar(
-                    isRefreshing = isRefreshing,
-                    pullOffset = bottomPullOffset,
-                    onRefresh = {
-                        if (!isRefreshing) {
-                            isRefreshing = true
-                            onRetryContent?.invoke()
-                            scope.launch {
-                                delay(1200L)
-                                isRefreshing = false
-                            }
-                        }
-                    },
+            // 8. 折叠排行榜（HomeRankingCard，HomeScreenKt.java:9208 / :10798）
+            item(key = "home_ranking_card") {
+                HomeRankingCard(
+                    songsMap = songsMap,
+                    onPlaySong = onPlaySong,
+                    onOpenRanksPage = onOpenRanksPage
                 )
             }
 
@@ -248,476 +310,112 @@ fun HomeScreen(
 }
 
 /**
- * 快捷入口卡片：排行榜、分类歌单、随心听（对齐图 2 与 iOS 拟态）
+ * GZ `MotionKt.bounceClick` 的等价实现（按压回弹）。
+ *
+ * 数值全部来自反编译真值：
+ *  - 动画 spec = `ct.java:8` 的 `qk5.r0(150, 2, MotionKt.a)` = `tween(150ms, easing = bs4.a)`
+ *  - 缓动 = `bs4.java:6` 的 `bs4.a` = `CubicBezierEasing(0.2f, 0f, 0f, 1f)`
+ *  - `label = "pressScale"` ← `MotionKt.java:62`
+ *  - `indication = null`（GZ 的点击无涟漪）← `MotionKt.java:69`
  */
 @Composable
-private fun QuickFeaturesCard(
-    onOpenRanks: () -> Unit,
-    onOpenCategory: () -> Unit,
-    onOpenFm: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .iosGlassCard(shape = RoundedCornerShape(22.dp), elevation = 6.dp)
-            .padding(vertical = 14.dp, horizontal = 6.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 排行榜：天蓝底色 + 白色柱状图
-            QuickFeatureItem(
-                icon = Icons.Filled.BarChart,
-                iconTint = Color.White,
-                iconContainerBg = Color(0xFF4EA4F6),
-                title = "排行榜",
-                onClick = onOpenRanks,
-            )
-
-            // 半透明细分割线
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(30.dp)
-                    .background(if (Palette.isDark) Color.White.copy(alpha = 0.12f) else Stone200.copy(alpha = 0.5f))
-            )
-
-            // 分类歌单：落日粉红底色 + 白色九宫格（点击直接跳转歌单广场）
-            QuickFeatureItem(
-                icon = Icons.Filled.GridOn,
-                iconTint = Color.White,
-                iconContainerBg = Color(0xFFFA6B88),
-                title = "分类歌单",
-                onClick = onOpenCategory,
-            )
-
-            // 半透明细分割线
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(30.dp)
-                    .background(if (Palette.isDark) Color.White.copy(alpha = 0.12f) else Stone200.copy(alpha = 0.5f))
-            )
-
-            // 随心听：翠绿底色 + 白色随机箭头
-            QuickFeatureItem(
-                icon = Icons.Filled.Shuffle,
-                iconTint = Color.White,
-                iconContainerBg = Color(0xFF34C79F),
-                title = "随心听",
-                onClick = onOpenFm,
-            )
+private fun Modifier.gzPressScale(pressedScale: Float, onClick: () -> Unit): Modifier {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressedScale else 1f,
+        animationSpec = tween(
+            durationMillis = 150, // ct.java:8
+            easing = CubicBezierEasing(0.2f, 0f, 0f, 1f), // bs4.java:6
+        ),
+        label = "pressScale", // MotionKt.java:62
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
         }
-    }
-}
-
-@Composable
-private fun QuickFeatureItem(
-    icon: ImageVector,
-    iconTint: Color,
-    iconContainerBg: Color,
-    title: String,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(iconContainerBg),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = iconTint,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall.copy(
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-            color = TextPrimary,
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null, // MotionKt.java:69
+            onClick = onClick,
         )
-    }
 }
 
 /**
- * 沉浸式场景精选卡片（完美对齐图 2）：
- * 上半部：沉浸式封面 Banner（带时段场景、Hi-Res 标、大标题、创建者与毛玻璃播放圆钮）
- * 下半部：此刻的旋律（歌单曲目总数、带方形封面的 3 首试听曲目、金色播放箭头）
+ * 首页搜索栏 —— 逐值还原 GZ `HomeScreenKt.SearchBar`（定义在 `HomeScreenKt.java:11280`，调用点 `:8714`）。
+ *
+ * 真值（行号均指 `HomeScreenKt.java`）：
+ *  - 圆角 `RoundedCornerShape(24.dp)`（:11322）
+ *  - 外链：`fillMaxWidth → padding(horizontal = 16.dp) → height(48.dp)`（:11325）
+ *  - 表面：`liquidGlassCardSurface(shape, tone = null, tones = null, selected = false,
+ *    gradient = false, elevation = 0f, flat = true, settings = null)`（:11325）
+ *    —— `settings = null` ⇒ `usesLiquidGlassButtons` 返回 false ⇒ 走 **flat 降级路径**；
+ *    本项目用 `liquidGlassEnabled = false` 表达这个语义。
+ *  - 按压缩放 **0.985**（:11325）
+ *  - 内部 padding `start = 14.dp, end = 6.dp`（:11325 的 `hp1.s0(…,14,0,6,0,10)`）
+ *  - 前导图标 **19.dp** + `textLow()`（:11349）
+ *  - 提示文案 **"搜索歌曲、歌手、专辑"**、`textMedium()`、**13.sp**、**W500**、`weight(1f, fill = true)`（:11350）
+ *  - 末尾「听歌识曲」圆钮（仅当回调非空，:11352）：**36.dp 圆**（:11354）、底色
+ *    `textHigh()@10%(深)/6%(浅)`（:11356-11362）、按压缩放 **0.9**（:11362）、图标 **18.dp**
+ *    `textHigh()`、`contentDescription = "听歌识曲"`（:11377）
  */
 @Composable
-private fun FeaturedScenePlaylistCard(
-    playlist: PlaylistItem,
-    previewSongs: List<Song>,
-    allPlaylistSongs: List<Song> = emptyList(),
-    isLoadingSongs: Boolean = false,
-    onOpenPlaylistDetail: (PlaylistItem) -> Unit,
-    onPlaySong: (Song, List<Song>) -> Unit,
-) {
-    val timeScene = rememberTimeScene()
-
-    Column(
+private fun HomeSearchEntry(onClick: () -> Unit, onMicClick: (() -> Unit)?) {
+    val dark = appIsDark()
+    val shape = RoundedCornerShape(24.dp) // :11322
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .iosGlassCard(shape = RoundedCornerShape(24.dp), elevation = 8.dp)
-            .padding(10.dp),
-    ) {
-        // ==================== 上半部：沉浸式场景 Banner ====================
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(204.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .clickable { onOpenPlaylistDetail(playlist) },
-        ) {
-            // 1. 歌单背景大图
-            SongCover(
-                url = playlist.coverUrl,
-                modifier = Modifier.fillMaxSize(),
-                corner = 18.dp,
+            .padding(horizontal = 16.dp)
+            .height(48.dp) // :11325
+            .liquidGlassCardSurface(
+                shape = shape,
+                // flat = true 且 settings = null → GZ 走的是降级（非液态玻璃）那一支
+                flat = true,
+                elevation = 0.dp,
+                liquidGlassEnabled = false,
             )
+            .gzPressScale(pressedScale = 0.985f, onClick = onClick) // :11325
+            .padding(start = 14.dp, top = 0.dp, end = 6.dp, bottom = 0.dp), // :11325
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Search,
+            contentDescription = null,
+            tint = textLow(), // :11349 GlassTokensKt.textLow
+            modifier = Modifier.size(19.dp), // :11349 ij7.n(c05Var, 19.0f)
+        )
+        Text(
+            text = "搜索歌曲、歌手、专辑", // :11350
+            color = textMedium(), // :11350 GlassTokensKt.textMedium
+            fontSize = 13.sp, // :11350 co7.j(13)
+            fontWeight = FontWeight.W500, // :11350 sq2.j = FontWeight(500)
+            maxLines = 1,
+            modifier = Modifier
+                .padding(start = 10.dp)
+                .weight(1f, fill = true), // :11350 jj1.h(…, 1.0f, true)
+        )
 
-            // 2. 纵向明暗渐变 Scrim（保证文字与胶囊在任何底图上都清晰可见）
+        if (onMicClick != null) { // :11352 —— 回调为空则整颗按钮不渲染
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .size(36.dp) // :11354 ij7.n(c05Var, 36.0f)
+                    .clip(CircleShape) // :11354 by6.a = RoundedCornerShape(50%)
                     .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.40f),
-                                Color.Black.copy(alpha = 0.12f),
-                                Color.Black.copy(alpha = 0.72f),
-                            )
-                        )
+                        color = textHigh().copy(alpha = if (dark) 0.1f else 0.06f), // :11356-11362
+                        shape = RectangleShape, // :11362 hp1.n = RectangleShape
                     )
-            )
-
-            // 3. 悬浮文字与操作层
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
+                    .gzPressScale(pressedScale = 0.9f, onClick = onMicClick), // :11362
+                contentAlignment = Alignment.Center, // :11363 jj0.d(il0.o, false)
             ) {
-                // Top Row: 场景与时段
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    // 左侧：场景 Mood 胶囊（小人/时段图标 + 场景大字与说明）
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(timeScene.accentColor),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = timeScene.icon,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = timeScene.title,
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                text = timeScene.subtitle,
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 10.5.sp,
-                            )
-                        }
-                    }
-
-                    // 右侧：时段胶囊（如 18:00-23:00）
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.38f))
-                            .border(0.5.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            text = timeScene.timeTag,
-                            color = Color.White.copy(alpha = 0.95f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-
-                // Bottom Row: Hi-Res 标 + 标题 + 创建者 + 悬浮大播放圆钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 12.dp),
-                    ) {
-                        // Hi-Res AUDIO 黄金小徽标
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color(0xFFE5A038))
-                                .padding(horizontal = 4.dp, vertical = 1.5.dp),
-                        ) {
-                            Text(
-                                text = "Hi-Res AUDIO",
-                                color = Color.Black,
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 0.3.sp,
-                            )
-                        }
-
-                        Spacer(Modifier.height(5.dp))
-
-                        // 歌单标题
-                        Text(
-                            text = playlist.name,
-                            color = Color.White,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            lineHeight = 22.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-
-                        Spacer(Modifier.height(3.dp))
-
-                        // 创建者
-                        Text(
-                            text = "由 ${playlist.platform?.uppercase() ?: "Melos"} 精选 创建",
-                            color = Color.White.copy(alpha = 0.82f),
-                            fontSize = 11.5.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-
-                    // 右侧大号毛玻璃播放按钮（点击立即播放整单）
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.32f))
-                            .border(1.2.dp, Color.White.copy(alpha = 0.70f), CircleShape)
-                            .clickable {
-                                if (allPlaylistSongs.isNotEmpty()) {
-                                    onPlaySong(allPlaylistSongs.first(), allPlaylistSongs)
-                                } else if (previewSongs.isNotEmpty()) {
-                                    onPlaySong(previewSongs.first(), previewSongs)
-                                } else {
-                                    onOpenPlaylistDetail(playlist)
-                                }
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = "播放全部",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(14.dp))
-
-        // ==================== 下半部：此刻的旋律曲目试听 ====================
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-        ) {
-            // Header 行：左侧“此刻的旋律”，右侧“歌单共 X 首”
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "此刻的旋律",
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    color = TextPrimary,
-                )
-                Text(
-                    text = "歌单共 ${playlist.trackCount ?: (allPlaylistSongs.size.takeIf { it > 0 } ?: 49)} 首",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = TextSoft,
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // 3 首歌曲预览：带封面、歌名、歌手与金色播放图标
-            if (previewSongs.isNotEmpty()) {
-                previewSongs.take(3).forEach { song ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable {
-                                onPlaySong(
-                                    song,
-                                    if (allPlaylistSongs.isNotEmpty()) allPlaylistSongs else previewSongs
-                                )
-                            }
-                            .padding(horizontal = 4.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // 歌曲方形封面（带圆角）
-                        SongCover(
-                            url = song.artwork,
-                            modifier = Modifier.size(42.dp),
-                            corner = 10.dp,
-                        )
-
-                        Spacer(Modifier.width(12.dp))
-
-                        // 歌曲名与歌手
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                ),
-                                color = TextPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = song.artist,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                                color = TextSoft,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-
-                        // 琥珀金色播放三角图标
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = "播放",
-                            tint = AccentAmber,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            } else if (isLoadingSongs) {
-                // 歌单歌曲加载中提示
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        strokeWidth = 2.dp,
-                        color = AccentAmber,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "正在加载歌单曲目…",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = TextSoft,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * 触底过卷刷新胶囊（iOS 玻璃拟态风格）：
- * 在列表已经滑动至最底部后，继续向上滑动（拉出底部空白）触发刷新
- */
-@Composable
-private fun BottomOverscrollRefreshBar(
-    isRefreshing: Boolean,
-    pullOffset: Float,
-    onRefresh: () -> Unit,
-) {
-    val showBar = isRefreshing || pullOffset > 0f
-    if (!showBar) return
-
-    val progress = (pullOffset / 45f).coerceIn(0f, 1f)
-    val text = when {
-        isRefreshing -> "正在刷新推荐内容…"
-        progress >= 1f -> "松手立即刷新"
-        else -> "继续上拉刷新"
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(
-            modifier = Modifier
-                .iosGlassCard(shape = RoundedCornerShape(16.dp), elevation = 3.dp)
-                .clickable(enabled = !isRefreshing) { onRefresh() }
-                .padding(horizontal = 18.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
-                    strokeWidth = 2.dp,
-                    color = AccentAmber,
-                )
-            } else {
                 Icon(
-                    imageVector = Icons.Outlined.Refresh,
-                    contentDescription = null,
-                    tint = TextSoft,
-                    modifier = Modifier.size(16.dp),
+                    imageVector = Icons.Rounded.Mic,
+                    contentDescription = "听歌识曲", // :11377
+                    tint = textHigh(), // :11377
+                    modifier = Modifier.size(18.dp), // :11377 ij7.n(c05Var, 18.0f)
                 )
             }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = TextSoft,
-            )
         }
     }
 }

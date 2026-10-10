@@ -16,7 +16,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +37,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.components.AuroraBackground
+import com.aesthetic.music.ui.components.AuroraDarkBase
+import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.ui.theme.Palette
 import dev.chrisbanes.haze.HazeDefaults
 import dev.chrisbanes.haze.HazeState
@@ -38,261 +48,60 @@ import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import java.util.Calendar
 
-// ==================== 全局 iOS 拟态样式规范 ====================
+// ==================== 全局玻璃卡片（委托 GZ 真值 token） ====================
+//
+// 注意：这两个修饰符原先由 Antigravity 自造（自定边框渐变、底色、阴影色、边框宽度），
+// 其数值在 GZ 反编译源里并不存在。现已改为直接委托 GZ 的真值 token：
+//   com.aesthetic.music.ui.components.glassCard(shape, elevation)
+//     ← 逐值还原自 gz_decompiled/.../ui/GlassTokensKt.java:1247-1266
+//        （深色且 elevation>0 时叠黑色 4%/8% 阴影，然后
+//          border(1dp, glassBorder(), shape) → background(glassBg(), shape) → clip(shape)）
+// 保留函数名与签名，是因为全工程有 46 处调用它们，重命名会牵连大量文件。
 
 /**
- * iOS 风格玻璃拟态卡片修饰符：
- * 1. 柔和扩散阴影（仿 iOS 浮层质感）
- * 2. 边缘物理高光反光边框（上亮下透，呈现玻璃边缘折射）
- * 3. 半透明磨砂底色（透出底层环境光晕）
+ * 玻璃拟态卡片修饰符。现为 GZ 真值 `Modifier.glassCard` 的别名。
  */
+@Composable
 fun Modifier.iosGlassCard(
     shape: Shape = RoundedCornerShape(24.dp),
     elevation: Dp = 8.dp,
-): Modifier {
-    val isDark = Palette.isDark
-
-    // 高光反光边框渐变
-    val borderBrush = if (isDark) {
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.24f),
-                Color.White.copy(alpha = 0.08f),
-            )
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.90f),
-                Color.White.copy(alpha = 0.35f),
-            )
-        )
-    }
-
-    // 毛玻璃底色（浅色 74% 纯白，深色 68% 曜石黑）
-    val glassBg = if (isDark) {
-        Color(0xFF1E1F27).copy(alpha = 0.70f)
-    } else {
-        Color.White.copy(alpha = 0.74f)
-    }
-
-    // 环境光与投射阴影颜色
-    val ambientShadow = if (isDark) Color.Black.copy(alpha = 0.55f) else Color(0xFF7A8699).copy(alpha = 0.12f)
-    val spotShadow = if (isDark) Color.Black.copy(alpha = 0.65f) else Color(0xFF5A687D).copy(alpha = 0.14f)
-
-    return this
-        .shadow(
-            elevation = elevation,
-            shape = shape,
-            ambientColor = ambientShadow,
-            spotColor = spotShadow,
-        )
-        .border(
-            width = if (isDark) 1.dp else 1.2.dp,
-            brush = borderBrush,
-            shape = shape,
-        )
-        .clip(shape)
-        .background(glassBg)
-}
+): Modifier = this.glassCard(shape, elevation)
 
 /**
- * iOS 风格玻璃胶囊（用于搜索栏或紧凑容器）
+ * 玻璃胶囊（搜索栏 / 紧凑容器）。同 [iosGlassCard]，也是 GZ 真值 token 的别名，
+ * 胶囊形状由调用方通过 `shape` 传入。
  */
+@Composable
 fun Modifier.iosGlassCapsule(
     shape: Shape = RoundedCornerShape(18.dp),
     elevation: Dp = 4.dp,
-): Modifier {
-    val isDark = Palette.isDark
+): Modifier = this.glassCard(shape, elevation)
 
-    val borderBrush = if (isDark) {
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.20f),
-                Color.White.copy(alpha = 0.06f),
-            )
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.92f),
-                Color.White.copy(alpha = 0.40f),
-            )
-        )
-    }
-
-    val glassBg = if (isDark) {
-        Color(0xFF22232D).copy(alpha = 0.72f)
-    } else {
-        Color.White.copy(alpha = 0.82f)
-    }
-
-    val ambientShadow = if (isDark) Color.Black.copy(alpha = 0.45f) else Color(0xFF7A8699).copy(alpha = 0.10f)
-    val spotShadow = if (isDark) Color.Black.copy(alpha = 0.55f) else Color(0xFF5A687D).copy(alpha = 0.12f)
-
-    return this
-        .shadow(
-            elevation = elevation,
-            shape = shape,
-            ambientColor = ambientShadow,
-            spotColor = spotShadow,
-        )
-        .border(
-            width = 1.dp,
-            brush = borderBrush,
-            shape = shape,
-        )
-        .clip(shape)
-        .background(glassBg)
-}
-
-// ==================== 全局 iOS 环境光画布背景 ====================
+// ==================== 全局极光流光背景（GZ 真值） ====================
 
 /**
- * 首页底层环境光背景：
- * 在全屏绘制柔和漫射的多色光斑（Ambient Glow Mesh），
- * 当上层半透明玻璃卡片覆盖其上时，能透出逼真的 iOS 磨砂光晕感。
+ * 页面底层极光流光背景。现在是 GZ 真值实现 [AuroraBackground] 的别名。
+ *
+ * 全工程有 20 处调用它（AppShell / 各页面），保留函数名避免牵连调用方。
  */
 @Composable
 fun HomeAmbientGlowBackground(modifier: Modifier = Modifier) {
-    val isDark = Palette.isDark
-
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val w = size.width
-        val h = size.height
-
-        // 底色铺底
-        drawRect(if (isDark) Color(0xFF0F1014) else Color(0xFFF4F6F9))
-
-        if (isDark) {
-            // 深色模式：深邃夜空下的微醺紫罗兰、酒红与暗夜蓝光晕
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF2E2356).copy(alpha = 0.55f), Color.Transparent),
-                    center = Offset(w * 0.15f, h * 0.10f),
-                    radius = w * 0.85f,
-                ),
-                center = Offset(w * 0.15f, h * 0.10f),
-                radius = w * 0.85f,
-            )
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF3F1D35).copy(alpha = 0.42f), Color.Transparent),
-                    center = Offset(w * 0.85f, h * 0.25f),
-                    radius = w * 0.75f,
-                ),
-                center = Offset(w * 0.85f, h * 0.25f),
-                radius = w * 0.75f,
-            )
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF14273E).copy(alpha = 0.45f), Color.Transparent),
-                    center = Offset(w * 0.30f, h * 0.55f),
-                    radius = w * 0.70f,
-                ),
-                center = Offset(w * 0.30f, h * 0.55f),
-                radius = w * 0.70f,
-            )
-        } else {
-            // 浅色模式：淡雅马卡龙微光晕（丁香紫、晨曦粉、温暖琥珀、天青蓝）
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFE2E6FF).copy(alpha = 0.80f), Color.Transparent),
-                    center = Offset(w * 0.15f, h * 0.08f),
-                    radius = w * 0.85f,
-                ),
-                center = Offset(w * 0.15f, h * 0.08f),
-                radius = w * 0.85f,
-            )
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFFFECE6).copy(alpha = 0.70f), Color.Transparent),
-                    center = Offset(w * 0.88f, h * 0.22f),
-                    radius = w * 0.75f,
-                ),
-                center = Offset(w * 0.88f, h * 0.22f),
-                radius = w * 0.75f,
-            )
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFFFF7E2).copy(alpha = 0.65f), Color.Transparent),
-                    center = Offset(w * 0.15f, h * 0.45f),
-                    radius = w * 0.65f,
-                ),
-                center = Offset(w * 0.15f, h * 0.45f),
-                radius = w * 0.65f,
-            )
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFE5F5FD).copy(alpha = 0.60f), Color.Transparent),
-                    center = Offset(w * 0.82f, h * 0.70f),
-                    radius = w * 0.70f,
-                ),
-                center = Offset(w * 0.82f, h * 0.70f),
-                radius = w * 0.70f,
-            )
-        }
-    }
+    // [已替换] 原 Antigravity 自造的环境光画布已删除：
+    //   深/浅色共 10 个色值（0xFF2E2356 / 0xFF3F1D35 / 0xFF14273E / 0xFF2E2112 /
+    //   0xFFE2E6FF / 0xFFFFECE6 / 0xFFFFF7E2 / 0xFFE5F5FD / 0xFF0F1014 / 0xFFF4F6F9）
+    //   与 18000 / 24000 / 12000 ms 三个动画时长，在 GZ 反编译源里全都不存在。
+    // 现改为委托 GZ Music 的真值实现：ui/components/AuroraBackground.kt
+    // （底色 + 4 个 radial blob + 2/3 个补光，坐标/半径/色值/透明度逐值抠自
+    //   AuroraBackgroundKt.java:29-40、defpackage/p70.java:38-83、defpackage/p0.java:104-126）
+    AuroraBackground(modifier)
 }
 
 // ==================== 时段与场景辅助工具 ====================
-
-data class HomeTimeScene(
-    val title: String,
-    val subtitle: String,
-    val timeTag: String,
-    val icon: ImageVector,
-    val accentColor: Color,
-)
-
-/**
- * 根据当前小时数动态匹配场景与文案（完美契合图 2 中的“晚风散步 | 把步调放轻，让音乐陪你走走 | 18:00-23:00”）
- */
-@Composable
-fun rememberTimeScene(): HomeTimeScene {
-    return remember {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        when {
-            // 傍晚散步时段 (18:00 - 23:00)
-            hour in 18..22 -> HomeTimeScene(
-                title = "晚风散步",
-                subtitle = "把步调放轻，让音乐陪你走走",
-                timeTag = "18:00-23:00",
-                icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                accentColor = Color(0xFFFFA000), // 温暖琥珀橙
-            )
-            // 深夜静谧时段 (23:00 - 06:00)
-            hour >= 23 || hour < 6 -> HomeTimeScene(
-                title = "深夜私语",
-                subtitle = "让温柔的旋律陪伴安静的夜",
-                timeTag = "23:00-06:00",
-                icon = Icons.Filled.Bedtime,
-                accentColor = Color(0xFF7B61FF), // 治愈紫罗兰
-            )
-            // 清晨活力时段 (06:00 - 11:00)
-            hour in 6..10 -> HomeTimeScene(
-                title = "清晨漫步",
-                subtitle = "用清澈音乐唤醒活力一天",
-                timeTag = "06:00-11:00",
-                icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                accentColor = Color(0xFF10B981), // 清新薄荷绿
-            )
-            // 午后专注与漫游 (11:00 - 18:00)
-            else -> HomeTimeScene(
-                title = "午后漫游",
-                subtitle = "在温暖阳光下享受惬意时光",
-                timeTag = "11:00-18:00",
-                icon = Icons.Filled.WbSunny,
-                accentColor = Color(0xFFFF9F43), // 暖阳金
-            )
-        }
-    }
-}
+// [已删除] Antigravity 自造的 HomeTimeScene / rememberTimeScene 已移除：
+// 其中的 4 个场景强调色（0xFFFFA000 / 0xFF7B61FF / 0xFF10B981 / 0xFFFF9F43）与
+// 全部场景文案在 GZ 反编译源里都不存在，属凭空编造。
+// GZ 的真实「时段问候 / 场景」逻辑在 HomeScreenKt.java 的 HomeTopBar 里
+// （反编译源行 9571 起），由 HomeHeader.kt 承载。
 
 // ==================== 全局通知栏/状态栏毛玻璃条 ====================
 
@@ -317,7 +126,7 @@ fun GlobalStatusBarGlass(
     val tintAlpha = if (isDark) 0.22f * glassProgress.coerceIn(0f, 1f)
     else 0.14f * glassProgress.coerceIn(0f, 1f)
 
-    val tintBaseColor = if (isDark) Color(0xFF0F1014) else Color.White
+    val tintBaseColor = if (isDark) AuroraDarkBase else Color.White // [GZ 真值] DarkBase = AuroraBackgroundKt.java:30 hp1.e(4279110930L)
 
     // 将羽化延展区扩展至 32.dp，让高斯模糊与底色自然消融到正文中，彻底消除任何割裂线条
     val featherHeight = 32.dp

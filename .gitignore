@@ -55,6 +55,16 @@ music-admin/.refine/
 /research/
 /音源/
 
+# ---- 逆向分析产物（仅本机，不入库）----
+# GZ Music 的反编译源码与 dex 反汇编：体积大，且属于第三方闭源应用的逆向产物，
+# 只在本机用于逐值比对，绝不入库。
+/gz_decompiled/
+/scratch/
+# 从 APK 解出来的签名元数据（本机临时产物）
+/META-INF/
+/_probe1.ps1
+/_probe2.ps1
+
 # ---- 工具 / 系统 ----
 # AI 助手本地工作区数据（记忆 / 日志），属于本机工具产物，不入库
 .workbuddy-ai/

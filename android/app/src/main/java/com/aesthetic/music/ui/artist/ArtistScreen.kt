@@ -54,6 +54,8 @@ import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.SongRow
 import com.aesthetic.music.ui.components.BottomContentSpacer
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
+import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.AccentCyan
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.FocusRequester
@@ -121,6 +123,7 @@ fun ArtistScreen(
             .fillMaxSize()
             .background(Background)
     ) {
+        HomeAmbientGlowBackground()
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
             Modifier
@@ -207,18 +210,18 @@ fun ArtistScreen(
                     onRetry = if (errorMessage != null) onRetry else null,
                 )
             } else {
-                // 与搜索页一致：统一白卡，左右贴屏、底部探到屏幕底
-                Column(
+                // 现代拟态毛玻璃容器：左右边距悬浮、大圆角上沿
+                Box(
                     Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                        .background(Surface)
+                        .padding(horizontal = 16.dp)
+                        .iosGlassCard(shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), elevation = 4.dp)
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxHeight(),
+                        modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Top,
-                        contentPadding = PaddingValues(bottom = BottomContentSpacer),
+                        contentPadding = PaddingValues(top = 10.dp, bottom = BottomContentSpacer),
                     ) {
                         itemsIndexed(
                             visibleSongs,

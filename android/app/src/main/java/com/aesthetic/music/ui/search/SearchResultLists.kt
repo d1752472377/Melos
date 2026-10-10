@@ -46,6 +46,7 @@ import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.SongRow
 import com.aesthetic.music.ui.components.formatPlayCountText
+import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
@@ -111,8 +112,7 @@ private fun ResultCard(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Surface)
+                    .glassCard(shape = RoundedCornerShape(20.dp))
             ) {
                 content()
             }

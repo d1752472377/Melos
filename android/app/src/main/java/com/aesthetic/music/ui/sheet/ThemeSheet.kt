@@ -51,6 +51,8 @@ fun ThemeSheet(
         PlayerTheme.CLASSIC to Brush.verticalGradient(listOf(Color(0xFF534332), Color(0xFF3A2E24))),
         PlayerTheme.COVER to Brush.verticalGradient(listOf(Color(0xFF61271D), Color(0xFF3A1E17))),
         PlayerTheme.APPLE to Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF6B21A8), Color(0xFF9D174D))),
+        PlayerTheme.RECORD_SHELF to Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF020617))),
+        PlayerTheme.LUMINOUS_CD to Brush.linearGradient(listOf(Color(0xFF475569), Color(0xFFCBD5E1), Color(0xFF334155))),
     )
 
     Column(

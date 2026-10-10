@@ -35,5 +35,6 @@ sealed class ScreenRoute(val route: String) {
     data object ListeningStats : ScreenRoute("listening_stats")
     data object CloudManage : ScreenRoute("cloud_manage")
     data object PluginManage : ScreenRoute("plugin_manage")
+    data object Equalizer : ScreenRoute("equalizer")
 
 }

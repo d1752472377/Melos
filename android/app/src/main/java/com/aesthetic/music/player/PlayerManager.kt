@@ -586,10 +586,18 @@ class PlayerManager private constructor(private val appContext: Context) {
             }
         })
 
+        try {
+            MelosEqualizer.init(appContext)
+            MelosEqualizer.attachAudioSession(player.audioSessionId)
+        } catch (_: Throwable) {}
+
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
                 if (isPlaying) {
+                    try {
+                        MelosEqualizer.attachAudioSession(player.audioSessionId)
+                    } catch (_: Throwable) {}
                     // 淡入：从静音升到正常音量，避免每次起播"啪"一声
                     fadeIn()
                     val s = _state.value
@@ -1000,16 +1008,17 @@ class PlayerManager private constructor(private val appContext: Context) {
     /** 解析并落地歌词：关闭「翻译歌词」时丢弃译文，只保留原文 */
     private fun applyLyrics(rawLyricIn: String?, rawTranslatedIn: String?, gen: Long, isLocal: Boolean = false) {
         if (gen != playGeneration) return
-        val rawLyric = rawLyricIn ?: ""
-        val rawTranslated = if (userPrefs.lyricTranslation) rawTranslatedIn else null
-        val original = parseLrc(rawLyric)
-        val translated = if (rawTranslated.isNullOrBlank()) emptyList() else parseLrc(rawTranslated)
+        val song = _state.value.currentSong
+        val songTitle = song?.title ?: ""
+        val songArtist = song?.artist ?: ""
+        val original = parseAutoLyrics(rawLyricIn, songTitle, songArtist)
+        val translated = if (rawTranslatedIn.isNullOrBlank()) emptyList() else parseAutoLyrics(rawTranslatedIn, songTitle, songArtist)
         val merged = mergeTranslation(original, translated)
 
-        val contentToParse = if (!rawTranslated.isNullOrBlank() && !rawLyric.contains(rawTranslated)) {
-            "$rawLyric\n$rawTranslated"
+        val contentToParse = if (!rawTranslatedIn.isNullOrBlank() && !(rawLyricIn ?: "").contains(rawTranslatedIn)) {
+            "${rawLyricIn ?: ""}\n$rawTranslatedIn"
         } else {
-            rawLyric
+            rawLyricIn ?: ""
         }
         val parsedSynced = if (contentToParse.isNotBlank()) {
             try {

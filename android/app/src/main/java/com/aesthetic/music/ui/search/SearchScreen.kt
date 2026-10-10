@@ -39,6 +39,7 @@ import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.components.BottomContentSpacer
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.TextMuted
 
@@ -95,10 +96,10 @@ fun SearchScreen(
     var showClearRecentConfirm by remember { mutableStateOf(false) }
 
     Box(
-        Modifier
-            .fillMaxSize()
-            .background(Background)
+        Modifier.fillMaxSize()
     ) {
+        // 底层 4-orb 动态呼吸极光光斑
+        HomeAmbientGlowBackground()
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
             Modifier

@@ -47,6 +47,7 @@ import com.aesthetic.music.ui.components.ErrorBox
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -79,9 +80,11 @@ fun PlaylistPage(
 ) {
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        HomeAmbientGlowBackground()
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
         // ===== 顶部导航栏（返回键 + 大标题 + 刷新按钮，见图 2） =====
         Row(
             modifier = Modifier
@@ -190,6 +193,8 @@ fun PlaylistPage(
         }
     }
 }
+}
+
 
 /**
  * 分类标签胶囊（图 2 样式）：

@@ -6,11 +6,13 @@ import android.content.SharedPreferences
 /** 主题模式（参考 App 的三档切换） */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** 播放页主题（对应参考 App 的播放页主题选择：经典/封面卡片/Apple Music） */
+/** 播放页主题（经典/黑胶唱机/Apple Music/唱片封套/流光 CD） */
 enum class PlayerTheme(val value: String, val label: String) {
     CLASSIC("classic", "经典"),
-    COVER("cover", "封面卡片"),
-    APPLE("apple", "Apple Music");
+    COVER("cover", "黑胶唱机"),
+    APPLE("apple", "Apple Music"),
+    RECORD_SHELF("record_shelf", "唱片封套"),
+    LUMINOUS_CD("luminous_cd", "流光 CD");
 
     companion object {
         fun fromValue(v: String?): PlayerTheme = entries.firstOrNull { it.value == v } ?: CLASSIC

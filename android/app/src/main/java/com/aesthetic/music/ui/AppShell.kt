@@ -362,7 +362,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 ) {
                 // 主页
                 composable(ScreenRoute.Home.route) {
-                    HomeDestination(viewModel, nav, actions)
+                    HomeDestination(viewModel, nav, actions, playerState.isPlaying)
                 }
 
                 // FM 电台
@@ -471,9 +471,16 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     CloudManageDestination(viewModel, nav)
                 }
 
-                // 插件管理?
+                // 插件管理
                 composable(ScreenRoute.PluginManage.route) {
                     PluginManageDestination(viewModel, nav, actions.toast)
+                }
+
+                // 专业调音台 (10段图形均衡器)
+                composable(ScreenRoute.Equalizer.route) {
+                    com.aesthetic.music.ui.settings.EqualizerScreen(
+                        onBack = nav.popBack
+                    )
                 }
 
                 // 设置页
@@ -509,6 +516,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 },
                 isDarkBackground = isDarkPage,
                 containerColor = pageBackground as? Color ?: Color.White,
+                // 复用内容层已经注册过的 Haze 数据源（本文件 :308 创建、:314 `.hazeSource`），
+                // 让导航条得到 GZ 真机那种「真实背景模糊」的透明玻璃（而非半透明纯色）。
+                hazeState = hazeState,
             )
 
             // ===== 全屏播放器 Drawer =====

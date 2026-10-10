@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.components.textLow
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.TextMuted
 
@@ -54,6 +56,10 @@ fun SearchFilterTabs(
  */
 @Composable
 private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
+    val isDark = Palette.isDark
+    val activeColor = if (isDark) Color(0xFF38BDF8) else PrimaryBrown
+    val inactiveColor = textLow()
+
     Column(
         modifier = Modifier
             .clickable(
@@ -67,17 +73,17 @@ private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp),
-            color = if (selected) PrimaryBrown else TextMuted,
+            color = if (selected) activeColor else inactiveColor,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         )
         Spacer(Modifier.height(4.dp))
         Box(
             modifier = Modifier
                 .width(18.dp)
-                .height(2.dp)
+                .height(2.5.dp)
                 .background(
-                    color = if (selected) PrimaryBrown else Color.Transparent,
-                    shape = RoundedCornerShape(1.dp),
+                    color = if (selected) activeColor else Color.Transparent,
+                    shape = RoundedCornerShape(1.5.dp),
                 )
         )
     }

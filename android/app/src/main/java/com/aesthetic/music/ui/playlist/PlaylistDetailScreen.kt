@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -78,6 +80,11 @@ import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.ErrorBox
+import com.aesthetic.music.ui.components.LiquidGlassButton
+import com.aesthetic.music.ui.components.LiquidGlassButtonStyle
+import com.aesthetic.music.ui.components.LiquidGhostButton
+import com.aesthetic.music.ui.components.PlatformTag
+import com.aesthetic.music.ui.components.PlayingBars
 import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
@@ -326,160 +333,221 @@ fun PlaylistDetailScreen(
                         .fillMaxWidth()
                         .padding(top = statusBarPadding + 52.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
                 ) {
-                    Spacer(Modifier.height(80.dp))
+                    Spacer(Modifier.height(56.dp))
 
-                    // 歌单标题
-                    Text(
-                        text = playlist.name.ifBlank { "精选歌单" },
-                        style = TextStyle(
-                            fontSize = 23.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            letterSpacing = 0.4.sp,
-                            lineHeight = 30.sp
-                        ),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(Modifier.height(8.dp))
-
-                    // 歌曲数量与播放量
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "${playlist.trackCount ?: songs.size} 首",
-                            style = TextStyle(
-                                fontSize = 13.sp,
-                                color = Color.White.copy(alpha = 0.75f),
-                                fontWeight = FontWeight.Medium
-                            )
-                        )
-                        if (playlist.playCount != null && playlist.playCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .size(3.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.45f))
-                            )
-                            Text(
-                                text = "${formatPlayCountText(playlist.playCount)} 播放",
-                                style = TextStyle(
-                                    fontSize = 13.sp,
-                                    color = Color.White.copy(alpha = 0.75f),
-                                    fontWeight = FontWeight.Medium
-                                )
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(18.dp))
-
-                    // 核心操作栏（播放全部 + 搜索 + 收藏 + 排序）
+                    // 歌单双列沉浸式 Hero 头部（大图海报 + 标题与平台信息）
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 播放全部按钮（胶囊设计）
-                        Row(
+                        // 左侧拟态封面大卡
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color.White.copy(alpha = 0.22f))
-                                .clickable {
-                                    if (displaySongs.isNotEmpty()) {
-                                        onPlayAll(displaySongs)
-                                    }
-                                }
-                                .padding(horizontal = 18.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = "播放全部",
-                                tint = Color.White,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = "播放全部",
-                                style = TextStyle(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White
+                                .size(110.dp)
+                                .shadow(
+                                    elevation = 10.dp,
+                                    shape = RoundedCornerShape(18.dp),
+                                    ambientColor = Color.Black.copy(0.45f),
+                                    spotColor = Color.Black.copy(0.6f)
                                 )
-                            )
+                                .clip(RoundedCornerShape(18.dp))
+                                .border(
+                                    width = 1.dp,
+                                    brush = Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(0.45f),
+                                            Color.White.copy(0.12f)
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+                        ) {
+                            val heroCover = playlist.coverUrl ?: songs.firstOrNull()?.artwork
+                            if (!heroCover.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(heroCover)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = playlist.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.White.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(0.7f),
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+                            }
                         }
 
-                        Spacer(Modifier.weight(1f))
+                        Spacer(Modifier.width(16.dp))
+
+                        // 右侧信息区
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = playlist.name.ifBlank { "精选歌单" },
+                                style = TextStyle(
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.2.sp,
+                                    lineHeight = 26.sp
+                                ),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Spacer(Modifier.height(8.dp))
+
+                            // 平台标签
+                            if (!playlist.platform.isNullOrBlank()) {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.16f))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = playlist.platform.orEmpty().uppercase(),
+                                        style = TextStyle(
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White.copy(0.9f)
+                                        )
+                                    )
+                                }
+                                Spacer(Modifier.height(6.dp))
+                            }
+
+                            // 歌曲数与播放量
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "${playlist.trackCount ?: songs.size} 首歌曲",
+                                    style = TextStyle(
+                                        fontSize = 12.5.sp,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                )
+                                if (playlist.playCount != null && playlist.playCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(3.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.5f))
+                                    )
+                                    Text(
+                                        text = "${formatPlayCountText(playlist.playCount)} 次收听",
+                                        style = TextStyle(
+                                            fontSize = 12.5.sp,
+                                            color = Color.White.copy(alpha = 0.8f),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // 核心流体操作栏（LiquidGlassButton 播放全部 + 随机 + 搜索 + 收藏 + 排序）
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // [GZ 真值] LiquidGlassButton 已换成逐值还原版（LiquidGlassButtonKt.java:101）：
+                        // GZ 的 API 不含 text/icon/accentColor/height —— 尺寸走 modifier，文案与图标走 content。
+                        // 主操作按钮对应 GZ 的 Primary 档（PlayerScreenKt 的主按钮即 Primary）。
+                        LiquidGlassButton(
+                            onClick = {
+                                if (displaySongs.isNotEmpty()) {
+                                    onPlayAll(displaySongs)
+                                }
+                            },
+                            modifier = Modifier.weight(1.3f).height(44.dp),
+                            style = LiquidGlassButtonStyle.Primary,
+                            content = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.PlayArrow,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "播放全部",
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        )
+
+                        LiquidGhostButton(
+                            text = "随机",
+                            icon = Icons.Filled.Shuffle,
+                            onClick = {
+                                if (displaySongs.isNotEmpty()) {
+                                    onPlayAll(displaySongs.shuffled())
+                                }
+                            },
+                            height = 44.dp,
+                            modifier = Modifier.weight(0.9f)
+                        )
 
                         // 歌单内搜索按钮
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSearchExpanded) Color.White.copy(alpha = 0.35f)
-                                    else Color.White.copy(alpha = 0.18f)
-                                )
-                                .clickable {
-                                    isSearchExpanded = !isSearchExpanded
-                                    if (!isSearchExpanded) searchQuery = ""
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Search,
-                                contentDescription = "搜索歌曲",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        Spacer(Modifier.width(10.dp))
+                        LiquidGhostButton(
+                            text = "",
+                            icon = Icons.Filled.Search,
+                            onClick = {
+                                isSearchExpanded = !isSearchExpanded
+                                if (!isSearchExpanded) searchQuery = ""
+                            },
+                            height = 44.dp,
+                            modifier = Modifier.size(44.dp)
+                        )
 
                         // 歌单收藏按钮
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isFavorite) Rose.copy(alpha = 0.25f)
-                                    else Color.White.copy(alpha = 0.18f)
-                                )
-                                .clickable(onClick = onToggleFavoritePlaylist),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                contentDescription = if (isFavorite) "取消收藏歌单" else "收藏歌单",
-                                tint = if (isFavorite) Rose else Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        Spacer(Modifier.width(10.dp))
+                        LiquidGhostButton(
+                            text = "",
+                            icon = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            tint = if (isFavorite) Rose else null,
+                            onClick = onToggleFavoritePlaylist,
+                            height = 44.dp,
+                            modifier = Modifier.size(44.dp)
+                        )
 
                         // 排序按钮
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (sortOrder != PlaylistSortOrder.DEFAULT) accentColor.copy(alpha = 0.6f)
-                                    else Color.White.copy(alpha = 0.18f)
-                                )
-                                .clickable { showSortDialog = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.SwapVert,
-                                contentDescription = "排序",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        LiquidGhostButton(
+                            text = "",
+                            icon = Icons.Filled.SwapVert,
+                            onClick = { showSortDialog = true },
+                            height = 44.dp,
+                            modifier = Modifier.size(44.dp)
+                        )
                     }
 
                     // 歌单内搜索输入框（折叠展开动画）
@@ -730,18 +798,23 @@ private fun PlaylistSongRow(
     onClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
+    val activeTitleColor = Color(0xFF38BDF8)
+    val titleColor = if (isCurrent) activeTitleColor else Color.White
+    val rowBg = if (isCurrent) Color(0x2838BDF8) else Color.Transparent
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(rowBg)
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 7.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 封面
         SongCover(
             url = song.artwork,
             modifier = Modifier.size(48.dp),
-            corner = 8.dp
+            corner = 10.dp
         )
 
         Spacer(Modifier.width(12.dp))
@@ -753,24 +826,53 @@ private fun PlaylistSongRow(
                 style = TextStyle(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (isCurrent) PrimaryBrown else Color.White
+                    color = titleColor
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(3.dp))
-            Text(
-                text = song.subtitleText,
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.65f)
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!song.platform.isNullOrBlank()) {
+                    PlatformTag(song.platform)
+                    Spacer(Modifier.width(5.dp))
+                }
+                // 无损 SQ 标 (全量无锁化)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color(0xFFE11D48).copy(alpha = 0.25f))
+                        .border(0.5.dp, Color(0xFFE11D48).copy(alpha = 0.6f), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                ) {
+                    Text(
+                        text = "SQ",
+                        style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFB7185))
+                    )
+                }
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = song.subtitleText,
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.65f)
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        if (isCurrent) {
+            // [GZ 真值] PlayingBarsKt.java:122 固定条高 16.dp，GZ 调用点自行用 modifier 限制高度
+            PlayingBars(
+                isPlaying = true,
+                color = activeTitleColor,
+                modifier = Modifier.height(13.dp).padding(horizontal = 6.dp),
             )
         }
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
 
         // 更多操作按钮 "..."
         Box(
