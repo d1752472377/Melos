@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.home
 
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.data.api.platform.NewSongRegions
 import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
@@ -11,6 +12,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+/**
+ * 首页「新歌首发」的一张地区卡：区域元信息 + 该区域的新歌列表。
+ *
+ * 为什么不用 `PlaylistItem` 复用：这里既不是歌单也不是榜单条目，
+ * 强行塞进 `PlaylistItem` 只会让「点卡片播什么」这件事失去类型约束。
+ */
+data class RegionNewSongs(
+    val region: NewSongRegions.Region,
+    val songs: List<Song>,
+) {
+    /** 卡片副行：「华语 · 20 首新歌」里那半句 */
+    val countLabel: String get() = "${songs.size} 首新歌"
+}
 
 /**
  * 首页内容控制器：热门歌单 / 每日推荐 / 新歌速递 / 榜单 / 分类歌单。
@@ -52,6 +67,15 @@ class ContentController(
     val recommendPlaylistSongs: StateFlow<List<Song>> = _recommendPlaylistSongs.asStateFlow()
     private val _isLoadingRecommendSongs = MutableStateFlow(false)
     val isLoadingRecommendSongs = _isLoadingRecommendSongs.asStateFlow()
+
+    /**
+     * 首页「新歌首发」的三个地区新歌榜。
+     *
+     * 区域按天轮换（[NewSongRegions.pick]），但**同一进程内不随日期变化重算**：
+     * 首页每次重组都换一次区域，三张卡会像在闪烁；因此只在真正加载内容时算一次。
+     */
+    private val _newSongRegions = MutableStateFlow<List<RegionNewSongs>>(emptyList())
+    val newSongRegions: StateFlow<List<RegionNewSongs>> = _newSongRegions.asStateFlow()
 
     @Volatile
     private var recommendReqId = 0L
@@ -103,6 +127,10 @@ class ContentController(
     /**
      * 加载首页内容。四个请求并行发出（原先串行 await，延迟是四段网络往返之和）；
      * 已成功加载过则跳过（切 Tab 重入不再全量重拉），需要强制刷新用 [refreshContent]。
+     *
+     * 「新歌首发」的三个地区新歌榜走**独立协程**、不参与 [failures] 计数：
+     * 它只是首页的一个装饰性版块，拉不到就整块不显示（`_newSongRegions` 保持空），
+     * 不该让整页顶出一条「部分内容加载失败」——那会让用户以为首页坏了。
      */
     fun loadContent(force: Boolean = false) {
         if (isLoadingContent.value) return
@@ -116,6 +144,7 @@ class ContentController(
             val newsD = async { repository.getNewSongs(20) }
             val ranksD = async { repository.getRanks() }
             val catsD = async { repository.getCategories() }
+            loadRegionalNewSongs()
             dailyD.await().onSuccess {
                 _dailyPlaylists.value = it.playlists
                 val target = it.playlists.getOrNull(1) ?: it.playlists.firstOrNull()
@@ -157,4 +186,32 @@ class ContentController(
 
     /** 用户点"重试"时强制重新拉取内容 */
     fun refreshContent() = loadContent(force = true)
+
+    /**
+     * 拉「新歌首发」的三个地区新歌榜。
+     *
+     * 三个请求并行；任意一个失败只影响它自己那张卡（该区域不出现），
+     * 全部失败则整块消失——与「新碟首发」原先「没数据就不渲染」的行为一致。
+     */
+    private fun loadRegionalNewSongs() {
+        scope.launch {
+            val regions = NewSongRegions.pick(
+                count = NewSongRegions.HOME_CARD_COUNT,
+                dayKey = NewSongRegions.dayKeyOf(System.currentTimeMillis()),
+            )
+            val groups = regions.map { region ->
+                async {
+                    repository.getNewSongsByArea(region.areaId, limit = 20)
+                        .getOrNull()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { RegionNewSongs(region = region, songs = it) }
+                }
+            }.mapNotNull { it.await() }
+            if (groups.isNotEmpty()) {
+                // 保持 NewSongRegions.pick 给出的顺序（await 完成顺序不保证）
+                val byId = groups.associateBy { it.region.id }
+                _newSongRegions.value = regions.mapNotNull { byId[it.id] }
+            }
+        }
+    }
 }

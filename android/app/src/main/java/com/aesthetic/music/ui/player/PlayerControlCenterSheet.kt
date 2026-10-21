@@ -56,12 +56,14 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Wallpaper
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.BackgroundBlurMode
 import com.aesthetic.music.data.settings.LyricBlurMode
 import com.aesthetic.music.data.settings.LyricFontSize
 import com.aesthetic.music.data.settings.PlayerTheme
+import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.player.PlayMode
 import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.Rose
@@ -101,6 +103,9 @@ fun PlayerControlCenterSheet(
     onTogglePlayMode: () -> Unit,
     onDownload: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    /** 当前音质等级（与设置页同一份设置，改这里等于改全局音质） */
+    currentQuality: QualityLevel,
+    onQualityChange: (QualityLevel) -> Unit,
     currentLyricFontSize: LyricFontSize,
     onLyricFontSizeChange: (LyricFontSize) -> Unit,
     currentLyricBlurMode: LyricBlurMode,
@@ -303,7 +308,24 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(20.dp))
 
-            // 第二板块：播放倍速分段控制器
+            // 第二板块：音质（GZ 播放页也有音质可选）
+            // 为什么放在中控台而不是设置页：音质是"这首/此刻"的诉求（耳机/外放/流量），
+            // 藏在设置深处会让人每次都翻两层菜单。切换后会从当前位置重播（见 PlayerManager）。
+            SectionHeader(
+                icon = Icons.Filled.HighQuality,
+                title = "播放音质",
+                trailingText = currentQuality.label,
+            )
+            Spacer(Modifier.height(10.dp))
+            LiquidOptionSegmentedBar(
+                options = QualityLevel.entries.map { it to it.label },
+                selectedOption = currentQuality,
+                onSelect = onQualityChange,
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            // 第三板块：播放倍速分段控制器
             SectionHeader(
                 icon = Icons.Filled.Speed,
                 title = "播放倍速",

@@ -84,17 +84,17 @@ fun FavoriteBurstButton(
                 targetValue = 1.0f,
                 animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f)
             )
-        }
-        lastFavorite = isFavorite
-    }
-
-    LaunchedEffect(isFavorite) {
-        if (isFavorite) {
+            // 粒子：0 → 1 跑一遍（旧实现把这段放在另一个 LaunchedEffect 里，
+            // 且从不归零，于是取消收藏再收藏时粒子已经停在 1.0f，第二次点击"没有动效"）
             burstProgress.animateTo(
                 targetValue = 1.0f,
                 animationSpec = tween(450, easing = FastOutSlowInEasing)
             )
+        } else if (!isFavorite) {
+            // 取消收藏：把粒子归零，下次点赞才能再炸一次
+            burstProgress.snapTo(0f)
         }
+        lastFavorite = isFavorite
     }
 
     Box(

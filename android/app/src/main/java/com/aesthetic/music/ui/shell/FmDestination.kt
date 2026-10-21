@@ -61,6 +61,8 @@ fun FmDestination(
         isBuffering = playerState.isLoading,
         lyrics = playerState.lyrics,
         syncedLyrics = playerState.syncedLyrics,
+        lyricsLoading = playerState.lyricsLoading,
+        onReloadLyrics = playerManager::reloadLyrics,
         progressFlow = playerManager.progress,
         onSelectChannel = { channel ->
             viewModel.fmStart(channel) { firstSong, list ->

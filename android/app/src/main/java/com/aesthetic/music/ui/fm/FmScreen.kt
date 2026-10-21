@@ -168,6 +168,8 @@ fun FmScreen(
     isBuffering: Boolean = false,
     lyrics: List<LyricLine> = emptyList(),
     syncedLyrics: SyncedLyrics? = null,
+    lyricsLoading: Boolean = false,
+    onReloadLyrics: (() -> Unit)? = null,
     progressFlow: StateFlow<PlaybackProgress>,
     onSelectChannel: (FmChannel) -> Unit,
     onRefreshRecommendation: () -> Unit,
@@ -295,6 +297,8 @@ fun FmScreen(
                                 song = displaySong,
                                 lyrics = lyrics,
                                 syncedLyrics = syncedLyrics,
+                                lyricsLoading = lyricsLoading,
+                                onReloadLyrics = onReloadLyrics,
                                 progressFlow = progressFlow,
                                 isPlaying = isPlaying,
                                 onSeek = onSeek,
@@ -807,6 +811,8 @@ private fun FmFullLyricsView(
     song: Song,
     lyrics: List<LyricLine>,
     syncedLyrics: SyncedLyrics?,
+    lyricsLoading: Boolean = false,
+    onReloadLyrics: (() -> Unit)? = null,
     progressFlow: StateFlow<PlaybackProgress>,
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
@@ -849,9 +855,18 @@ private fun FmFullLyricsView(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onReloadLyrics?.invoke() }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "暂无歌词 · 随旋律漫游",
+                    text = if (lyricsLoading) "正在加载歌词…" else "暂无歌词 · 点一下重新加载",
                     color = fmOn(0.5f),
                     style = MaterialTheme.typography.bodyMedium
                 )

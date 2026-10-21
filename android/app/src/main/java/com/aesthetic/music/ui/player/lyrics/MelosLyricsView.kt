@@ -14,8 +14,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,18 +49,20 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.player.LyricLine
-import com.aesthetic.music.player.LyricWord
+import com.aesthetic.music.player.karaokeSweepFraction
 import com.aesthetic.music.ui.components.BindUserInteraction
 import com.aesthetic.music.ui.components.centerItemIndex
 import com.aesthetic.music.ui.components.rememberAutoScrollController
@@ -80,6 +82,10 @@ fun MelosLyricsView(
     fontSizeSp: Int = 22,
     showTranslation: Boolean = true,
     showRomanization: Boolean = true,
+    /** 歌词是否正在加载：与「确实没有歌词」区分开，避免用户以为歌词坏了 */
+    isLoading: Boolean = false,
+    /** 空歌词时点一下重新拉取 */
+    onRetryLyric: (() -> Unit)? = null,
     onToggleLyricMode: (() -> Unit)? = null,
     onLineLongClick: (() -> Unit)? = null,
 ) {
@@ -90,16 +96,45 @@ fun MelosLyricsView(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = { onToggleLyricMode?.invoke() }
+                    onClick = {
+                        // 空歌词时：优先重新拉取（这是用户最想要的），没有再退回切换封面
+                        if (onRetryLyric != null && !isLoading) onRetryLyric() else onToggleLyricMode?.invoke()
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "暂无歌词",
-                color = Color.White.copy(alpha = 0.45f),
-                style = MaterialTheme.typography.bodyLarge,
-                fontSize = 16.sp
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White.copy(alpha = 0.75f),
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "正在加载歌词…",
+                        color = Color.White.copy(alpha = 0.55f),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontSize = 15.sp
+                    )
+                } else {
+                    Text(
+                        text = "暂无歌词",
+                        color = Color.White.copy(alpha = 0.45f),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontSize = 16.sp
+                    )
+                    if (onRetryLyric != null) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = "点一下重新加载",
+                            color = AmberLight.copy(alpha = 0.85f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
         }
         return
     }
@@ -234,11 +269,11 @@ fun MelosLyricsView(
 
                     if (line.isWordByWord && isHighlighted) {
                         val currentMs = currentTimeMsProvider?.invoke() ?: line.timeMs
-                        WordByWordFlowLine(
-                            words = line.words,
+                        KaraokeSweepLine(
+                            line = line,
                             currentTimeMs = currentMs,
                             fontSizeSp = fontSizeSp,
-                            isFocused = isFocused
+                            sungColor = if (isFocused) Color.White else AmberLight,
                         )
                     } else {
                         Text(
@@ -393,46 +428,56 @@ private fun formatLyricTime(ms: Long): String {
     return String.format(Locale.US, "%02d:%02d", m, s)
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WordByWordFlowLine(
-    words: List<LyricWord>,
+private fun KaraokeSweepLine(
+    line: LyricLine,
     currentTimeMs: Long,
     fontSizeSp: Int,
-    isFocused: Boolean,
+    sungColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start,
-        verticalArrangement = Arrangement.Center
-    ) {
-        words.forEach { word ->
-            val isCurrent = isFocused && currentTimeMs in word.startMs..word.endMs
-            val isPast = isFocused && currentTimeMs > word.endMs
-            val scale = if (isCurrent) {
-                calculateWordLiftScale(currentTimeMs, word.startMs, word.endMs)
-            } else {
-                1.0f
-            }
-            val textColor = when {
-                !isFocused -> Color.White.copy(alpha = 0.6f)
-                isCurrent -> AmberLight
-                isPast -> Color.White
-                else -> Color.White.copy(alpha = 0.40f)
-            }
-            Text(
-                text = word.text,
-                color = textColor,
-                fontSize = fontSizeSp.sp,
-                fontWeight = if (isCurrent || isPast) FontWeight.Bold else FontWeight.SemiBold,
-                lineHeight = (fontSizeSp * 1.38f).sp,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    transformOrigin = TransformOrigin(0.5f, 1.0f)
+    // 已唱占比按「字数」算（不是时间占比）：染色是沿文字从左往右擦过去的，
+    // 用时间占比会在字宽不等时出现「字还没唱到、颜色已经盖过去」的错位。
+    val fraction = karaokeSweepFraction(line, currentTimeMs)
+    var fullWidthPx by remember(line.text, fontSizeSp) { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+
+    val style = TextStyle(
+        fontSize = fontSizeSp.sp,
+        fontWeight = FontWeight.Bold,
+        lineHeight = (fontSizeSp * 1.38f).sp,
+        textAlign = TextAlign.Start,
+    )
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        // 底：未唱部分（暗色）
+        Text(
+            text = line.text,
+            color = Color.White.copy(alpha = 0.45f),
+            style = style,
+            onTextLayout = { result ->
+                if (result.size.width > 0 && result.size.width != fullWidthPx) {
+                    fullWidthPx = result.size.width
                 }
-            )
+            },
+        )
+        // 面：已唱部分（亮色），用「限定宽度 + 裁切」实现逐字扫描
+        if (fraction > 0f && fullWidthPx > 0) {
+            val sungWidth = with(density) { (fullWidthPx * fraction).toDp() }
+            Box(
+                modifier = Modifier
+                    .clipToBounds()
+                    .requiredWidth(sungWidth.coerceAtLeast(0.5.dp)),
+            ) {
+                Text(
+                    text = line.text,
+                    color = sungColor,
+                    style = style,
+                    softWrap = false,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
+            }
         }
     }
 }

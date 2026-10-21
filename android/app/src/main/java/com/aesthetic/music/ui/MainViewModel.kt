@@ -19,6 +19,7 @@ import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.artist.ArtistRef
 import com.aesthetic.music.ui.fm.FmChannel
 import com.aesthetic.music.ui.fm.FmController
+import com.aesthetic.music.ui.guess.GuessController
 import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.account.AuthController
 import com.aesthetic.music.ui.library.LibraryController
@@ -74,6 +75,19 @@ class MainViewModel : ViewModel() {
 
     // 首页内容体系：已抽到 ContentController（见 ui/home/ContentController.kt）
     private val content = ContentController(repository, viewModelScope)
+
+    /**
+     * 「猜你喜欢」：推荐算法在 ui/guess/GuessRecommend.kt（纯逻辑），
+     * 状态与编排在 ui/guess/GuessController.kt。
+     *
+     * 种子直接读 [library] 的内存态（收藏/最近播放），所以必须声明在 library 之后。
+     */
+    private val guess = GuessController(
+        repository = repository,
+        scope = viewModelScope,
+        favoritesProvider = { library.favoriteSongs.value },
+        recentsProvider = { library.history.value },
+    )
 
     /**
      * 设置项（主题与外观/播放/歌词/下载）：已抽到 SettingsController。
@@ -197,6 +211,23 @@ class MainViewModel : ViewModel() {
     val isLoadingRecommendSongs get() = content.isLoadingRecommendSongs
     fun loadRecommendPlaylistSongs(playlist: PlaylistItem) = content.loadRecommendPlaylistSongs(playlist)
 
+    /** 首页「新歌首发」三个地区新歌榜（华语/欧美/日语/韩语 每日轮换三张，见 NewSongRegions） */
+    val newSongRegions get() = content.newSongRegions
+
+    // ==================== 猜你喜欢（委托 GuessController） ====================
+
+    val guessState get() = guess.state
+    val guessRefreshing get() = guess.refreshing
+
+    /** 进入页面时调用（幂等）：已出过结果就不再联网 */
+    fun ensureGuessLoaded() = guess.ensureLoaded()
+
+    /** 「换一批」：强制重算并打乱（已推荐过的歌会被排除） */
+    fun refreshGuess() = guess.refresh()
+
+    /** 推荐失败后的「重试」 */
+    fun retryGuess() = guess.retry()
+
     // 歌单广场（覆盖层，从首页分类歌单进入）：已抽到 SheetController，保留同名只读委托
     val sheetTags get() = sheet.tags
     val sheetCat get() = sheet.cat
@@ -236,6 +267,9 @@ class MainViewModel : ViewModel() {
     val rankList get() = rank.ranks
     val isLoadingRanks get() = rank.isLoading
     val rankError get() = rank.error
+
+    /** 当前平台榜单的本地拉取时间（排行榜页「刚刚更新」胶囊用） */
+    val rankLoadedAt get() = rank.loadedAt
 
     // 用户 / 个人中心状态：已抽到 ProfileController，保留同名只读委托
     val user get() = profile.user
@@ -374,6 +408,9 @@ class MainViewModel : ViewModel() {
     fun isFavorite(song: Song): Boolean = library.isFavorite(song)
 
     fun toggleFavoritePlaylist(playlist: PlaylistItem) = library.toggleFavoritePlaylist(playlist)
+
+    /** 「更新」收藏歌单：重新从平台拉取名/封面/曲目数（见 LibraryController.refreshFavoritePlaylist） */
+    fun refreshFavoritePlaylist(item: PlaylistItem) = library.refreshFavoritePlaylist(item)
 
     fun isPlaylistFavorite(id: String): Boolean = library.isPlaylistFavorite(id)
 

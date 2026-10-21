@@ -14,6 +14,8 @@ sealed class ScreenRoute(val route: String) {
     // 独立二级详情页
     data object Search : ScreenRoute("search")
     data object Ranks : ScreenRoute("ranks")
+    /** 猜你喜欢（首页三大入口第一张卡进入；推荐算法见 ui/guess/GuessRecommend） */
+    data object GuessYouLike : ScreenRoute("guess_you_like")
     data object SheetSquare : ScreenRoute("sheet_square") // 歌单广场
     data object PlaylistDetail : ScreenRoute("playlist_detail")
     data object AlbumDetail : ScreenRoute("album_detail")

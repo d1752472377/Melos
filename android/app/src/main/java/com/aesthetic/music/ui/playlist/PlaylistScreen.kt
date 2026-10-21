@@ -29,8 +29,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -74,6 +80,7 @@ import com.aesthetic.music.ui.components.PlaylistEditorSheet
 import com.aesthetic.music.ui.components.QuadCover
 import com.aesthetic.music.ui.components.SelectionBottomSheet
 import com.aesthetic.music.ui.components.SelectionItem
+import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.home.iosGlassCard
@@ -135,6 +142,12 @@ fun PlaylistScreen(
     onDeletePlaylist: (String) -> Unit,
     onOpenImport: () -> Unit,
     onPlayPlaylist: (List<Song>) -> Unit,
+    /** 分享歌单（名称 + 副标题），由宿主决定分享渠道 */
+    onSharePlaylist: (name: String, subtitle: String) -> Unit = { _, _ -> },
+    /** 「更新」收藏的歌单：重新从平台拉取名/封面/曲目数 */
+    onRefreshFavorite: (PlaylistItem) -> Unit = {},
+    /** 取消收藏（或移除收藏歌单的本地记录） */
+    onRemoveFavorite: (PlaylistItem) -> Unit = {},
     importPreview: PlaylistResolveState = PlaylistResolveState.Idle,
     onResolveImport: (String) -> Unit = {},
     onClearImport: () -> Unit = {},
@@ -143,7 +156,7 @@ fun PlaylistScreen(
     var showCreateSheet by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<MyPlaylist?>(null) }
     var showActionSheet by remember { mutableStateOf(false) }
-    var selectedPlaylist by remember { mutableStateOf<MyPlaylist?>(null) }
+    var selectedItem by remember { mutableStateOf<UnifiedPlaylistItem?>(null) }
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
     // 平台筛选：ALL, CUSTOM, 或具体平台名称
@@ -171,35 +184,33 @@ fun PlaylistScreen(
         list
     }
 
-    // 平台统计（用于图 5 BottomSheet）
-    val platformStats = remember(allUnifiedPlaylists) {
+    // 分类统计（用于分类 BottomSheet 与胶囊计数）
+    // 维度只有两个：自建（我的歌单，含从平台导入的）与收藏（在平台上收藏进来的歌单）。
+    // 不再按平台切分——「自建」和「网易云」是两种不同维度，混在一排里用户无法判断该点哪个。
+    val playlistStats = remember(allUnifiedPlaylists) {
         val totalCount = allUnifiedPlaylists.size
-        val customCount = allUnifiedPlaylists.count { it is UnifiedPlaylistItem.Custom && !it.playlist.isImported }
-        // 外部导入或收藏的平台统计
-        val otherPlatformCounts = allUnifiedPlaylists
-            .filter { !(it is UnifiedPlaylistItem.Custom && !it.playlist.isImported) }
-            .groupBy { it.platformTag }
-            .mapValues { it.value.size }
-
-        Triple(totalCount, customCount, otherPlatformCounts)
+        val customCount = allUnifiedPlaylists.count { it is UnifiedPlaylistItem.Custom }
+        val favoriteCount = totalCount - customCount
+        Triple(totalCount, customCount, favoriteCount)
     }
 
     // 筛选
-    val filteredByPlatform = remember(allUnifiedPlaylists, selectedPlatformFilter) {
+    val filteredByCategory = remember(allUnifiedPlaylists, selectedPlatformFilter) {
         when (selectedPlatformFilter) {
             "ALL" -> allUnifiedPlaylists
-            "CUSTOM" -> allUnifiedPlaylists.filter { it is UnifiedPlaylistItem.Custom && !it.playlist.isImported }
-            else -> allUnifiedPlaylists.filter { it.platformTag == selectedPlatformFilter }
+            "CUSTOM" -> allUnifiedPlaylists.filter { it is UnifiedPlaylistItem.Custom }
+            "FAVORITE" -> allUnifiedPlaylists.filter { it is UnifiedPlaylistItem.Favorited }
+            else -> allUnifiedPlaylists
         }
     }
 
     // 搜索过滤
-    val filtered = remember(filteredByPlatform, searchQuery, sortAscending) {
+    val filtered = remember(filteredByCategory, searchQuery, sortAscending) {
         val q = searchQuery.trim()
         val list = if (q.isEmpty()) {
-            filteredByPlatform
+            filteredByCategory
         } else {
-            filteredByPlatform.filter { it.name.contains(q, ignoreCase = true) }
+            filteredByCategory.filter { it.name.contains(q, ignoreCase = true) }
         }
         if (sortAscending) list else list.reversed()
     }
@@ -232,8 +243,8 @@ fun PlaylistScreen(
             LibraryBentoSection(
                 playlistCount = allUnifiedPlaylists.size,
                 songCount = totalSongCount,
-                customCount = platformStats.second,
-                favoriteCount = allUnifiedPlaylists.size - platformStats.second,
+                customCount = playlistStats.second,
+                favoriteCount = allUnifiedPlaylists.size - playlistStats.second,
                 selectedFilter = selectedPlatformFilter,
                 onSelectFilter = { selectedPlatformFilter = it },
                 topCovers = topCovers,
@@ -261,7 +272,6 @@ fun PlaylistScreen(
                 },
                 onCreatePlaylist = { showCreateSheet = true },
                 onImportPlaylist = onOpenImport,
-                platformList = platformStats.third.toList(),
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
 
@@ -368,15 +378,9 @@ fun PlaylistScreen(
                                     }
                                 },
                                 onMore = {
-                                    when (item) {
-                                        is UnifiedPlaylistItem.Custom -> {
-                                            selectedPlaylist = item.playlist
-                                            showActionSheet = true
-                                        }
-                                        is UnifiedPlaylistItem.Favorited -> {
-                                            onOpenPlaylistDetail(item.item)
-                                        }
-                                    }
+                                    // 两种歌单都要能打开动作弹窗：收藏的歌单也需要「播放 / 分享 / 更新 / 取消收藏」
+                                    selectedItem = item
+                                    showActionSheet = true
                                 }
                             )
 
@@ -394,42 +398,34 @@ fun PlaylistScreen(
         }
     }
 
-    // ===== 平台筛选抽屉（对应参考图 5） =====
+    // ===== 分类筛选抽屉（对齐参考图 4 的「选择平台」弹窗版式，但维度改成归属） =====
     if (showPlatformSheet) {
-        val (total, custom, others) = platformStats
-        val options = mutableListOf<SelectionItem<String>>()
-
-        options.add(
+        val (total, custom, favorite) = playlistStats
+        val options = listOf(
             SelectionItem(
                 id = "ALL",
                 title = "全部",
                 subtitle = "$total 个歌单",
                 icon = Icons.AutoMirrored.Filled.QueueMusic
-            )
-        )
-        options.add(
+            ),
             SelectionItem(
                 id = "CUSTOM",
                 title = "自建",
                 subtitle = "$custom 个歌单",
                 icon = Icons.Filled.PlaylistAdd
-            )
+            ),
+            SelectionItem(
+                id = "FAVORITE",
+                title = "收藏",
+                subtitle = "$favorite 个歌单",
+                icon = Icons.Filled.FavoriteBorder
+            ),
         )
-        others.forEach { (platform, count) ->
-            options.add(
-                SelectionItem(
-                    id = platform,
-                    title = platform,
-                    subtitle = "$count 个歌单",
-                    icon = Icons.Filled.MusicNote
-                )
-            )
-        }
 
         SelectionBottomSheet(
             headerIcon = Icons.AutoMirrored.Filled.QueueMusic,
-            title = "选择平台",
-            subtitle = "只看某个平台的歌单",
+            title = "选择分类",
+            subtitle = "只看自建或收藏的歌单",
             items = options,
             selectedId = selectedPlatformFilter,
             onSelect = { selectedPlatformFilter = it },
@@ -438,75 +434,186 @@ fun PlaylistScreen(
     }
 
     // ===== 歌单操作底部弹窗 =====
-    if (showActionSheet && selectedPlaylist != null) {
+    // ===== 歌单操作底部弹窗（对齐参考图 5/6 的版式）=====
+    // 版式：顶部一张「歌单信息条」（封面 + 名称 + 数量·分类），下面一组动作。
+    // 与参考图的差别：**没有「赞助用户」这一项**，封面也不需要任何付费门槛——
+    // 用户自选的封面会被压成 288px 的 JPEG 内联副本（见 PlaylistCoverStore.encodeCoverDataUrl），
+    // 跟着歌单记录一起走云端同步，换设备登录即可看到同一张封面。
+    val actionItem: UnifiedPlaylistItem? = selectedItem
+    if (showActionSheet && actionItem != null) {
         AppBottomSheet(
             onDismissRequest = {
                 showActionSheet = false
-                selectedPlaylist = null
+                selectedItem = null
             },
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp)
             ) {
-                Text(
-                    text = selectedPlaylist?.name ?: "",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "${selectedPlaylist?.songs?.size ?: 0} 首歌",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSoft
-                )
-                Spacer(Modifier.height(20.dp))
-
-                BottomSheetActionItem(
-                    icon = Icons.Filled.PlayArrow,
-                    text = "播放全部",
-                    onClick = {
-                        selectedPlaylist?.let { playlist ->
-                            if (playlist.songs.isNotEmpty()) {
-                                onPlayPlaylist(playlist.songs)
+                // 歌单信息条
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SurfaceSoft)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(48.dp)) {
+                        if (!actionItem.coverUrl.isNullOrBlank()) {
+                            PlaylistCoverImage(actionItem.coverUrl, Modifier.fillMaxSize(), corner = 10.dp)
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Stone200.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                    contentDescription = null,
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(22.dp)
+                                )
                             }
                         }
-                        showActionSheet = false
-                        selectedPlaylist = null
                     }
-                )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = actionItem.name,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = "${actionItem.songCount} 首 · ${actionItem.platformTag}",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = TextSoft
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "关闭",
+                        tint = TextMuted,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                showActionSheet = false
+                                selectedItem = null
+                            }
+                            .padding(4.dp)
+                    )
+                }
+
                 Spacer(Modifier.height(10.dp))
-                BottomSheetActionItem(
-                    icon = Icons.Filled.Edit,
-                    text = "编辑名称与封面",
-                    onClick = {
-                        selectedPlaylist?.let { playlist ->
-                            editTarget = playlist
+
+                // 动作组（一张圆角卡，条目间 1dp 分隔线）
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Surface)
+                        .padding(vertical = 2.dp)
+                ) {
+                    PlaylistSheetAction(
+                        icon = Icons.Filled.PlayArrow,
+                        text = "播放",
+                        onClick = {
+                            when (val target = actionItem) {
+                                is UnifiedPlaylistItem.Custom -> {
+                                    if (target.playlist.songs.isNotEmpty()) {
+                                        onPlayPlaylist(target.playlist.songs)
+                                    } else {
+                                        onToast("这个歌单还没有歌曲")
+                                    }
+                                }
+                                is UnifiedPlaylistItem.Favorited -> onOpenPlaylistDetail(target.item)
+                                else -> Unit
+                            }
+                            showActionSheet = false
+                            selectedItem = null
                         }
-                        showActionSheet = false
-                        selectedPlaylist = null
-                    }
-                )
-                Spacer(Modifier.height(10.dp))
-                BottomSheetActionItem(
-                    icon = Icons.Filled.Delete,
-                    text = "删除歌单",
-                    textColor = AccentCoral,
-                    onClick = {
-                        selectedPlaylist?.let { playlist ->
-                            deleteTarget = playlist
+                    )
+                    PlaylistSheetAction(
+                        icon = Icons.Filled.Share,
+                        text = "分享歌单",
+                        onClick = {
+                            onSharePlaylist(
+                                actionItem.name,
+                                "${actionItem.songCount} 首 · ${actionItem.platformTag}"
+                            )
+                            showActionSheet = false
+                            selectedItem = null
                         }
-                        showActionSheet = false
-                        selectedPlaylist = null
+                    )
+                    if (actionItem is UnifiedPlaylistItem.Custom) {
+                        val playlist = actionItem.playlist
+                        PlaylistSheetAction(
+                            icon = Icons.Filled.DriveFileRenameOutline,
+                            text = "重命名",
+                            onClick = {
+                                editTarget = playlist
+                                showActionSheet = false
+                                selectedItem = null
+                            }
+                        )
+                        PlaylistSheetAction(
+                            icon = Icons.Filled.Image,
+                            text = "修改封面",
+                            subtitle = "选择一张本地图片作为歌单封面",
+                            onClick = {
+                                editTarget = playlist
+                                showActionSheet = false
+                                selectedItem = null
+                            }
+                        )
+                    } else if (actionItem is UnifiedPlaylistItem.Favorited) {
+                        PlaylistSheetAction(
+                            icon = Icons.Filled.Refresh,
+                            text = "更新",
+                            subtitle = "重新从平台拉取歌单信息",
+                            onClick = {
+                                onRefreshFavorite(actionItem.item)
+                                showActionSheet = false
+                                selectedItem = null
+                            }
+                        )
+                        PlaylistSheetAction(
+                            icon = Icons.Filled.FavoriteBorder,
+                            text = "取消收藏",
+                            onClick = {
+                                onRemoveFavorite(actionItem.item)
+                                showActionSheet = false
+                                selectedItem = null
+                            }
+                        )
                     }
-                )
+                    PlaylistSheetAction(
+                        icon = Icons.Filled.Delete,
+                        text = if (actionItem is UnifiedPlaylistItem.Custom) "删除" else "移除本地记录",
+                        textColor = AccentCoral,
+                        onClick = {
+                            if (actionItem is UnifiedPlaylistItem.Custom) {
+                                deleteTarget = actionItem.playlist
+                            } else if (actionItem is UnifiedPlaylistItem.Favorited) {
+                                onRemoveFavorite(actionItem.item)
+                            }
+                            showActionSheet = false
+                            selectedItem = null
+                        }
+                    )
+                }
             }
         }
     }
@@ -840,7 +947,7 @@ private fun PlaylistRowItem(
             contentAlignment = Alignment.Center
         ) {
             if (!item.coverUrl.isNullOrBlank()) {
-                SongCover(item.coverUrl, Modifier.fillMaxSize(), corner = 10.dp)
+                PlaylistCoverImage(item.coverUrl, Modifier.fillMaxSize(), corner = 10.dp)
             } else {
                 Box(
                     modifier = Modifier
@@ -969,4 +1076,56 @@ private fun BottomSheetActionItem(
             color = textColor
         )
     }
+}
+
+/**
+ * 动作弹窗里的一行：图标 + 标题（可选副标题）+ 文本色。
+ *
+ * 与旧的 [BottomSheetActionItem] 的区别：多了可选副标题（「修改封面」「更新」需要一句解释），
+ * 且条目之间由外层卡片的 1dp 分隔线切分，不再靠 10dp 的 Spacer 堆出间距——
+ * 参考图里那一组动作是一张整卡，条目之间只有一条细线。
+ */
+@Composable
+private fun PlaylistSheetAction(
+    icon: ImageVector,
+    text: String,
+    textColor: Color = TextPrimary,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = textColor,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+                color = textColor
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = TextSoft
+                )
+            }
+        }
+    }
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 50.dp, end = 16.dp),
+        thickness = 0.6.dp,
+        color = Stone200.copy(alpha = 0.45f)
+    )
 }

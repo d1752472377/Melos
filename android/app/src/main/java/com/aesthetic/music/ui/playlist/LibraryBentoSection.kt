@@ -39,11 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.components.LiquidBentoCard
 import com.aesthetic.music.ui.components.LiquidCapsuleChip
-import com.aesthetic.music.ui.components.LiquidGlassButton
-import com.aesthetic.music.ui.components.LiquidGlassButtonStyle
-import com.aesthetic.music.ui.components.LiquidGhostButton
 import com.aesthetic.music.ui.components.QuadCover
 import com.aesthetic.music.ui.theme.Palette
+import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
@@ -64,7 +62,6 @@ fun LibraryBentoSection(
     onToggleSearch: () -> Unit,
     onCreatePlaylist: () -> Unit,
     onImportPlaylist: () -> Unit,
-    platformList: List<Pair<String, Int>>,
     modifier: Modifier = Modifier,
 ) {
     val isDark = Palette.isDark
@@ -303,58 +300,90 @@ fun LibraryBentoSection(
 
         Spacer(Modifier.height(14.dp))
 
-        // ===== 3. Bento 流体操作条 (播放全部 / 随机播放 / 搜索) =====
+        // ===== 3. 操作条（播放全部 / 随机 / 搜索）=====
+        // 「播放全部」必须是**实心主色胶囊**：此前用的是 LiquidGlassButton 的 Primary 样式，
+        // 那是一个白色 24% 透明度的液态玻璃面 + 白色文字，铺在浅色极光背景上几乎看不见
+        // （用户反馈"播放按钮看不见、字太白"）。实心主色 + 白字在任何背景上都有足够对比度。
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // [GZ 真值] LiquidGlassButton 已换成逐值还原版（LiquidGlassButtonKt.java:101）：
-            // GZ 的 API 不含 text/icon/accentColor —— 尺寸走 modifier，文案与图标走 content。
-            LiquidGlassButton(
-                onClick = onPlayAll,
-                modifier = Modifier.weight(1.2f),
-                style = LiquidGlassButtonStyle.Primary,
-                content = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "播放全部",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            )
+            Row(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(23.dp))
+                    .background(PrimaryBrown)
+                    .clickable(onClick = onPlayAll)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "播放全部",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-            LiquidGhostButton(
-                text = "随机",
-                icon = Icons.Default.Shuffle,
-                onClick = onShufflePlay,
-                modifier = Modifier.weight(0.9f)
-            )
+            Row(
+                modifier = Modifier
+                    .weight(0.9f)
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(23.dp))
+                    .background(if (isDark) Color(0x1FFFFFFF) else Color(0x14000000))
+                    .clickable(onClick = onShufflePlay)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Shuffle,
+                    contentDescription = null,
+                    tint = TextPrimary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "随机",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
 
-            LiquidGhostButton(
-                text = "",
-                icon = Icons.Default.Search,
-                onClick = onToggleSearch,
-                modifier = Modifier.width(48.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(if (isDark) Color(0x1FFFFFFF) else Color(0x14000000))
+                    .clickable(onClick = onToggleSearch),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "搜索歌单",
+                    tint = TextPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         Spacer(Modifier.height(14.dp))
 
-        // ===== 4. 平台与维度切换胶囊栏 =====
+        // ===== 4. 分类胶囊栏：全部 / 自建 / 收藏 =====
+        // 之前这里按「平台」分（全部 / 自建 / 网易云 / 酷狗…），把两个维度混在一排：
+        // "自建"是来源归属，"网易云"是平台归属，同一个歌单可能既是自建又是网易云导入，
+        // 用户根本判断不出该点哪个。现在统一成「归属」这一个维度。
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -373,11 +402,11 @@ fun LibraryBentoSection(
                     onClick = { onSelectFilter("CUSTOM") }
                 )
             }
-            items(platformList) { (platName, count) ->
+            item {
                 LiquidCapsuleChip(
-                    selected = selectedFilter == platName,
-                    text = "$platName ($count)",
-                    onClick = { onSelectFilter(platName) }
+                    selected = selectedFilter == "FAVORITE",
+                    text = "收藏 ($favoriteCount)",
+                    onClick = { onSelectFilter("FAVORITE") }
                 )
             }
         }

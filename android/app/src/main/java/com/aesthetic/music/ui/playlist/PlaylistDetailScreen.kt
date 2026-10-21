@@ -86,6 +86,7 @@ import com.aesthetic.music.ui.components.LiquidGhostButton
 import com.aesthetic.music.ui.components.PlatformTag
 import com.aesthetic.music.ui.components.PlayingBars
 import com.aesthetic.music.ui.components.SongActionSheet
+import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.components.rememberDominantColors
@@ -287,14 +288,11 @@ fun PlaylistDetailScreen(
         ) {
             val coverUrl = playlist.coverUrl ?: songs.firstOrNull()?.artwork
             if (!coverUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(coverUrl)
-                        .crossfade(300)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                // 内联封面（data:image/...）要自己解码，Coil 不认 data URI
+                PlaylistCoverImage(
+                    model = coverUrl,
+                    modifier = Modifier.fillMaxSize(),
+                    corner = 0.dp
                 )
             } else {
                 Box(
@@ -364,14 +362,10 @@ fun PlaylistDetailScreen(
                         ) {
                             val heroCover = playlist.coverUrl ?: songs.firstOrNull()?.artwork
                             if (!heroCover.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(heroCover)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = playlist.name,
+                                PlaylistCoverImage(
+                                    model = heroCover,
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    corner = 18.dp
                                 )
                             } else {
                                 Box(

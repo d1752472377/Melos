@@ -69,9 +69,19 @@ import com.aesthetic.music.ui.theme.appIsDark
  * | 3 | 时段场景大卡 `DailyStackHero` | `:8790` |
  * | 4 | 三大拟态入口 `HomeEntryCards` | `:8815` |
  * | 5 | 分类盲盒 `CategoryBlindBoxRow` | `:497`（按 3 个切块） |
- * | 6 | 新碟首发 `NewAlbumSection` | `:8845` |
- * | 7 | 情绪电台 `MoodRadioChannelTabs` + `MoodRadioArtwork` | `:10049` / `:10634` |
+ * | 6 | 新歌首发（三个地区新歌榜） | 取代原「新碟首发」`NewAlbumSection`（`:8845`） |
+ * | 7 | ~~情绪电台~~ | **已删除**，见下方「心情电台已移除」 |
  * | 8 | 折叠排行榜 `ChartCard` / `PhoneChartCard` | `:10798` / `:9208` |
+ *
+ * ## 心情电台已移除（本轮改动）
+ * GZ 首页确实有「心情电台」（`HomeScreenKt.java:10049` 频道标签 + `:10634` 插画），
+ * 但本项目这一版把它整块去掉了：
+ *  - 它是**纯装饰**：点任意心情只会从「新歌/热歌池」里随机播一首（旧实现见下方注释），
+ *    并没有真的按情绪取歌的能力，用户点完得到的是一次不可预期的随机播放；
+ *  - 它占据了首屏一整屏的高度，把真正有内容密度的「新歌首发」「排行榜」推到了第二屏；
+ *  - 情绪取歌这件事已经被「猜你喜欢」覆盖得更好（见 `ui/guess/GuessRecommend.kt`：
+ *    用收藏 + 最近播放算权重，比「随便挑一个心情」更有依据）。
+ *  组件文件 `MoodRadioPanel.kt` 随之删除（git 里可取回）。
  *
  * ## 刷新交互 = GZ 真值（**没有下拉刷新**）
  * 主控做过 5 项决定性检索：GZ 全仓 `PullToRefreshBox` / `rememberPullToRefreshState` /
@@ -103,6 +113,8 @@ fun HomeScreen(
     recommendSongs: List<Song> = emptyList(),
     isLoadingRecommendSongs: Boolean = false,
     onLoadRecommendSongs: (PlaylistItem) -> Unit = {},
+    /** 「新歌首发」三个地区新歌榜（华语/欧美/日语/韩语 每日轮换出三个） */
+    newSongRegions: List<RegionNewSongs> = emptyList(),
     isLoading: Boolean = false,
     contentError: String? = null,
     onRetryContent: (() -> Unit)? = null,
@@ -115,8 +127,8 @@ fun HomeScreen(
      */
     onMicClick: (() -> Unit)? = null,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
-    onOpenSheet: () -> Unit,
-    onOpenSheetCategory: (String) -> Unit,
+    /** 三大入口第一张卡「猜你喜欢」→ 独立页面（见 ui/guess） */
+    onOpenGuess: () -> Unit,
     onOpenRanksPage: () -> Unit,
     onOpenFm: () -> Unit = {},
     onToggleFavorite: (Song) -> Unit,
@@ -144,19 +156,6 @@ fun HomeScreen(
             poolSongs.isEmpty() &&
             hotPlaylists.isEmpty() &&
             ranks.isEmpty()
-
-    // 新碟数据转换
-    val newAlbums = remember(dailyPlaylists, hotPlaylists) {
-        (dailyPlaylists + hotPlaylists).distinctBy { it.id }.take(8).map { playlist ->
-            AlbumDisplayItem(
-                id = playlist.id,
-                title = playlist.name,
-                artist = playlist.description?.take(15) ?: "精选专辑",
-                coverUrl = playlist.coverUrl,
-                onClick = { onOpenPlaylistDetail(playlist) }
-            )
-        }
-    }
 
     // [GZ 真值] 时段场景（defpackage/me3.java:1031-1043）—— 旧实现里的「时段问候」是编造的
     val timeScene = remember { resolveTimeScene(currentHourOfDay()) }
@@ -232,13 +231,8 @@ fun HomeScreen(
             // 4. 三大拟态入口（HomeEntryCards，HomeScreenKt.java:8815）
             item(key = "home_entry_cards") {
                 HomeEntryCards(
-                    onOpenRecommend = {
-                        if (targetPlaylist != null) {
-                            onOpenPlaylistDetail(targetPlaylist)
-                        } else {
-                            onOpenSheet()
-                        }
-                    },
+                    // 「猜你喜欢」→ 独立页面：推荐结果由收藏 + 最近播放现场算（ui/guess）
+                    onOpenRecommend = onOpenGuess,
                     onOpenRanks = onOpenRanksPage,
                     onOpenFm = onOpenFm,
                     isPlaying = isPlaying,
@@ -265,30 +259,24 @@ fun HomeScreen(
             // `CategoryBlindBoxRow` 的真实调用点在 HomeScreenKt.java:497-1945，那是**另一个内容函数**
             // （不是 8072 起的这个 HomeScreen），此前按调用行号把它排进首页属于排序错误。
             // 组件本身保留在 ui/home/CategoryBlindBoxRow.kt，可供歌单广场等页面复用。
+            // 注：心情电台现在也已删除，所以「三大入口」下方直接是「新歌首发」。
 
-            // 5. 情绪电台（HomeScreenKt.java:10049 频道标签 + :10634 插画）
-            //    顺序依据：GZ 真机截图里「心情电台」在「新碟首发」**之前**
-            item(key = "mood_radio") {
-                MoodRadioPanel(
-                    // playingMood 留空：Melos 的播放层没有「情绪」元数据，
-                    // 面板会用自身的本地选中态驱动颜色与文案（见 MoodRadioPanel 内注释）
-                    isPlaying = isPlaying,
-                    onPlayMood = { mood ->
-                        if (poolSongs.isNotEmpty()) {
-                            onPlaySong(poolSongs.random(), poolSongs)
-                        } else {
-                            onOpenFm()
-                        }
-                    }
-                )
-            }
+            // ── [已删除] 心情电台 ──
+            // 原第 7 块 `MoodRadioPanel`（GZ HomeScreenKt.java:10049 频道标签 + :10634 插画）已整块移除，
+            // 组件文件 MoodRadioPanel.kt 一并删除。原因见本文件顶部 KDoc「心情电台已移除」：
+            // 它点任意心情只是从新歌/热歌池随机播一首，没有真正按情绪取歌的能力，
+            // 却占了首屏一整屏高度。情绪向的「猜点什么」由「猜你喜欢」页承担。
 
-            // 6. 新碟首发（NewAlbumSection，HomeScreenKt.java:8845）
-            if (newAlbums.isNotEmpty()) {
-                item(key = "new_album_section") {
-                    NewAlbumSection(
-                        albums = newAlbums,
-                        onOpenMore = onOpenSheet
+            // 6. 新歌首发（三个地区新歌榜；取代原「新碟首发」NewAlbumSection，HomeScreenKt.java:8845）
+            if (newSongRegions.isNotEmpty()) {
+                item(key = "new_song_region_section") {
+                    NewSongRegionSection(
+                        groups = newSongRegions,
+                        // 点卡片 = 直接播这个地区的新歌（不再跳歌单广场）
+                        onPlayRegion = { songs ->
+                            val first = songs.firstOrNull()
+                            if (first != null) onPlaySong(first, songs)
+                        },
                     )
                 }
             }

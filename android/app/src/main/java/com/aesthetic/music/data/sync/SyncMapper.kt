@@ -243,12 +243,19 @@ object SyncMapper {
     }
 
     /**
-     * 歌单封面归一化：只有 http(s) 才同步。
-     * 本机图片封面（应用私有目录下的绝对路径）在其它设备上必然加载失败，
-     * 传上去只会让另一台设备看到一个永远坏掉的封面。
+     * 歌单封面归一化：网络 URL 与**内联图片**（`data:image/...;base64,`）才同步。
+     *
+     * - http(s)：平台封面，直接传；
+     * - data:image：用户自选封面被压成 288px JPEG 后的内联副本（见
+     *   PlaylistCoverStore.encodeCoverDataUrl）。它跟着歌单记录一起走，
+     *   所以换设备登录能看到同一张封面，不需要服务端有图片上传接口；
+     * - 应用私有目录下的绝对路径：**不同步**。那台设备上必然加载失败，
+     *   传上去只会让另一台设备看到一个永远坏掉的封面。
      */
-    fun wireCover(cover: String?): String? =
-        cover?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+    fun wireCover(cover: String?): String? = cover?.trim()?.takeIf {
+        it.startsWith("http://") || it.startsWith("https://") ||
+            it.startsWith("data:image/", ignoreCase = true)
+    }
 
     /**
      * 单个脚本源码同步上限（按 UTF-8 字节算）。

@@ -119,6 +119,15 @@ data class PlayerState(
     val isPlaying: Boolean = false,
     val lyrics: List<LyricLine> = emptyList(),
     val syncedLyrics: SyncedLyrics? = null,
+    /**
+     * 歌词是否正在加载。
+     *
+     * 为什么单独一个字段：歌词是一次独立的网络请求，比音频起播慢得多。
+     * 此前歌词为空时 UI 一律显示「暂无歌词」，于是「还没加载完」和「这首歌确实没有歌词」
+     * 长得一模一样——用户以为歌词坏了。有了这个标记，歌词页能区分
+     * 「正在加载…」/「暂无歌词（点一下重试）」。
+     */
+    val lyricsLoading: Boolean = false,
     val isLoading: Boolean = false,
     val playMode: PlayMode = PlayMode.SEQUENCE,
     val errorMessage: String? = null,
@@ -398,31 +407,45 @@ class PlayerManager private constructor(private val appContext: Context) {
         }
     }
 
-    /** 预加载下一首：把下一首音频后台缓存下来，切歌时直接命中本地（弱网/走动时更稳） */
+    /**
+     * 预取下一首：**先解析直链进 [UrlCache]，再（可选）把音频缓存到本地**。
+     *
+     * 这两件事的取舍是息屏连播的关键：
+     *  - 直链只是一个几百字节的 JSON，解析成本极低，**无条件预取**。
+     *    这样切歌（通常发生在息屏时）不必再联网——后台网络被 Doze/ROM 掐断也不会停播。
+     *  - 音频缓存要按「仅 WiFi / 仅边听边下」等策略放行，属于可选项；
+     *    以前把两者绑在一起（if (!preloadNext) return），于是关掉"预加载下一首"的用户
+     *    连直链都不会预取，息屏切歌就变成了"每首都要联网"。
+     */
     private fun preloadNextIfEnabled() {
-        if (!userPrefs.preloadNext) return
         val s = _state.value
         if (s.queue.size <= 1) return
         val nextIndex = (s.currentIndex + 1) % s.queue.size
         val next = s.queue.getOrNull(nextIndex) ?: return
         if (next.id.isBlank()) return
-        val key = next.platform + ":" + next.id
-        if (key == preloadedKey) return
-        if (!DownloadPolicy.allowed(appContext, userPrefs, manual = false)) return
-        preloadedKey = key
+        val quality = SettingsStore.getQuality().value
+        val urlKey = UrlCache.key(next.platform, next.id, quality)
+        if (UrlCache.get(urlKey) != null) return
+        if (urlKey == preloadedKey) return
+        preloadedKey = urlKey
         scope.launch {
             try {
-                val quality = SettingsStore.getQuality().value
+                // ① 直链预取（无条件）
+                val r = repository.getSongUrl(next, quality)
+                val url = r.getOrNull()?.url
+                if (url.isNullOrBlank()) {
+                    if (preloadedKey == urlKey) preloadedKey = null
+                    return@launch
+                }
+                UrlCache.put(urlKey, url)
+
+                // ② 音频缓存（受设置与下载策略约束）
+                if (!userPrefs.preloadNext) return@launch
+                if (!DownloadPolicy.allowed(appContext, userPrefs, manual = false)) return@launch
                 val cached = withContext(Dispatchers.IO) {
                     AudioCacheService.getCachedPath(appContext, next.platform, next.id, quality)
                 }
                 if (cached != null) return@launch
-                val r = repository.getSongUrl(next, quality)
-                val url = r.getOrNull()?.url
-                if (url.isNullOrBlank()) {
-                    if (preloadedKey == key) preloadedKey = null
-                    return@launch
-                }
                 AudioCacheService.cacheAudio(
                     context = appContext,
                     platformCode = next.platform,
@@ -436,11 +459,11 @@ class PlayerManager private constructor(private val appContext: Context) {
                     if (path != null) {
                         saveSidecars(next)
                     } else {
-                        if (preloadedKey == key) preloadedKey = null
+                        if (preloadedKey == urlKey) preloadedKey = null
                     }
                 }
             } catch (e: Exception) {
-                if (preloadedKey == key) preloadedKey = null
+                if (preloadedKey == urlKey) preloadedKey = null
             }
         }
     }
@@ -851,9 +874,16 @@ class PlayerManager private constructor(private val appContext: Context) {
         val gen = ++playGeneration
         acquireTransitionLock()
         startPlaybackService()
-        // 重置歌词/进度
+        // 重置歌词/进度。歌词标记同时置「加载中」：否则播放页的 ensureLyricsLoaded 会
+        // 在这个空窗期（歌词已清空、loadLyrics 还没开始）再发一次重复请求
         _progress.value = PlaybackProgress()
-        _state.value = _state.value.copy(lyrics = emptyList(), syncedLyrics = null, errorMessage = null, isLoading = true)
+        _state.value = _state.value.copy(
+            lyrics = emptyList(),
+            syncedLyrics = null,
+            lyricsLoading = true,
+            errorMessage = null,
+            isLoading = true,
+        )
         // 取消上一首的在途取链请求（此前只靠代数丢弃结果，旧请求继续跑完白白耗流量）
         playJob?.cancel()
         playJob = scope.launch {
@@ -866,28 +896,70 @@ class PlayerManager private constructor(private val appContext: Context) {
                 AudioCacheService.getCachedPath(appContext, song.platform, song.id, quality)
             }
             if (gen != playGeneration) return@launch
+            val urlKey = UrlCache.key(song.platform, song.id, quality)
             val onlineUrl: String? = if (cached != null) null else {
-                val r = repository.getSongUrl(song, quality)
-                if (r.isFailure) {
-                    if (gen == playGeneration) {
-                        _state.value = _state.value.copy(isLoading = false, lastError = friendlyError(r.exceptionOrNull()!!))
+                // ① 先用预取好的直链：息屏/后台切歌时这一步能完全避开网络
+                //    （息屏后后台网络会被 Doze/ROM 省电策略限速甚至掐断，
+                //     "切歌必须联网"正是息屏放一两首就停的根因）
+                val prefetched = UrlCache.get(urlKey)
+                if (!prefetched.isNullOrBlank()) {
+                    prefetched
+                } else {
+                    // ② 没有预取就现场解析，并允许重试：
+                    //    单次失败往往只是网络抖动，直接判"这首废了"再跳下一首会连锁失败
+                    var resolved: String? = null
+                    var lastFailure: Throwable? = null
+                    for (attempt in 0 until URL_RESOLVE_ATTEMPTS) {
+                        if (gen != playGeneration) return@launch
+                        val r = repository.getSongUrl(song, quality)
+                        val u = r.getOrNull()?.url
+                        if (!u.isNullOrBlank()) {
+                            resolved = u
+                            break
+                        }
+                        lastFailure = r.exceptionOrNull()
+                        if (attempt < URL_RESOLVE_ATTEMPTS - 1) {
+                            android.util.Log.w(
+                                "PlayerManager",
+                                "取直链失败（第  次）：，ms 后重试",
+                            )
+                            delay(URL_RESOLVE_RETRY_MS * (attempt + 1))
+                        }
+                    }
+                    if (resolved == null && lastFailure != null && gen == playGeneration) {
+                        _state.value = _state.value.copy(isLoading = false, lastError = friendlyError(lastFailure!!))
                         notifyState()
                     }
+                    resolved?.also { UrlCache.put(urlKey, it) }
                 }
-                r.getOrNull()?.url
             }
             if (gen != playGeneration) return@launch
             if (cached == null && onlineUrl.isNullOrBlank()) {
                 consecutivePlayFailures++
-                if (consecutivePlayFailures < 3 && s.queue.size > 1) {
-                    android.util.Log.w("PlayerManager", "获取播放地址失败，1.5秒后尝试跳下一首 (连续失败: $consecutivePlayFailures)")
-                    delay(1500)
+                // 息屏连播时最怕「一首取链失败就把整条链停掉」：
+                // 这里改成连续失败到阈值才停，且每首之间留一点退避时间给网络恢复
+                if (consecutivePlayFailures < MAX_CONSECUTIVE_PLAY_FAILURES && s.queue.size > 1) {
+                    android.util.Log.w(
+                        "PlayerManager",
+                        "获取播放地址失败，跳下一首 (连续失败: $consecutivePlayFailures/$MAX_CONSECUTIVE_PLAY_FAILURES)",
+                    )
+                    delay(1_500L * consecutivePlayFailures)
                     if (gen == playGeneration) {
                         next()
                     }
                 } else {
+                    // 真的播不下去了：把状态收拾干净——不能留在 isLoading=true，
+                    // 否则前台服务会一直挂着「加载中」，歌词页也会永远转圈
                     releaseTransitionLock()
+                    consecutivePlayFailures = 0
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        lastError = "连续多首无法获取播放地址，已暂停。请检查网络或切换音质后重试",
+                    )
+                    notifyState()
                 }
+                // 播不了就不会有歌词：把「歌词加载中」放掉，否则歌词页会一直转圈
+                setLyricsLoading(false, gen)
                 return@launch
             }
 
@@ -965,6 +1037,12 @@ class PlayerManager private constructor(private val appContext: Context) {
      * - 两个来源都关 = 不显示歌词，且不发起任何请求；
      * - 开本地 = 先找本地歌词文件（缓存歌曲同目录 .lrc，或 filesDir/lyrics 下的已保存歌词），命中就离线用；
      * - 开在线 = 走仓库取歌词（失败/为空时不覆盖已有歌词，避免"网络抖一下歌词就空"）。
+     *
+     * ## 为什么要「重试一次」+ [ensureLyricsLoaded]
+     * 歌词请求和起播请求是并发的，首曲还常常撞上 App 冷启动（DNS / 音源插件预热）。
+     * 只要第一次请求失败，这首歌在整次播放期间就再也没有歌词了——用户看到的现象是
+     * 「打开歌词页没有歌词，切一首歌就有了」。所以这里：失败自动重试一次；
+     * 另外 [ensureLyricsLoaded] 供 UI 在「歌词为空」时主动补拉。
      */
     private suspend fun loadLyrics(song: Song, gen: Long) {
         val prefs = userPrefs
@@ -972,48 +1050,125 @@ class PlayerManager private constructor(private val appContext: Context) {
             clearLyrics(gen)
             return
         }
-        if (prefs.lyricLocal) {
-            val local = withContext(Dispatchers.IO) {
-                val cached = AudioCacheService.getCachedPath(
-                    appContext, song.platform, song.id, SettingsStore.getQuality().value,
-                )
-                LocalLyricStore.loadLocalLyric(appContext, song, cached)
+        setLyricsLoading(true, gen)
+        try {
+            if (prefs.lyricLocal) {
+                val local = withContext(Dispatchers.IO) {
+                    val cached = AudioCacheService.getCachedPath(
+                        appContext, song.platform, song.id, SettingsStore.getQuality().value,
+                    )
+                    LocalLyricStore.loadLocalLyric(appContext, song, cached)
+                }
+                if (!local.isNullOrBlank()) {
+                    applyLyrics(local, null, gen, isLocal = true)
+                    return
+                }
             }
-            if (!local.isNullOrBlank()) {
-                applyLyrics(local, null, gen, isLocal = true)
+            if (!prefs.lyricOnline) {
+                // 只开本地却没有本地文件：清空而不是联网（用户的目标就是纯离线）
+                clearLyrics(gen)
                 return
             }
-        }
-        if (!prefs.lyricOnline) {
-            // 只开本地却没有本地文件：清空而不是联网（用户的目标就是纯离线）
-            clearLyrics(gen)
-            return
-        }
-        repository.getLyric(song).onSuccess { d ->
-            applyLyrics(d.lyric, d.translated, gen, isLocal = false)
+
+            var lastLyric: String? = null
+            var lastTranslated: String? = null
+            var lastYrc: String? = null
+            // 最多两次：第一次失败（异常或空）时立刻再试一次，间隔 400ms
+            repeat(2) { attempt ->
+                if (gen != playGeneration) return
+                val result = repository.getLyric(song)
+                result.onSuccess { d ->
+                    lastLyric = d.lyric
+                    lastTranslated = d.translated
+                    lastYrc = d.wordByWord
+                }
+                if (!lastLyric.isNullOrBlank()) {
+                    applyLyrics(lastLyric, lastTranslated, gen, isLocal = false, rawWordByWord = lastYrc)
+                    return
+                }
+                if (attempt == 0) {
+                    android.util.Log.w("PlayerManager", "歌词为空，400ms 后重试：${song.title}")
+                    delay(400)
+                }
+            }
+            // 两次都没有：保持空（UI 会显示「暂无歌词 · 点一下重试」）
+            clearLyrics(gen, keepLoadingState = true)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("PlayerManager", "歌词加载失败: ${e.message}")
+            clearLyrics(gen, keepLoadingState = true)
+        } finally {
+            setLyricsLoading(false, gen)
         }
     }
 
+    /** 歌词加载中标记（只对当前代有效，避免切歌后被旧请求改回去） */
+    private fun setLyricsLoading(loading: Boolean, gen: Long) {
+        if (gen != playGeneration) return
+        if (_state.value.lyricsLoading == loading) return
+        _state.value = _state.value.copy(lyricsLoading = loading)
+        notifyState()
+    }
+
+    /**
+     * UI 侧兜底：当前歌曲「没有歌词且不在加载中」时补拉一次。
+     *
+     * 播放页/歌词页在歌曲变化时调用。它解决的是「首曲歌词请求失败后就永久空白」的问题，
+     * 也让「用户从队列里挑了一首没播过的歌」这种路径有歌词。
+     */
+    fun ensureLyricsLoaded() {
+        val song = _state.value.currentSong ?: return
+        val s = _state.value
+        if (s.lyrics.isNotEmpty() || s.lyricsLoading) return
+        val prefs = userPrefs
+        if (!prefs.lyricOnline && !prefs.lyricLocal) return
+        val gen = playGeneration
+        scope.launch { loadLyrics(song, gen) }
+    }
+
+    /** 用户点「重新加载」：无视当前状态强制再拉一次 */
+    fun reloadLyrics() {
+        val song = _state.value.currentSong ?: return
+        val gen = playGeneration
+        scope.launch { loadLyrics(song, gen) }
+    }
+
     /** 清空歌词（来源被关掉，或本地没有可用歌词） */
-    private fun clearLyrics(gen: Long) {
+    private fun clearLyrics(gen: Long, keepLoadingState: Boolean = false) {
         if (gen != playGeneration) return
         _state.value = _state.value.copy(
             lyrics = emptyList(),
             syncedLyrics = null,
             lyricSpec = LyricMetaSpec(),
+            lyricsLoading = if (keepLoadingState) _state.value.lyricsLoading else false,
         )
         notifyState()
     }
 
-    /** 解析并落地歌词：关闭「翻译歌词」时丢弃译文，只保留原文 */
-    private fun applyLyrics(rawLyricIn: String?, rawTranslatedIn: String?, gen: Long, isLocal: Boolean = false) {
+    /**
+     * 解析并落地歌词。
+     *
+     * 逐字能力分两级（见 [withPseudoWords] 注释）：
+     *  1. 有 [rawWordByWord]（网易云 YRC）→ 把**真实字时间**贴到 LRC 文本上；
+     *  2. 没有 → 用行时长给每个字补一套近似字时间，让逐字染色在任何音源上都能用。
+     */
+    private fun applyLyrics(
+        rawLyricIn: String?,
+        rawTranslatedIn: String?,
+        gen: Long,
+        isLocal: Boolean = false,
+        rawWordByWord: String? = null,
+    ) {
         if (gen != playGeneration) return
         val song = _state.value.currentSong
         val songTitle = song?.title ?: ""
         val songArtist = song?.artist ?: ""
         val original = parseAutoLyrics(rawLyricIn, songTitle, songArtist)
         val translated = if (rawTranslatedIn.isNullOrBlank()) emptyList() else parseAutoLyrics(rawTranslatedIn, songTitle, songArtist)
-        val merged = mergeTranslation(original, translated)
+        val mergedBase = mergeTranslation(original, translated)
+        // 先贴真字时间，再给剩下的行补近似字时间
+        val merged = withPseudoWords(attachWordTimings(mergedBase, rawWordByWord, songTitle, songArtist))
 
         val contentToParse = if (!rawTranslatedIn.isNullOrBlank() && !(rawLyricIn ?: "").contains(rawTranslatedIn)) {
             "${rawLyricIn ?: ""}\n$rawTranslatedIn"
@@ -1064,7 +1219,9 @@ class PlayerManager private constructor(private val appContext: Context) {
         }
 
         val currentSong = _state.value.currentSong
-        val isKaraoke = finalSynced != null && finalSynced.lines.any { it is KaraokeLine }
+        // 只有拿到真实字时间（YRC/KRC）才算 karaoke 格式；近似字时间不冒充 YRC
+        val hasWordTiming = !rawWordByWord.isNullOrBlank() && merged.any { it.words.isNotEmpty() }
+        val isKaraoke = hasWordTiming || (finalSynced != null && finalSynced.lines.any { it is KaraokeLine })
         val formatType = if (isKaraoke) "YRC" else "LRC"
         val loadChannel = if (isLocal) "本地" else "在线"
         val platformMap = mapOf(
@@ -1222,6 +1379,50 @@ class PlayerManager private constructor(private val appContext: Context) {
         seekTo(line.timeMs)
     }
 
+    /**
+     * 切换音质后「就地重播」当前歌曲。
+     *
+     * 为什么必须重取直链：音质是取链参数（standard/high/lossless 对应不同码率甚至不同容器），
+     * 已经下发的音频流不会因为设置变化而变成无损。所以这里把当前进度记进 [pendingSeekMs]，
+     * 再走一遍 [playCurrent]（重新取链 + 重新加载歌词），起播后会 seek 回原位置，
+     * 听感上是「闪一下继续播」，而不是「从头再来」。
+     *
+     * 音质设置本身的持久化由调用方（设置页 / 播放页）写入 [SettingsStore]，
+     * 这里只负责重播，避免两处都写设置导致状态分叉。
+     */
+    fun reloadCurrentForQuality() {
+        val song = _state.value.currentSong ?: return
+        if (song.id.isBlank()) return
+        val position = player.currentPosition.takeIf { it > 0 } ?: _progress.value.positionMs
+        pendingSeekMs = position
+        _state.value = _state.value.copy(isLoading = true)
+        playCurrent()
+    }
+
+    /**
+     * 队列内拖动排序。
+     *
+     * 关键点：**当前播放项要跟着移动**。如果只挪列表不改 [currentIndex]，
+     * 拖完之后「正在播放」会跳到别的歌上（听到的歌和卡片上的歌不一致），
+     * 这是队列排序最容易踩的坑。
+     */
+    fun moveQueueItem(from: Int, to: Int) {
+        val s = _state.value
+        if (from !in s.queue.indices || to !in s.queue.indices || from == to) return
+        val list = s.queue.toMutableList()
+        val item = list.removeAt(from)
+        list.add(to, item)
+        val newIndex = when {
+            s.currentIndex == from -> to
+            from < s.currentIndex && to >= s.currentIndex -> s.currentIndex - 1
+            from > s.currentIndex && to <= s.currentIndex -> s.currentIndex + 1
+            else -> s.currentIndex
+        }
+        _state.value = s.copy(queue = list, currentIndex = newIndex)
+        saveSession()
+        notifyState()
+    }
+
     /** 开始轮询播放进度（同时做统计与断点保存）。
      *  进度只写 [progress] 流，不再 copy 整个 PlayerState：
      *  播放期间 AppShell 与各内容页不会每 500ms 被拖着重组一次。
@@ -1326,6 +1527,15 @@ class PlayerManager private constructor(private val appContext: Context) {
     }
 
     companion object {
+        /** 取直链的最多尝试次数（含首次）：单次失败多半是网络抖动，不该直接判这首废了 */
+        private const val URL_RESOLVE_ATTEMPTS = 3
+
+        /** 取直链重试的基准间隔（第 n 次重试等 n × 该值） */
+        private const val URL_RESOLVE_RETRY_MS = 1_200L
+
+        /** 连续多少首取链失败才真正停下（期间每首都自动跳下一首） */
+        private const val MAX_CONSECUTIVE_PLAY_FAILURES = 5
+
         @Volatile
         private var instance: PlayerManager? = null
 

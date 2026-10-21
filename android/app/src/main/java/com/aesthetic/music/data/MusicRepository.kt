@@ -143,6 +143,22 @@ class MusicRepository(
         PlatformMusicService.getNewSongs(limit)
     }
 
+    /**
+     * 按语种/地区取新歌（首页「新歌首发」三张地区卡）。
+     * 区域目录见 [NewSongRegions]：7 华语 / 96 欧美 / 8 日语 / 16 韩语。
+     */
+    suspend fun getNewSongsByArea(areaId: Int, limit: Int = 20): Result<List<Song>> = apiCatching {
+        PlatformMusicService.newSongsByArea(areaId, limit)
+    }
+
+    /**
+     * 相似歌曲（「猜你喜欢」的候选池来源）。
+     * 仅网易云数字 id 有结果，其它平台返回空列表而不是失败。
+     */
+    suspend fun getSimilarSongs(songId: String, limit: Int = 20): Result<List<Song>> = apiCatching {
+        PlatformMusicService.similarSongs(songId, limit)
+    }
+
     /** 榜单列表：平台由 [RankCatalog] 定义（网易云 / QQ / 酷狗 / 酷我），默认网易云 */
     suspend fun getRanks(platform: String = RankCatalog.DEFAULT): Result<RanksData> = apiCatching {
         PlatformMusicService.getRanks(platform)

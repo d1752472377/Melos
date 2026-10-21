@@ -3,6 +3,7 @@ package com.aesthetic.music
 import android.app.Application
 import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
+import com.aesthetic.music.data.settings.GuessHistoryStore
 import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.PlaylistCoverStore
@@ -48,6 +49,8 @@ class MelosApplication : Application() {
         PlaylistCoverStore.init(this)
         StatsStore.init(this)
         PlayerSessionStore.init(this)
+        // 「猜你喜欢」已推荐记忆：让「换一批」真的换一批（见 GuessHistoryStore 类注释）
+        GuessHistoryStore.init(this)
 
         // 启动预热当前指定音源：沙箱编译放在后台，避免第一次播放时才付这份代价。
         // 注意 UserApiEngine 自身不再自动加载脚本（多插件下"加载哪个"由 SourceManager 决定）。

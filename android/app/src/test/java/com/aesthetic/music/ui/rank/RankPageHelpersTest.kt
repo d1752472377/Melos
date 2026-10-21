@@ -3,6 +3,7 @@ package com.aesthetic.music.ui.rank
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.platform.RankCatalog
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -45,5 +46,66 @@ class RankPageHelpersTest {
         assertEquals("热歌", rankKindLabel(qqHot.kind ?: RankCatalog.kindOf(qqHot.name)))
         val kuwoOther = PlaylistItem(id = "9", name = "国潮音乐榜", platform = RankCatalog.KUWO)
         assertEquals("", rankKindLabel(kuwoOther.kind ?: RankCatalog.kindOf(kuwoOther.name)))
+    }
+
+    // ==================== 新版排行榜页（此刻焦点 / 榜单卡） ====================
+
+    @Test
+    fun `焦点榜单优先飙升榜`() {
+        val hot = PlaylistItem(id = "1", name = "热歌榜")
+        val rising = PlaylistItem(id = "2", name = "飙升榜")
+        val fresh = PlaylistItem(id = "3", name = "新歌榜")
+        // 飙升榜排在中间也要被选中（参考图里「此刻焦点」就是飙升榜）
+        assertEquals(rising, rankSpotlight(listOf(hot, rising, fresh)))
+        // 没有飙升榜就取第一个
+        assertEquals(hot, rankSpotlight(listOf(hot, fresh)))
+        assertEquals(null, rankSpotlight(emptyList()))
+    }
+
+    @Test
+    fun `四种语义榜单各有一套配色`() {
+        val kinds = listOf("rising", "new", "original", "hot", "other")
+        val colors = kinds.map { rankAccentColors(it).first }
+        // 五种语义的主色互不相同，否则卡片就分不出类别
+        assertEquals(colors.size, colors.distinct().size)
+        assertEquals(rankAccentColors("rising"), rankAccentColors("rising"))
+    }
+
+    @Test
+    fun `说明文案优先用接口字段，否则按语义给固定文案`() {
+        // 接口有 description 就用接口的
+        assertEquals(
+            "接口给的简介",
+            rankDescription(PlaylistItem(id = "1", name = "新歌榜", description = "接口给的简介")),
+        )
+        // 没有就用语义文案，且不含任何具体数字（不伪造数据）
+        val rising = rankDescription(PlaylistItem(id = "2", name = "飙升榜"))
+        assertTrue(rising.contains("上升最快"))
+        assertTrue(rising.none { it.isDigit() })
+        val hot = rankDescription(PlaylistItem(id = "3", name = "热歌榜"))
+        assertTrue(hot.contains("最热"))
+        assertTrue(hot.none { it.isDigit() })
+        // 未识别语义也有兜底文案
+        assertTrue(rankDescription(PlaylistItem(id = "4", name = "国潮音乐榜")).isNotEmpty())
+    }
+
+    @Test
+    fun `更新时间按本地拉取时间换算`() {
+        val now = 1_767_225_600_000L
+        assertEquals("刚刚更新", rankUpdatedLabel(0L, now))
+        assertEquals("刚刚更新", rankUpdatedLabel(now - 5 * 60_000L, now))
+        assertEquals("刚刚更新", rankUpdatedLabel(now - 59 * 60_000L, now))
+        assertEquals("2 小时前更新", rankUpdatedLabel(now - 2 * 3_600_000L, now))
+        assertEquals("3 天前更新", rankUpdatedLabel(now - 3 * 86_400_000L, now))
+        assertEquals("较久未更新", rankUpdatedLabel(now - 60 * 86_400_000L, now))
+        // 时钟回拨（本地时间被改过）不应出现负数文案
+        assertEquals("刚刚更新", rankUpdatedLabel(now + 3_600_000L, now))
+    }
+
+    @Test
+    fun `平台品牌色四个平台互不相同`() {
+        val colors = RankCatalog.platforms.map { platformBrandColor(it.id) }
+        assertEquals(colors.size, colors.distinct().size)
+        assertEquals(platformBrandColor("unknown"), platformBrandColor("nope"))
     }
 }

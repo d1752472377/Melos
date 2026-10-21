@@ -17,6 +17,7 @@ fun PlaylistTabDestination(
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
     val importPreview by viewModel.playlistImportPreview.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     PlaylistScreen(
         myPlaylists = myPlaylists,
@@ -59,5 +60,17 @@ fun PlaylistTabDestination(
         onOpenImport = { viewModel.openImportDialog() },
         onPlayPlaylist = { songs -> actions.playAll(songs) },
         onToast = actions.toast,
+        onSharePlaylist = { name, subtitle ->
+            val ctx = context
+            val text = "歌单《$name》 · $subtitle" + "\n" + "—— 来自 Melos"
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_SUBJECT, name)
+                putExtra(android.content.Intent.EXTRA_TEXT, text)
+            }
+            ctx.startActivity(android.content.Intent.createChooser(intent, "分享歌单"))
+        },
+        onRefreshFavorite = { item -> viewModel.refreshFavoritePlaylist(item) },
+        onRemoveFavorite = { item -> viewModel.toggleFavoritePlaylist(item) },
     )
 }

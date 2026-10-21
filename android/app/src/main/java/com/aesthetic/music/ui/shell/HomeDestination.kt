@@ -27,6 +27,7 @@ fun HomeDestination(
     val isLoadingContent by viewModel.isLoadingContent.collectAsState()
     val recommendPlaylistSongs by viewModel.recommendPlaylistSongs.collectAsState()
     val isLoadingRecommendSongs by viewModel.isLoadingRecommendSongs.collectAsState()
+    val newSongRegions by viewModel.newSongRegions.collectAsState()
     HomeScreen(
         dailyPlaylists = dailyPlaylists,
         newSongs = newSongs,
@@ -38,6 +39,7 @@ fun HomeDestination(
         recommendSongs = recommendPlaylistSongs,
         isLoadingRecommendSongs = isLoadingRecommendSongs,
         onLoadRecommendSongs = viewModel::loadRecommendPlaylistSongs,
+        newSongRegions = newSongRegions,
         contentError = contentError,
         isLoading = isLoadingContent,
         onRetryContent = { viewModel.refreshContent() },
@@ -50,12 +52,8 @@ fun HomeDestination(
             viewModel.openPlaylistDetail(pl)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
-        onOpenSheet = { nav.navigate(ScreenRoute.SheetSquare.route) },
-        onOpenSheetCategory = { title ->
-            // 先归一并选中分类（会拉起该分类的歌单），再进歌单广场
-            viewModel.openSheetCategory(title)
-            nav.navigate(ScreenRoute.SheetSquare.route)
-        },
+        // 三大入口第一张卡「猜你喜欢」→ 独立推荐页（不再跳歌单详情）
+        onOpenGuess = { nav.navigateSingleTop(ScreenRoute.GuessYouLike.route) },
         onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
         onOpenFm = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
         onToggleFavorite = viewModel::toggleFavorite,

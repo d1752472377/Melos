@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -89,14 +87,14 @@ import com.aesthetic.music.data.settings.PlayerTheme
 import com.aesthetic.music.data.settings.LyricFontSize
 import com.aesthetic.music.data.settings.LyricBlurMode
 import com.aesthetic.music.data.settings.BackgroundBlurMode
+import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.SettingsStore
+import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.LyricLine
 import com.aesthetic.music.player.PlayMode
 import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.PlayerState
 import com.aesthetic.music.player.currentLyricIndex
-import com.aesthetic.music.ui.components.AppBottomSheet
-import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.PlayerBg
 import com.aesthetic.music.ui.theme.PlayerBgDark
@@ -116,7 +114,8 @@ fun PlayerScreen(
     state: PlayerState,
     /** 高频进度流：在播放页内部订阅，避免进度更新向上扩散到 AppShell */
     progressFlow: StateFlow<PlaybackProgress>,
-    isFavorite: Boolean,
+    /** 某首歌是否已收藏。传函数而不是布尔量：队列里每一行都要判断，不能只判断当前曲 */
+    isFavorite: (Song) -> Boolean,
     onClose: () -> Unit,
     onToggle: () -> Unit,
     onNext: () -> Unit,
@@ -124,21 +123,35 @@ fun PlayerScreen(
     onSeek: (Long) -> Unit,
     onSeekToLyric: (LyricLine) -> Unit,
     onTogglePlayMode: () -> Unit,
-    onToggleFavorite: () -> Unit,
+    onToggleFavorite: (Song) -> Unit,
     onPlayQueueItem: (Int) -> Unit,
     onRemoveFromQueue: (Int) -> Unit,
+    onMoveQueueItem: (from: Int, to: Int) -> Unit,
+    onClearQueue: () -> Unit,
+    /** 歌词为空且没在加载时补拉一次（修复「首曲没歌词、切歌才有」） */
+    onEnsureLyrics: () -> Unit,
+    /** 用户主动点「重新加载」 */
+    onReloadLyrics: () -> Unit,
+    /** 当前音质与切换回调（音质是可选项，见中控台「音质」板块） */
+    currentQuality: QualityLevel,
+    onQualityChange: (QualityLevel) -> Unit,
     onSpeedChange: (Float) -> Unit,
     onSleepTimer: (Int) -> Unit,
     onCancelSleepTimer: () -> Unit,
     onArtistClick: ((artistName: String, artistId: String?, platform: String?) -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
-    onAddToPlaylist: (() -> Unit)? = null,
+    onAddToPlaylist: ((Song) -> Unit)? = null,
     hazeState: HazeState? = null,
 ) {
     val song = state.currentSong
     // 进度只在播放页内部收集：每 500ms 一次的更新不会离开本页作用域
     val progress by progressFlow.collectAsState()
     val animatedPositionState = remember { mutableLongStateOf(0L) }
+
+    // 切歌即确保歌词在途：首曲的歌词请求常常和冷启动抢网络，失败后此前就永久空白了
+    LaunchedEffect(song?.platform, song?.id) {
+        if (song != null) onEnsureLyrics()
+    }
 
     // 帧级平滑插值：逐帧刷新当前毫秒数，供歌词视图绘制平滑字级染色与滚动
     LaunchedEffect(state.isPlaying, progress.positionMs, state.speed) {
@@ -310,8 +323,8 @@ fun PlayerScreen(
                         )
                     }
                     FavoriteBurstButton(
-                        isFavorite = isFavorite,
-                        onToggle = onToggleFavorite,
+                        isFavorite = song != null && isFavorite(song),
+                        onToggle = { song?.let(onToggleFavorite) },
                         iconSize = 20.dp,
                         activeColor = Rose,
                         inactiveColor = Color.White.copy(alpha = 0.85f),
@@ -341,6 +354,8 @@ fun PlayerScreen(
                         onSeek = onSeek,
                         fontSizeSp = lyricFontSize.spSize,
                         showTranslation = true,
+                        isLoading = state.lyricsLoading,
+                        onRetryLyric = onReloadLyrics,
                         onToggleLyricMode = { showLyric = false },
                         onLineLongClick = { showAudioDetailSheet = true },
                         modifier = Modifier.fillMaxSize(),
@@ -375,74 +390,25 @@ fun PlayerScreen(
     }
 
     if (showQueueSheet) {
-        AppBottomSheet(
-            onDismissRequest = { showQueueSheet = false },
-            containerColor = PlayerBg,
-        ) {
-            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-                Text(
-                    "播放队列 (${state.queue.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    modifier = Modifier.padding(bottom = 10.dp),
-                )
-                LazyColumn {
-                    itemsIndexed(
-                        state.queue,
-                        key = { i, item -> "$i:${item.platform}:${item.id}" },
-                    ) { index, item ->
-                        val isCurrent = index == state.currentIndex
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (isCurrent) Color.White.copy(alpha = 0.14f)
-                                    else Color.Transparent
-                                )
-                                .clickable {
-                                    onPlayQueueItem(index)
-                                    showQueueSheet = false
-                                }
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
-                                if (isCurrent) WaveBars(Color.White, barWidth = 2.dp)
-                                else Text(
-                                    "${index + 1}",
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            }
-                            Spacer(Modifier.size(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    item.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.85f),
-                                    maxLines = 1,
-                                )
-                                Text(
-                                    item.artist,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    maxLines = 1,
-                                )
-                            }
-                            Icon(
-                                Icons.Filled.Close,
-                                contentDescription = "移除",
-                                tint = Color.White.copy(alpha = 0.5f),
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .clickable { onRemoveFromQueue(index) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        PlayerQueueSheet(
+            queue = state.queue,
+            currentIndex = state.currentIndex,
+            isFavorite = isFavorite,
+            onDismiss = { showQueueSheet = false },
+            onPlayIndex = { index ->
+                onPlayQueueItem(index)
+                showQueueSheet = false
+            },
+            onRemoveIndex = onRemoveFromQueue,
+            onMove = onMoveQueueItem,
+            onClear = {
+                onClearQueue()
+                // 清空后队列没了，抽屉留在屏幕上只会是一张空卡片，直接收起
+                showQueueSheet = false
+            },
+            onToggleFavorite = onToggleFavorite,
+            onAddToPlaylist = { s -> onAddToPlaylist?.invoke(s) },
+        )
     }
 
     if (showControlCenterSheet) {
@@ -468,9 +434,11 @@ fun PlayerScreen(
                 showControlCenterSheet = false
             },
             onAddToPlaylist = {
-                onAddToPlaylist?.invoke()
+                song?.let { onAddToPlaylist?.invoke(it) }
                 showControlCenterSheet = false
             },
+            currentQuality = currentQuality,
+            onQualityChange = onQualityChange,
             currentLyricFontSize = lyricFontSize,
             onLyricFontSizeChange = {
                 lyricFontSize = it

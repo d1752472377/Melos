@@ -1379,6 +1379,48 @@ object PlatformMusicService {
         return NewSongsData(title = "新歌速递", songs = songs)
     }
 
+    /**
+     * 按语种/地区取新歌（首页「新歌首发」三张地区卡的数据源）。
+     *
+     * 接口：`https://music.163.com/api/discovery/new/songs?areaId=<areaId>&limit=<n>`
+     *  - 返回体是 `{ code, data: [song...] }`，元素结构与 `personalized/newsong` 的
+     *    `result[].song` 同构（`name` / `artists[].name` / `album.picUrl`），因此直接复用
+     *    [parseNeteaseSong]；
+     *  - `limit` 实测被服务端忽略（恒返回 100 条），这里仍在客户端截断到调用方要的数量，
+     *    免得把 100 首塞进首页卡片；
+     *  - 未知 [areaId] 会返回空 `data`（不是报错），所以上层不需要为「某个地区没歌」写分支。
+     *
+     * @param areaId 地区参数，取值见 [NewSongRegions]（7 华语 / 96 欧美 / 8 日语 / 16 韩语）
+     */
+    suspend fun newSongsByArea(areaId: Int, limit: Int = 20): List<Song> {
+        val safeLimit = limit.coerceIn(1, 100)
+        val url = "https://music.163.com/api/discovery/new/songs?areaId=$areaId&limit=$safeLimit"
+        val root = getJson(url)
+        val arr = root.getAsJsonArray("data") ?: return emptyList()
+        return arr.take(safeLimit).mapNotNull { parseNeteaseSong(it) }
+    }
+
+    /**
+     * 相似歌曲（「猜你喜欢」把种子歌扩展成候选池的唯一外部依赖）。
+     *
+     * 接口：`https://music.163.com/api/discovery/simiSong?songid=<id>&limit=<n>`（实测 200 可用），
+     * 返回体 `{ code, songs: [song...] }`，元素带 `recommendReason = "相似歌曲"` 与
+     * `alg = "alg-music-rec-pp-sim_song-..."`，即网易云的协同过滤结果。
+     *
+     * 只有网易云有这个接口，而且它只认**数字歌曲 id**；其它平台（QQ 的 songmid、酷狗的 hash）
+     * 传进去只会拿到 404，因此这里直接返回空列表——由上层把「该种子没扩展到候选」计入
+     * 失败数，而不是把它当异常。
+     */
+    suspend fun similarSongs(songId: String, limit: Int = 20): List<Song> {
+        val id = songId.trim()
+        if (id.isEmpty() || id.any { !it.isDigit() }) return emptyList()
+        val safeLimit = limit.coerceIn(1, 50)
+        val url = "https://music.163.com/api/discovery/simiSong?songid=$id&limit=$safeLimit"
+        val root = getJson(url)
+        val arr = root.getAsJsonArray("songs") ?: return emptyList()
+        return arr.mapNotNull { parseNeteaseSong(it) }
+    }
+
     suspend fun artistTopSongs(artistId: String, limit: Int = 50): List<Song> {
         val safe = limit.coerceIn(1, 100)
         val root = getJson("https://music.163.com/api/artist/top/song?id=${URLEncoder.encode(artistId, "UTF-8")}&limit=$safe")
@@ -1769,15 +1811,22 @@ object PlatformMusicService {
 
     private suspend fun getNeteaseLyric(song: Song): LyricData {
         return try {
-            val url = "https://music.163.com/api/song/lyric?id=${URLEncoder.encode(song.id, "UTF-8")}&lv=-1&tv=-1"
+            // yv=-1 才会返回 `yrc`（逐字歌词）。实测（2026-10）：
+            //   GET /api/song/lyric?id=..&lv=-1&tv=-1&yv=-1
+            //   → { lrc, tlyric, yrc:{lyric:"[行起始ms,行时长ms](字起始ms,字时长ms,0)字…"} }
+            // 注意 yrc 里的字时间是**绝对毫秒**（不是行内偏移），与 parseYrc 的解析口径一致。
+            val url = "https://music.163.com/api/song/lyric?id=${URLEncoder.encode(song.id, "UTF-8")}" +
+                    "&lv=-1&tv=-1&yv=-1"
             val root = getJson(url)
             val lrc = root.getAsJsonObject("lrc")?.get("lyric")?.asString
             val tlyric = root.getAsJsonObject("tlyric")?.get("lyric")?.asString
+            val yrc = root.getAsJsonObject("yrc")?.get("lyric")?.asString
             LyricData(
                 lyric = lrc,
                 translated = tlyric,
                 platform = P_NETEASE,
-                sourceName = "官方直连"
+                sourceName = "官方直连",
+                wordByWord = yrc?.takeIf { it.isNotBlank() },
             )
         } catch (e: Exception) {
             Log.w(TAG, "Get Netease lyric failed for song ${song.id}: ${e.message}")

@@ -11,6 +11,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,6 +95,19 @@ private fun AsyncCoverImage(
 ) {
     val context = LocalContext.current
     if (!url.isNullOrBlank()) {
+        // 歌单自选封面可能是内联 data URL（见 PlaylistCoverImage），这里也要能画
+        if (isInlineImage(url)) {
+            val bitmap = remember(url) { decodeInlineImage(url) }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = modifier,
+                    contentScale = ContentScale.Crop,
+                )
+                return
+            }
+        }
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(url)

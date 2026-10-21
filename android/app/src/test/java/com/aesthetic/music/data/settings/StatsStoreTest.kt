@@ -138,6 +138,10 @@ class StatsStoreTest {
 
     @Test
     fun `序列化与反序列化保持全部字段`() {
+        // 日期必须取「今天」：serialize 会走 prune()，而小时明细只保留最近 31 天、
+        // 当日歌曲只保留最近 21 天。此前这里写死 "2026-09-13"，
+        // 时间一过窗口这两个断言就会失败（测试随日历腐烂，而不是代码坏了）。
+        val today = StatsStore.todayKey()
         val stats = ListeningStats(
             totalListenMs = 12_345_678L,
             totalPlays = 42L,
@@ -145,7 +149,7 @@ class StatsStoreTest {
             lastAtMs = 1_700_000_000_000L,
             days = listOf(
                 DayStat(
-                    day = "2026-09-13",
+                    day = today,
                     listenMs = 600_000L,
                     plays = 3,
                     hourMs = List(24) { if (it == 23) 600_000L else 0L },
@@ -174,7 +178,7 @@ class StatsStoreTest {
         assertEquals(stats.totalPlays, parsed.totalPlays)
         assertEquals(stats.firstDay, parsed.firstDay)
         assertEquals(stats.lastAtMs, parsed.lastAtMs)
-        val day = parsed.day("2026-09-13")!!
+        val day = parsed.day(today)!!
         assertEquals(600_000L, day.listenMs)
         assertEquals(3, day.plays)
         assertEquals(24, day.hourMs.size)
@@ -187,14 +191,16 @@ class StatsStoreTest {
     @Test
     fun `歌名含引号与换行也能往返`() {
         val title = "他说\"你好\"\n第二行"
+        // 同「序列化与反序列化保持全部字段」：日期取今天，避免被 prune() 的窗口裁掉
+        val today = StatsStore.todayKey()
         val stats = ListeningStats(
             totalPlays = 1,
-            days = listOf(DayStat("2026-09-13", 1_000, 1, emptyList(), listOf(
+            days = listOf(DayStat(today, 1_000, 1, emptyList(), listOf(
                 SongStat("qq", "9", title, "某歌手", 1, 1_000, 0, 0)
             ))),
         )
         val parsed = StatsStore.parseForTest(StatsStore.serializeForTest(stats))
-        assertEquals(title, parsed.day("2026-09-13")!!.songs.single().title)
+        assertEquals(title, parsed.day(today)!!.songs.single().title)
     }
 
     @Test

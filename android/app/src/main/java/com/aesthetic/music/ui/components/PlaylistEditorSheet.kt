@@ -98,6 +98,13 @@ fun PlaylistEditorSheet(
     var nameEdited by remember { mutableStateOf(initialName.isNotBlank()) }
     /** 本次新选的本机封面（尚未落库；取消时删除该文件） */
     var localCover by remember { mutableStateOf<String?>(null) }
+    /**
+     * 本次新选封面的**可同步副本**（`data:image/jpeg;base64,...`）。
+     *
+     * 为什么要两份：本机文件用于即时预览（解码快），data URL 才是写进歌单、
+     * 能跟着云端同步走的那个值。取消时本地文件会被删掉，data URL 只是内存里的字符串。
+     */
+    var pickedDataUrl by remember { mutableStateOf<String?>(null) }
     var importText by remember { mutableStateOf("") }
 
     val ready = importState as? PlaylistResolveState.Ready
@@ -115,6 +122,8 @@ fun PlaylistEditorSheet(
         val previous = localCover
         if (previous != null && previous != initialCover) PlaylistCoverStore.delete(previous)
         localCover = path
+        // 同一张图再压一份内联副本：跨设备同步靠它（见 PlaylistCoverStore.encodeCoverDataUrl）
+        pickedDataUrl = PlaylistCoverStore.encodeCoverDataUrl(uri)
     }
 
     // 解析成功后自动回填名字（用户手动改过就不再覆盖）
@@ -166,8 +175,8 @@ fun PlaylistEditorSheet(
                         .clickable { coverPicker.launch("image/*") },
                     contentAlignment = Alignment.Center,
                 ) {
-                    SongCover(
-                        url = displayCover,
+                    PlaylistCoverImage(
+                        model = displayCover,
                         modifier = Modifier.fillMaxSize(),
                         corner = 16.dp,
                     )
@@ -312,10 +321,16 @@ fun PlaylistEditorSheet(
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (canConfirm) PrimaryBrown else Stone200)
                     .clickable(enabled = canConfirm) {
+                        val inline = pickedDataUrl
+                        // 用内联副本当封面时，本地预览文件就没有引用者了，顺手删掉
+                        if (inline != null) {
+                            val preview = localCover
+                            if (preview != null && preview != initialCover) PlaylistCoverStore.delete(preview)
+                        }
                         onConfirm(
                             PlaylistEditorResult(
                                 name = name.trim(),
-                                cover = localCover ?: ready?.coverUrl ?: initialCover,
+                                cover = inline ?: localCover ?: ready?.coverUrl ?: initialCover,
                                 importedSongs = ready?.songs ?: emptyList(),
                                 sourcePlatform = ready?.platform ?: "",
                                 sourcePlaylistId = ready?.sourcePlaylistId ?: "",
@@ -376,8 +391,8 @@ private fun ImportStatusBlock(
                 .padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SongCover(
-                url = state.coverUrl,
+            PlaylistCoverImage(
+                model = state.coverUrl,
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(8.dp)),

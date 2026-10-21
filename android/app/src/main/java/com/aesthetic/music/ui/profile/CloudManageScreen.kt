@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.api.SessionDto
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.ui.components.BottomContentSpacer
+import com.aesthetic.music.ui.components.SecondaryPageTopBar
+import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
@@ -153,48 +155,18 @@ fun CloudManageScreen(
             .fillMaxSize()
             .background(Background)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp)
-                .padding(top = 24.dp)
-                .padding(bottom = BottomContentSpacer)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            // ===== 顶部导航栏 =====
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+        HomeAmbientGlowBackground()
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ===== 顶栏：与排行榜/歌单广场等二级页完全一致（见 SecondaryPageTopBar）=====
+            SecondaryPageTopBar(title = "账号与云端同步", onBack = onBack)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = BottomContentSpacer)
+                    .verticalScroll(rememberScrollState()),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .border(1.dp, Stone200, RoundedCornerShape(10.dp))
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Surface)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = TextMuted,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = "账号与云端同步",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    color = TextPrimary,
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
             // ===== 1. 账号概览与同步状态卡片 =====
             SectionCard {
                 Row(
@@ -593,7 +565,8 @@ fun CloudManageScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }

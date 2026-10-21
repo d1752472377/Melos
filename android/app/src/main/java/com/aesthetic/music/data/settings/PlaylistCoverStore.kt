@@ -123,4 +123,74 @@ object PlaylistCoverStore {
         if (scaled != decoded) decoded.recycle()
         return scaled
     }
+
+    // ==================== 云端可同步封面（内联 data URL） ====================
+
+    /** 内联封面的最长边：歌单卡最大显示 88dp，288px 已经足够清晰，体积控制在十几 KB */
+    private const val SYNC_COVER_EDGE = 288
+
+    /** 内联封面的 JPEG 质量：75% 在 288px 下肉眼无损，体积约为 88% 的一半 */
+    private const val SYNC_COVER_QUALITY = 75
+
+    /**
+     * 把选中的图片压成 `data:image/jpeg;base64,...`，用于**跨设备同步**。
+     *
+     * 为什么要这么绕：本项目没有图片上传接口（后端只有 APK 上传），
+     * 而歌单的 `cover` 字段本身是会随「歌单」这条记录同步到云端的字符串。
+     * 所以把图片直接编码进这个字段——换设备登录就能看到同一张封面，不需要服务端配合。
+     *
+     * 失败返回 null（调用方回落到「仅本机路径」的行为，不影响选图本身）。
+     */
+    fun encodeCoverDataUrl(uri: Uri): String? {
+        val ctx = appContext ?: return null
+        val bytes = try {
+            ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        if (bytes.isEmpty() || bytes.size > MAX_SOURCE_BYTES) return null
+
+        val bitmap = try {
+            decodeScaledTo(bytes, SYNC_COVER_EDGE)
+        } catch (_: Exception) {
+            null
+        } ?: return null
+
+        return try {
+            val out = java.io.ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, SYNC_COVER_QUALITY, out)
+            val base64 = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+            "data:image/jpeg;base64,$base64"
+        } catch (_: Exception) {
+            null
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    /** 与 [decodeScaled] 相同，但最长边可指定（同步封面用小尺寸） */
+    private fun decodeScaledTo(bytes: ByteArray, maxEdge: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= maxEdge || bounds.outHeight / (sample * 2) >= maxEdge) {
+            sample *= 2
+        }
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return null
+
+        val longest = maxOf(decoded.width, decoded.height)
+        if (longest <= maxEdge) return decoded
+        val ratio = maxEdge.toFloat() / longest
+        val scaled = Bitmap.createScaledBitmap(
+            decoded,
+            (decoded.width * ratio).toInt().coerceAtLeast(1),
+            (decoded.height * ratio).toInt().coerceAtLeast(1),
+            true,
+        )
+        if (scaled != decoded) decoded.recycle()
+        return scaled
+    }
 }

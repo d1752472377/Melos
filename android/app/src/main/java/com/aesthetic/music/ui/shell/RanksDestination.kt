@@ -15,6 +15,7 @@ fun RanksDestination(viewModel: MainViewModel, nav: ShellNav) {
     val ranks by viewModel.rankList.collectAsState()
     val isLoading by viewModel.isLoadingRanks.collectAsState()
     val error by viewModel.rankError.collectAsState()
+    val loadedAt by viewModel.rankLoadedAt.collectAsState()
 
     // 首次进入才联网；返回再进入时用控制器里的缓存，不再闪一次 loading
     LaunchedEffect(Unit) { viewModel.ensureRanksLoaded() }
@@ -26,6 +27,7 @@ fun RanksDestination(viewModel: MainViewModel, nav: ShellNav) {
         error = error,
         onSelectPlatform = { viewModel.selectRankPlatform(it) },
         onRetry = { viewModel.retryRanks() },
+        loadedAt = loadedAt,
         onBack = nav.popBack,
         onOpenRank = { rankItem ->
             viewModel.openRankDetail(rankItem)

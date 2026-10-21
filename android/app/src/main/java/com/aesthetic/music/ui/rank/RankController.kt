@@ -43,6 +43,17 @@ class RankController(
      */
     private val cache = mutableMapOf<String, List<PlaylistItem>>()
 
+    /**
+     * 每个平台的「本地拉到这份榜单的时间」。
+     *
+     * 平台接口不返回榜单更新时间，页面上那个「刚刚更新 / N 小时前更新」只能以本地拉取时间为准；
+     * 记在缓存里是为了切回某个平台时时间仍然对得上（而不是每次切 tag 都显示「刚刚更新」）。
+     */
+    private val loadedAtByPlatform = mutableMapOf<String, Long>()
+
+    private val _loadedAt = MutableStateFlow(0L)
+    val loadedAt: StateFlow<Long> = _loadedAt.asStateFlow()
+
     private var job: Job? = null
 
     /** 在途请求作废令牌：快速连点 tag 时，先发的慢请求不允许覆盖后发的快请求 */
@@ -60,6 +71,7 @@ class RankController(
         if (!force && cached != null) {
             _error.value = null
             _ranks.value = cached
+            _loadedAt.value = loadedAtByPlatform[p] ?: 0L
             return
         }
         load(p, force = force)
@@ -87,6 +99,8 @@ class RankController(
                 // 重复的 平台:id 会让榜单列表的 LazyColumn key 冲突并直接崩页
                 val cleaned = RankCatalog.dedupe(data.ranks)
                 cache[platform] = cleaned
+                loadedAtByPlatform[platform] = System.currentTimeMillis()
+                _loadedAt.value = loadedAtByPlatform[platform] ?: 0L
                 _ranks.value = cleaned
                 if (cleaned.isEmpty()) _error.value = "该平台暂未返回榜单"
             }.onFailure { e ->

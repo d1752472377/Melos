@@ -28,7 +28,15 @@ import com.aesthetic.music.ui.player.PlayerScreen
 import com.aesthetic.music.ui.search.SearchType
 import dev.chrisbanes.haze.HazeState
 
-/** 全屏播放器浮层（非 NavHost 路由，覆盖在整壳之上）。 */
+/**
+ * 全屏播放器浮层（非 NavHost 路由，覆盖在整壳之上）。
+ *
+ * ## 为什么 [favoriteKeys] 要从外面传进来（而不是在内部调 `viewModel.isFavorite`）
+ * `viewModel.isFavorite(song)` 读的是 `StateFlow.value`，**不是 Compose 状态**：
+ * 收藏/取消收藏不会触发这里重组，于是心形图标永远不变——用户看到的就是
+ * 「点了喜欢没反应」。把已收藏的 key 集合作为参数传进来（由 AppShell 用
+ * `collectAsState()` 订阅），收藏变化才会真正引起重组。
+ */
 @Composable
 fun PlayerOverlay(
     visible: Boolean,
@@ -36,10 +44,13 @@ fun PlayerOverlay(
     playerManager: PlayerManager,
     viewModel: MainViewModel,
     nav: ShellNav,
+    /** 已收藏歌曲的 `platform:id` 集合（Compose 状态，收藏变化会触发重组） */
+    favoriteKeys: Set<String> = emptySet(),
     hazeState: HazeState? = null,
 ) {
     val context = LocalContext.current
     val myPlaylists by viewModel.myPlaylists.collectAsState()
+    val quality by viewModel.quality.collectAsState()
     var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
 
     AnimatedVisibility(
@@ -63,7 +74,7 @@ fun PlayerOverlay(
             PlayerScreen(
                 state = playerState,
                 progressFlow = playerManager.progress,
-                isFavorite = playerState.currentSong?.let { viewModel.isFavorite(it) } == true,
+                isFavorite = { song -> "${song.platform}:${song.id}" in favoriteKeys },
                 onClose = { viewModel.closePlayer() },
                 onToggle = playerManager::toggle,
                 onNext = playerManager::next,
@@ -71,9 +82,19 @@ fun PlayerOverlay(
                 onSeek = playerManager::seekTo,
                 onSeekToLyric = playerManager::seekToLyric,
                 onTogglePlayMode = playerManager::togglePlayMode,
-                onToggleFavorite = { playerState.currentSong?.let { viewModel.toggleFavorite(it) } },
+                onToggleFavorite = { song -> viewModel.toggleFavorite(song) },
                 onPlayQueueItem = playerManager::playQueueItem,
                 onRemoveFromQueue = playerManager::removeFromQueue,
+                onMoveQueueItem = playerManager::moveQueueItem,
+                onClearQueue = playerManager::clearQueue,
+                onEnsureLyrics = playerManager::ensureLyricsLoaded,
+                onReloadLyrics = playerManager::reloadLyrics,
+                currentQuality = quality,
+                onQualityChange = { level ->
+                    // 两件事必须一起做：落设置（设置页同步）+ 就地按新音质重播
+                    viewModel.setQuality(level)
+                    playerManager.reloadCurrentForQuality()
+                },
                 onSpeedChange = playerManager::setSpeed,
                 onSleepTimer = playerManager::startSleepTimer,
                 onCancelSleepTimer = playerManager::cancelSleepTimer,
@@ -100,8 +121,8 @@ fun PlayerOverlay(
                         viewModel.downloadSong(context, song)
                     }
                 },
-                onAddToPlaylist = {
-                    songForAddToPlaylist = playerState.currentSong
+                onAddToPlaylist = { song ->
+                    songForAddToPlaylist = song
                 },
                 hazeState = hazeState,
             )
@@ -124,4 +145,3 @@ fun PlayerOverlay(
         }
     }
 }
-

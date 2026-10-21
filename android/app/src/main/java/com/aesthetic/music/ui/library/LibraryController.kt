@@ -318,6 +318,46 @@ class LibraryController(
         scheduleSyncPush()
     }
 
+    /**
+     * 「更新」一个收藏歌单：重新从平台拉取名 / 封面 / 曲目数并覆盖本地记录。
+     *
+     * 为什么要这个动作：收藏下来的歌单只是一个**快照**（名字、封面、曲目数都是收藏那一刻的），
+     * 平台那边改名/换封面/加歌之后本地不会自己变。参考图里那个「更新」就是干这个的。
+     *
+     * 只在成功时覆盖，且**保留本地的 id/platform/收藏顺序**：曲目数取不到时沿用旧值，
+     * 不能因为接口少给一个字段就把列表显示成「0 首」。
+     */
+    fun refreshFavoritePlaylist(item: PlaylistItem) {
+        if (item.id.isBlank()) return
+        scope.launch {
+            repository.getPlaylistDetail(item.platform, item.id).onSuccess { data ->
+                val fresh = data.info ?: return@onSuccess
+                val updated = item.copy(
+                    name = fresh.name.ifBlank { item.name },
+                    coverUrl = fresh.coverUrl ?: item.coverUrl,
+                    playCount = fresh.playCount ?: item.playCount,
+                    trackCount = fresh.trackCount ?: data.songs.size.toLong().takeIf { it > 0 } ?: item.trackCount,
+                    description = fresh.description ?: item.description,
+                )
+                val list = _favoritePlaylists.value.toMutableList()
+                val idx = list.indexOfFirst { it.id == item.id && it.platform == item.platform }
+                if (idx >= 0) {
+                    list[idx] = updated
+                    _favoritePlaylists.value = list
+                    FavoritePlaylistStore.save(list)
+                    SyncStateStore.recordAddForCurrentUser(
+                        SyncCollections.PLAYLISTS,
+                        SyncKey.playlist(PlaylistKind.FAV, item.id),
+                    )
+                    scheduleSyncPush()
+                    onToast("已更新《》")
+                }
+            }.onFailure { e ->
+                onToast("更新失败：")
+            }
+        }
+    }
+
     // ==================== 我的歌单（本地优先自治） ====================
 
     fun myPlaylist(id: String): MyPlaylist? = _myPlaylists.value.firstOrNull { it.id == id }

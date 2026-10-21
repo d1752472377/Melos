@@ -193,4 +193,25 @@ class SyncMapperTest {
         assertTrue(SyncMapper.playlistSongDeletes(listOf("a\u0001b")).isEmpty())
         assertTrue(SyncMapper.downloadDeletes(listOf("a\u0001b")).isEmpty())
     }
+
+    @Test
+    fun `歌单封面只同步网络地址与内联图片`() {
+        // 网络封面：原样传（去掉首尾空白）
+        assertEquals(
+            "https://p1.music.126.net/a.jpg",
+            SyncMapper.wireCover("https://p1.music.126.net/a.jpg"),
+        )
+        assertEquals("http://x/y.jpg", SyncMapper.wireCover("  http://x/y.jpg  "))
+
+        // 内联图片（用户自选封面压成 288px JPEG）：跟着歌单一起同步，换设备也能看到
+        val inline = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ"
+        assertEquals(inline, SyncMapper.wireCover(inline))
+        assertEquals(inline.uppercase(), SyncMapper.wireCover(inline.uppercase()))
+
+        // 本机绝对路径：不同步（另一台设备上必然是坏图）
+        assertNull(SyncMapper.wireCover("/data/user/0/com.aesthetic.music/files/playlist_covers/cover_1.jpg"))
+        assertNull(SyncMapper.wireCover("file:///sdcard/a.jpg"))
+        assertNull(SyncMapper.wireCover(""))
+        assertNull(SyncMapper.wireCover(null))
+    }
 }

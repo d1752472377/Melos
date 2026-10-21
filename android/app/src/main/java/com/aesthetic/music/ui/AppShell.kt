@@ -72,6 +72,7 @@ import com.aesthetic.music.ui.shell.CloudManageDestination
 import com.aesthetic.music.ui.shell.DownloadsDestination
 import com.aesthetic.music.ui.shell.FavoritesDestination
 import com.aesthetic.music.ui.shell.FmDestination
+import com.aesthetic.music.ui.shell.GuessDestination
 import com.aesthetic.music.ui.shell.HistoryDestination
 import com.aesthetic.music.ui.shell.HomeDestination
 import com.aesthetic.music.ui.shell.ListeningStatsDestination
@@ -388,6 +389,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 // 排行榜列表页
                 composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel, nav) }
 
+                // 猜你喜欢（首页三大入口第一张卡进入）：推荐结果由收藏 + 最近播放现场算
+                composable(ScreenRoute.GuessYouLike.route) {
+                    GuessDestination(viewModel, nav, actions, playerManager)
+                }
+
                 // 歌单广场（分类标签歌单）
                 composable(ScreenRoute.SheetSquare.route) {
                     SheetSquareDestination(viewModel, nav)
@@ -522,12 +528,16 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             )
 
             // ===== 全屏播放器 Drawer =====
+            // favoriteKeys 必须在这里 collect：播放页的「喜欢」按钮要跟着收藏状态重组，
+            // 否则点了心形只有数据变化、图标不动（看起来就是"没反应"）
+            val favoriteKeys by viewModel.favorites.collectAsState()
             PlayerOverlay(
                 visible = showPlayer,
                 playerState = playerState,
                 playerManager = playerManager,
                 viewModel = viewModel,
                 nav = nav,
+                favoriteKeys = favoriteKeys,
                 hazeState = hazeState,
             )
 

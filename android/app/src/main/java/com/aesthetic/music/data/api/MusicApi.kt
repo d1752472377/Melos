@@ -33,6 +33,14 @@ data class LyricData(
     val translated: String? = null,
     val platform: String? = null,
     val sourceName: String? = null,
+    /**
+     * 逐字歌词原始文本（网易云 YRC / 酷狗 KRC 这类带「字级时间戳」的格式）。
+     *
+     * 为什么不直接塞进 [lyric]：LRC 的**文本**更干净（有标点、不会被拆字），
+     * 而 YRC 的价值只在「每个字的起止毫秒」。两者分开传，播放层才能
+     * 「用 LRC 的文本 + 用 YRC 的时间」——这是歌词页能做到逐字染色又不丢标点的前提。
+     */
+    val wordByWord: String? = null,
 )
 
 /** 服务器探活响应 */
