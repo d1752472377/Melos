@@ -37,10 +37,28 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Lint
-        run: cd android && ./gradlew :app:lintDebug
+        working-directory: android
+        run: |
+          # 依赖下载偶发 "Connection reset"（Maven Central 抖动，v2.1.0 首次构建就栽在
+          # io.coil-kt:coil:2.7.0 的 aar 上）：整步重试 3 次，而不是让整条流水线直接挂掉。
+          for attempt in 1 2 3; do
+            if ./gradlew :app:lintDebug; then exit 0; fi
+            echo "::warning::lint 第 ${attempt} 次失败，30 秒后重试"
+            sleep 30
+          done
+          echo "::error::lint 连续 3 次失败"
+          exit 1
 
       - name: Unit tests
-        run: cd android && ./gradlew :app:testDebugUnitTest :lyrics:testDebugUnitTest
+        working-directory: android
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew :app:testDebugUnitTest :lyrics:testDebugUnitTest; then exit 0; fi
+            echo "::warning::单测第 ${attempt} 次失败，30 秒后重试"
+            sleep 30
+          done
+          echo "::error::单测连续 3 次失败"
+          exit 1
 
       - name: Upload lint report
         if: always()
@@ -89,7 +107,16 @@ jobs:
           AESTHETIC_STORE_PASSWORD: ${{ secrets.AESTHETIC_STORE_PASSWORD }}
 
       - name: Build release APK (signed)
-        run: cd android && ./gradlew assembleRelease
+        working-directory: android
+        run: |
+          # 同 quality：依赖/签名产物下载都可能被网络抖动打断，整步重试 3 次
+          for attempt in 1 2 3; do
+            if ./gradlew assembleRelease; then exit 0; fi
+            echo "::warning::打包第 ${attempt} 次失败，30 秒后重试"
+            sleep 30
+          done
+          echo "::error::打包连续 3 次失败"
+          exit 1
         env:
           AESTHETIC_STORE_PASSWORD: ${{ secrets.AESTHETIC_STORE_PASSWORD }}
           AESTHETIC_KEY_PASSWORD: ${{ secrets.AESTHETIC_KEY_PASSWORD }}

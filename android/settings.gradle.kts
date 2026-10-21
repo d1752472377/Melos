@@ -10,6 +10,14 @@ pluginManagement {
             maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         }
         google()
+        if (onCi) {
+            // Google 托管的 Maven Central 镜像（GCS + CDN）。
+            // 为什么需要它：runner 直连 repo.maven.apache.org 偶发 "Connection reset"
+            // （2026-10-22 的 v2.1.0 构建就是被 io.coil-kt:coil:2.7.0 的 aar 下载 reset 打断的），
+            // 而 Gradle 遇到网络错误**不会**自动换下一个仓库，只会让整条流水线失败。
+            // 把镜像放在 mavenCentral() 之前：命中就走 CDN，没命中会 404 → 自动回落到官方源。
+            maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+        }
         mavenCentral()
         gradlePluginPortal()
     }
@@ -24,6 +32,10 @@ dependencyResolutionManagement {
             maven { url = uri("https://maven.aliyun.com/repository/public") }
         }
         google()
+        if (onCi) {
+            // 同 pluginManagement：CI 上先用 Google 的 Central 镜像，避免被单个 aar 的 reset 打断
+            maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+        }
         mavenCentral()
     }
 }
