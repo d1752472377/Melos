@@ -1149,9 +1149,10 @@ class PlayerManager private constructor(private val appContext: Context) {
     /**
      * 解析并落地歌词。
      *
-     * 逐字能力分两级（见 [withPseudoWords] 注释）：
-     *  1. 有 [rawWordByWord]（网易云 YRC）→ 把**真实字时间**贴到 LRC 文本上；
-     *  2. 没有 → 用行时长给每个字补一套近似字时间，让逐字染色在任何音源上都能用。
+     * 逐字只认**真实返回的字时间**（网易云 YRC，见 [attachWordTimings]）：
+     * 有就把字时间贴到 LRC 文本上，没有就保持逐句。
+     * 不再给纯 LRC 补「按字数估算」的假字时间——那种估算的吐字速度与真实演唱对不上，
+     * 反而会让人觉得「歌词和声音在句子内错位」。
      */
     private fun applyLyrics(
         rawLyricIn: String?,
@@ -1167,8 +1168,8 @@ class PlayerManager private constructor(private val appContext: Context) {
         val original = parseAutoLyrics(rawLyricIn, songTitle, songArtist)
         val translated = if (rawTranslatedIn.isNullOrBlank()) emptyList() else parseAutoLyrics(rawTranslatedIn, songTitle, songArtist)
         val mergedBase = mergeTranslation(original, translated)
-        // 先贴真字时间，再给剩下的行补近似字时间
-        val merged = withPseudoWords(attachWordTimings(mergedBase, rawWordByWord, songTitle, songArtist))
+        // 只贴真实字时间（YRC）；没有就保持逐句
+        val merged = attachWordTimings(mergedBase, rawWordByWord, songTitle, songArtist)
 
         val contentToParse = if (!rawTranslatedIn.isNullOrBlank() && !(rawLyricIn ?: "").contains(rawTranslatedIn)) {
             "${rawLyricIn ?: ""}\n$rawTranslatedIn"

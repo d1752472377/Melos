@@ -6,11 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 逐字歌词单测：YRC 解析、字时间贴合、近似字时间、逐字染色占比、元数据过滤。
+ * 逐字歌词单测：YRC 解析、字时间贴合、逐字染色占比、元数据过滤。
  *
- * 这几条都是「不写测试就永远发现不了」的规则：
- * 逐字染色算错不会崩，只会让颜色和歌声对不上——用户体感是「歌词怪怪的」，
- * 但没人能一句话说清哪里怪。
+ * 核心约定（用户明确要求）：**只认真实返回的逐字数据**。
+ * 有 YRC 就逐字，没有就逐句——不再用「按字数估算」的假字时间，
+ * 因为估算的吐字速度与真实演唱对不上（一句唱完了染色才走一半）。
  */
 class LyricWordTimingTest {
 
@@ -73,139 +73,64 @@ class LyricWordTimingTest {
     }
 
     @Test
-    fun `没有 YRC 时原样返回`() {
-        val base = parseLrc("[00:01.000]一行歌词")
+    fun `没有 YRC 时整首保持逐句`() {
+        val base = parseLrc(
+            """
+            [00:01.000]第一句歌词
+            [00:05.000]第二句歌词
+            """.trimIndent()
+        )
+        // null / 空串 / 非 YRC 内容都不应产生任何字时间
         assertEquals(base, attachWordTimings(base, null))
         assertEquals(base, attachWordTimings(base, "  "))
-    }
-
-    // ==================== 近似字时间 ====================
-
-    @Test
-    fun `纯 LRC 也能补出近似字时间`() {
-        val base = parseLrc(
-            """
-            [00:10.000]这是一句歌词
-            [00:13.000]这是下一句
-            """.trimIndent()
-        )
-        val out = withPseudoWords(base)
-        assertEquals(2, out.size)
-        assertTrue(out[0].isWordByWord)
-        // 逐字切分：中文一行 6 个字
-        assertEquals(6, out[0].words.size)
-        // 字时间连续且落在这一行内
-        assertEquals(10_000L, out[0].words.first().startMs)
-        assertTrue(out[0].words.last().endMs <= 13_000L)
-        for (i in 1 until out[0].words.size) {
-            assertEquals(out[0].words[i - 1].endMs, out[0].words[i].startMs)
-        }
+        assertEquals(base, attachWordTimings(base, "不是 YRC 的内容"))
+        assertTrue(base.none { it.isWordByWord })
     }
 
     @Test
-    fun `英文按词切分不拆散单词`() {
-        val base = parseLrc("[00:01.000]Don't Start Now")
-        val out = withPseudoWords(base)
-        val texts = out[0].words.map { it.text.trim() }
-        assertEquals(listOf("Don't", "Start", "Now"), texts)
-    }
-
-    @Test
-    fun `已有真字时间的行不被覆盖`() {
-        val base = parseLrc(
-            """
+    fun `只贴时间匹配得上的行，其余行仍是逐句`() {
+        val lrc = """
             [00:58.740]他们说
-            [01:05.930]为何孤独
-            """.trimIndent()
-        )
-        val withReal = attachWordTimings(base, yrcSample)
-        val out = withPseudoWords(withReal)
-        assertEquals(withReal[0].words, out[0].words)
-    }
-
-    @Test
-    fun `行时长被夹在合理区间`() {
-        // 两句之间隔了 60 秒（间奏）：不能把最后一个字算成唱 60 秒
-        val base = parseLrc(
-            """
-            [00:01.000]第一句
-            [01:01.000]第二句
-            """.trimIndent()
-        )
-        val out = withPseudoWords(base)
-        val span = out[0].words.last().endMs - out[0].words.first().startMs
-        assertTrue("span=$span", span <= 9_000L)
-        assertTrue("span=$span", span >= 600L)
-    }
-
-    @Test
-    fun `近似时长按字数估算而不是按行间隔`() {
-        // 用户反馈的场景：10 个英文词两秒唱完，但到下一句还有 4 秒。
-        // 旧实现按「行间隔」铺时长 → 染色走到一半这句就换了。
-        val base = parseLrc(
-            """
-            [00:10.000]one two three four five six seven eight nine ten
-            [00:14.000]next line here
-            """.trimIndent()
-        )
-        val out = withPseudoWords(base)
-        val span = out[0].words.last().endMs - out[0].words.first().startMs
-        assertTrue("10 个词应约 2 秒，实际 $span ms", span in 1_200L..3_000L)
-        // 10 个词都拿到了时间，且首尾相接
-        assertEquals(10, out[0].words.size)
-        for (i in 1 until out[0].words.size) {
-            assertEquals(out[0].words[i - 1].endMs, out[0].words[i].startMs)
-        }
-    }
-
-    @Test
-    fun `中文按每字约一百七十毫秒估算`() {
-        val base = parseLrc(
-            """
-            [00:10.000]这是一句十个字左右的歌词
-            [00:20.000]下一句
-            """.trimIndent()
-        )
-        val out = withPseudoWords(base)
-        val span = out[0].words.last().endMs - out[0].words.first().startMs
-        val chars = out[0].words.size
-        assertTrue("chars=$chars span=$span", span in (chars * 120L)..(chars * 240L))
+            [00:30.000]这一行没有字时间
+        """.trimIndent()
+        val merged = attachWordTimings(parseLrc(lrc), yrcSample)
+        val byText = merged.associateBy { it.text }
+        assertTrue(byText.getValue("他们说").isWordByWord)
+        assertFalse(byText.getValue("这一行没有字时间").isWordByWord)
     }
 
     // ==================== 逐字染色占比 ====================
 
     @Test
     fun `染色占比随播放推进`() {
-        val line = withPseudoWords(parseLrc("[00:10.000]一二三四"))[0]
+        val line = attachWordTimings(parseLrc("[00:58.740]他们说"), yrcSample)[0]
         val start = line.words.first().startMs
         val end = line.words.last().endMs
 
         assertEquals(0f, karaokeSweepFraction(line, start - 100), 0.001f)
         assertEquals(1f, karaokeSweepFraction(line, end + 100), 0.001f)
         val mid = karaokeSweepFraction(line, (start + end) / 2)
-        assertTrue("mid=$mid", mid > 0.3f && mid < 0.7f)
+        assertTrue("mid=$mid", mid > 0.2f && mid < 0.9f)
     }
 
     @Test
-    fun `没有字时间的行染色为 0`() {
-        val line = LyricLine(timeMs = 1_000L, text = "没有字时间")
-        assertEquals(0f, karaokeSweepFraction(line, 5_000L), 0.001f)
+    fun `逐句歌词没有字时间因此染色恒为 0`() {
+        val line = parseLrc("[00:01.000]只有行时间的一句歌词")[0]
+        assertFalse(line.isWordByWord)
+        assertEquals(0f, karaokeSweepFraction(line, 3_000L), 0.001f)
+        assertEquals(0f, karaokeSweepFraction(line, 60_000L), 0.001f)
     }
 
     @Test
-    fun `时间占比与字数占比都单调不减`() {
-        val line = withPseudoWords(parseLrc("[00:00.000]一二三四五六七八"))[0]
-        var lastSweep = -1f
-        var lastProgress = -1f
+    fun `染色占比单调不减`() {
+        val line = attachWordTimings(parseLrc("[00:58.740]他们说"), yrcSample)[0]
+        var last = -1f
         var t = line.timeMs
-        while (t <= line.timeMs + 8_000L) {
+        while (t <= line.timeMs + 6_000L) {
             val sweep = karaokeSweepFraction(line, t)
-            val progress = karaokeProgress(line, t)
-            assertTrue(sweep >= lastSweep)
-            assertTrue(progress >= lastProgress)
-            lastSweep = sweep
-            lastProgress = progress
-            t += 200L
+            assertTrue(sweep >= last)
+            last = sweep
+            t += 100L
         }
     }
 
