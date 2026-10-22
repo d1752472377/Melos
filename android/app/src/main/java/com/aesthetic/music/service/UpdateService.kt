@@ -5,11 +5,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.settings.SyncServerStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -43,6 +45,8 @@ data class UpdateInfo(
  * 比对 versionCode → 下载 APK（支持相对路径自动补全） → FileProvider 调系统安装。
  */
 object UpdateService {
+
+    private const val TAG = "UpdateService"
 
     /** 官方服务器更新描述文件地址（GitHub Release 资产，经 Vercel 转发） */
     const val UPDATE_URL = "https://music.dovislab.com/update.json"
@@ -162,6 +166,36 @@ object UpdateService {
     }
 
     /** 下载 APK 到外部存储 updates 目录，返回本地路径。若本地已有完整合法安装包则直接秒开，绝不重复下载。 */
+    /** 单个源最多尝试几次（每次都会从已下载的字节处续传） */
+    private const val DOWNLOAD_MAX_ATTEMPTS = 8
+
+    /** 单次连接里连续多少轮「一个字节都没收到」就放弃这个源 */
+    private const val DOWNLOAD_MAX_STALLS = 2
+
+    /** 解析 apkUrl：相对路径补全为「当前同步服务器 + 路径」 */
+    private fun resolveDownloadUrl(apkUrl: String): String =
+        if (apkUrl.startsWith("http://") || apkUrl.startsWith("https://")) {
+            apkUrl
+        } else {
+            val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
+            "$serverBase/${apkUrl.trimStart('/')}"
+        }
+
+    /**
+     * 下载 APK 到外部存储 updates 目录，返回本地路径。
+     *
+     * ## 为什么必须支持断点续传
+     * 自建服务器是 3M 小带宽（实测满速约 430 KB/s，8.5MB 的包要 20 秒以上），
+     * 而手机端的网络在 20 秒里完全可能抖一下、切个基站、或者用户锁屏。
+     * 旧实现是「一条连接从头下到尾，中途断了就整包重来」——在 3M 带宽上
+     * 只要断一次，用户看到的就是「根本下载不下来」。
+     *
+     * 现在：**每次中断都保留已下载的 .tmp，下一次带 `Range` 从断点续传**，
+     * 单个源最多重试 [DOWNLOAD_MAX_ATTEMPTS] 次；只有连续两次「一个字节都没收到」
+     * 才判定这个源彻底不通。这样 8.5MB 即使在 100 KB/s 的弱网下也能分几次下完。
+     *
+     * 下载完成后仍然做**大小 + 摘要 + 签名**三重校验，坏包/半包不会进系统安装器。
+     */
     suspend fun downloadApk(
         context: Context,
         info: UpdateInfo,
@@ -171,80 +205,141 @@ object UpdateService {
             val file = getApkFile(context, info)
             val dir = file.parentFile ?: File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
 
-            // 1. 若本地已经存在完整合法的安装包，直接复用秒开，绝不重复发起网络下载
+            // 1. 本地已有完整合法的安装包 → 直接复用，绝不重复下载
             if (isApkReady(context, info)) {
                 if (info.apkSize > 0) onProgress(info.apkSize, info.apkSize)
                 return@withLock file.absolutePath
             }
 
-            // 2. 清理历史遗留的旧版本 APK（只保留目标文件），但先写 .tmp 临时文件，避免半包污染
-            dir.listFiles()?.forEach { it.isFile && it != file && it.name.startsWith("aesthetic_music_") && it.delete() }
+            val tmpFile = File(dir, "${file.name}.tmp")
+
+            // 2. 清理历史遗留的旧版本 APK（保留目标文件与**正在续传的 .tmp**）
+            dir.listFiles()?.forEach {
+                if (it.isFile && it != file && it != tmpFile &&
+                    it.name.startsWith("aesthetic_music_") && !it.name.endsWith(".tmp")
+                ) {
+                    it.delete()
+                }
+            }
             if (file.exists()) file.delete()
 
-            val tmpFile = File(dir, "${file.name}.tmp")
-            if (tmpFile.exists()) tmpFile.delete()
+            // 3. 断点续传下载
+            val downloadUrl = resolveDownloadUrl(info.apkUrl)
+            val client = OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS)
+                // 单次读超时放宽到 60s：3M 带宽 + 弱网时，一次读卡住几秒很常见，
+                // 但真的 60s 没数据就当这次连接废了，交给外层续传
+                .readTimeout(60, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .build()
 
-            val downloadUrl = if (info.apkUrl.startsWith("http://") || info.apkUrl.startsWith("https://")) {
-                info.apkUrl
-            } else {
-                val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
-                "$serverBase/${info.apkUrl.trimStart('/')}"
+            downloadWithResume(client, downloadUrl, tmpFile, info.apkSize, onProgress)
+
+            // 4. 大小 + 摘要 + 签名三重校验，避免坏包/半包进入系统安装器
+            val received = tmpFile.length()
+            if (info.apkSize > 0 && received != info.apkSize) {
+                tmpFile.delete()
+                throw Exception("安装包大小校验失败（$received / ${info.apkSize}），请重新检查更新")
+            }
+            selectDigestSpec(sha256 = info.sha256, md5 = info.md5)?.let { spec ->
+                val actual = computeFileDigest(tmpFile, spec.algorithm)
+                if (!actual.equals(spec.expected, ignoreCase = true)) {
+                    tmpFile.delete()
+                    throw Exception("安装包校验失败（${spec.algorithm}），请重新检查更新")
+                }
+            }
+            if (!verifyApkSignature(context, tmpFile.absolutePath)) {
+                tmpFile.delete()
+                throw Exception("安装包签名与当前应用不一致，已拦截，请通过官方渠道更新")
             }
 
-            val client = OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(120, TimeUnit.SECONDS)
-                .build()
-            // resp.use 保证无论成功/失败/异常都释放连接
-            client.newCall(Request.Builder().url(downloadUrl).build()).execute().use { resp ->
-                if (!resp.isSuccessful) throw Exception("下载失败: HTTP ${resp.code}")
-                val body = resp.body ?: throw Exception("下载失败: 空响应")
-                val total = body.contentLength()
-                var received = 0L
-                body.byteStream().use { input ->
-                    tmpFile.outputStream().use { output ->
-                        val buf = ByteArray(64 * 1024)
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            output.write(buf, 0, n)
-                            received += n
-                            if (total > 0) onProgress(received, total)
-                        }
-                    }
-                }
-
-                // 大小 + 摘要双重校验，避免坏包/半包进入系统安装器
-                if (info.apkSize > 0 && received != info.apkSize) {
-                    tmpFile.delete()
-                    throw Exception("安装包大小校验失败（$received / ${info.apkSize}），请重新检查更新")
-                }
-                // 优先 SHA-256；服务端未下发时回退 MD5
-                selectDigestSpec(sha256 = info.sha256, md5 = info.md5)?.let { spec ->
-                    val actual = computeFileDigest(tmpFile, spec.algorithm)
-                    if (!actual.equals(spec.expected, ignoreCase = true)) {
-                        tmpFile.delete()
-                        throw Exception("安装包校验失败（${spec.algorithm}），请重新检查更新")
-                    }
-                }
-                // 签名一致性校验：防服务端/更新通道被攻陷后分发伪造 APK
-                if (!verifyApkSignature(context, tmpFile.absolutePath)) {
-                    tmpFile.delete()
-                    throw Exception("安装包签名与当前应用不一致，已拦截，请通过官方渠道更新")
-                }
-
-                // 校验完全通过，原子重命名为正式 apk 文件
-                if (tmpFile.renameTo(file)) {
-                    file.absolutePath
-                } else {
-                    tmpFile.copyTo(file, overwrite = true)
-                    tmpFile.delete()
-                    file.absolutePath
-                }
+            // 5. 校验通过，原子重命名为正式 apk 文件
+            if (tmpFile.renameTo(file)) {
+                file.absolutePath
+            } else {
+                tmpFile.copyTo(file, overwrite = true)
+                tmpFile.delete()
+                file.absolutePath
             }
         }
     }
 
+    /**
+     * 带续传的下载循环：断一次就带 `Range: bytes=<已下载>-` 接着下。
+     *
+     * 三种响应都要处理：
+     *  - `206`：服务端支持续传，追加写入；
+     *  - `200`（我们发了 Range 却拿到整包）：服务端不支持 Range（或代理把 Range 吃了），
+     *    删掉旧的分片从头写，不能追加（否则文件前段会重复）；
+     *  - 其它：抛错，交给外层重试。
+     */
+    private suspend fun downloadWithResume(
+        client: OkHttpClient,
+        url: String,
+        tmpFile: File,
+        expectedSize: Long,
+        onProgress: (Long, Long) -> Unit,
+    ) {
+        var stalls = 0
+        var attempt = 0
+        var lastError: Exception? = null
+
+        while (attempt < DOWNLOAD_MAX_ATTEMPTS) {
+            attempt++
+            var start = if (tmpFile.exists()) tmpFile.length() else 0L
+            if (expectedSize > 0 && start == expectedSize) return
+            if (expectedSize > 0 && start > expectedSize) {
+                tmpFile.delete()
+                start = 0L
+            }
+
+            var receivedThisAttempt = 0L
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .apply { if (start > 0) header("Range", "bytes=$start-") }
+                    .build()
+                client.newCall(request).execute().use { resp ->
+                    if (!resp.isSuccessful) throw Exception("下载失败: HTTP ${resp.code}")
+                    val body = resp.body ?: throw Exception("下载失败: 空响应")
+                    val resuming = resp.code == 206 && start > 0
+                    if (!resuming) start = 0L // 200：服务端忽略了 Range，必须从头写
+                    val total = when {
+                        expectedSize > 0 -> expectedSize
+                        else -> start + body.contentLength()
+                    }
+                    java.io.FileOutputStream(tmpFile, resuming).use { output ->
+                        body.byteStream().use { input ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                output.write(buf, 0, n)
+                                receivedThisAttempt += n
+                                if (total > 0) onProgress(start + receivedThisAttempt, total)
+                            }
+                        }
+                    }
+                }
+                val now = tmpFile.length()
+                if (expectedSize <= 0 || now == expectedSize) return
+                // 连接正常结束但字节不够（服务端提前关连接）：继续续传
+                lastError = Exception("下载不完整（$now / $expectedSize）")
+                if (receivedThisAttempt < 1024) stalls++ else stalls = 0
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+                if (receivedThisAttempt < 1024) stalls++ else stalls = 0
+                Log.w(TAG, "下载中断（第 $attempt 次，已收到 $receivedThisAttempt 字节）: ${e.message}")
+            }
+
+            if (stalls >= DOWNLOAD_MAX_STALLS) break
+            // 退避 1s, 2s, 3s…（最多 5s），给网络一点恢复时间
+            delay(minOf(attempt, 5) * 1_000L)
+        }
+        throw lastError ?: Exception("下载失败，请检查网络后重试")
+    }
     /**
      * 校验下载 APK 的签名证书与当前已安装应用一致。
      * 注意：debug 签名包与 release 签名包互不匹配，用 debug 包测正式更新会在此拦截（属预期行为）。
