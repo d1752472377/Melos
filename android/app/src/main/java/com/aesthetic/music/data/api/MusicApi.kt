@@ -459,6 +459,14 @@ data class AppVersionDto(
     val versionName: String = "",
     @SerializedName("apk_url", alternate = ["apkUrl"])
     val apkUrl: String = "",
+    /**
+     * 安装包的兜底下载地址（通常是本机相对路径，如 /api/app/download/28-2_1_3.apk）。
+     *
+     * 后端会把 [apkUrl] 指向大带宽镜像（自建 ECS 只有 3M 上行），
+     * 这里保留一条「本机直发」的退路：镜像挂了/被墙了也不至于完全下不了。
+     */
+    @SerializedName("apk_url_fallback", alternate = ["apkUrlFallback"])
+    val apkUrlFallback: String = "",
     @SerializedName("file_size", alternate = ["fileSize"])
     val fileSize: Long = 0L,
     @SerializedName("hash_sha256", alternate = ["hashSha256"])

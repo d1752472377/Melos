@@ -29,6 +29,13 @@ data class UpdateInfo(
     val versionName: String,
     val versionCode: Int,
     val apkUrl: String,
+    /**
+     * 兜底下载地址（后端下发，通常是本机相对路径）。
+     *
+     * 主地址被指到大带宽镜像后，这里留一条「后端本机直发」的退路：
+     * 镜像挂了/被墙了也能下，只是慢一点。为空表示没有兜底。
+     */
+    val fallbackApkUrl: String = "",
     val apkSize: Long,
     /** 旧字段，保留用于兼容历史 update.json；有 [sha256] 时不再使用 */
     val md5: String,
@@ -81,6 +88,7 @@ object UpdateService {
                             versionName = data.versionName,
                             versionCode = data.versionCode.toInt(),
                             apkUrl = fullApkUrl,
+                            fallbackApkUrl = data.apkUrlFallback,
                             apkSize = data.fileSize,
                             md5 = "",
                             sha256 = data.hashSha256,
@@ -223,8 +231,12 @@ object UpdateService {
             }
             if (file.exists()) file.delete()
 
-            // 3. 断点续传下载
-            val downloadUrl = resolveDownloadUrl(info.apkUrl)
+            // 3. 断点续传下载（主地址=大带宽镜像，失败再退回后端本机直发）
+            val downloadUrls = buildList {
+                add(resolveDownloadUrl(info.apkUrl))
+                val fb = resolveDownloadUrl(info.fallbackApkUrl)
+                if (info.fallbackApkUrl.isNotBlank() && fb !in this) add(fb)
+            }
             val client = OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
                 // 单次读超时放宽到 60s：3M 带宽 + 弱网时，一次读卡住几秒很常见，
@@ -233,7 +245,23 @@ object UpdateService {
                 .retryOnConnectionFailure(true)
                 .build()
 
-            downloadWithResume(client, downloadUrl, tmpFile, info.apkSize, onProgress)
+            var lastError: Exception? = null
+            for (url in downloadUrls) {
+                try {
+                    Log.i(TAG, "开始下载 $url")
+                    downloadWithResume(client, url, tmpFile, info.apkSize, onProgress)
+                    lastError = null
+                    break
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    lastError = e
+                    Log.w(TAG, "下载失败（$url）: ${e.message}，尝试下一个地址")
+                    // 换地址前把半包清掉：不同源的字节不一定连续（虽然校验会拦住，但省一次白下）
+                    if (tmpFile.exists()) tmpFile.delete()
+                }
+            }
+            if (lastError != null) throw lastError
 
             // 4. 大小 + 摘要 + 签名三重校验，避免坏包/半包进入系统安装器
             val received = tmpFile.length()

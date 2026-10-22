@@ -31,6 +31,15 @@ type Config struct {
 	APKDir   string
 	APKMaxMB int
 
+	// APKPublicBase 是大带宽镜像的对外基址（例如 http://1.2.3.4/apk）。
+	//
+	// 非空时，版本接口会把 `apkUrl` 换成「镜像直链」，并额外下发
+	// `apk_url_fallback`（本机相对路径）供客户端兜底。
+	// 背景：自建 ECS 只有 3M 上行（实测满速约 430KB/s），8.5MB 的安装包要 20 秒以上，
+	// 弱网下经常断；镜像机带宽大得多。于是「版本信息仍由本机给（JSON 很小），
+	// 安装包走镜像（大文件）」——两者解耦，换镜像不需要发客户端版本。
+	APKPublicBase string
+
 	// GitHub Release & CI integration
 	ReleaseToken   string
 	GitHubRepo     string
@@ -73,6 +82,7 @@ func Load() *Config {
 		MailFromName:       envOr("MAIL_FROM_NAME", "Melos 音乐"),
 		APKDir:             envOr("APK_DIR", "data/apk"),
 		APKMaxMB:           intEnv("APK_MAX_MB", 200, 1),
+		APKPublicBase:      strings.TrimSpace(os.Getenv("APK_PUBLIC_BASE")),
 		ReleaseToken:       strings.TrimSpace(os.Getenv("RELEASE_TOKEN")),
 		GitHubRepo:         envOr("GITHUB_REPO", "d1752472377/Melos"),
 		GitHubToken:        strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),

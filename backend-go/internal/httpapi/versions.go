@@ -35,6 +35,20 @@ func (s *Server) enrichVersionPublic(v *store.AppVersion) map[string]any {
 	hasLocal := statErr == nil
 	m["has_local_file"] = hasLocal
 	m["hasLocalFile"] = hasLocal
+
+	// 大带宽镜像：把下载地址换成镜像直链，本机相对路径作为兜底。
+	//
+	// 为什么把「版本信息」和「安装包」分开走：本机（阿里云 ECS）只有 3M 上行，
+	// 实测满速约 430KB/s，8.5MB 的包要 20 秒以上，弱网下极易中断；镜像机带宽大得多。
+	// 版本 JSON 只有几百字节，留在这里没有压力；大文件交给镜像。
+	// 客户端拿到 apkUrl 后直接用（绝对地址），失败再回落到 apk_url_fallback。
+	if base := strings.TrimRight(strings.TrimSpace(s.cfg.APKPublicBase), "/"); base != "" && apkFile != "" && hasLocal {
+		mirror := base + "/" + apkFile
+		m["apkUrl"] = mirror
+		m["apk_url"] = mirror
+		m["apkUrlFallback"] = apkURLPrefix + apkFile
+		m["apk_url_fallback"] = apkURLPrefix + apkFile
+	}
 	return m
 }
 
