@@ -139,6 +139,7 @@ import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.fmGlass
 import com.aesthetic.music.ui.theme.fmOn
+import com.aesthetic.music.ui.components.KeepScreenOn
 import com.aesthetic.music.ui.player.lyrics.MelosLyricsView
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
 import kotlinx.coroutines.android.awaitFrame
@@ -822,6 +823,9 @@ private fun FmFullLyricsView(
     val progress by progressFlow.collectAsState()
     val animatedPos = remember { mutableLongStateOf(0L) }
     val listState = rememberLazyListState()
+
+    // 全屏歌词页同样常亮（与播放页歌词模式一致）
+    KeepScreenOn()
 
     // 帧级毫秒平滑推移
     LaunchedEffect(isPlaying, progress.positionMs) {

@@ -99,6 +99,7 @@ import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.PlayerBg
 import com.aesthetic.music.ui.theme.PlayerBgDark
 import com.aesthetic.music.ui.components.FavoriteBurstButton
+import com.aesthetic.music.ui.components.KeepScreenOn
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.player.lyrics.MelosLyricsView
 import kotlinx.coroutines.android.awaitFrame
@@ -171,6 +172,10 @@ fun PlayerScreen(
     }
 
     var showLyric by remember { mutableStateOf(true) }
+
+    // 歌词页常亮：歌词是「看着唱 / 躺着看滚动」的场景，屏幕一熄就得抬手点一下。
+    // 只在歌词模式生效（封面模式不需要），离开页面或切回封面时自动复原。
+    KeepScreenOn(enabled = showLyric)
     var showQueueSheet by remember { mutableStateOf(false) }
     var showControlCenterSheet by remember { mutableStateOf(false) }
     var showAudioDetailSheet by remember { mutableStateOf(false) }

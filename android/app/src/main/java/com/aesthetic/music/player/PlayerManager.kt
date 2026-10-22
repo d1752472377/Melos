@@ -687,15 +687,21 @@ class PlayerManager private constructor(private val appContext: Context) {
 
             override fun onPlayerError(error: PlaybackException) {
                 releaseTransitionLock()
-                // 播放中途出错（解码失败/数据流中断）：停止并提示
-                val msg = friendlyError(error)
+                // 播放中途出错（解码失败 / 直链过期 / 数据流中断）：
+                // **先尝试跳到下一首**，队列里没有别的歌（或连续失败太多次）才停下。
+                // 以前这里直接 player.stop()，用户遇到「某首歌没音源」时整条播放链就断了，
+                // 明明队列后面还有能放的歌。
+                val gen = playGeneration
                 _state.value = _state.value.copy(
                     isLoading = false,
                     errorMessage = "播放错误: ${error.errorCodeName}",
-                    lastError = msg,
                 )
-                player.stop()
                 notifyState()
+                if (!skipAfterFailure(gen, "无法播放")) {
+                    _state.value = _state.value.copy(lastError = friendlyError(error))
+                    notifyState()
+                    player.stop()
+                }
             }
         })
     }
@@ -865,6 +871,39 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     private var consecutivePlayFailures = 0
 
+    /**
+     * 播放失败后**尝试跳到下一首**（取链失败与播放中途出错共用）。
+     *
+     * 用户要的是「一首放不了就自动放下一首」，而不是整条播放链停下——尤其是队列里
+     * 只有一两个可用音源、某些歌根本没版权的时候，停下来等于把后面的歌一起废掉。
+     *
+     * 只有两种情况不跳：
+     *  1. 队列里只有一首（没得跳）；
+     *  2. 已经连续失败 [PlaybackFailurePolicy.MAX_CONSECUTIVE_FAILURES] 次——这时大概率是网络断了或
+     *     音源整体不可用，继续跳只会把整个队列空刷一遍，不如停下给一句明确提示。
+     *
+     * @param gen 失败发生时的播放代数：等待期间用户可能已手动切歌，那就不该再跳
+     * @param reason 失败原因（拼进提示文案，如「无法播放」「未取到播放地址」）
+     * @return true = 已安排跳歌（调用方不要再报错/停止）；false = 跳不了，调用方自行收尾
+     */
+    private fun skipAfterFailure(gen: Long, reason: String): Boolean {
+        val s = _state.value
+        consecutivePlayFailures++
+        if (!PlaybackFailurePolicy.shouldSkipToNext(s.queue.size, consecutivePlayFailures)) {
+            return false
+        }
+        _state.value = _state.value.copy(
+            isLoading = false,
+            lastError = PlaybackFailurePolicy.skipMessage(s.currentSong?.title, reason),
+        )
+        notifyState()
+        scope.launch {
+            delay(PlaybackFailurePolicy.SKIP_DELAY_MS)
+            if (gen == playGeneration) next()
+        }
+        return true
+    }
+
     private fun playCurrent() {
         val s = _state.value
         val song = s.currentSong ?: run {
@@ -934,32 +973,20 @@ class PlayerManager private constructor(private val appContext: Context) {
                 }
             }
             if (gen != playGeneration) return@launch
+            if (gen != playGeneration) return@launch
             if (cached == null && onlineUrl.isNullOrBlank()) {
-                consecutivePlayFailures++
-                // 息屏连播时最怕「一首取链失败就把整条链停掉」：
-                // 这里改成连续失败到阈值才停，且每首之间留一点退避时间给网络恢复
-                if (consecutivePlayFailures < MAX_CONSECUTIVE_PLAY_FAILURES && s.queue.size > 1) {
-                    android.util.Log.w(
-                        "PlayerManager",
-                        "获取播放地址失败，跳下一首 (连续失败: $consecutivePlayFailures/$MAX_CONSECUTIVE_PLAY_FAILURES)",
-                    )
-                    delay(1_500L * consecutivePlayFailures)
-                    if (gen == playGeneration) {
-                        next()
-                    }
-                } else {
-                    // 真的播不下去了：把状态收拾干净——不能留在 isLoading=true，
-                    // 否则前台服务会一直挂着「加载中」，歌词页也会永远转圈
-                    releaseTransitionLock()
-                    consecutivePlayFailures = 0
-                    _state.value = _state.value.copy(
-                        isLoading = false,
-                        lastError = "连续多首无法获取播放地址，已暂停。请检查网络或切换音质后重试",
-                    )
-                    notifyState()
-                }
-                // 播不了就不会有歌词：把「歌词加载中」放掉，否则歌词页会一直转圈
+                // 播不了就不会有歌词：先把「歌词加载中」放掉，否则歌词页会一直转圈
                 setLyricsLoading(false, gen)
+                // 取链失败同样走「跳过下一首」：只有队列里没有别的歌、
+                // 或连续失败到上限时才真正停下
+                if (skipAfterFailure(gen, "未取到播放地址")) return@launch
+                releaseTransitionLock()
+                consecutivePlayFailures = 0
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    lastError = PlaybackFailurePolicy.giveUpMessage("无法获取播放地址"),
+                )
+                notifyState()
                 return@launch
             }
 
@@ -1533,9 +1560,6 @@ class PlayerManager private constructor(private val appContext: Context) {
 
         /** 取直链重试的基准间隔（第 n 次重试等 n × 该值） */
         private const val URL_RESOLVE_RETRY_MS = 1_200L
-
-        /** 连续多少首取链失败才真正停下（期间每首都自动跳下一首） */
-        private const val MAX_CONSECUTIVE_PLAY_FAILURES = 5
 
         @Volatile
         private var instance: PlayerManager? = null
