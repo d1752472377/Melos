@@ -119,6 +119,9 @@ class LibraryController(
     /** 上次已提示过的"过大而跳过同步"的脚本集合（只在变化时提示，见 pushChanges） */
     private var warnedOversizedScripts: Set<String> = emptySet()
 
+    /** 内存库当前加载自哪个账号（null = 未登录/guest）；用于账号切换检测 */
+    private var loadedForUserId: Long? = currentUserId()
+
     /** 当前登录账号的 id；未登录时为 null（同步的全部前提） */
     private fun currentUserId(): Long? = UserStore.user()?.id?.takeIf { it > 0 }
 
@@ -143,6 +146,48 @@ class LibraryController(
         val st = currentSyncState()
         _lastSyncedAt.value = st.lastSyncedAt
         _lastSyncStatus.value = st.lastSyncStatus
+        // 账号变化 → 本地库的命名空间跟着变了，内存态必须重载成"当前账号"的数据。
+        // 没有这一步：上一个账号的收藏/历史留在内存里，下一次同步就会把它们推给新账号
+        //（线上"新账号自动集成旧账号全部数据"的直接根因之一）。
+        switchAccountSpace()
+    }
+
+    /**
+     * 当前登录账号/登录态与内存库不一致时，重载内存库。
+     *
+     * 幂等：账号没变时是空操作。任何会改变 `UserStore.user()?.id` 的路径
+     * （登录、注册、退出、登录过期 401）最终都会走到 [refreshSyncState]。
+     */
+    private fun switchAccountSpace() {
+        val uid = currentUserId()
+        if (loadedForUserId == uid) return
+        loadedForUserId = uid
+        pushPending = false // 取消上一账号积累的待推标记（推送内容由重载后的库决定）
+        _favoriteSongs.value = emptyList()
+        _favoriteKeys.value = emptySet()
+        _history.value = emptyList()
+        _myPlaylists.value = emptyList()
+        _favoritePlaylists.value = emptyList()
+        _favoritePlaylistIds.value = emptySet()
+        // 从新命名空间重读持久化数据（旧版本数据在首次读取时迁移到当前账号名下）
+        scope.launch(Dispatchers.IO) {
+            val h = HistoryStore.load().take(HISTORY_LIMIT)
+            val f = FavoriteStore.load().take(MAX_FAVORITES)
+            val favP = FavoritePlaylistStore.load()
+            val p = PlaylistStore.load()
+            withContext(Dispatchers.Main) {
+                // 双检：等待期间账号又变了（快速连续登录/退出）就丢弃这批结果
+                if (loadedForUserId != uid) return@withContext
+                _history.value = h
+                _favoriteSongs.value = f
+                _favoriteKeys.value = f.map { it.platform + ":" + it.id }.toSet()
+                _favoritePlaylists.value = favP
+                _favoritePlaylistIds.value = favP.map { it.id }.toSet()
+                _myPlaylists.value = p
+            }
+        }
+        // 待发的播放事件属于上一个账号：丢弃，绝不带进新账号（"我没听过这些歌却出现在我账号"的来源）
+        com.aesthetic.music.service.StatsTracker.dropPendingEvents()
     }
 
     /** 保存服务器地址（设备级配置，与账号无关） */
@@ -350,10 +395,10 @@ class LibraryController(
                         SyncKey.playlist(PlaylistKind.FAV, item.id),
                     )
                     scheduleSyncPush()
-                    onToast("已更新《》")
+                    onToast("已更新《${updated.name}》")
                 }
             }.onFailure { e ->
-                onToast("更新失败：")
+                onToast("更新失败：${e.message ?: "网络错误"}")
             }
         }
     }
@@ -471,10 +516,10 @@ class LibraryController(
         _myPlaylists.value = emptyList()
         _favoritePlaylists.value = emptyList()
         _favoritePlaylistIds.value = emptySet()
-        FavoriteStore.save(emptyList())
-        HistoryStore.save(emptyList())
-        PlaylistStore.save(emptyList())
-        FavoritePlaylistStore.save(emptyList())
+        FavoriteStore.clear()
+        HistoryStore.clear()
+        PlaylistStore.clear()
+        FavoritePlaylistStore.clear()
         currentUserId()?.let { SyncStateStore.clearUser(it) }
         refreshSyncState()
     }
@@ -551,6 +596,12 @@ class LibraryController(
                 withContext(Dispatchers.IO) {
                     var takenEvents: List<PlayEventDto> = emptyList()
                     try {
+                        // 登录态在排队期间可能已变化：换账号后必须重新校验，否则
+                        // 拉取/推送用的 token 与基线 uid 不一致，直接造成跨账号读写。
+                        if (currentUserId() != uid) {
+                            _isSyncing.value = false
+                            return@withContext
+                        }
                         val since = SyncStateStore.version(uid)
                         val eventSince = SyncStateStore.eventSince(uid)
                         val pullResult = repository.syncPull(since = since, eventSince = eventSince)
@@ -973,6 +1024,10 @@ class LibraryController(
             syncMutex.withLock {
                 if (!pushPending) return@withLock
                 pushPending = false
+                // 竞态防护：debounce 等待期间可能退出/切换了账号。推送的 Authorization 头
+                // 来自当前 token（新账号），而这里的 uid 是发起时的旧账号——
+                // 不校验就会把旧账号的基线/数据推到新账号名下。
+                if (currentUserId() != uid) return@withLock
                 withContext(Dispatchers.IO) {
                     try {
                         pushChanges(uid, includeEvents = true)

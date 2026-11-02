@@ -9,6 +9,7 @@ import com.google.gson.reflect.TypeToken
 /**
  * 最近播放持久化：SharedPreferences 存 JSON，重启不丢失。
  * 之前历史是纯内存（重启即清空），这里补上落盘。
+ * 键按账号命名空间隔离（见 [LibraryNamespace]）——不同账号的播放历史互不可见。
  */
 object HistoryStore {
 
@@ -28,7 +29,7 @@ object HistoryStore {
     }
 
     fun load(): List<Song> = try {
-        val raw = prefs?.getString(KEY_SONGS, null) ?: return emptyList()
+        val raw = LibraryNamespace.read(prefs, KEY_SONGS) ?: return emptyList()
         val type = object : TypeToken<List<Song>>() {}.type
         gson.fromJson<List<Song>>(raw, type) ?: emptyList()
     } catch (_: Exception) {
@@ -39,9 +40,14 @@ object HistoryStore {
         val snapshot = songs.take(100)
         writer.execute {
             try {
-                prefs?.edit()?.putString(KEY_SONGS, gson.toJson(snapshot))?.apply()
+                LibraryNamespace.write(prefs, KEY_SONGS, gson.toJson(snapshot))
             } catch (_: Exception) {
             }
         }
+    }
+
+    /** 清掉当前账号的历史 */
+    fun clear() {
+        LibraryNamespace.clear(prefs, KEY_SONGS)
     }
 }

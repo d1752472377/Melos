@@ -551,4 +551,40 @@ interface MusicApi {
 
     @POST("api/sync/push")
     suspend fun syncPush(@Body body: SyncPushPayload): ApiResponse<SyncPushResult>
+
+    // ==================== 客户端日志上报 (Logs) ====================
+
+    @POST("api/logs/batch")
+    suspend fun logsBatch(@Body body: LogBatchPayload): ApiResponse<LogBatchResult>
 }
+
+/** 单条客户端日志（批量上报条目） */
+data class LogBatchItem(
+    val level: String = "",
+    val tag: String = "",
+    val message: String = "",
+    val stack: String? = null,
+    val extra: Map<String, String>? = null,
+    val timeMs: Long = 0L,
+    val sessionId: String = "",
+    /** 同指纹去重后的出现次数（≥1；服务端展示"×N"） */
+    val count: Long = 1L,
+)
+
+/** 批量上报请求体 */
+data class LogBatchPayload(
+    val logs: List<LogBatchItem> = emptyList(),
+    val appVersion: String = "",
+    val versionCode: Long = 0L,
+    val os: String = "",
+    val device: String = "",
+    /** 已登录用户的 id（未登录为 null；服务端同时记录 IP 便于关联） */
+    val appUid: Long? = null,
+)
+
+/** 批量上报响应（服务端可下发远程排障开关） */
+data class LogBatchResult(
+    val accepted: Int = 0,
+    /** epoch ms：在此之前本设备的 INFO/DEBUG 也上报（0/缺省 = 关闭） */
+    val debugUntil: Long? = null,
+)

@@ -628,6 +628,8 @@ class PlayerManager private constructor(private val appContext: Context) {
                     val key = song?.let { it.platform + ":" + it.id }
                     if (key != null && key != statsSongKey) {
                         statsSongKey = key
+                        // 切歌：把上一首歌的播放片段封段，避免两首歌的时长混进同一条事件
+                        com.aesthetic.music.service.StatsTracker.pauseSegment()
                         StatsTracker.onPlayStarted(song)
                         // 真正起播才写"最近播放"（此前"点击即写历史"，取直链失败的歌也入历史）
                         if (song != null) onPlaybackStarted?.invoke(song)
@@ -637,6 +639,9 @@ class PlayerManager private constructor(private val appContext: Context) {
                 } else {
                     // 暂停瞬间立即落一次断点：轮询循环暂停时降频不再保存，这里保证暂停位置不丢
                     saveSession()
+                    // 暂停封段：这段播放时长立刻入待发队列（继续播同一首会开新片段，
+                    // 服务端按相邻片段合并回完整播放次数）
+                    com.aesthetic.music.service.StatsTracker.pauseSegment()
                 }
                 notifyState()
             }
@@ -1321,6 +1326,8 @@ class PlayerManager private constructor(private val appContext: Context) {
                 // 单曲循环重播：重置计数键，让本次重播被统计为一次新播放
                 // （此前 isPlaying 变化 + 同键拦截导致单曲循环用户的播放次数系统性漏计）
                 statsSongKey = null
+                // 重播是新的一次播放：上一轮的片段封段，服务端会按相邻合并
+                com.aesthetic.music.service.StatsTracker.pauseSegment()
                 player.seekTo(0)
                 player.play()
             }
@@ -1335,6 +1342,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                 } else {
                     // 单曲队列 + 随机：按循环处理（此前什么都不做，播完直接卡死）
                     statsSongKey = null
+                    com.aesthetic.music.service.StatsTracker.pauseSegment()
                     player.seekTo(0)
                     player.play()
                 }
@@ -1361,6 +1369,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                     // 只 play() 不带 prepare() 永远不出声（此前出错后播放键/通知栏/蓝牙全失灵），
                     // 且同曲重试需要重置计数键以计入一次新播放
                     statsSongKey = null
+                    com.aesthetic.music.service.StatsTracker.pauseSegment()
                     _state.value = _state.value.copy(isLoading = true)
                     player.prepare()
                     player.play()

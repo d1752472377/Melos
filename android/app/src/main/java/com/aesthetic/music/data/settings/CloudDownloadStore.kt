@@ -20,6 +20,7 @@ import com.google.gson.reflect.TypeToken
  *
  * 用途：换机/重装后能知道该重新下载哪些歌；将来在缓存页做"云端记录"分区时直接读这里。
  * 本次改动只落库、未做界面（见交付说明），不做界面也不算"假功能"——数据是真的，只是还没展示。
+ * 键按账号命名空间隔离（见 [LibraryNamespace]）——下载记录跟随账号，不跟随设备。
  */
 object CloudDownloadStore {
 
@@ -36,7 +37,7 @@ object CloudDownloadStore {
     }
 
     fun load(): List<SyncDownloadItem> = try {
-        val raw = prefs?.getString(KEY_RECORDS, null) ?: return emptyList()
+        val raw = LibraryNamespace.read(prefs, KEY_RECORDS) ?: return emptyList()
         val type = object : TypeToken<List<SyncDownloadItem>>() {}.type
         gson.fromJson<List<SyncDownloadItem>>(raw, type) ?: emptyList()
     } catch (_: Exception) {
@@ -45,7 +46,7 @@ object CloudDownloadStore {
 
     fun save(records: List<SyncDownloadItem>) {
         try {
-            prefs?.edit()?.putString(KEY_RECORDS, gson.toJson(records))?.apply()
+            LibraryNamespace.write(prefs, KEY_RECORDS, gson.toJson(records))
         } catch (_: Exception) {
         }
     }

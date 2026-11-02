@@ -103,6 +103,7 @@ func (s *Server) Router() *gin.Engine {
 	s.registerMe(r)
 	s.registerSync(r)
 	s.registerAdmin(r)
+	s.registerLogs(r)
 	s.registerVersionPublic(r)
 
 	r.NoRoute(func(c *gin.Context) {
@@ -213,6 +214,35 @@ func (s *Server) authenticate(c *gin.Context) bool {
 	}
 	if now-su.LastSeenAt >= 5*60*1000 {
 		_ = s.store.TouchSession(c.Request.Context(), su.SessionID, now)
+	}
+	// 最后活跃时间：节流到每分钟最多写一次，避免每个请求都写 users 表
+	if now-su.User.LastActiveAt >= 60*1000 {
+		_ = s.store.TouchLastActive(c.Request.Context(), su.User.ID, now)
+	}
+	c.Set(ctxUserKey, &su.User)
+	c.Set(ctxSessionKey, su)
+	c.Set(ctxTokenHashKey, tokenHash)
+	return true
+}
+
+// authenticateQuiet is authenticate without writing error responses: it
+// returns whether a valid session was present. Used by endpoints where auth is
+// optional (client log ingestion accepts anonymous devices).
+func (s *Server) authenticateQuiet(c *gin.Context) bool {
+	header := c.GetHeader("Authorization")
+	var token string
+	if strings.HasPrefix(header, "Bearer ") {
+		token = strings.TrimSpace(header[len("Bearer "):])
+	} else {
+		token = strings.TrimSpace(header)
+	}
+	if token == "" {
+		return false
+	}
+	tokenHash := security.HashToken(token)
+	su, err := s.store.FindSessionByTokenHash(c.Request.Context(), tokenHash)
+	if err != nil || su == nil || su.RevokedAt.Valid || su.ExpiresAt <= time.Now().UnixMilli() {
+		return false
 	}
 	c.Set(ctxUserKey, &su.User)
 	c.Set(ctxSessionKey, su)

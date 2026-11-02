@@ -439,27 +439,70 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 				continue
 			}
 			listened := math.Max(0, math.Min(jsNumber(e["listenedMs"]), 24*60*60*1000))
-			eventID := jsString(e["eventId"])
-			if eventID == "" {
-				eventID = jsString(e["platform"]) + ":" + jsString(e["id"]) + ":" + jsString(e["listenedAtMs"])
-				if !truthy(e["listenedAtMs"]) {
-					eventID = jsString(e["platform"]) + ":" + jsString(e["id"]) + ":" + strconv.FormatInt(nowMs, 10)
-				}
+			deviceID := jsString(e["deviceId"])
+			platform := jsString(e["platform"])
+			songID := jsString(e["id"])
+			title := jsString(e["title"])
+			artist := jsString(e["artist"])
+			durationMs := nonNeg(e["durationMs"])
+			// 事件时间：客户端显式时间优先，否则用服务器时间。
+			listenedAt := nowMs
+			if truthy(e["listenedAtMs"]) {
+				listenedAt = nonNeg(e["listenedAtMs"])
 			}
+			clientEventID := jsString(e["eventId"])
+			fallbackEventID := platform + ":" + songID + ":" + strconv.FormatInt(listenedAt, 10)
+			// 合并行的新幂等键：优先用客户端 eventId（同一片段重试时此键相同，天然幂等）；
+			// 没有就用 内容+时间 派生键。旧键（被合并行）随行更新，不再参与去重。
+			newEventID := clientEventID
+			if newEventID == "" {
+				newEventID = fallbackEventID
+			}
+
+			// ===== 心跳合并（兼容旧客户端的 1 秒心跳上报）=====
+			// 旧客户端把每秒心跳当独立事件上报。这里把"同用户+同歌+同设备、
+			// 且上一条事件距今 ≤ 10 秒"的心跳并进上一条（累加 listened_ms、
+			// 幂等键换新、时间取最新），避免 5 分钟的歌被拆成 200+ 条记录。
+			// 新客户端（分段上报，片段间隔 10~30 秒）落在 ≤10s 窗口内时同样会被
+			// 合并成完整播放次数；超过 10 秒的间隔视为一次新播放。
+			var (
+				dupID       string
+				dupListened int64
+			)
+			row := s.db.QueryRowContext(ctx, `
+				SELECT event_id, listened_ms FROM play_events
+				WHERE user_id = ? AND platform = ? AND song_id = ? AND device_id = ?
+				  AND listened_at_ms > ?
+				ORDER BY listened_at_ms DESC LIMIT 1`,
+				userID, platform, songID, deviceID, listenedAt-10_000)
+			switch err := row.Scan(&dupID, &dupListened); {
+			case err == nil:
+				if dupID == newEventID {
+					// 客户端重试（同一片段 eventId 原样重发）：幂等拒绝，不再累加
+					continue
+				}
+				events = append(events, eventInsert{
+					sql: `UPDATE play_events
+					      SET listened_ms = ?, event_id = ?, duration_ms = ?, listened_at_ms = ?, updated_at_ms = ?
+					      WHERE user_id = ? AND event_id = ?`,
+					args: []any{
+						dupListened + int64(math.Round(listened)), newEventID, durationMs, listenedAt, nowMs,
+						userID, dupID,
+					},
+				})
+				continue
+			case err != sql.ErrNoRows:
+				return 0, 0, err
+			}
+
+			// 无相邻心跳：正常插入一条新事件
 			events = append(events, eventInsert{
 				sql: `INSERT INTO play_events (user_id, event_id, device_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms)
                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                       ON CONFLICT (user_id, event_id) DO NOTHING`,
 				args: []any{
-					userID, eventID, jsString(e["deviceId"]), jsString(e["platform"]), jsString(e["id"]),
-					jsString(e["title"]), jsString(e["artist"]), int64(math.Round(listened)),
-					nonNeg(e["durationMs"]), func() int64 {
-						if truthy(e["listenedAtMs"]) {
-							return nonNeg(e["listenedAtMs"])
-						}
-						return nowMs
-					}(),
-					nowMs,
+					userID, newEventID, deviceID, platform, songID,
+					title, artist, int64(math.Round(listened)), durationMs, listenedAt, nowMs,
 				},
 			})
 		}

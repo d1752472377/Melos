@@ -1,0 +1,7 @@
+# 生成物（里面有明文 Key，绝不入库）
+dist/
+
+# 本地 Key 文件
+chksz.key
+
+node_modules/

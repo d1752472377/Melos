@@ -32,7 +32,8 @@ var schema = []string{
       role          TEXT NOT NULL DEFAULT 'user',
       email         TEXT NOT NULL DEFAULT '',
       created_at    INTEGER NOT NULL,
-      updated_at    INTEGER NOT NULL
+      updated_at    INTEGER NOT NULL,
+      last_active_at INTEGER NOT NULL DEFAULT 0
     )`,
 	`CREATE TABLE IF NOT EXISTS sessions (
       id            TEXT PRIMARY KEY,
@@ -146,6 +147,7 @@ var schema = []string{
       UNIQUE (user_id, event_id)
     )`,
 	`CREATE INDEX IF NOT EXISTS idx_play_events_user ON play_events(user_id, id)`,
+	`CREATE INDEX IF NOT EXISTS idx_play_events_merge ON play_events(user_id, platform, song_id, device_id, listened_at_ms)`,
 	`CREATE TABLE IF NOT EXISTS email_codes (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       email       TEXT NOT NULL,
@@ -168,6 +170,28 @@ var schema = []string{
       enabled      INTEGER DEFAULT 1,
       created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
+	// 客户端日志（错误/警告/远程排障）：append-only，保留窗口由清理任务控制
+	`CREATE TABLE IF NOT EXISTS client_logs (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id      INTEGER NOT NULL DEFAULT 0,
+      session_id   TEXT NOT NULL DEFAULT '',
+      level        TEXT NOT NULL DEFAULT 'INFO',
+      tag          TEXT NOT NULL DEFAULT '',
+      message      TEXT NOT NULL DEFAULT '',
+      stack        TEXT NOT NULL DEFAULT '',
+      extra_json   TEXT NOT NULL DEFAULT '',
+      count        INTEGER NOT NULL DEFAULT 1,
+      app_version  TEXT NOT NULL DEFAULT '',
+      version_code INTEGER NOT NULL DEFAULT 0,
+      os           TEXT NOT NULL DEFAULT '',
+      device       TEXT NOT NULL DEFAULT '',
+      ip           TEXT NOT NULL DEFAULT '',
+      created_at   INTEGER NOT NULL DEFAULT 0
+    )`,
+	`CREATE INDEX IF NOT EXISTS idx_client_logs_time   ON client_logs(created_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_client_logs_level  ON client_logs(level, created_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_client_logs_user   ON client_logs(user_id, created_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_client_logs_fp     ON client_logs(tag, message)`,
 }
 
 // Open initialises the database, creating parent directories and applying the
@@ -220,6 +244,8 @@ func (s *Store) migrate() error {
 		`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`,
 		`ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE users ADD COLUMN background TEXT NOT NULL DEFAULT ''`,
+		// 最后活跃时间（ms）：由认证中间件节流刷新，用于管理后台观察账号活跃
+		`ALTER TABLE users ADD COLUMN last_active_at INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE play_events ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE playlists ADD COLUMN kind TEXT NOT NULL DEFAULT 'mine'`,
 	}

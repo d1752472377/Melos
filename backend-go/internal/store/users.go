@@ -23,16 +23,17 @@ type User struct {
 	Email        string
 	CreatedAt    int64
 	UpdatedAt    int64
+	LastActiveAt int64
 }
 
-const userColumns = `id, username, password_hash, salt, nickname, avatar, background, role, email, created_at, updated_at`
+const userColumns = `id, username, password_hash, salt, nickname, avatar, background, role, email, created_at, updated_at, last_active_at`
 
 type scanner interface{ Scan(dest ...any) error }
 
 func scanUser(sc scanner) (*User, error) {
 	var u User
 	err := sc.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Salt, &u.Nickname, &u.Avatar,
-		&u.Background, &u.Role, &u.Email, &u.CreatedAt, &u.UpdatedAt)
+		&u.Background, &u.Role, &u.Email, &u.CreatedAt, &u.UpdatedAt, &u.LastActiveAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -243,10 +244,19 @@ func PublicUser(u *User) map[string]any {
 		"background": u.Background,
 		"role":       role,
 		"email":      u.Email,
-		"created_at": u.CreatedAt,
-		"updated_at": u.UpdatedAt,
-		"createdAt":  u.CreatedAt,
+		"created_at":    u.CreatedAt,
+		"updated_at":    u.UpdatedAt,
+		"createdAt":     u.CreatedAt,
+		"last_active_at": u.LastActiveAt,
+		"lastActiveAt":  u.LastActiveAt,
 	}
+}
+
+// TouchLastActive records the user's most recent activity time. Cheap enough
+// to call from the auth middleware; callers should throttle (see server.go).
+func (s *Store) TouchLastActive(ctx context.Context, id int64, nowMs int64) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET last_active_at = ? WHERE id = ?`, nowMs, id)
+	return err
 }
 
 // ==================== sessions ====================

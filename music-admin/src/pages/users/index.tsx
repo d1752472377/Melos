@@ -21,6 +21,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
   KeyOutlined,
+  EyeOutlined,
   EditOutlined,
   DeleteOutlined,
   CrownOutlined,
@@ -30,6 +31,7 @@ import {
 } from "@ant-design/icons";
 import { useGetIdentity } from "@refinedev/core";
 import { request } from "../../providers/api";
+import { UserDetailPage } from "../user-detail";
 
 const { Title, Text } = Typography;
 
@@ -42,6 +44,7 @@ interface UserItem {
   role: "admin" | "user";
   created_at: number;
   updated_at: number;
+  last_active_at?: number;
 }
 
 interface IdentityUser {
@@ -75,6 +78,10 @@ export const UsersPage: React.FC = () => {
   const [resetPassLoading, setResetPassLoading] = useState(false);
 
   const [currentUser, setCurrentUser] = useState<UserItem | null>(null);
+
+  // 用户详情弹窗
+  const [detailUserId, setDetailUserId] = useState<number | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // 表单实例
   const [createForm] = Form.useForm();
@@ -309,13 +316,41 @@ export const UsersPage: React.FC = () => {
       render: (val: number) => (val ? new Date(val).toLocaleString() : "-"),
     },
     {
+      title: "最后活跃",
+      dataIndex: "last_active_at",
+      key: "last_active_at",
+      width: 180,
+      render: (val: number) => {
+        if (!val) return <Tag color="default">从未活跃</Tag>;
+        const diff = Date.now() - val;
+        const mins = Math.floor(diff / 60000);
+        let label: string;
+        if (mins < 1) label = "刚刚";
+        else if (mins < 60) label = `${mins} 分钟前`;
+        else if (mins < 60 * 24) label = `${Math.floor(mins / 60)} 小时前`;
+        else label = new Date(val).toLocaleString();
+        return <Tag color={mins < 60 ? "green" : "default"}>{label}</Tag>;
+      },
+    },
+    {
       title: "操作",
       key: "action",
-      width: 220,
+      width: 280,
       render: (_: any, record: UserItem) => {
         const isSelf = isCurrentLoginUser(record);
         return (
           <Space size="small">
+            <Button
+              type="link"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => {
+                setDetailUserId(record.id);
+                setDetailOpen(true);
+              }}
+            >
+              详情
+            </Button>
             <Button
               type="link"
               size="small"
@@ -601,6 +636,13 @@ export const UsersPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 用户数据详情弹窗 */}
+      <UserDetailPage
+        userId={detailUserId ?? 0}
+        open={detailOpen && detailUserId != null}
+        onClose={() => setDetailOpen(false)}
+      />
     </div>
   );
 };

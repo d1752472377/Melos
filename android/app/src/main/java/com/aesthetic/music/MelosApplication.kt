@@ -34,6 +34,7 @@ class MelosApplication : Application() {
 
         // 统一初始化全局持久化存储与底层服务
         CrashHandler.init(this)
+        com.aesthetic.music.service.LogReporter.init(this)
         SettingsStore.init(this)
         FavoriteStore.init(this)
         FavoritePlaylistStore.init(this)

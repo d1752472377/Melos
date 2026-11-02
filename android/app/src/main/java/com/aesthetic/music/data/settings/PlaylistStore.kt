@@ -69,7 +69,7 @@ object PlaylistStore {
     }
 
     fun load(): List<MyPlaylist> = try {
-        parsePlaylists(prefs?.getString(KEY_PLAYLISTS, null))
+        parsePlaylists(LibraryNamespace.read(prefs, KEY_PLAYLISTS))
     } catch (_: Exception) {
         emptyList()
     }
@@ -102,10 +102,15 @@ object PlaylistStore {
     fun save(playlists: List<MyPlaylist>) {
         writer.execute {
             try {
-                prefs?.edit()?.putString(KEY_PLAYLISTS, gson.toJson(playlists))?.apply()
+                LibraryNamespace.write(prefs, KEY_PLAYLISTS, gson.toJson(playlists))
             } catch (_: Exception) {
             }
         }
+    }
+
+    /** 清掉当前账号的自建歌单 */
+    fun clear() {
+        LibraryNamespace.clear(prefs, KEY_PLAYLISTS)
     }
 
     fun newId(): String = "local_${System.currentTimeMillis()}_${(1000..9999).random()}"

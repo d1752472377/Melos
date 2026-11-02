@@ -9,6 +9,7 @@ import com.google.gson.reflect.TypeToken
 /**
  * 收藏持久化（对应参考 App 的 FavoriteService）：
  * SharedPreferences 存歌曲 JSON，重启不丢失。
+ * 键按账号命名空间隔离（见 [LibraryNamespace]）——不同账号的收藏互不可见。
  */
 object FavoriteStore {
 
@@ -29,7 +30,7 @@ object FavoriteStore {
 
     /** 加载全部收藏歌曲（容错：解析失败视为空） */
     fun load(): List<Song> = try {
-        val raw = prefs?.getString(KEY_SONGS, null) ?: return emptyList()
+        val raw = LibraryNamespace.read(prefs, KEY_SONGS) ?: return emptyList()
         val type = object : TypeToken<List<Song>>() {}.type
         gson.fromJson<List<Song>>(raw, type) ?: emptyList()
     } catch (_: Exception) {
@@ -40,9 +41,14 @@ object FavoriteStore {
     fun save(songs: List<Song>) {
         writer.execute {
             try {
-                prefs?.edit()?.putString(KEY_SONGS, gson.toJson(songs))?.apply()
+                LibraryNamespace.write(prefs, KEY_SONGS, gson.toJson(songs))
             } catch (_: Exception) {
             }
         }
+    }
+
+    /** 清掉当前账号的收藏（含一次性的旧格式迁移读取） */
+    fun clear() {
+        LibraryNamespace.clear(prefs, KEY_SONGS)
     }
 }
