@@ -63,9 +63,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.player.LyricLine
 import com.aesthetic.music.player.karaokeSweepFraction
-import com.aesthetic.music.ui.components.BindUserInteraction
-import com.aesthetic.music.ui.components.centerItemIndex
-import com.aesthetic.music.ui.components.rememberAutoScrollController
 import com.aesthetic.music.ui.theme.AmberLight
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive

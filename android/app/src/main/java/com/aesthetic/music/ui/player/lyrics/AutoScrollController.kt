@@ -1,7 +1,9 @@
-package com.aesthetic.music.ui.components
+package com.aesthetic.music.ui.player.lyrics
 
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
+import kotlin.math.abs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -127,4 +129,21 @@ fun AutoScrollController.BindUserInteraction() {
             onUserInteraction()
         }
     }
+}
+/**
+ * 当前正穿过「视口指示线」的 item index。
+ *
+ * 必须用 viewportStartOffset/EndOffset 判断，不能用半高估算：
+ * contentPadding 会污染 item.offset 坐标系。
+ */
+fun LazyListLayoutInfo.centerItemIndex(
+    fallback: Int = 0,
+    anchorRatio: Float = 0f,
+): Int {
+    val visible = visibleItemsInfo
+    if (visible.isEmpty()) return fallback
+    val anchorY = (viewportSize.height * anchorRatio).toInt()
+    return visible.firstOrNull { anchorY in it.offset until (it.offset + it.size) }?.index
+        ?: visible.minByOrNull { abs((it.offset + it.size / 2) - anchorY) }?.index
+        ?: fallback
 }

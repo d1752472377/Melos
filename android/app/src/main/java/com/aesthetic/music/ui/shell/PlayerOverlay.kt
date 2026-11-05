@@ -52,6 +52,7 @@ fun PlayerOverlay(
 ) {
     val myPlaylists by library.myPlaylists.collectAsState()
     val quality by settings.quality.collectAsState()
+    val prefs by settings.prefs.collectAsState()
     val songActions = rememberSongActionsState()
 
     AnimatedVisibility(
@@ -96,6 +97,14 @@ fun PlayerOverlay(
                     settings.setQuality(level)
                     playerManager.reloadCurrentForQuality()
                 },
+                currentPlayerTheme = prefs.playerTheme,
+                onPlayerThemeChange = settings::setPlayerTheme,
+                currentLyricFontSize = prefs.lyricFontSize,
+                onLyricFontSizeChange = settings::setLyricFontSize,
+                currentLyricBlurMode = prefs.lyricBlurMode,
+                onLyricBlurModeChange = settings::setLyricBlurMode,
+                currentBgBlurMode = prefs.backgroundBlurMode,
+                onBgBlurModeChange = settings::setBackgroundBlurMode,
                 onSpeedChange = playerManager::setSpeed,
                 onSleepTimer = playerManager::startSleepTimer,
                 onCancelSleepTimer = playerManager::cancelSleepTimer,

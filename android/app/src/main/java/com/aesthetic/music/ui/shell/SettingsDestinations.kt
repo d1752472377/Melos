@@ -137,6 +137,7 @@ fun SettingsDownloadDestination(
 /** 缓存管理（占用统计 + 分类清理 + 抽屉明细） */
 @Composable
 fun SettingsCacheDestination(
+    settings: SettingsController,
     nav: ShellNav,
     cacheState: CacheState,
     scope: CoroutineScope,
@@ -144,6 +145,7 @@ fun SettingsCacheDestination(
     onToast: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    val prefs by settings.prefs.collectAsState()
     val manage = rememberCacheManageState(context, scope)
     // 待确认的清理动作（null = 没有弹窗）
     var pendingClear by remember { mutableStateOf<CacheKind?>(null) }
@@ -166,7 +168,9 @@ fun SettingsCacheDestination(
         onClearTemp = { pendingClear = CacheKind.TEMP },
         onClearAll = { pendingClear = CacheKind.ALL },
         onOpenCachedSongs = { nav.navigate(ScreenRoute.CacheList.route) },
-        onCacheLimitChange = { _ ->
+        cacheLimitBytes = prefs.cacheLimitBytes,
+        onCacheLimitChange = { bytes ->
+            settings.setCacheLimitBytes(bytes)
             // 用户调小上限后立即按新上限清理一次
             scope.launch(Dispatchers.IO) {
                 com.aesthetic.music.player.AudioCacheService.enforceCacheLimit(context)

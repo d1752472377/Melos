@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Scaffold
-import com.aesthetic.music.ui.components.MelosToastHost
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -54,6 +53,7 @@ import com.aesthetic.music.ui.shell.FmDestination
 import com.aesthetic.music.ui.shell.GuessDestination
 import com.aesthetic.music.ui.shell.HistoryDestination
 import com.aesthetic.music.ui.shell.HomeDestination
+import com.aesthetic.music.ui.shell.MelosToastHost
 import com.aesthetic.music.ui.shell.ListeningStatsDestination
 import com.aesthetic.music.ui.shell.PlayerOverlay
 import com.aesthetic.music.ui.shell.PlaylistDetailDestination
@@ -439,7 +439,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
 
                 composable(ScreenRoute.SettingsCache.route) {
-                    SettingsCacheDestination(nav, cacheState, scope, viewModel::updatePageBackground, actions.toast)
+                    SettingsCacheDestination(viewModel.settings, nav, cacheState, scope, viewModel::updatePageBackground, actions.toast)
                 }
 
                 // 最近播放页

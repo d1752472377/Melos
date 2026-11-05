@@ -106,6 +106,10 @@ enum class BackgroundBlurMode(val value: String, val label: String, val blurDp: 
 data class UserPrefs(
     // ===== 主题与外观 =====
     val statusBarMode: StatusBarMode = StatusBarMode.ALWAYS,
+    val playerTheme: PlayerTheme = PlayerTheme.CLASSIC,
+    val lyricFontSize: LyricFontSize = LyricFontSize.STANDARD,
+    val lyricBlurMode: LyricBlurMode = LyricBlurMode.OFF,
+    val backgroundBlurMode: BackgroundBlurMode = BackgroundBlurMode.MEDIUM,
     // ===== 播放 =====
     val preloadNext: Boolean = true,
     val crossFade: Boolean = false,
@@ -117,6 +121,7 @@ data class UserPrefs(
     val lyricOnline: Boolean = true,
     val lyricLocal: Boolean = false,
     // ===== 下载与缓存 =====
+    val cacheLimitBytes: Long = SettingsStore.DEFAULT_CACHE_LIMIT_BYTES,
     val downloadWhilePlaying: Boolean = true,
     val downloadNaming: DownloadNaming = DownloadNaming.TITLE_ARTIST,
     val downloadCoverLyrics: Boolean = true,
@@ -150,6 +155,9 @@ object SettingsStore {
     private const val KEY_QUALITY = "quality"
     private const val KEY_CACHE_LIMIT = "cache_limit_bytes"
     private const val KEY_PLAYER_THEME = "player_theme"
+    private const val KEY_LYRIC_FONT_SIZE = "lyric_font_size"
+    private const val KEY_LYRIC_BLUR_MODE = "lyric_blur_mode"
+    private const val KEY_BACKGROUND_BLUR_MODE = "background_blur_mode"
     private const val KEY_PLAYBACK_SPEED = "playback_speed"
     private const val KEY_PREFERRED_BASE = "preferred_base_url"
 
@@ -186,27 +194,6 @@ object SettingsStore {
         p()?.edit()?.putString(KEY_QUALITY, level.value)?.apply()
     }
 
-    // ===== 缓存上限（字节）：播放/下载缓存总量超过它就按最旧淘汰，默认 2GB =====
-    fun getCacheLimitBytes(): Long = try {
-        p()?.getLong(KEY_CACHE_LIMIT, DEFAULT_CACHE_LIMIT_BYTES) ?: DEFAULT_CACHE_LIMIT_BYTES
-    } catch (_: Exception) {
-        DEFAULT_CACHE_LIMIT_BYTES
-    }
-
-    fun setCacheLimitBytes(bytes: Long) = bestEffort(TAG, "保存缓存上限") {
-        p()?.edit()?.putLong(KEY_CACHE_LIMIT, bytes)?.apply()
-    }
-
-    // ===== 播放页主题 =====
-    fun getPlayerTheme(): PlayerTheme = try {
-        PlayerTheme.fromValue(p()?.getString(KEY_PLAYER_THEME, null))
-    } catch (_: Exception) {
-        PlayerTheme.CLASSIC
-    }
-
-    fun setPlayerTheme(theme: PlayerTheme) = bestEffort(TAG, "保存播放页主题") {
-        p()?.edit()?.putString(KEY_PLAYER_THEME, theme.value)?.apply()
-    }
 
     // ===== 倍速播放（0.5x - 2.0x）=====
     fun getPlaybackSpeed(): Float = try {
@@ -219,40 +206,6 @@ object SettingsStore {
         p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
     }
 
-    // ===== 歌词与视觉个性化 =====
-    private const val KEY_LYRIC_FONT_SIZE = "lyric_font_size"
-    private const val KEY_LYRIC_BLUR_MODE = "lyric_blur_mode"
-    private const val KEY_BACKGROUND_BLUR_MODE = "background_blur_mode"
-
-    fun getLyricFontSize(): LyricFontSize = try {
-        LyricFontSize.fromValue(p()?.getString(KEY_LYRIC_FONT_SIZE, null))
-    } catch (_: Exception) {
-        LyricFontSize.STANDARD
-    }
-
-    fun setLyricFontSize(size: LyricFontSize) = bestEffort(TAG, "保存歌词字号") {
-        p()?.edit()?.putString(KEY_LYRIC_FONT_SIZE, size.value)?.apply()
-    }
-
-    fun getLyricBlurMode(): LyricBlurMode = try {
-        LyricBlurMode.fromValue(p()?.getString(KEY_LYRIC_BLUR_MODE, null))
-    } catch (_: Exception) {
-        LyricBlurMode.OFF // 默认清晰无模糊
-    }
-
-    fun setLyricBlurMode(mode: LyricBlurMode) = bestEffort(TAG, "保存歌词模糊模式") {
-        p()?.edit()?.putString(KEY_LYRIC_BLUR_MODE, mode.value)?.apply()
-    }
-
-    fun getBackgroundBlurMode(): BackgroundBlurMode = try {
-        BackgroundBlurMode.fromValue(p()?.getString(KEY_BACKGROUND_BLUR_MODE, null))
-    } catch (_: Exception) {
-        BackgroundBlurMode.MEDIUM
-    }
-
-    fun setBackgroundBlurMode(mode: BackgroundBlurMode) = bestEffort(TAG, "保存背景模糊度") {
-        p()?.edit()?.putString(KEY_BACKGROUND_BLUR_MODE, mode.value)?.apply()
-    }
 
     // ==================== 设置页（主题与外观 / 播放 / 歌词 / 下载） ====================
 
@@ -294,6 +247,12 @@ object SettingsStore {
         null
     }
 
+    private fun getLong(key: String, def: Long): Long = try {
+        p()?.getLong(key, def) ?: def
+    } catch (_: Exception) {
+        def
+    }
+
     private fun setStr(key: String, value: String) = bestEffort(TAG, "保存选项 $key") {
         p()?.edit()?.putString(key, value)?.apply()
     }
@@ -304,6 +263,10 @@ object SettingsStore {
         return try {
             UserPrefs(
                 statusBarMode = StatusBarMode.fromValue(getStr(KEY_STATUS_BAR)),
+                playerTheme = PlayerTheme.fromValue(getStr(KEY_PLAYER_THEME)),
+                lyricFontSize = LyricFontSize.fromValue(getStr(KEY_LYRIC_FONT_SIZE)),
+                lyricBlurMode = LyricBlurMode.fromValue(getStr(KEY_LYRIC_BLUR_MODE)),
+                backgroundBlurMode = BackgroundBlurMode.fromValue(getStr(KEY_BACKGROUND_BLUR_MODE)),
                 preloadNext = getBool(KEY_PRELOAD_NEXT, d.preloadNext),
                 crossFade = getBool(KEY_CROSS_FADE, d.crossFade),
                 resumeAfterInterrupt = getBool(KEY_RESUME_AFTER_INTERRUPT, d.resumeAfterInterrupt),
@@ -312,6 +275,7 @@ object SettingsStore {
                 lyricRomanization = getBool(KEY_LYRIC_ROMANIZATION, d.lyricRomanization),
                 lyricOnline = getBool(KEY_LYRIC_ONLINE, d.lyricOnline),
                 lyricLocal = getBool(KEY_LYRIC_LOCAL, d.lyricLocal),
+                cacheLimitBytes = getLong(KEY_CACHE_LIMIT, d.cacheLimitBytes),
                 downloadWhilePlaying = getBool(KEY_DL_WHILE_PLAYING, d.downloadWhilePlaying),
                 downloadNaming = DownloadNaming.fromValue(getStr(KEY_DL_NAMING)),
                 downloadCoverLyrics = getBool(KEY_DL_COVER_LYRICS, d.downloadCoverLyrics),
@@ -332,6 +296,10 @@ object SettingsStore {
     fun writePrefs(prefs: UserPrefs) = bestEffort(TAG, "保存设置项") {
         p()?.edit()?.apply {
             putString(KEY_STATUS_BAR, prefs.statusBarMode.value)
+            putString(KEY_PLAYER_THEME, prefs.playerTheme.value)
+            putString(KEY_LYRIC_FONT_SIZE, prefs.lyricFontSize.value)
+            putString(KEY_LYRIC_BLUR_MODE, prefs.lyricBlurMode.value)
+            putString(KEY_BACKGROUND_BLUR_MODE, prefs.backgroundBlurMode.value)
             putBoolean(KEY_PRELOAD_NEXT, prefs.preloadNext)
             putBoolean(KEY_CROSS_FADE, prefs.crossFade)
             putBoolean(KEY_RESUME_AFTER_INTERRUPT, prefs.resumeAfterInterrupt)
@@ -340,6 +308,7 @@ object SettingsStore {
             putBoolean(KEY_LYRIC_ROMANIZATION, prefs.lyricRomanization)
             putBoolean(KEY_LYRIC_ONLINE, prefs.lyricOnline)
             putBoolean(KEY_LYRIC_LOCAL, prefs.lyricLocal)
+            putLong(KEY_CACHE_LIMIT, prefs.cacheLimitBytes)
             putBoolean(KEY_DL_WHILE_PLAYING, prefs.downloadWhilePlaying)
             putString(KEY_DL_NAMING, prefs.downloadNaming.value)
             putBoolean(KEY_DL_COVER_LYRICS, prefs.downloadCoverLyrics)

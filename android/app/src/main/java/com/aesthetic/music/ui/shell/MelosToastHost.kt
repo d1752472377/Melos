@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.components
+package com.aesthetic.music.ui.shell
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring

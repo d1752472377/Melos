@@ -88,7 +88,6 @@ import com.aesthetic.music.data.settings.LyricFontSize
 import com.aesthetic.music.data.settings.LyricBlurMode
 import com.aesthetic.music.data.settings.BackgroundBlurMode
 import com.aesthetic.music.data.settings.QualityLevel
-import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.LyricLine
 import com.aesthetic.music.player.PlayMode
@@ -98,7 +97,6 @@ import com.aesthetic.music.player.currentLyricIndex
 import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.PlayerBg
 import com.aesthetic.music.ui.theme.PlayerBgDark
-import com.aesthetic.music.ui.components.FavoriteBurstButton
 import com.aesthetic.music.ui.components.KeepScreenOn
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.player.lyrics.MelosLyricsView
@@ -136,6 +134,14 @@ fun PlayerScreen(
     /** 当前音质与切换回调（音质是可选项，见中控台「音质」板块） */
     currentQuality: QualityLevel,
     onQualityChange: (QualityLevel) -> Unit,
+    currentPlayerTheme: PlayerTheme,
+    onPlayerThemeChange: (PlayerTheme) -> Unit,
+    currentLyricFontSize: LyricFontSize,
+    onLyricFontSizeChange: (LyricFontSize) -> Unit,
+    currentLyricBlurMode: LyricBlurMode,
+    onLyricBlurModeChange: (LyricBlurMode) -> Unit,
+    currentBgBlurMode: BackgroundBlurMode,
+    onBgBlurModeChange: (BackgroundBlurMode) -> Unit,
     onSpeedChange: (Float) -> Unit,
     onSleepTimer: (Int) -> Unit,
     onCancelSleepTimer: () -> Unit,
@@ -179,14 +185,10 @@ fun PlayerScreen(
     var showQueueSheet by remember { mutableStateOf(false) }
     var showControlCenterSheet by remember { mutableStateOf(false) }
     var showAudioDetailSheet by remember { mutableStateOf(false) }
-    var playerTheme by remember { mutableStateOf(SettingsStore.getPlayerTheme()) }
-    var lyricFontSize by remember { mutableStateOf(SettingsStore.getLyricFontSize()) }
-    var lyricBlurMode by remember { mutableStateOf(SettingsStore.getLyricBlurMode()) }
-    var bgBlurMode by remember { mutableStateOf(SettingsStore.getBackgroundBlurMode()) }
 
     // 主题不变时缓存渐变画刷
-    val bgGradient: Brush = remember(playerTheme) {
-        when (playerTheme) {
+    val bgGradient: Brush = remember(currentPlayerTheme) {
+        when (currentPlayerTheme) {
             PlayerTheme.CLASSIC -> Brush.verticalGradient(listOf(PlayerBg, PlayerBgDark))
             PlayerTheme.COVER -> Brush.verticalGradient(listOf(Color(0xFF5C2612), Color(0xFF1F0D06)))
             PlayerTheme.APPLE -> Brush.verticalGradient(
@@ -212,14 +214,14 @@ fun PlayerScreen(
     ) {
         BackgroundImage(
             artworkUrl = song?.artwork,
-            theme = playerTheme,
-            bgBlurDp = bgBlurMode.blurDp,
+            theme = currentPlayerTheme,
+            bgBlurDp = currentBgBlurMode.blurDp,
         )
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(bgGradient, alpha = if (playerTheme == PlayerTheme.CLASSIC) 0.85f else 0.72f)
+                .background(bgGradient, alpha = if (currentPlayerTheme == PlayerTheme.CLASSIC) 0.85f else 0.72f)
         )
 
         // 兜底层：只吞 tap，不碰任何 move 事件
@@ -357,7 +359,7 @@ fun PlayerScreen(
                         },
                         currentTimeMsProvider = { animatedPositionState.longValue },
                         onSeek = onSeek,
-                        fontSizeSp = lyricFontSize.spSize,
+                        fontSizeSp = currentLyricFontSize.spSize,
                         showTranslation = true,
                         isLoading = state.lyricsLoading,
                         onRetryLyric = onReloadLyrics,
@@ -368,7 +370,7 @@ fun PlayerScreen(
                 } else {
                     AnimatedCoverBox(
                         artworkUrl = song?.artwork,
-                        theme = playerTheme,
+                        theme = currentPlayerTheme,
                         isPlaying = state.isPlaying,
                         onNext = onNext,
                         onPrevious = onPrevious,
@@ -427,11 +429,8 @@ fun PlayerScreen(
             sleepRemainingMs = state.sleepRemainingMs,
             onSleepTimer = { minutes -> onSleepTimer(minutes) },
             onCancelSleepTimer = { onCancelSleepTimer() },
-            currentTheme = playerTheme,
-            onThemeSelect = { theme ->
-                playerTheme = theme
-                SettingsStore.setPlayerTheme(theme)
-            },
+            currentTheme = currentPlayerTheme,
+            onThemeSelect = { theme -> onPlayerThemeChange(theme) },
             playMode = state.playMode,
             onTogglePlayMode = onTogglePlayMode,
             onDownload = {
@@ -444,21 +443,12 @@ fun PlayerScreen(
             },
             currentQuality = currentQuality,
             onQualityChange = onQualityChange,
-            currentLyricFontSize = lyricFontSize,
-            onLyricFontSizeChange = {
-                lyricFontSize = it
-                SettingsStore.setLyricFontSize(it)
-            },
-            currentLyricBlurMode = lyricBlurMode,
-            onLyricBlurModeChange = {
-                lyricBlurMode = it
-                SettingsStore.setLyricBlurMode(it)
-            },
-            currentBgBlurMode = bgBlurMode,
-            onBgBlurModeChange = {
-                bgBlurMode = it
-                SettingsStore.setBackgroundBlurMode(it)
-            },
+            currentLyricFontSize = currentLyricFontSize,
+            onLyricFontSizeChange = { onLyricFontSizeChange(it) },
+            currentLyricBlurMode = currentLyricBlurMode,
+            onLyricBlurModeChange = { onLyricBlurModeChange(it) },
+            currentBgBlurMode = currentBgBlurMode,
+            onBgBlurModeChange = { onBgBlurModeChange(it) },
             hazeState = hazeState,
         )
     }

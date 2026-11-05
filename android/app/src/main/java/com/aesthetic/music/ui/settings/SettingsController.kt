@@ -1,7 +1,11 @@
 package com.aesthetic.music.ui.settings
 
+import com.aesthetic.music.data.settings.BackgroundBlurMode
 import com.aesthetic.music.data.settings.DownloadFailurePolicy
 import com.aesthetic.music.data.settings.DownloadNaming
+import com.aesthetic.music.data.settings.LyricBlurMode
+import com.aesthetic.music.data.settings.LyricFontSize
+import com.aesthetic.music.data.settings.PlayerTheme
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.StatusBarMode
@@ -59,6 +63,13 @@ class SettingsController(
     // ===== 主题与外观 =====
     fun setStatusBarMode(mode: StatusBarMode) = update(_prefs.value.copy(statusBarMode = mode))
 
+    // ===== 播放页外观 =====
+    fun setPlayerTheme(theme: PlayerTheme) = update(_prefs.value.copy(playerTheme = theme))
+    fun setLyricFontSize(size: LyricFontSize) = update(_prefs.value.copy(lyricFontSize = size))
+    fun setLyricBlurMode(mode: LyricBlurMode) = update(_prefs.value.copy(lyricBlurMode = mode))
+    fun setBackgroundBlurMode(mode: BackgroundBlurMode) =
+        update(_prefs.value.copy(backgroundBlurMode = mode))
+
     // ===== 播放 =====
     fun setPreloadNext(enabled: Boolean) = update(_prefs.value.copy(preloadNext = enabled))
     fun setCrossFade(enabled: Boolean) = update(_prefs.value.copy(crossFade = enabled))
@@ -81,6 +92,8 @@ class SettingsController(
     // 卡片内容固定为「封面 + 歌名 + 歌手 + 专辑·音质·音源」，没有需要用户调的东西。
 
     // ===== 下载与缓存 =====
+    fun setCacheLimitBytes(bytes: Long) = update(_prefs.value.copy(cacheLimitBytes = bytes))
+
     fun setDownloadWhilePlaying(enabled: Boolean) =
         update(_prefs.value.copy(downloadWhilePlaying = enabled))
 

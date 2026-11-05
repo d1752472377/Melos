@@ -308,7 +308,7 @@ object AudioCacheService {
                 ?: return
             var total = files.sumOf { it.length() }
             // 上限可由用户在「缓存管理」页调整（默认 2GB）
-            val limit = SettingsStore.getCacheLimitBytes()
+            val limit = SettingsStore.readPrefs().cacheLimitBytes
             if (total <= limit) return
             synchronized(indexLock) {
                 val index = getIndexLocked(context)

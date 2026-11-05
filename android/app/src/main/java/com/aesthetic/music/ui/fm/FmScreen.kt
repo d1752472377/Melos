@@ -116,8 +116,8 @@ import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.currentLyricIndex
 
 import com.aesthetic.music.ui.components.SongCover
-import com.aesthetic.music.ui.components.PlaylistEditorResult
-import com.aesthetic.music.ui.components.PlaylistEditorSheet
+import com.aesthetic.music.ui.playlist.PlaylistEditorResult
+import com.aesthetic.music.ui.playlist.PlaylistEditorSheet
 import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.AccentRose

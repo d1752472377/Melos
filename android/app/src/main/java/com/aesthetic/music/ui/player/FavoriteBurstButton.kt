@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.components
+package com.aesthetic.music.ui.player
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing

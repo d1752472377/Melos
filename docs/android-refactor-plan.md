@@ -121,6 +121,15 @@
 - 移动单消费者组件到对应领域包；`ui/components` 只放设计系统与通用工具。
 - 最后再统一按钮/开关等基础控件，先盘点现有样式与重复实现。
 
+#### 阶段 3 执行记录（2026-11-05）
+
+- `UserPrefs` 新增播放页主题、歌词字号、歌词模糊、背景模糊、缓存上限；`SettingsController` 提供对应写入方法。
+- `PlayerScreen`/`PlayerOverlay` 与 `CacheManageScreen` 不再直接读写 `SettingsStore`，改为接收状态与回调；`AudioCacheService.enforceCacheLimit` 改读 `readPrefs().cacheLimitBytes`。
+- 组件归位：`AutoScrollController` 与 `centerItemIndex` 合并到 `ui/player/lyrics`；`viewportCenterY.kt` 中未使用的两个扩展删除；`FavoriteBurstButton` 移到 `ui/player`；`MelosToastHost` 移到 `ui/shell`；`PlaylistEditorSheet` 移到 `ui/playlist`。
+- `assembleDebug` 与 35 个单测通过。
+
+设计 Tokens 与基础按钮/开关的统一**未在本阶段仓促实施**：先按下一步架构复审盘点现有 `Color`/`GlassTokens`/`SettingsKit`/`LiquidGlass*` 与重复样式，再决定最小统一范围，避免把现有混乱封装成更复杂的组件库。
+
 ## 验证要求
 
 - 每个阶段：`./gradlew :app:compileDebugKotlin --offline` + `./gradlew :app:testDebugUnitTest --offline`。

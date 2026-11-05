@@ -25,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableLongStateOf
-import com.aesthetic.music.data.settings.SettingsStore
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -69,6 +68,8 @@ fun CacheManageScreen(
     onClearTemp: () -> Unit,
     onClearAll: () -> Unit,
     onOpenCachedSongs: () -> Unit,
+    /** 当前缓存上限（字节），由 SettingsController 统一持有 */
+    cacheLimitBytes: Long,
     /** 用户修改缓存上限（字节）：保存并立即按新上限清理一次 */
     onCacheLimitChange: (Long) -> Unit = {},
 ) {
@@ -80,7 +81,7 @@ fun CacheManageScreen(
         "4G" to 4L * 1024 * 1024 * 1024,
         "8G" to 8L * 1024 * 1024 * 1024,
     )
-    var cacheLimit by remember { mutableLongStateOf(SettingsStore.getCacheLimitBytes()) }
+    var cacheLimit by remember(cacheLimitBytes) { mutableLongStateOf(cacheLimitBytes) }
 
     SettingsPageScaffold(title = "缓存管理", subtitle = "查看占用并清理本地缓存", onBack = onBack) {
         // ===== 总占用卡片 =====
@@ -167,7 +168,6 @@ fun CacheManageScreen(
                                 .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Stone100)
                                 .clickable {
                                     cacheLimit = bytes
-                                    SettingsStore.setCacheLimitBytes(bytes)
                                     onCacheLimitChange(bytes)
                                 }
                                 .padding(vertical = 8.dp),
@@ -184,9 +184,6 @@ fun CacheManageScreen(
                             )
                         }
                     }
-                }
-                if (cacheLimit != SettingsStore.getCacheLimitBytes()) {
-                    SettingsStore.setCacheLimitBytes(cacheLimit)
                 }
             }
         }

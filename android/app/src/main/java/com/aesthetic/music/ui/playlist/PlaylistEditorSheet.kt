@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.components
+package com.aesthetic.music.ui.playlist
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.PlaylistCoverStore
+import com.aesthetic.music.ui.components.AppBottomSheet
+import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.PrimaryBrown
