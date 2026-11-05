@@ -43,7 +43,7 @@ import kotlinx.coroutines.withContext
  * 从 `MainViewModel` 抽出。这几块之所以放在同一个控制器而不是再拆开，是因为它们强耦合：
  * `scheduleSyncPush()` 被所有 mutator 调用，推送时同时读多组集合，
  * `performCloudSync()` 在同一个 [syncMutex] 内改集合、推进同步基线、并与 [StatsTracker] 的待发事件交错——
- * 拆开会改变"先拉后推 / 基线推进 / 事件重放"的顺序。`MainViewModel` 保留同名只读委托。
+ * 拆开会改变"先拉后推 / 基线推进 / 事件重放"的顺序。由对应 Destination 直接依赖本控制器。
  *
  * 同步的纯逻辑在 `data/sync/`（[SyncPlan] 差分与基线、[SyncMapper] 字段与键、[SyncStateStore] 账号级状态），
  * 本类只做编排：取本地数据 → 调接口 → 写回本地。

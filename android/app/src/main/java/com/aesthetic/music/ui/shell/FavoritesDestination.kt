@@ -3,20 +3,23 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.favorites.FavoritesScreen
+import com.aesthetic.music.ui.library.LibraryController
 
 /** 我的收藏页 */
 @Composable
 fun FavoritesDestination(
-    viewModel: MainViewModel,
+    library: LibraryController,
     nav: ShellNav,
     actions: ShellActions,
     playerManager: PlayerManager,
+    onPageBackground: (Color?, Boolean) -> Unit,
+    onOpenPlayer: () -> Unit,
 ) {
-    val favoriteSongs by viewModel.favoriteSongs.collectAsState()
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
+    val favoriteSongs by library.favoriteSongs.collectAsState()
+    val myPlaylists by library.myPlaylists.collectAsState()
     val playerState by playerManager.state.collectAsState()
     val songActions = rememberSongActionsState()
 
@@ -25,7 +28,7 @@ fun FavoritesDestination(
         currentSong = playerState.currentSong,
         isPlaying = playerState.isPlaying,
         onBack = {
-            viewModel.updatePageBackground(null, false)
+            onPageBackground(null, false)
             nav.popBack()
         },
         onPlaySong = { song, list -> actions.playSong(song, list) },
@@ -35,14 +38,15 @@ fun FavoritesDestination(
 
     SongActionsHost(
         state = songActions,
-        viewModel = viewModel,
+        library = library,
+        actions = actions,
         playerManager = playerManager,
         myPlaylists = myPlaylists,
         onViewCard = { song ->
             val cur = playerState.currentSong
             val isCurrent = cur != null && cur.id == song.id && cur.platform == song.platform
             if (!isCurrent) actions.playSong(song, favoriteSongs)
-            viewModel.openPlayer()
+            onOpenPlayer()
         },
     )
 }

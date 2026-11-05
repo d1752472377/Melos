@@ -4,33 +4,42 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.ui.AppTab
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.account.AuthController
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.navigation.ScreenRoute
+import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.profile.ProfileScreen
+import com.aesthetic.music.ui.source.SourceController
 
 /** 我的 / 个人中心 Tab */
 @Composable
 fun ProfileTabDestination(
-    viewModel: MainViewModel,
+    profile: ProfileController,
+    library: LibraryController,
+    sources: SourceController,
+    auth: AuthController,
+    localStats: LocalStats,
+    isCheckingUpdate: Boolean,
+    onCheckUpdate: () -> Unit,
     nav: ShellNav,
     actions: ShellActions,
     cacheState: CacheState,
 ) {
     val context = LocalContext.current
-    val history by viewModel.history.collectAsState()
-    val favorites by viewModel.favorites.collectAsState()
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
-    val localStats by viewModel.localStats.collectAsState()
-    val sourcePlugins by viewModel.sourcePlugins.collectAsState()
-    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
-    val profileNickname by viewModel.profileNickname.collectAsState()
-    val profileAvatar by viewModel.profileAvatar.collectAsState()
-    val profileBackground by viewModel.profileBackground.collectAsState()
-    val isProfileBgBlur by viewModel.isProfileBgBlur.collectAsState()
-    val profileUserId by viewModel.profileUserId.collectAsState()
-    val profileUsername by viewModel.profileUsername.collectAsState()
-    val profileCreatedAt by viewModel.profileCreatedAt.collectAsState()
+    val history by library.history.collectAsState()
+    val favorites by library.favorites.collectAsState()
+    val myPlaylists by library.myPlaylists.collectAsState()
+    val sourcePlugins by sources.plugins.collectAsState()
+    val profileNickname by profile.profileNickname.collectAsState()
+    val profileAvatar by profile.profileAvatar.collectAsState()
+    val profileBackground by profile.profileBackground.collectAsState()
+    val isProfileBgBlur by profile.isProfileBgBlur.collectAsState()
+    val profileUserId by profile.profileUserId.collectAsState()
+    val profileUsername by profile.username.collectAsState()
+    val profileCreatedAt by profile.createdAt.collectAsState()
+
     ProfileScreen(
         nickname = profileNickname,
         userId = profileUserId,
@@ -66,12 +75,12 @@ fun ProfileTabDestination(
         onOpenEqualizer = { nav.navigate(ScreenRoute.Equalizer.route) },
         onOpenSettings = { nav.navigate(ScreenRoute.Settings.route) },
         onOpenPluginManage = { nav.navigate(ScreenRoute.PluginManage.route) },
-        onUpdateAvatar = { path -> viewModel.setProfileAvatar(path) },
-        onUpdateBackground = { path -> viewModel.setProfileBackground(path) },
-        onToggleBgBlur = { viewModel.toggleProfileBgBlur() },
-        onRestoreDefaults = { viewModel.restoreProfileDefaults(context) },
-        onLogout = { viewModel.logout() },
-        onCheckUpdate = { viewModel.checkForUpdate(manual = true) },
+        onUpdateAvatar = { path -> profile.setProfileAvatar(path) },
+        onUpdateBackground = { path -> profile.setProfileBackground(path) },
+        onToggleBgBlur = { profile.toggleProfileBgBlur() },
+        onRestoreDefaults = { profile.restoreProfileDefaults(context) },
+        onLogout = { auth.logout() },
+        onCheckUpdate = onCheckUpdate,
         isCheckingUpdate = isCheckingUpdate,
         onShowToast = actions.toast,
     )

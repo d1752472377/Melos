@@ -3,18 +3,23 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.account.AuthController
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.profile.CloudManageScreen
 
 /** 账号与云端同步页 */
 @Composable
-fun CloudManageDestination(viewModel: MainViewModel, nav: ShellNav) {
-    val lastSyncedAt by viewModel.lastSyncedAt.collectAsState()
-    val lastSyncStatus by viewModel.lastSyncStatus.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
-    val user by viewModel.currentUser.collectAsState()
-    val sessions by viewModel.loginSessions.collectAsState()
-    val isLoadingSessions by viewModel.isLoadingSessions.collectAsState()
+fun CloudManageDestination(
+    auth: AuthController,
+    library: LibraryController,
+    nav: ShellNav,
+) {
+    val lastSyncedAt by library.lastSyncedAt.collectAsState()
+    val lastSyncStatus by library.lastSyncStatus.collectAsState()
+    val isSyncing by library.isSyncing.collectAsState()
+    val user by auth.user.collectAsState()
+    val sessions by auth.sessions.collectAsState()
+    val isLoadingSessions by auth.isLoadingSessions.collectAsState()
 
     CloudManageScreen(
         user = user,
@@ -24,10 +29,10 @@ fun CloudManageDestination(viewModel: MainViewModel, nav: ShellNav) {
         lastSyncStatus = lastSyncStatus,
         isSyncing = isSyncing,
         onBack = nav.popBack,
-        onLoadSessions = { viewModel.loadLoginSessions() },
-        onRevokeSession = { viewModel.revokeLoginSession(it) },
-        onLogout = { viewModel.logout() },
-        onLogoutAll = { viewModel.logoutAllDevices() },
-        onPerformSync = { viewModel.performCloudSync() },
+        onLoadSessions = { auth.loadSessions() },
+        onRevokeSession = { auth.revokeSession(it) },
+        onLogout = { auth.logout() },
+        onLogoutAll = { auth.logoutAll() },
+        onPerformSync = { library.performCloudSync() },
     )
 }

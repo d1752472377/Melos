@@ -49,10 +49,10 @@ class MainActivity : ComponentActivity() {
             applyThemeMode(SettingsStore.getThemeMode(), isSystemInDarkTheme())
             AestheticMusicTheme {
                 val viewModel: MainViewModel = viewModel()
-                val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+                val isLoggedIn by viewModel.auth.isLoggedIn.collectAsState()
 
                 if (!isLoggedIn) {
-                    AuthScreen(viewModel = viewModel)
+                    AuthScreen(auth = viewModel.auth)
                 } else {
                     val playerManager = PlayerManager.get(this)
                     AppShell(viewModel = viewModel, playerManager = playerManager)

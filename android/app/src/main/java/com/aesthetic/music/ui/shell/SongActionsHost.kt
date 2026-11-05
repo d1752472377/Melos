@@ -6,11 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.SongActionSheet
 
@@ -60,30 +59,29 @@ fun rememberSongActionsState(): SongActionsState = remember { SongActionsState()
 @Composable
 fun SongActionsHost(
     state: SongActionsState,
-    viewModel: MainViewModel,
+    library: LibraryController,
     playerManager: PlayerManager,
     myPlaylists: List<MyPlaylist>,
+    actions: ShellActions,
     onViewCard: ((Song) -> Unit)? = null,
     onRemove: ((Song) -> Unit)? = null,
     removeLabel: String = "移除",
 ) {
-    val context = LocalContext.current
-
     state.actionSong?.let { song ->
         SongActionSheet(
             song = song,
-            isFavorite = viewModel.isFavorite(song),
+            isFavorite = library.isFavorite(song),
             onDismiss = state::dismissActions,
-            onToggleFavorite = { viewModel.toggleFavorite(song) },
+            onToggleFavorite = { library.toggleFavorite(song) },
             onPlayNext = {
                 playerManager.playNext(song)
-                viewModel.showToast("已设为下一首播放")
+                actions.toast("已设为下一首播放")
             },
             onAddToQueue = {
                 playerManager.addToQueue(song)
-                viewModel.showToast("已加入播放队列")
+                actions.toast("已加入播放队列")
             },
-            onDownload = { viewModel.downloadSong(context, song) },
+            onDownload = { actions.downloadSong(song) },
             onAddToPlaylist = { state.showAddToPlaylist(song) },
             onViewCard = onViewCard?.let { callback -> { callback(song) } },
             onRemove = onRemove?.let { callback -> { callback(song) } },
@@ -97,14 +95,14 @@ fun SongActionsHost(
             myPlaylists = myPlaylists,
             onDismiss = state::dismissAddToPlaylist,
             onSelectPlaylist = { playlistId ->
-                viewModel.addSongsToPlaylist(playlistId, listOf(song))
+                library.addSongsToPlaylist(playlistId, listOf(song))
                 val target = myPlaylists.firstOrNull { it.id == playlistId }
-                viewModel.showToast("已添加到「${target?.name ?: "歌单"}」")
+                actions.toast("已添加到「${target?.name ?: "歌单"}」")
                 state.dismissAddToPlaylist()
             },
             onCreateAndAdd = { newName ->
-                viewModel.createPlaylist(newName, listOf(song))
-                viewModel.showToast("已创建并加入「$newName」")
+                library.createPlaylist(newName, listOf(song))
+                actions.toast("已创建并加入「$newName」")
                 state.dismissAddToPlaylist()
             },
         )

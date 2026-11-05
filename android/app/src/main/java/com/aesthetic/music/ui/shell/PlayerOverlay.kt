@@ -13,21 +13,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.player.PlayerState
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.artist.ArtistRef
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.player.PlayerScreen
+import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
+import com.aesthetic.music.ui.settings.SettingsController
 import dev.chrisbanes.haze.HazeState
 
 /**
  * 全屏播放器浮层（非 NavHost 路由，覆盖在整壳之上）。
  *
- * ## 为什么 [favoriteKeys] 要从外面传进来（而不是在内部调 `viewModel.isFavorite`）
- * `viewModel.isFavorite(song)` 读的是 `StateFlow.value`，**不是 Compose 状态**：
+ * ## 为什么 [favoriteKeys] 要从外面传进来（而不是在内部调 `library.isFavorite`）
+ * `library.isFavorite(song)` 读的是 `StateFlow.value`，**不是 Compose 状态**：
  * 收藏/取消收藏不会触发这里重组，于是心形图标永远不变——用户看到的就是
  * 「点了喜欢没反应」。把已收藏的 key 集合作为参数传进来（由 AppShell 用
  * `collectAsState()` 订阅），收藏变化才会真正引起重组。
@@ -37,15 +39,19 @@ fun PlayerOverlay(
     visible: Boolean,
     playerState: PlayerState,
     playerManager: PlayerManager,
-    viewModel: MainViewModel,
+    library: LibraryController,
+    artist: ArtistController,
+    search: SearchController,
+    settings: SettingsController,
     nav: ShellNav,
+    actions: ShellActions,
+    onClose: () -> Unit,
     /** 已收藏歌曲的 `platform:id` 集合（Compose 状态，收藏变化会触发重组） */
     favoriteKeys: Set<String> = emptySet(),
     hazeState: HazeState? = null,
 ) {
-    val context = LocalContext.current
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
-    val quality by viewModel.quality.collectAsState()
+    val myPlaylists by library.myPlaylists.collectAsState()
+    val quality by settings.quality.collectAsState()
     val songActions = rememberSongActionsState()
 
     AnimatedVisibility(
@@ -70,14 +76,14 @@ fun PlayerOverlay(
                 state = playerState,
                 progressFlow = playerManager.progress,
                 isFavorite = { song -> "${song.platform}:${song.id}" in favoriteKeys },
-                onClose = { viewModel.closePlayer() },
+                onClose = onClose,
                 onToggle = playerManager::toggle,
                 onNext = playerManager::next,
                 onPrevious = playerManager::previous,
                 onSeek = playerManager::seekTo,
                 onSeekToLyric = playerManager::seekToLyric,
                 onTogglePlayMode = playerManager::togglePlayMode,
-                onToggleFavorite = { song -> viewModel.toggleFavorite(song) },
+                onToggleFavorite = { song -> library.toggleFavorite(song) },
                 onPlayQueueItem = playerManager::playQueueItem,
                 onRemoveFromQueue = playerManager::removeFromQueue,
                 onMoveQueueItem = playerManager::moveQueueItem,
@@ -87,16 +93,16 @@ fun PlayerOverlay(
                 currentQuality = quality,
                 onQualityChange = { level ->
                     // 两件事必须一起做：落设置（设置页同步）+ 就地按新音质重播
-                    viewModel.setQuality(level)
+                    settings.setQuality(level)
                     playerManager.reloadCurrentForQuality()
                 },
                 onSpeedChange = playerManager::setSpeed,
                 onSleepTimer = playerManager::startSleepTimer,
                 onCancelSleepTimer = playerManager::cancelSleepTimer,
                 onArtistClick = { artistName, artistId, platform ->
-                    viewModel.closePlayer()
+                    onClose()
                     if (!artistId.isNullOrBlank()) {
-                        viewModel.openArtist(
+                        artist.open(
                             ArtistRef(
                                 platform = platform ?: "netease",
                                 id = artistId,
@@ -105,15 +111,15 @@ fun PlayerOverlay(
                         )
                         nav.navigate(ScreenRoute.ArtistDetail.route)
                     } else {
-                        viewModel.onSearchQueryChanged(artistName)
-                        viewModel.setSearchType(SearchType.ARTIST)
-                        viewModel.submitSearch(artistName)
+                        search.onQueryChanged(artistName)
+                        search.setType(SearchType.ARTIST)
+                        search.submit(artistName)
                         nav.navigate(ScreenRoute.Search.route)
                     }
                 },
                 onDownload = {
                     playerState.currentSong?.let { song ->
-                        viewModel.downloadSong(context, song)
+                        actions.downloadSong(song)
                     }
                 },
                 onAddToPlaylist = { song ->
@@ -124,9 +130,10 @@ fun PlayerOverlay(
 
             SongActionsHost(
                 state = songActions,
-                viewModel = viewModel,
+                library = library,
                 playerManager = playerManager,
                 myPlaylists = myPlaylists,
+                actions = actions,
             )
         }
     }

@@ -59,7 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.R
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.account.AuthController
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
@@ -98,7 +98,7 @@ private enum class LoginMode {
  * 5. 全流程开箱即用，无任何服务器配置冗杂输入。
  */
 @Composable
-fun AuthScreen(viewModel: MainViewModel) {
+fun AuthScreen(auth: AuthController) {
     var activeTab by remember { mutableStateOf(AuthTab.LOGIN) }
     var loginMode by remember { mutableStateOf(LoginMode.PASSWORD) }
 
@@ -119,10 +119,10 @@ fun AuthScreen(viewModel: MainViewModel) {
     var agreedToTerms by remember { mutableStateOf(true) }
 
     // 观察 ViewModel 状态
-    val isBusy by viewModel.isAuthBusy.collectAsState()
-    val authError by viewModel.authError.collectAsState()
-    val codeCountdown by viewModel.codeCountdown.collectAsState()
-    val isSendingCode by viewModel.isSendingCode.collectAsState()
+    val isBusy by auth.isBusy.collectAsState()
+    val authError by auth.error.collectAsState()
+    val codeCountdown by auth.codeCountdown.collectAsState()
+    val isSendingCode by auth.isSendingCode.collectAsState()
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -192,7 +192,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                             .clickable {
                                 if (activeTab != AuthTab.LOGIN) {
                                     activeTab = AuthTab.LOGIN
-                                    viewModel.clearAuthError()
+                                    auth.clearError()
                                 }
                             }
                             .padding(vertical = 8.dp),
@@ -217,7 +217,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                             .clickable {
                                 if (activeTab != AuthTab.REGISTER) {
                                     activeTab = AuthTab.REGISTER
-                                    viewModel.clearAuthError()
+                                    auth.clearError()
                                 }
                             }
                             .padding(vertical = 8.dp),
@@ -261,7 +261,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                 value = loginAccount,
                                 onValueChange = {
                                     loginAccount = it
-                                    if (authError != null) viewModel.clearAuthError()
+                                    if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 placeholder = { Text("输入用户名或绑定的邮箱", color = TextMuted, fontSize = 14.sp) },
@@ -288,7 +288,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                 value = loginPassword,
                                 onValueChange = {
                                     loginPassword = it
-                                    if (authError != null) viewModel.clearAuthError()
+                                    if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 placeholder = { Text("输入登录密码", color = TextMuted, fontSize = 14.sp) },
@@ -330,7 +330,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                         .clip(RoundedCornerShape(4.dp))
                                         .clickable {
                                             loginMode = LoginMode.EMAIL_CODE
-                                            viewModel.clearAuthError()
+                                            auth.clearError()
                                         }
                                         .padding(4.dp),
                                 )
@@ -347,7 +347,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                 value = loginEmail,
                                 onValueChange = {
                                     loginEmail = it
-                                    if (authError != null) viewModel.clearAuthError()
+                                    if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 placeholder = { Text("输入注册/绑定的邮箱", color = TextMuted, fontSize = 14.sp) },
@@ -380,7 +380,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                     value = loginCode,
                                     onValueChange = {
                                         if (it.length <= 6) loginCode = it
-                                        if (authError != null) viewModel.clearAuthError()
+                                        if (authError != null) auth.clearError()
                                     },
                                     modifier = Modifier.weight(1f),
                                     placeholder = { Text("6 位数字", color = TextMuted, fontSize = 14.sp) },
@@ -401,7 +401,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                         .background(if (codeCountdown > 0 || isSendingCode) Stone100 else SurfaceSoft)
                                         .border(1.dp, if (codeCountdown > 0 || isSendingCode) Stone200 else PrimaryBrown, RoundedCornerShape(14.dp))
                                         .clickable(enabled = codeCountdown <= 0 && !isSendingCode) {
-                                            viewModel.sendCode(loginEmail, scene = "login")
+                                            auth.sendCode(loginEmail, scene = "login")
                                         }
                                         .padding(horizontal = 14.dp),
                                     contentAlignment = Alignment.Center,
@@ -433,7 +433,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                         .clip(RoundedCornerShape(4.dp))
                                         .clickable {
                                             loginMode = LoginMode.PASSWORD
-                                            viewModel.clearAuthError()
+                                            auth.clearError()
                                         }
                                         .padding(4.dp),
                                 )
@@ -474,9 +474,9 @@ fun AuthScreen(viewModel: MainViewModel) {
                                 )
                                 .clickable(enabled = !isBusy) {
                                     if (loginMode == LoginMode.PASSWORD) {
-                                        viewModel.login(loginAccount, loginPassword)
+                                        auth.login(loginAccount, loginPassword)
                                     } else {
-                                        viewModel.emailLogin(loginEmail, loginCode)
+                                        auth.emailLogin(loginEmail, loginCode)
                                     }
                                 },
                             contentAlignment = Alignment.Center,
@@ -504,7 +504,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                             value = regEmail,
                             onValueChange = {
                                 regEmail = it
-                                if (authError != null) viewModel.clearAuthError()
+                                if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("输入您的真实邮箱地址", color = TextMuted, fontSize = 14.sp) },
@@ -538,7 +538,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                 value = regCode,
                                 onValueChange = {
                                     if (it.length <= 6) regCode = it
-                                    if (authError != null) viewModel.clearAuthError()
+                                    if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.weight(1f),
                                 placeholder = { Text("6 位数字验证码", color = TextMuted, fontSize = 14.sp) },
@@ -558,7 +558,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                     .background(if (codeCountdown > 0 || isSendingCode) Stone100 else SurfaceSoft)
                                     .border(1.dp, if (codeCountdown > 0 || isSendingCode) Stone200 else PrimaryBrown, RoundedCornerShape(14.dp))
                                     .clickable(enabled = codeCountdown <= 0 && !isSendingCode) {
-                                        viewModel.sendCode(regEmail, scene = "register")
+                                        auth.sendCode(regEmail, scene = "register")
                                     }
                                     .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.Center,
@@ -588,7 +588,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                             value = regUsername,
                             onValueChange = {
                                 regUsername = it
-                                if (authError != null) viewModel.clearAuthError()
+                                if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("2-20 位（字母/数字/中文/下划线）", color = TextMuted, fontSize = 14.sp) },
@@ -616,7 +616,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                             value = regPassword,
                             onValueChange = {
                                 regPassword = it
-                                if (authError != null) viewModel.clearAuthError()
+                                if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("5-64 位密码", color = TextMuted, fontSize = 14.sp) },
@@ -656,7 +656,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                             value = regNickname,
                             onValueChange = {
                                 regNickname = it
-                                if (authError != null) viewModel.clearAuthError()
+                                if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("展示在个人主页的昵称", color = TextMuted, fontSize = 14.sp) },
@@ -730,7 +730,7 @@ fun AuthScreen(viewModel: MainViewModel) {
                                     else Brush.horizontalGradient(listOf(PrimaryGradientStart, PrimaryGradientEnd))
                                 )
                                 .clickable(enabled = !isBusy && agreedToTerms) {
-                                    viewModel.register(
+                                    auth.register(
                                         username = regUsername,
                                         password = regPassword,
                                         email = regEmail,

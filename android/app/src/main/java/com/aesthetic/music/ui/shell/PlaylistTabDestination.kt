@@ -3,38 +3,44 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.aesthetic.music.ui.MainViewModel
+import androidx.compose.ui.platform.LocalContext
+import com.aesthetic.music.ui.library.LibraryController
+import com.aesthetic.music.ui.library.PlaylistImportController
 import com.aesthetic.music.ui.navigation.ScreenRoute
+import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.playlist.PlaylistScreen
 
 /** 歌单广场 Tab */
 @Composable
 fun PlaylistTabDestination(
-    viewModel: MainViewModel,
+    library: LibraryController,
+    playlistImport: PlaylistImportController,
+    playlistDetail: PlaylistDetailController,
     nav: ShellNav,
     actions: ShellActions,
+    onOpenImportDialog: () -> Unit,
 ) {
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
-    val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
-    val importPreview by viewModel.playlistImportPreview.collectAsState()
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val myPlaylists by library.myPlaylists.collectAsState()
+    val favoritePlaylists by library.favoritePlaylists.collectAsState()
+    val importPreview by playlistImport.preview.collectAsState()
+    val context = LocalContext.current
 
     PlaylistScreen(
         myPlaylists = myPlaylists,
         favoritePlaylists = favoritePlaylists,
         onOpenMyPlaylist = { id ->
-            viewModel.openMyPlaylist(id)
+            library.myPlaylist(id)?.let(playlistDetail::showLocalPlaylist)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
         onOpenPlaylistDetail = { pl ->
-            viewModel.openPlaylistDetail(pl)
+            playlistDetail.open(pl)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
         importPreview = importPreview,
-        onResolveImport = viewModel::resolvePlaylistImportPreview,
-        onClearImport = viewModel::clearPlaylistImportPreview,
+        onResolveImport = playlistImport::resolveForPreview,
+        onClearImport = playlistImport::clearPreview,
         onCreatePlaylist = { result ->
-            val id = viewModel.createPlaylist(
+            val id = library.createPlaylist(
                 name = result.name,
                 initialSongs = result.importedSongs,
                 cover = result.cover,
@@ -53,24 +59,23 @@ fun PlaylistTabDestination(
             }
         },
         onEditPlaylist = { id, result ->
-            viewModel.updatePlaylistInfo(id, name = result.name, cover = result.cover)
+            library.updatePlaylistInfo(id, name = result.name, cover = result.cover)
             actions.toast("歌单信息已更新")
         },
-        onDeletePlaylist = viewModel::deletePlaylist,
-        onOpenImport = { viewModel.openImportDialog() },
+        onDeletePlaylist = library::deletePlaylist,
+        onOpenImport = onOpenImportDialog,
         onPlayPlaylist = { songs -> actions.playAll(songs) },
         onToast = actions.toast,
         onSharePlaylist = { name, subtitle ->
-            val ctx = context
             val text = "歌单《$name》 · $subtitle" + "\n" + "—— 来自 Melos"
             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(android.content.Intent.EXTRA_SUBJECT, name)
                 putExtra(android.content.Intent.EXTRA_TEXT, text)
             }
-            ctx.startActivity(android.content.Intent.createChooser(intent, "分享歌单"))
+            context.startActivity(android.content.Intent.createChooser(intent, "分享歌单"))
         },
-        onRefreshFavorite = { item -> viewModel.refreshFavoritePlaylist(item) },
-        onRemoveFavorite = { item -> viewModel.toggleFavoritePlaylist(item) },
+        onRefreshFavorite = library::refreshFavoritePlaylist,
+        onRemoveFavorite = library::toggleFavoritePlaylist,
     )
 }

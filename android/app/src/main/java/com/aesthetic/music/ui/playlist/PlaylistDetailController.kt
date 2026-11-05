@@ -4,6 +4,7 @@ import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.data.settings.MyPlaylist
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +17,7 @@ import kotlinx.coroutines.launch
  * 从 `MainViewModel` 抽出：只依赖 [MusicRepository]，用请求令牌防止快速连开两个歌单时旧响应串台。
  * 加载失败写入 [error] 由详情页内联展示；"导入外部歌单"已改由 [com.aesthetic.music.ui.library.PlaylistImportController]
  * 落成真正的本地歌单，不再借道这里的临时详情页。
- * `MainViewModel` 保留同名只读委托。
+ * 由对应 Destination 直接依赖本控制器。
  */
 class PlaylistDetailController(
     private val repository: MusicRepository,
@@ -85,12 +86,26 @@ class PlaylistDetailController(
         }
     }
 
-    /** 直接展示本地数据（我的歌单），不发起网络请求；bump 令牌使在途请求作废 */
+    /** 直接展示本地歌单（我的歌单），不发起网络请求；bump 令牌使在途请求作废 */
     fun showLocal(item: PlaylistItem, songs: List<Song>) {
         ++requestId
         _error.value = null
         _songs.value = songs
         _showDetail.value = item
+    }
+
+    /** 直接展示「我的歌单」：把本地歌单模型转换成详情页需要的 PlaylistItem */
+    fun showLocalPlaylist(playlist: MyPlaylist) {
+        showLocal(
+            item = PlaylistItem(
+                id = playlist.id,
+                name = playlist.name,
+                coverUrl = playlist.coverUrl,
+                trackCount = playlist.songs.size.toLong(),
+                platform = "local",
+            ),
+            songs = playlist.songs,
+        )
     }
 
     fun close() {

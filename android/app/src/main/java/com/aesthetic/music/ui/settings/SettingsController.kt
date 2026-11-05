@@ -2,10 +2,13 @@ package com.aesthetic.music.ui.settings
 
 import com.aesthetic.music.data.settings.DownloadFailurePolicy
 import com.aesthetic.music.data.settings.DownloadNaming
+import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.StatusBarMode
 import com.aesthetic.music.data.settings.StatsStore
+import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.data.settings.UserPrefs
+import com.aesthetic.music.ui.theme.applyThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +30,24 @@ class SettingsController(
 
     private val _prefs = MutableStateFlow(SettingsStore.readPrefs())
     val prefs: StateFlow<UserPrefs> = _prefs.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(SettingsStore.getThemeMode())
+    val themeMode = _themeMode.asStateFlow()
+
+    private val _quality = MutableStateFlow(SettingsStore.getQuality())
+    val quality = _quality.asStateFlow()
+
+    /** 主题模式：立即落盘并按当前系统深浅应用一次 */
+    fun setThemeMode(mode: ThemeMode, systemDark: Boolean) {
+        _themeMode.value = mode
+        SettingsStore.setThemeMode(mode)
+        applyThemeMode(mode, systemDark)
+    }
+
+    fun setQuality(level: QualityLevel) {
+        _quality.value = level
+        SettingsStore.setQuality(level)
+    }
 
     private fun update(next: UserPrefs) {
         if (next == _prefs.value) return

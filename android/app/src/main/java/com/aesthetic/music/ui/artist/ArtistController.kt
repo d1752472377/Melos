@@ -23,7 +23,7 @@ data class ArtistRef(
  * 歌手页控制器：定位信息 + 详情拉取 + 全量歌曲拉取。
  *
  * 从 `MainViewModel` 抽出：只依赖 [MusicRepository]，用请求令牌防止快速切换歌手时旧响应覆盖。
- * `MainViewModel` 保留同名只读委托。
+ * 由对应 Destination 直接依赖本控制器。
  */
 class ArtistController(
     private val repository: MusicRepository,

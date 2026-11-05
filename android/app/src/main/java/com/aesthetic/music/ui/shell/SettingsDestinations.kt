@@ -7,120 +7,141 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.settings.AppearanceSettingsScreen
 import com.aesthetic.music.ui.settings.CacheClearConfirmDialog
 import com.aesthetic.music.ui.settings.CacheManageScreen
 import com.aesthetic.music.ui.settings.DownloadSettingsScreen
 import com.aesthetic.music.ui.settings.LyricSettingsScreen
-import com.aesthetic.music.ui.settings.SettingsScreen
 import com.aesthetic.music.ui.settings.PlaybackSettingsScreen
 import com.aesthetic.music.ui.settings.QualitySettingsScreen
+import com.aesthetic.music.ui.settings.SettingsController
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
- * 设置子页面（主题与外观 / 音质 / 播放 / 歌词 / 下载 / 缓存 / 音源插件）的目的地。
+ * 设置子页面（主题与外观 / 音质 / 播放 / 歌词 / 下载 / 缓存）的目的地。
  *
- * 这些页面集中在一个文件：它们的职责都是"绑定 MainViewModel 的 SettingsController + 返回"，
+ * 这些页面集中在一个文件：它们的职责都是"绑定 [SettingsController] + 返回"，
  * 每个页面单独一个文件只会制造一份份同样的样板。页面本身在 ui/settings/ 下各自独立。
- * （原「媒体卡片」页已删除，卡片没有可配置项。） */
+ */
 
 /** 主题与外观 */
 @Composable
-fun SettingsAppearanceDestination(viewModel: MainViewModel, nav: ShellNav) {
+fun SettingsAppearanceDestination(
+    settings: SettingsController,
+    nav: ShellNav,
+    onPageBackground: (Color?, Boolean) -> Unit,
+) {
     // 选「自动」时需要立刻按当前系统深浅应用一次，否则要等系统切换才生效
     val systemDark = isSystemInDarkTheme()
-    val themeMode by viewModel.themeMode.collectAsState()
-    val userPrefs by viewModel.settings.prefs.collectAsState()
+    val themeMode by settings.themeMode.collectAsState()
+    val userPrefs by settings.prefs.collectAsState()
     AppearanceSettingsScreen(
         themeMode = themeMode,
         statusBarMode = userPrefs.statusBarMode,
         onBack = {
-            viewModel.updatePageBackground(null, false)
+            onPageBackground(null, false)
             nav.popBack()
         },
-        onThemeModeChange = { mode -> viewModel.setThemeMode(mode, systemDark) },
-        onStatusBarModeChange = viewModel.settings::setStatusBarMode,
+        onThemeModeChange = { mode -> settings.setThemeMode(mode, systemDark) },
+        onStatusBarModeChange = settings::setStatusBarMode,
     )
 }
 
 /** 音质 */
 @Composable
-fun SettingsQualityDestination(viewModel: MainViewModel, nav: ShellNav) {
-    val quality by viewModel.quality.collectAsState()
+fun SettingsQualityDestination(
+    settings: SettingsController,
+    nav: ShellNav,
+    onPageBackground: (Color?, Boolean) -> Unit,
+) {
+    val quality by settings.quality.collectAsState()
     QualitySettingsScreen(
         quality = quality,
         onBack = {
-            viewModel.updatePageBackground(null, false)
+            onPageBackground(null, false)
             nav.popBack()
         },
-        onQualityChange = viewModel::setQuality,
+        onQualityChange = settings::setQuality,
     )
 }
 
 /** 播放设置 */
 @Composable
-fun SettingsPlaybackDestination(viewModel: MainViewModel, nav: ShellNav) {
-    val prefs by viewModel.settings.prefs.collectAsState()
+fun SettingsPlaybackDestination(
+    settings: SettingsController,
+    nav: ShellNav,
+    onPageBackground: (Color?, Boolean) -> Unit,
+) {
+    val prefs by settings.prefs.collectAsState()
     PlaybackSettingsScreen(
         prefs = prefs,
         onBack = {
-            viewModel.updatePageBackground(null, false)
+            onPageBackground(null, false)
             nav.popBack()
         },
-        onPreloadNextChange = viewModel.settings::setPreloadNext,
-        onCrossFadeChange = viewModel.settings::setCrossFade,
-        onResumeAfterInterruptChange = viewModel.settings::setResumeAfterInterrupt,
-        onMixWithOthersChange = viewModel.settings::setMixWithOthers,
+        onPreloadNextChange = settings::setPreloadNext,
+        onCrossFadeChange = settings::setCrossFade,
+        onResumeAfterInterruptChange = settings::setResumeAfterInterrupt,
+        onMixWithOthersChange = settings::setMixWithOthers,
     )
 }
 
 /** 歌词显示 */
 @Composable
-fun SettingsLyricsDestination(viewModel: MainViewModel, nav: ShellNav) {
-    val prefs by viewModel.settings.prefs.collectAsState()
+fun SettingsLyricsDestination(
+    settings: SettingsController,
+    nav: ShellNav,
+    onPageBackground: (Color?, Boolean) -> Unit,
+) {
+    val prefs by settings.prefs.collectAsState()
     LyricSettingsScreen(
         prefs = prefs,
         onBack = {
-            viewModel.updatePageBackground(null, false)
+            onPageBackground(null, false)
             nav.popBack()
         },
-        onTranslationChange = viewModel.settings::setLyricTranslation,
-        onRomanizationChange = viewModel.settings::setLyricRomanization,
-        onOnlineChange = viewModel.settings::setLyricOnline,
-        onLocalChange = viewModel.settings::setLyricLocal,
+        onTranslationChange = settings::setLyricTranslation,
+        onRomanizationChange = settings::setLyricRomanization,
+        onOnlineChange = settings::setLyricOnline,
+        onLocalChange = settings::setLyricLocal,
     )
 }
 
 /** 下载设置 */
 @Composable
-fun SettingsDownloadDestination(viewModel: MainViewModel, nav: ShellNav) {
-    val prefs by viewModel.settings.prefs.collectAsState()
+fun SettingsDownloadDestination(
+    settings: SettingsController,
+    nav: ShellNav,
+    onPageBackground: (Color?, Boolean) -> Unit,
+) {
+    val prefs by settings.prefs.collectAsState()
     DownloadSettingsScreen(
         prefs = prefs,
         onBack = {
-            viewModel.updatePageBackground(null, false)
+            onPageBackground(null, false)
             nav.popBack()
         },
-        onWhilePlayingChange = viewModel.settings::setDownloadWhilePlaying,
-        onNamingChange = viewModel.settings::setDownloadNaming,
-        onCoverLyricsChange = viewModel.settings::setDownloadCoverLyrics,
-        onFailurePolicyChange = viewModel.settings::setDownloadFailurePolicy,
-        onWifiOnlyChange = viewModel.settings::setDownloadWifiOnly,
+        onWhilePlayingChange = settings::setDownloadWhilePlaying,
+        onNamingChange = settings::setDownloadNaming,
+        onCoverLyricsChange = settings::setDownloadCoverLyrics,
+        onFailurePolicyChange = settings::setDownloadFailurePolicy,
+        onWifiOnlyChange = settings::setDownloadWifiOnly,
     )
 }
 
 /** 缓存管理（占用统计 + 分类清理 + 抽屉明细） */
 @Composable
 fun SettingsCacheDestination(
-    viewModel: MainViewModel,
     nav: ShellNav,
     cacheState: CacheState,
     scope: CoroutineScope,
+    onPageBackground: (Color?, Boolean) -> Unit,
+    onToast: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val manage = rememberCacheManageState(context, scope)
@@ -134,7 +155,7 @@ fun SettingsCacheDestination(
         cachedSongCount = manage.cachedSongCount,
         showDetail = manage.showDetail,
         onBack = {
-            viewModel.updatePageBackground(null, false)
+            onPageBackground(null, false)
             nav.popBack()
         },
         onOpenDetail = manage::openDetail,
@@ -145,7 +166,7 @@ fun SettingsCacheDestination(
         onClearTemp = { pendingClear = CacheKind.TEMP },
         onClearAll = { pendingClear = CacheKind.ALL },
         onOpenCachedSongs = { nav.navigate(ScreenRoute.CacheList.route) },
-        onCacheLimitChange = { bytes ->
+        onCacheLimitChange = { _ ->
             // 用户调小上限后立即按新上限清理一次
             scope.launch(Dispatchers.IO) {
                 com.aesthetic.music.player.AudioCacheService.enforceCacheLimit(context)
@@ -168,7 +189,7 @@ fun SettingsCacheDestination(
                 val target = kind
                 pendingClear = null
                 manage.clear(target)
-                viewModel.showToast("已清理：$title")
+                onToast("已清理：$title")
                 cacheState.refresh()
             },
             onDismiss = { pendingClear = null },

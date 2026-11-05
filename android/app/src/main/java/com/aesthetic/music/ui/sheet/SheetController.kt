@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
  * 歌单广场控制器：标签 + 最新/最热 + 方块歌单。
  *
  * 从 `MainViewModel` 抽出：歌单广场只依赖 [MusicRepository]，与其它域无交集。
- * 快速切标签/顺序时用请求令牌丢弃旧响应。`MainViewModel` 保留同名只读委托。
+ * 快速切标签/顺序时用请求令牌丢弃旧响应。由对应 Destination 直接依赖本控制器。
  */
 class SheetController(
     private val repository: MusicRepository,

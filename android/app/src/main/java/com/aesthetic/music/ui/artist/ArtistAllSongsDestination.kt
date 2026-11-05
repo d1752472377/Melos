@@ -4,8 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.artist.ArtistAllSongsScreen
+import com.aesthetic.music.ui.artist.ArtistController
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.shell.ShellActions
 import com.aesthetic.music.ui.shell.SongActionsHost
 import com.aesthetic.music.ui.shell.rememberSongActionsState
@@ -13,17 +14,18 @@ import com.aesthetic.music.ui.shell.rememberSongActionsState
 /** 全部演唱页 */
 @Composable
 fun ArtistAllSongsDestination(
-    viewModel: MainViewModel,
+    artist: ArtistController,
+    library: LibraryController,
     actions: ShellActions,
     playerManager: PlayerManager,
 ) {
-    val artistRef by viewModel.showArtist.collectAsState()
-    val artistDetail by viewModel.artistDetail.collectAsState()
-    val allSongs by viewModel.allArtistSongs.collectAsState()
-    val isLoadingAllSongs by viewModel.isLoadingArtistAllSongs.collectAsState()
-    val allSongsError by viewModel.artistAllSongsError.collectAsState()
-    val favorites by viewModel.favorites.collectAsState()
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
+    val artistRef by artist.showArtist.collectAsState()
+    val artistDetail by artist.artistDetail.collectAsState()
+    val allSongs by artist.allSongs.collectAsState()
+    val isLoadingAllSongs by artist.isLoadingAllSongs.collectAsState()
+    val allSongsError by artist.allSongsError.collectAsState()
+    val favorites by library.favorites.collectAsState()
+    val myPlaylists by library.myPlaylists.collectAsState()
 
     val playerState by playerManager.state.collectAsState()
     val currentSong = playerState.currentSong
@@ -44,21 +46,22 @@ fun ArtistAllSongsDestination(
         isLoading = isLoadingAllSongs && songs.isEmpty(),
         isLoadingMore = isLoadingAllSongs && songs.isNotEmpty(),
         errorMessage = if (songs.isEmpty()) allSongsError else null,
-        onRetry = { viewModel.loadArtistAllSongs() },
+        onRetry = { artist.loadAllSongs() },
         favorites = favorites,
         currentSong = currentSong,
         onPlaySong = { actions.playSong(it, songs) },
         onPlayAll = { actions.playAll(songs) },
         // 随机播放：打乱顺序后整队播放（不改全局播放模式）
         onShuffle = { if (songs.isNotEmpty()) actions.playAll(songs.shuffled()) },
-        onToggleFavorite = { viewModel.toggleFavorite(it) },
+        onToggleFavorite = { library.toggleFavorite(it) },
         onPlayNext = { playerManager.playNext(it) },
         onMoreSong = songActions::showActions,
     )
 
     SongActionsHost(
         state = songActions,
-        viewModel = viewModel,
+        library = library,
+        actions = actions,
         playerManager = playerManager,
         myPlaylists = myPlaylists,
     )

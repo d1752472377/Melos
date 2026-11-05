@@ -4,23 +4,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.artist.ArtistScreen
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.navigation.ScreenRoute
 
 /** 歌手页 */
 @Composable
 fun ArtistDetailDestination(
-    viewModel: MainViewModel,
+    artist: ArtistController,
+    library: LibraryController,
     nav: ShellNav,
     actions: ShellActions,
     playerManager: PlayerManager,
 ) {
-    val artistRef by viewModel.showArtist.collectAsState()
-    val artistDetail by viewModel.artistDetail.collectAsState()
-    val isLoadingArtist by viewModel.isLoadingArtist.collectAsState()
-    val artistError by viewModel.artistError.collectAsState()
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
+    val artistRef by artist.showArtist.collectAsState()
+    val artistDetail by artist.artistDetail.collectAsState()
+    val isLoadingArtist by artist.isLoading.collectAsState()
+    val artistError by artist.error.collectAsState()
+    val myPlaylists by library.myPlaylists.collectAsState()
 
     // 当前播放歌：PlayerManager 通过 state: StateFlow<PlayerState> 暴露，currentSong 是 PlayerState 的计算属性
     val playerState by playerManager.state.collectAsState()
@@ -30,7 +32,7 @@ fun ArtistDetailDestination(
     val ref = artistRef ?: return
     val info = artistDetail?.info
     val artistSongs = artistDetail?.songs.orEmpty()
-    val allSongs by viewModel.allArtistSongs.collectAsState()
+    val allSongs by artist.allSongs.collectAsState()
 
     ArtistScreen(
         name = info?.name?.takeIf { it.isNotBlank() } ?: ref.name,
@@ -39,7 +41,7 @@ fun ArtistDetailDestination(
         songs = artistSongs,
         isLoading = isLoadingArtist,
         errorMessage = artistError,
-        onRetry = { viewModel.openArtist(ref) },
+        onRetry = { artist.open(ref) },
         currentSong = currentSong,
         onPlaySong = { actions.playSong(it, if (allSongs.isNotEmpty()) allSongs else artistSongs) },
         onPlayAll = { actions.playAll(if (allSongs.isNotEmpty()) allSongs else artistSongs) },
@@ -54,7 +56,8 @@ fun ArtistDetailDestination(
 
     SongActionsHost(
         state = songActions,
-        viewModel = viewModel,
+        library = library,
+        actions = actions,
         playerManager = playerManager,
         myPlaylists = myPlaylists,
     )

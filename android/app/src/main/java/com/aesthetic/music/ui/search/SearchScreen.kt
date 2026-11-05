@@ -32,7 +32,7 @@ import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.LoadingBox
 import com.aesthetic.music.ui.components.BottomContentSpacer
@@ -57,7 +57,7 @@ import com.aesthetic.music.ui.theme.TextMuted
  */
 @Composable
 fun SearchScreen(
-    viewModel: MainViewModel,
+    search: SearchController,
     currentSong: Song?,
     onPlaySong: (Song, List<Song>) -> Unit,
     onOpenArtist: (ArtistItem) -> Unit,
@@ -65,16 +65,16 @@ fun SearchScreen(
     onOpenAlbum: (AlbumItem) -> Unit,
     onMoreSong: (Song) -> Unit,
 ) {
-    val query by viewModel.searchQuery.collectAsState()
-    val searchType by viewModel.searchType.collectAsState()
-    val platform by viewModel.searchPlatform.collectAsState()
-    val songResults by viewModel.songResults.collectAsState()
-    val artistResults by viewModel.artistResults.collectAsState()
-    val playlistResults by viewModel.playlistResults.collectAsState()
-    val albumResults by viewModel.albumResults.collectAsState()
-    val isSearching by viewModel.isSearching.collectAsState()
-    val searchError by viewModel.searchError.collectAsState()
-    val recentSearches by viewModel.recentSearches.collectAsState()
+    val query by search.query.collectAsState()
+    val searchType by search.type.collectAsState()
+    val platform by search.platform.collectAsState()
+    val songResults by search.songResults.collectAsState()
+    val artistResults by search.artistResults.collectAsState()
+    val playlistResults by search.playlistResults.collectAsState()
+    val albumResults by search.albumResults.collectAsState()
+    val isSearching by search.isSearching.collectAsState()
+    val searchError by search.searchError.collectAsState()
+    val recentSearches by search.recentSearches.collectAsState()
 
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -97,10 +97,10 @@ fun SearchScreen(
             Box(Modifier.padding(horizontal = 20.dp)) {
                 SearchInputBar(
                     query = query,
-                    onQueryChange = viewModel::onSearchQueryChanged,
-                    onSubmit = { viewModel.submitSearch() },
+                    onQueryChange = search::onQueryChanged,
+                    onSubmit = { search.submit() },
                     platform = platform,
-                    onPlatformSelect = viewModel::setSearchPlatform,
+                    onPlatformSelect = search::setPlatform,
                     focusRequester = focusRequester,
                 )
             }
@@ -119,7 +119,7 @@ fun SearchScreen(
             Box(Modifier.padding(horizontal = 20.dp)) {
                 SearchFilterTabs(
                     selected = searchType,
-                    onSelect = viewModel::setSearchType,
+                    onSelect = search::setType,
                 )
             }
 
@@ -150,7 +150,7 @@ fun SearchScreen(
                     SearchRecentSearches(
                         words = recentSearches,
                         onPick = { word ->
-                            viewModel.submitSearch(word)
+                            search.submit(word)
                             keyboard?.hide()
                         },
                         onClearAll = { showClearRecentConfirm = true },
@@ -205,7 +205,7 @@ fun SearchScreen(
                     confirmText = "清空",
                     onConfirm = {
                         showClearRecentConfirm = false
-                        viewModel.clearRecentSearches()
+                        search.clearRecent()
                     },
                 )
             }

@@ -97,12 +97,14 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val showImportDialog by viewModel.showImportDialog.collectAsState()
 
     val playerState by playerManager.state.collectAsState()
-    val themeMode by viewModel.themeMode.collectAsState()
+    val themeMode by viewModel.settings.themeMode.collectAsState()
     val systemDark = isSystemInDarkTheme()
 
     // 动态背景色
     val pageBackground by viewModel.currentPageBackground.collectAsState()
     val isDarkPage by viewModel.isDarkPage.collectAsState()
+    val localStats by viewModel.localStats.collectAsState()
+    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
 
     // ===== 缓存信息（Profile / Downloads / CacheList 共用�? =====
     val cacheState = rememberCacheState(context, scope)
@@ -137,8 +139,8 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     LaunchedEffect(Unit) {
         if (!sessionRestored.value) {
             playerManager.restoreSession()
-            viewModel.loadHotPlaylists()
-            viewModel.loadContent()
+            viewModel.content.loadHotPlaylists()
+            viewModel.content.loadContent()
             sessionRestored.value = true
         }
     }
@@ -155,8 +157,8 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val appToast by viewModel.appToast.collectAsState()
 
     LaunchedEffect(Unit) {
-        playerManager.onPlaybackStarted = { song -> viewModel.addToHistory(song) }
-        playerManager.onSongCompleted = { song -> viewModel.fmOnSignal(song) }
+        playerManager.onPlaybackStarted = { song -> viewModel.library.addToHistory(song) }
+        playerManager.onSongCompleted = { song -> viewModel.fm.onSignal(song) }
         // 给日志上报挂上"当时在放什么/用的哪个音源"的上下文：
         // 排查"播不了/卡住/闪退"时，光有堆栈不知道在哪首歌上，等于少一半线索
         com.aesthetic.music.service.LogContext.playerState = {
@@ -240,6 +242,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         ShellActions(
             playSong = { song, list -> playSong(song, list) },
             playAll = { list -> if (list.isNotEmpty()) playSong(list.first(), list) },
+            downloadSong = { song -> viewModel.downloadSong(context, song) },
             toast = { msg -> viewModel.showToast(msg) },
         )
     }
@@ -350,63 +353,63 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 ) {
                 // 主页
                 composable(ScreenRoute.Home.route) {
-                    HomeDestination(viewModel, nav, actions, playerState.isPlaying)
+                    HomeDestination(viewModel.content, viewModel.playlistDetail, nav, actions, playerState.isPlaying)
                 }
 
                 // FM 电台
                 composable(ScreenRoute.Fm.route) {
-                    FmDestination(viewModel, actions, playerManager)
+                    FmDestination(viewModel.fm, viewModel.library, actions, playerManager, viewModel::updatePageBackground)
                 }
 
                 // 歌单广场 Tab
                 composable(ScreenRoute.Playlist.route) {
-                    PlaylistTabDestination(viewModel, nav, actions)
+                    PlaylistTabDestination(viewModel.library, viewModel.playlistImport, viewModel.playlistDetail, nav, actions, viewModel::openImportDialog)
                 }
 
                 // 我的/个人中心 Tab
                 composable(ScreenRoute.Profile.route) {
-                    ProfileTabDestination(viewModel, nav, actions, cacheState)
+                    ProfileTabDestination(viewModel.profile, viewModel.library, viewModel.sources, viewModel.auth, localStats, isCheckingUpdate, { viewModel.checkForUpdate(manual = true) }, nav, actions, cacheState)
                 }
 
                 // 全局搜索�?
                 composable(ScreenRoute.Search.route) {
-                    SearchDestination(viewModel, nav, actions, playerManager)
+                    SearchDestination(viewModel.search, viewModel.artistPage, viewModel.albumPage, viewModel.playlistDetail, viewModel.library, nav, actions, playerManager)
                 }
 
                 // 排行榜列表页
-                composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel, nav) }
+                composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel.rank, viewModel.playlistDetail, nav) }
 
                 // 猜你喜欢（首页三大入口第一张卡进入）：推荐结果由收藏 + 最近播放现场算
                 composable(ScreenRoute.GuessYouLike.route) {
-                    GuessDestination(viewModel, nav, actions, playerManager)
+                    GuessDestination(viewModel.guess, viewModel.library, nav, actions, playerManager)
                 }
 
                 // 歌单广场（分类标签歌单）
                 composable(ScreenRoute.SheetSquare.route) {
-                    SheetSquareDestination(viewModel, nav)
+                    SheetSquareDestination(viewModel.sheet, viewModel.playlistDetail, nav)
                 }
 
                 // 歌单详情�?
                 composable(ScreenRoute.PlaylistDetail.route) {
-                    PlaylistDetailDestination(viewModel, nav, actions, playerManager)
+                    PlaylistDetailDestination(viewModel.playlistDetail, viewModel.library, nav, actions, playerManager, viewModel::updatePageBackground)
                 }
 
                 // 专辑详情�?
                 composable(ScreenRoute.AlbumDetail.route) {
-                    AlbumDetailDestination(viewModel, nav, actions, playerManager)
+                    AlbumDetailDestination(viewModel.albumPage, viewModel.library, nav, actions, playerManager, viewModel::updatePageBackground)
                 }
 
                 // 歌手�?
                 composable(ScreenRoute.ArtistDetail.route) {
-                    ArtistDetailDestination(viewModel, nav, actions, playerManager)
+                    ArtistDetailDestination(viewModel.artistPage, viewModel.library, nav, actions, playerManager)
                 }
                 composable(ScreenRoute.ArtistAllSongs.route) {
-                    ArtistAllSongsDestination(viewModel, actions, playerManager)
+                    ArtistAllSongsDestination(viewModel.artistPage, viewModel.library, actions, playerManager)
                 }
 
                 // 我的收藏�?
                 composable(ScreenRoute.Favorites.route) {
-                    FavoritesDestination(viewModel, nav, actions, playerManager)
+                    FavoritesDestination(viewModel.library, nav, actions, playerManager, viewModel::updatePageBackground, viewModel::openPlayer)
                 }
 
                 // 缓存列表�?
@@ -416,37 +419,37 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // ===== 设置子页面（设置主页只做入口，各项独立成页） =====
                 composable(ScreenRoute.SettingsAppearance.route) {
-                    SettingsAppearanceDestination(viewModel, nav)
+                    SettingsAppearanceDestination(viewModel.settings, nav, viewModel::updatePageBackground)
                 }
 
                 composable(ScreenRoute.SettingsQuality.route) {
-                    SettingsQualityDestination(viewModel, nav)
+                    SettingsQualityDestination(viewModel.settings, nav, viewModel::updatePageBackground)
                 }
 
                 composable(ScreenRoute.SettingsPlayback.route) {
-                    SettingsPlaybackDestination(viewModel, nav)
+                    SettingsPlaybackDestination(viewModel.settings, nav, viewModel::updatePageBackground)
                 }
 
                 composable(ScreenRoute.SettingsLyrics.route) {
-                    SettingsLyricsDestination(viewModel, nav)
+                    SettingsLyricsDestination(viewModel.settings, nav, viewModel::updatePageBackground)
                 }
 
                 composable(ScreenRoute.SettingsDownload.route) {
-                    SettingsDownloadDestination(viewModel, nav)
+                    SettingsDownloadDestination(viewModel.settings, nav, viewModel::updatePageBackground)
                 }
 
                 composable(ScreenRoute.SettingsCache.route) {
-                    SettingsCacheDestination(viewModel, nav, cacheState, scope)
+                    SettingsCacheDestination(nav, cacheState, scope, viewModel::updatePageBackground, actions.toast)
                 }
 
                 // 最近播放页
                 composable(ScreenRoute.History.route) {
-                    HistoryDestination(viewModel, nav, actions, playerManager)
+                    HistoryDestination(viewModel.library, nav, actions, playerManager, viewModel::updatePageBackground, viewModel::openPlayer)
                 }
 
                 // 编辑个人资料�?
                 composable(ScreenRoute.ProfileEdit.route) {
-                    ProfileEditDestination(viewModel, nav, actions)
+                    ProfileEditDestination(viewModel.profile, nav, actions)
                 }
 
                 // 本地下载�?
@@ -456,17 +459,17 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // 听歌时长�?
                 composable(ScreenRoute.ListeningStats.route) {
-                    ListeningStatsDestination(viewModel, nav)
+                    ListeningStatsDestination(viewModel.listeningStats, viewModel::refreshListeningStats, viewModel.settings, nav)
                 }
 
                 // 云端管理�?
                 composable(ScreenRoute.CloudManage.route) {
-                    CloudManageDestination(viewModel, nav)
+                    CloudManageDestination(viewModel.auth, viewModel.library, nav)
                 }
 
                 // 插件管理
                 composable(ScreenRoute.PluginManage.route) {
-                    PluginManageDestination(viewModel, nav, actions.toast)
+                    PluginManageDestination(viewModel.sources, viewModel.settings, nav, actions.toast)
                 }
 
                 // 专业调音台 (10段图形均衡器)
@@ -478,7 +481,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // 设置页
                 composable(ScreenRoute.Settings.route) {
-                    SettingsDestination(viewModel, nav)
+                    SettingsDestination(viewModel.settings, isCheckingUpdate, { cb -> viewModel.checkForUpdate(onResult = cb) }, nav)
                 }
             }
         }
@@ -514,32 +517,37 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
             // ===== 全屏播放器 Drawer =====
             // favoriteKeys 必须在这里 collect：播放页的「喜欢」按钮要跟着收藏状态重组，
             // 否则点了心形只有数据变化、图标不动（看起来就是"没反应"）
-            val favoriteKeys by viewModel.favorites.collectAsState()
+            val favoriteKeys by viewModel.library.favorites.collectAsState()
             PlayerOverlay(
                 visible = showPlayer,
                 playerState = playerState,
                 playerManager = playerManager,
-                viewModel = viewModel,
+                library = viewModel.library,
+                artist = viewModel.artistPage,
+                search = viewModel.search,
+                settings = viewModel.settings,
                 nav = nav,
+                actions = actions,
+                onClose = { viewModel.closePlayer() },
                 favoriteKeys = favoriteKeys,
                 hazeState = hazeState,
             )
 
             // ===== 歌单导入弹窗：粘贴链? / 识别文案 / 登录账号（占位） =====
             if (showImportDialog) {
-                val importState by viewModel.playlistImportState.collectAsState()
+                val importState by viewModel.playlistImport.importState.collectAsState()
                 ImportPlaylistDialog(
                     state = importState,
                     onDismiss = {
-                        viewModel.resetPlaylistImportState()
+                        viewModel.playlistImport.resetImport()
                         viewModel.closeImportDialog()
                     },
                     onImport = { text ->
-                        viewModel.importPlaylistFromText(text) { item ->
+                        viewModel.playlistImport.importFromText(text) { item ->
                             viewModel.closeImportDialog()
-                            viewModel.resetPlaylistImportState()
+                            viewModel.playlistImport.resetImport()
                             // 导入结果在收藏歌单里，走与收藏行一致的详情打开路径
-                            viewModel.openPlaylistDetail(item)
+                            viewModel.playlistDetail.open(item)
                             navController.navigate(ScreenRoute.PlaylistDetail.route)
                         }
                     },

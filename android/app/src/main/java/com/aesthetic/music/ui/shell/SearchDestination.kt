@@ -4,36 +4,44 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.album.AlbumController
+import com.aesthetic.music.ui.artist.ArtistController
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.navigation.ScreenRoute
+import com.aesthetic.music.ui.playlist.PlaylistDetailController
+import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchScreen
 
 /** 全局搜索页 */
 @Composable
 fun SearchDestination(
-    viewModel: MainViewModel,
+    search: SearchController,
+    artist: ArtistController,
+    album: AlbumController,
+    playlistDetail: PlaylistDetailController,
+    library: LibraryController,
     nav: ShellNav,
     actions: ShellActions,
     playerManager: PlayerManager,
 ) {
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
+    val myPlaylists by library.myPlaylists.collectAsState()
     val playerState by playerManager.state.collectAsState()
     val songActions = rememberSongActionsState()
 
     SearchScreen(
-        viewModel = viewModel,
+        search = search,
         currentSong = playerState.currentSong,
         onPlaySong = { song, list -> actions.playSong(song, list) },
-        onOpenArtist = { artist ->
-            viewModel.openArtist(artist)
+        onOpenArtist = { item ->
+            artist.open(item)
             nav.navigate(ScreenRoute.ArtistDetail.route)
         },
         onOpenPlaylist = { pl ->
-            viewModel.openPlaylistDetail(pl)
+            playlistDetail.open(pl)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
-        onOpenAlbum = { album ->
-            viewModel.openAlbum(album)
+        onOpenAlbum = { item ->
+            album.open(item)
             nav.navigate(ScreenRoute.AlbumDetail.route)
         },
         onMoreSong = songActions::showActions,
@@ -41,7 +49,8 @@ fun SearchDestination(
 
     SongActionsHost(
         state = songActions,
-        viewModel = viewModel,
+        library = library,
+        actions = actions,
         playerManager = playerManager,
         myPlaylists = myPlaylists,
     )

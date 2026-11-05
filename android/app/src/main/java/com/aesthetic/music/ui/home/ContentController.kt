@@ -31,7 +31,7 @@ data class RegionNewSongs(
  * 首页内容控制器：热门歌单 / 每日推荐 / 新歌速递 / 榜单 / 分类歌单。
  *
  * 从 `MainViewModel` 抽出：内容体系自成一域——状态全部来自 [MusicRepository]，
- * 与播放/歌单/同步等域没有交集。`MainViewModel` 保留同名只读委托，视图层无需改动。
+ * 与播放/歌单/同步等域没有交集。由对应 Destination 直接依赖本控制器，视图层无需改动。
  */
 class ContentController(
     private val repository: MusicRepository,

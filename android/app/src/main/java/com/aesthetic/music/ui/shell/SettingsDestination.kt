@@ -3,8 +3,8 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.navigation.ScreenRoute
+import com.aesthetic.music.ui.settings.SettingsController
 import com.aesthetic.music.ui.settings.SettingsPage
 import com.aesthetic.music.ui.settings.SettingsScreen
 
@@ -17,13 +17,14 @@ import com.aesthetic.music.ui.settings.SettingsScreen
  */
 @Composable
 fun SettingsDestination(
-    viewModel: MainViewModel,
+    settings: SettingsController,
+    isCheckingUpdate: Boolean,
+    onCheckUpdate: (onResult: (String) -> Unit) -> Unit,
     nav: ShellNav,
 ) {
-    val themeMode by viewModel.themeMode.collectAsState()
-    val qualityLevel by viewModel.quality.collectAsState()
-    val userPrefs by viewModel.settings.prefs.collectAsState()
-    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
+    val themeMode by settings.themeMode.collectAsState()
+    val qualityLevel by settings.quality.collectAsState()
+    val userPrefs by settings.prefs.collectAsState()
 
     SettingsScreen(
         themeMode = themeMode,
@@ -44,7 +45,7 @@ fun SettingsDestination(
                 }.route
             )
         },
-        onCheckUpdate = { onResult -> viewModel.checkForUpdate(onResult = onResult) },
+        onCheckUpdate = onCheckUpdate,
         isCheckingUpdate = isCheckingUpdate,
     )
 }

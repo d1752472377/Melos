@@ -4,24 +4,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.ui.MainViewModel
+import com.aesthetic.music.ui.album.AlbumController
+import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.playlist.PlaylistDetailScreen
 
 /** 专辑详情页（搜索页专辑 Tab 点击进入，复用歌单详情界面） */
 @Composable
 fun AlbumDetailDestination(
-    viewModel: MainViewModel,
+    albumPage: AlbumController,
+    library: LibraryController,
     nav: ShellNav,
     actions: ShellActions,
     playerManager: PlayerManager,
+    onPageBackground: (Color?, Boolean) -> Unit,
 ) {
-    val albumDetail by viewModel.showAlbumDetail.collectAsState()
-    val albumDetailSongs by viewModel.albumDetailSongs.collectAsState()
-    val isLoadingAlbum by viewModel.isLoadingAlbum.collectAsState()
-    val albumError by viewModel.albumError.collectAsState()
-    val myPlaylists by viewModel.myPlaylists.collectAsState()
+    val albumDetail by albumPage.showAlbumDetail.collectAsState()
+    val albumDetailSongs by albumPage.albumDetailSongs.collectAsState()
+    val isLoadingAlbum by albumPage.isLoading.collectAsState()
+    val albumError by albumPage.error.collectAsState()
+    val myPlaylists by library.myPlaylists.collectAsState()
     val playerState by playerManager.state.collectAsState()
     val songActions = rememberSongActionsState()
 
@@ -35,7 +39,7 @@ fun AlbumDetailDestination(
             platform = album.platform,
         )
     }
-    val isFav = viewModel.isPlaylistFavorite(album.id)
+    val isFav = library.isPlaylistFavorite(album.id)
     PlaylistDetailScreen(
         playlist = albumPlaylistItem,
         songs = albumDetailSongs,
@@ -44,21 +48,22 @@ fun AlbumDetailDestination(
         isFavorite = isFav,
         currentSong = playerState.currentSong,
         onBack = {
-            viewModel.closeAlbum()
-            viewModel.updatePageBackground(null, false)
+            albumPage.close()
+            onPageBackground(null, false)
             nav.popBack()
         },
-        onRetry = { viewModel.openAlbum(album) },
+        onRetry = { albumPage.open(album) },
         onPlaySong = { song, list -> actions.playSong(song, list) },
         onPlayAll = { songs -> actions.playAll(songs) },
-        onToggleFavoritePlaylist = { viewModel.toggleFavoritePlaylist(albumPlaylistItem) },
+        onToggleFavoritePlaylist = { library.toggleFavoritePlaylist(albumPlaylistItem) },
         onMoreSong = songActions::showActions,
-        onBackgroundColorChange = viewModel::updatePageBackground,
+        onBackgroundColorChange = onPageBackground,
     )
 
     SongActionsHost(
         state = songActions,
-        viewModel = viewModel,
+        library = library,
+        actions = actions,
         playerManager = playerManager,
         myPlaylists = myPlaylists,
     )

@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
  * 专辑详情控制器（搜索页专辑 Tab 点击进入的覆盖层）。
  *
  * 从 `MainViewModel` 抽出：只依赖 [MusicRepository]，用请求令牌防止快速切换专辑时旧响应覆盖。
- * `MainViewModel` 保留同名只读委托。
+ * 由对应 Destination 直接依赖本控制器。
  */
 class AlbumController(
     private val repository: MusicRepository,
