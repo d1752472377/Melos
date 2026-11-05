@@ -47,7 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.data.settings.PlaylistCoverStore
+import com.aesthetic.music.data.settings.PlaylistCoverPick
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.library.PlaylistResolveState
@@ -77,7 +77,7 @@ data class PlaylistEditorResult(
  * 自建歌单的创建 / 编辑表单（底部抽屉）。
  *
  * 相比旧的"只有一个名字输入框"的弹窗，这里补齐了两件事：
- * 1. 封面：可以从系统相册选一张本机图片（拷贝进私有目录，见 [PlaylistCoverStore]）；
+ * 1. 封面：可以从系统相册选一张本机图片（由 LibraryController 拷贝进私有目录并生成同步副本）；
  * 2. 可选的平台导入：粘贴链接或分享文案后回填歌单名/封面/曲目，作为歌单的原始记录。
  */
 @Composable
@@ -94,6 +94,8 @@ fun PlaylistEditorSheet(
     importState: PlaylistResolveState = PlaylistResolveState.Idle,
     onResolveImport: (String) -> Unit = {},
     onClearImport: () -> Unit = {},
+    onPickCover: (Uri) -> PlaylistCoverPick? = { null },
+    onDeleteCover: (String?) -> Unit = {},
     onToast: (String) -> Unit = {},
 ) {
     var name by remember { mutableStateOf(initialName) }
@@ -115,17 +117,16 @@ fun PlaylistEditorSheet(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val path = PlaylistCoverStore.savePickedImage(uri)
-        if (path == null) {
+        val picked = onPickCover(uri)
+        if (picked == null) {
             onToast("封面设置失败，请换一张图片试试")
             return@rememberLauncherForActivityResult
         }
         // 换图时清掉上一张未被引用的本机封面，避免文件越攒越多
         val previous = localCover
-        if (previous != null && previous != initialCover) PlaylistCoverStore.delete(previous)
-        localCover = path
-        // 同一张图再压一份内联副本：跨设备同步靠它（见 PlaylistCoverStore.encodeCoverDataUrl）
-        pickedDataUrl = PlaylistCoverStore.encodeCoverDataUrl(uri)
+        if (previous != null && previous != initialCover) onDeleteCover(previous)
+        localCover = picked.path
+        pickedDataUrl = picked.dataUrl
     }
 
     // 解析成功后自动回填名字（用户手动改过就不再覆盖）
@@ -145,7 +146,7 @@ fun PlaylistEditorSheet(
         onDismissRequest = {
             // 取消时删掉本次新选、尚未被任何歌单引用的本机封面
             val picked = localCover
-            if (picked != null && picked != initialCover) PlaylistCoverStore.delete(picked)
+            if (picked != null && picked != initialCover) onDeleteCover(picked)
             onDismiss()
         },
     ) {
@@ -327,7 +328,7 @@ fun PlaylistEditorSheet(
                         // 用内联副本当封面时，本地预览文件就没有引用者了，顺手删掉
                         if (inline != null) {
                             val preview = localCover
-                            if (preview != null && preview != initialCover) PlaylistCoverStore.delete(preview)
+                            if (preview != null && preview != initialCover) onDeleteCover(preview)
                         }
                         onConfirm(
                             PlaylistEditorResult(

@@ -1,5 +1,6 @@
 package com.aesthetic.music.ui.playlist
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +59,7 @@ import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.PlaylistLinkParser
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.data.settings.PlaylistCoverPick
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.BottomContentPadding
@@ -132,6 +134,8 @@ fun PlaylistScreen(
     importPreview: PlaylistResolveState = PlaylistResolveState.Idle,
     onResolveImport: (String) -> Unit = {},
     onClearImport: () -> Unit = {},
+    onPickCover: (Uri) -> PlaylistCoverPick? = { null },
+    onDeleteCover: (String?) -> Unit = {},
     onToast: (String) -> Unit = {},
 ) {
     var showCreateSheet by remember { mutableStateOf(false) }
@@ -629,6 +633,8 @@ fun PlaylistScreen(
             importState = importPreview,
             onResolveImport = onResolveImport,
             onClearImport = onClearImport,
+            onPickCover = onPickCover,
+            onDeleteCover = onDeleteCover,
             onDismiss = {
                 showCreateSheet = false
                 onClearImport()
@@ -650,6 +656,8 @@ fun PlaylistScreen(
             initialName = target.name,
             initialCover = target.cover,
             onDismiss = { editTarget = null },
+            onPickCover = onPickCover,
+            onDeleteCover = onDeleteCover,
             onConfirm = { result ->
                 val id = target.id
                 editTarget = null

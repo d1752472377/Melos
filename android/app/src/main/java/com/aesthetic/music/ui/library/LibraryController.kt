@@ -1,5 +1,6 @@
 package com.aesthetic.music.ui.library
 
+import android.net.Uri
 import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.CloudSyncPullData
 import com.aesthetic.music.data.api.PlayEventDto
@@ -12,6 +13,7 @@ import com.aesthetic.music.data.settings.FavoritePlaylistStore
 import com.aesthetic.music.data.settings.FavoriteStore
 import com.aesthetic.music.data.settings.HistoryStore
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.data.settings.PlaylistCoverPick
 import com.aesthetic.music.data.settings.PlaylistCoverStore
 import com.aesthetic.music.data.settings.PlaylistStore
 import com.aesthetic.music.data.settings.StatsStore
@@ -450,6 +452,12 @@ class LibraryController(
      * 换封面时旧的"本机封面文件"会被删除：它已不再被任何歌单引用，
      * 留着只会让私有目录随用户反复换图无限增长。
      */
+    /** 选图后立即拷贝本机并生成同步副本；UI 只负责触发系统选择器 */
+    fun pickPlaylistCover(uri: Uri): PlaylistCoverPick? = PlaylistCoverStore.pick(uri)
+
+    /** 删除未被引用的本机歌单封面 */
+    fun deletePlaylistCover(path: String?) = PlaylistCoverStore.delete(path)
+
     fun updatePlaylistInfo(id: String, name: String? = null, cover: String? = null) {
         val current = _myPlaylists.value.firstOrNull { it.id == id } ?: return
         val newName = name?.trim()

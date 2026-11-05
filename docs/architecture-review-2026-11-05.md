@@ -75,14 +75,14 @@
 - `CacheManageScreen` 不再直接读写缓存上限；`SettingsCacheDestination` 统一写并触发 `enforceCacheLimit`。
 - `ProfileScreen` / `ProfileEditScreen` 不再直接把 URI 拷贝到私有目录；新增 `ProfileController.saveAvatarFromUri/saveBackgroundFromUri`。
 - `PluginManageScreen` 不再自己读取脚本文件；新增 `SourceController.importFromUri`，UI 只上报选中的 URI。
+- `PlaylistEditorSheet` 不再直接调用 `PlaylistCoverStore`；`PlaylistCoverStore.pick()` 统一“拷贝本机 + 生成同步副本”，`LibraryController.pickPlaylistCover/deletePlaylistCover` 负责业务入口，UI 只接收选择结果与删除回调。
 
 ### 4.2 仍存在的边界问题
 
-1. `ui/playlist/PlaylistEditorSheet.kt`：在 Composable 内直接调用 `PlaylistCoverStore.savePickedImage/delete/encodeCoverDataUrl`（约 118–148、330 行）。这是表单预览需要的即时文件处理，拆出去需要新增 3 个回调；**记录为已知例外**，后续与歌单表单一起迁移。
-2. `ui/stats/ListeningStatsScreen.kt`（81–98、222、549、584）：直接使用 `StatsStore.todayKey/shiftDay/HOUR_WINDOW_DAYS`。这些是纯静态日期/窗口计算，不涉及 I/O 或状态流转，**保留在 UI 可接受**。
-3. `ui/cache/CacheListScreen.kt` / `DownloadsScreen.kt`：使用 `AudioCacheService.formatSize` 和 `CachedSong` 类型。格式化与只读展示，**可接受**。
-4. `ui/home/HomeScreen.kt`（约 138–176）：从新歌/热歌构造候选池与 `songsMap`。属于版块展示选择，不是持久化/网络逻辑，**保留**。
-5. `AppShell`：状态栏窗口控制、启动恢复、全局浮层。属于 composition root，更新弹窗已抽出，**保留但不再增长**。
+1. `ui/stats/ListeningStatsScreen.kt`（81–98、222、549、584）：直接使用 `StatsStore.todayKey/shiftDay/HOUR_WINDOW_DAYS`。这些是纯静态日期/窗口计算，不涉及 I/O 或状态流转，**保留在 UI 可接受**。
+2. `ui/cache/CacheListScreen.kt` / `DownloadsScreen.kt`：使用 `AudioCacheService.formatSize` 和 `CachedSong` 类型。格式化与只读展示，**可接受**。
+3. `ui/home/HomeScreen.kt`（约 138–176）：从新歌/热歌构造候选池与 `songsMap`。属于版块展示选择，不是持久化/网络逻辑，**保留**。
+4. `AppShell`：状态栏窗口控制、启动恢复、全局浮层。属于 composition root，更新弹窗已抽出，**保留但不再增长**。
 
 ### 4.3 边界结论
 

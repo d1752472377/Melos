@@ -16,6 +16,15 @@ import java.io.File
  *
  * 与其它 Store 一样在 Application 创建时 [init]，因此删除/判断这类调用不需要再传 Context。
  */
+/**
+ * 一次选图的结果：本机落盘路径 + 可跨设备同步的 data URL。
+ * [dataUrl] 可能为 null（编码失败），此时仍可使用本机路径。
+ */
+data class PlaylistCoverPick(
+    val path: String,
+    val dataUrl: String?,
+)
+
 object PlaylistCoverStore {
 
     private const val DIR_NAME = "playlist_covers"
@@ -35,6 +44,14 @@ object PlaylistCoverStore {
 
     /** 封面目录（未 init 时返回 null，调用方按"失败"处理） */
     private fun dir(): File? = appContext?.let { File(it.filesDir, DIR_NAME) }
+
+    /**
+     * 一次完成「拷贝本机 + 生成同步副本」：UI 只拿结果，不再分别调用两个底层方法。
+     */
+    fun pick(uri: Uri): PlaylistCoverPick? {
+        val path = savePickedImage(uri) ?: return null
+        return PlaylistCoverPick(path = path, dataUrl = encodeCoverDataUrl(uri))
+    }
 
     /**
      * 把系统选择器返回的图片拷贝进应用私有目录。

@@ -12,6 +12,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import com.aesthetic.music.player.currentLyricIndex
 import androidx.compose.foundation.Canvas
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -111,6 +112,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aesthetic.music.data.model.Song
 
+import com.aesthetic.music.data.settings.PlaylistCoverPick
 import com.aesthetic.music.player.LyricLine
 import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.currentLyricIndex
@@ -182,6 +184,8 @@ fun FmScreen(
     onSeek: (Long) -> Unit,
     onSeekToLyric: (LyricLine) -> Unit,
     onExportToPlaylist: (PlaylistEditorResult) -> Unit,
+    onPickCover: (Uri) -> PlaylistCoverPick? = { null },
+    onDeleteCover: (String?) -> Unit = {},
 ) {
     var showChannelSheet by remember { mutableStateOf(false) }
     var showTreasureSheet by remember { mutableStateOf(false) }
@@ -376,6 +380,8 @@ fun FmScreen(
                 confirmText = "创建歌单",
                 showPlatformImport = false,
                 onDismiss = { showExportSheet = false },
+                onPickCover = onPickCover,
+                onDeleteCover = onDeleteCover,
                 onConfirm = { result ->
                     showExportSheet = false
                     onExportToPlaylist(result)

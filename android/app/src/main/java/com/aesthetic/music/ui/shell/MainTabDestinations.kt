@@ -105,6 +105,8 @@ fun PlaylistTabDestination(
         importPreview = importPreview,
         onResolveImport = playlistImport::resolveForPreview,
         onClearImport = playlistImport::clearPreview,
+        onPickCover = library::pickPlaylistCover,
+        onDeleteCover = library::deletePlaylistCover,
         onCreatePlaylist = { result ->
             val id = library.createPlaylist(
                 name = result.name,
@@ -267,6 +269,8 @@ fun FmDestination(
         currentChannel = currentFmChannel,
         channels = fm.channels,
         favorites = favorites,
+        onPickCover = library::pickPlaylistCover,
+        onDeleteCover = library::deletePlaylistCover,
         currentSong = playerState.currentSong,
         isPlaying = playerState.isPlaying,
         isBuffering = playerState.isLoading,
