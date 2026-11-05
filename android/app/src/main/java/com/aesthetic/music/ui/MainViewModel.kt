@@ -167,6 +167,15 @@ class MainViewModel : ViewModel() {
     val currentTab = _currentTab.asStateFlow()
     private val _showPlayer = MutableStateFlow(false)
     val showPlayer = _showPlayer.asStateFlow()
+
+    // 全局版本更新状态。
+    // 必须声明在 init 块之前：init 中的启动检查会立即读取 _isCheckingUpdate，
+    // 若声明在后，Kotlin 尚未初始化该字段，会触发 MutableStateFlow.getValue() 空指针。
+    private val _appUpdateInfo = MutableStateFlow<UpdateInfo?>(null)
+    val appUpdateInfo: StateFlow<UpdateInfo?> = _appUpdateInfo.asStateFlow()
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate = _isCheckingUpdate.asStateFlow()
+
     val showPlaylistDetail get() = playlistDetail.showDetail
     private val _showImportDialog = MutableStateFlow(false)
     val showImportDialog = _showImportDialog.asStateFlow()
@@ -783,12 +792,7 @@ class MainViewModel : ViewModel() {
         _isDarkPage.value = isDark
     }
 
-    // ==================== 全局应用更新弹窗（支持上线即弹窗提醒与强制更新） ====================
-    private val _appUpdateInfo = MutableStateFlow<UpdateInfo?>(null)
-    val appUpdateInfo: StateFlow<UpdateInfo?> = _appUpdateInfo.asStateFlow()
-
-    private val _isCheckingUpdate = MutableStateFlow(false)
-    val isCheckingUpdate = _isCheckingUpdate.asStateFlow()
+    // ==================== 全局应用更新（支持上线即弹窗提醒与强制更新） ====================
 
     fun dismissAppUpdate() {
         _appUpdateInfo.value = null
