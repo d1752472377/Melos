@@ -427,83 +427,53 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 		})
 	}
 
-	type eventInsert struct {
-		sql  string
-		args []any
+	// ===== 播放事件：解析后统一在事务内做"会话合并" =====
+	//
+	// 为什么不在解析阶段就查库定夺：同一批里可能带同一首歌的多段
+	// （新客户端每 20 秒一段），若在事务外逐条查库，后一段看不到前一段刚做的合并，
+	// 于是同一次连续播放被拆成多行。放到事务里顺序处理，前一段的结果对后一段可见。
+	type pendingPlayEvent struct {
+		eventID    string
+		deviceID   string
+		platform   string
+		songID     string
+		title      string
+		artist     string
+		listenedMs int64
+		durationMs int64
+		listenedAt int64
 	}
-	var events []eventInsert
+	var playEvents []pendingPlayEvent
 	if raw, ok := body["playEvents"].([]any); ok {
 		for _, item := range raw {
 			e, ok := item.(map[string]any)
 			if !ok {
 				continue
 			}
-			listened := math.Max(0, math.Min(jsNumber(e["listenedMs"]), 24*60*60*1000))
-			deviceID := jsString(e["deviceId"])
-			platform := jsString(e["platform"])
-			songID := jsString(e["id"])
-			title := jsString(e["title"])
-			artist := jsString(e["artist"])
-			durationMs := nonNeg(e["durationMs"])
-			// 事件时间：客户端显式时间优先，否则用服务器时间。
+			listened := int64(math.Round(math.Max(0, math.Min(jsNumber(e["listenedMs"]), 24*60*60*1000))))
+			if listened <= 0 {
+				continue // 没听就没事件，避免用 0 秒记录撑起"播放次数"
+			}
 			listenedAt := nowMs
 			if truthy(e["listenedAtMs"]) {
 				listenedAt = nonNeg(e["listenedAtMs"])
 			}
-			clientEventID := jsString(e["eventId"])
-			fallbackEventID := platform + ":" + songID + ":" + strconv.FormatInt(listenedAt, 10)
-			// 合并行的新幂等键：优先用客户端 eventId（同一片段重试时此键相同，天然幂等）；
-			// 没有就用 内容+时间 派生键。旧键（被合并行）随行更新，不再参与去重。
-			newEventID := clientEventID
-			if newEventID == "" {
-				newEventID = fallbackEventID
+			platform := jsString(e["platform"])
+			songID := jsString(e["id"])
+			eventID := jsString(e["eventId"])
+			if eventID == "" {
+				eventID = platform + ":" + songID + ":" + strconv.FormatInt(listenedAt, 10)
 			}
-
-			// ===== 心跳合并（兼容旧客户端的 1 秒心跳上报）=====
-			// 旧客户端把每秒心跳当独立事件上报。这里把"同用户+同歌+同设备、
-			// 且上一条事件距今 ≤ 10 秒"的心跳并进上一条（累加 listened_ms、
-			// 幂等键换新、时间取最新），避免 5 分钟的歌被拆成 200+ 条记录。
-			// 新客户端（分段上报，片段间隔 10~30 秒）落在 ≤10s 窗口内时同样会被
-			// 合并成完整播放次数；超过 10 秒的间隔视为一次新播放。
-			var (
-				dupID       string
-				dupListened int64
-			)
-			row := s.db.QueryRowContext(ctx, `
-				SELECT event_id, listened_ms FROM play_events
-				WHERE user_id = ? AND platform = ? AND song_id = ? AND device_id = ?
-				  AND listened_at_ms > ?
-				ORDER BY listened_at_ms DESC LIMIT 1`,
-				userID, platform, songID, deviceID, listenedAt-10_000)
-			switch err := row.Scan(&dupID, &dupListened); {
-			case err == nil:
-				if dupID == newEventID {
-					// 客户端重试（同一片段 eventId 原样重发）：幂等拒绝，不再累加
-					continue
-				}
-				events = append(events, eventInsert{
-					sql: `UPDATE play_events
-					      SET listened_ms = ?, event_id = ?, duration_ms = ?, listened_at_ms = ?, updated_at_ms = ?
-					      WHERE user_id = ? AND event_id = ?`,
-					args: []any{
-						dupListened + int64(math.Round(listened)), newEventID, durationMs, listenedAt, nowMs,
-						userID, dupID,
-					},
-				})
-				continue
-			case err != sql.ErrNoRows:
-				return 0, 0, err
-			}
-
-			// 无相邻心跳：正常插入一条新事件
-			events = append(events, eventInsert{
-				sql: `INSERT INTO play_events (user_id, event_id, device_id, platform, song_id, title, artist, listened_ms, duration_ms, listened_at_ms, updated_at_ms)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                      ON CONFLICT (user_id, event_id) DO NOTHING`,
-				args: []any{
-					userID, newEventID, deviceID, platform, songID,
-					title, artist, int64(math.Round(listened)), durationMs, listenedAt, nowMs,
-				},
+			playEvents = append(playEvents, pendingPlayEvent{
+				eventID:    eventID,
+				deviceID:   jsString(e["deviceId"]),
+				platform:   platform,
+				songID:     songID,
+				title:      jsString(e["title"]),
+				artist:     jsString(e["artist"]),
+				listenedMs: listened,
+				durationMs: nonNeg(e["durationMs"]),
+				listenedAt: listenedAt,
 			})
 		}
 	}
@@ -534,13 +504,14 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 		}
 	}
 	var acceptedEvents int64
-	for _, ev := range events {
-		res, err := tx.ExecContext(ctx, ev.sql, ev.args...)
+	for _, ev := range playEvents {
+		ok, err := applyPlayEvent(ctx, tx, userID, ev.eventID, ev.deviceID, ev.platform, ev.songID,
+			ev.title, ev.artist, ev.listenedMs, ev.durationMs, ev.listenedAt, nowMs)
 		if err != nil {
 			return 0, 0, err
 		}
-		if n, err := res.RowsAffected(); err == nil {
-			acceptedEvents += n
+		if ok {
+			acceptedEvents++
 		}
 	}
 	var version int64
@@ -551,6 +522,116 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 		return 0, 0, err
 	}
 	return version, acceptedEvents, nil
+}
+
+// ==================== play events: session merging ====================
+
+// playSessionGapMs is how much silence still counts as "the same continuous
+// listen". A new segment that starts within this window after the previous
+// segment ended is merged into the same row (same play session).
+//
+// Why 15s: the current client reports a segment every 20s (contiguous, so the
+// gap is ~0 plus jitter), while older builds sent a 1-2s heartbeat. Real gaps
+// (user paused, switched song and came back) are minutes long, so 15s separates
+// "continuous" from "a new play" cleanly without needing client cooperation.
+const playSessionGapMs = 15_000
+
+// mergedEventIDsCap bounds the idempotency key list stored per session row.
+const mergedEventIDsCap = 600
+
+// applyPlayEvent stores one play event, merging it into the previous session of
+// the same (user, song, device) when playback was continuous.
+//
+// Returns whether the event was newly accepted (false = duplicate/ignored).
+//
+// Merging keeps the session's original start time and event id, and appends the
+// merged event ids into merged_ids so that a client retry of an already-merged
+// segment is recognised and does not double-count the listening time.
+func applyPlayEvent(ctx context.Context, tx *sql.Tx, userID int64, eventID, deviceID, platform, songID,
+	title, artist string, listenedMs, durationMs, listenedAt, nowMs int64) (bool, error) {
+
+	// 1) Exact retry of an event we already stored as its own row.
+	var exists int
+	err := tx.QueryRowContext(ctx,
+		`SELECT 1 FROM play_events WHERE user_id = ? AND event_id = ? LIMIT 1`, userID, eventID).Scan(&exists)
+	if err == nil {
+		return false, nil
+	}
+	if err != sql.ErrNoRows {
+		return false, err
+	}
+
+	// 2) Most recent session of this song on this device.
+	var (
+		rowID       int64
+		rowStart    int64
+		rowListened int64
+		rowMerged   string
+	)
+	err = tx.QueryRowContext(ctx, `
+		SELECT id, listened_at_ms, listened_ms, merged_ids FROM play_events
+		WHERE user_id = ? AND platform = ? AND song_id = ? AND device_id = ?
+		ORDER BY listened_at_ms DESC, id DESC LIMIT 1`,
+		userID, platform, songID, deviceID).Scan(&rowID, &rowStart, &rowListened, &rowMerged)
+	switch {
+	case err == nil:
+		// 2a) Retry of a segment that was already merged into this row.
+		if mergedIDsContain(rowMerged, eventID) {
+			return false, nil
+		}
+		prevEnd := rowStart + rowListened
+		continuous := listenedAt >= rowStart && listenedAt <= prevEnd+playSessionGapMs
+		if continuous {
+			_, err = tx.ExecContext(ctx, `
+				UPDATE play_events
+				SET listened_ms = ?, duration_ms = MAX(duration_ms, ?), updated_at_ms = ?, merged_ids = ?
+				WHERE id = ?`,
+				rowListened+listenedMs, durationMs, nowMs, mergedIDsAppend(rowMerged, eventID), rowID)
+			return true, err
+		}
+	case err != sql.ErrNoRows:
+		return false, err
+	}
+
+	// 3) Not continuous (or first ever): a new play session.
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO play_events (user_id, event_id, device_id, platform, song_id, title, artist,
+		                         listened_ms, duration_ms, listened_at_ms, updated_at_ms, merged_ids)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+		ON CONFLICT (user_id, event_id) DO NOTHING`,
+		userID, eventID, deviceID, platform, songID, title, artist,
+		listenedMs, durationMs, listenedAt, nowMs)
+	return true, err
+}
+
+// mergedIDsContain reports whether id is present in the "|"-separated list.
+func mergedIDsContain(list, id string) bool {
+	if list == "" || id == "" {
+		return false
+	}
+	for _, part := range strings.Split(list, "|") {
+		if part == id {
+			return true
+		}
+	}
+	return false
+}
+
+// mergedIDsAppend appends id to the "|"-separated list, dropping the oldest
+// entries once the cap is reached (idempotency degrades gracefully instead of
+// letting the column grow without bound).
+func mergedIDsAppend(list, id string) string {
+	if list == "" {
+		return id
+	}
+	if len(list)+len(id)+1 > mergedEventIDsCap {
+		// 超长时只保留最近的一半，新的追加在后面
+		parts := strings.Split(list, "|")
+		if len(parts) > 1 {
+			list = strings.Join(parts[len(parts)/2:], "|")
+		}
+	}
+	return list + "|" + id
 }
 
 // ==================== pull ====================

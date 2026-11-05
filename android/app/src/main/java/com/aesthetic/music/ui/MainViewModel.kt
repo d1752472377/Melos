@@ -634,6 +634,8 @@ class MainViewModel : ViewModel() {
     val sourceEngineReady get() = sources.engineReady
     val sourceEngineError get() = sources.engineError
     val sourceDeclaredSources get() = sources.declaredSources
+    val sourceDeclaredQualities get() = sources.declaredQualities
+    val sourcePluginDetect get() = sources.pluginDetect
 
     // 云端同步状态：已抽到 LibraryController，保留同名只读委托
     val syncServerUrl get() = library.syncServerUrl
@@ -714,6 +716,11 @@ class MainViewModel : ViewModel() {
     fun detectSources() = sources.detectAll()
 
     fun detectSourceTarget(targetId: String) = sources.detectOne(targetId)
+
+    fun startSourcePluginDetect(pluginId: String, quick: Boolean) =
+        sources.startPluginDetect(pluginId, quick)
+
+    fun clearSourcePluginDetect() = sources.clearPluginDetect()
 
     fun refreshSources() = sources.refresh()
 

@@ -10,23 +10,35 @@ import (
 
 // ClientLogItem is one log entry from the app's LogReporter batch.
 type ClientLogItem struct {
-	Level     string            `json:"level"`
-	Tag       string            `json:"tag"`
-	Message   string            `json:"message"`
-	Stack     string            `json:"stack,omitempty"`
-	Extra     map[string]string `json:"extra,omitempty"`
-	TimeMs    int64             `json:"timeMs"`
-	SessionID string            `json:"sessionId"`
-	Count     int64             `json:"count"`
+	Level       string            `json:"level"`
+	Tag         string            `json:"tag"`
+	Message     string            `json:"message"`
+	Stack       string            `json:"stack,omitempty"`
+	Extra       map[string]string `json:"extra,omitempty"`
+	TimeMs      int64             `json:"timeMs"`
+	SessionID   string            `json:"sessionId"`
+	Count       int64             `json:"count"`
+	Thread      string            `json:"thread,omitempty"`
+	Breadcrumbs []BreadcrumbItem  `json:"breadcrumbs,omitempty"`
+	Context     map[string]string `json:"context,omitempty"`
+}
+
+// BreadcrumbItem is one step of the in-app action trail attached to errors.
+type BreadcrumbItem struct {
+	TimeMs  int64  `json:"timeMs"`
+	Level   string `json:"level"`
+	Tag     string `json:"tag"`
+	Message string `json:"message"`
 }
 
 // LogBatchMeta carries the per-batch context (app/env info).
 type LogBatchMeta struct {
-	AppVersion  string `json:"appVersion"`
-	VersionCode int64  `json:"versionCode"`
-	OS          string `json:"os"`
-	Device      string `json:"device"`
-	AppUID      int64  `json:"appUid"`
+	AppVersion  string            `json:"appVersion"`
+	VersionCode int64             `json:"versionCode"`
+	OS          string            `json:"os"`
+	Device      string            `json:"device"`
+	AppUID      int64             `json:"appUid"`
+	Context     map[string]string `json:"context"`
 }
 
 // InsertClientLogs stores a batch of log entries. Rows are capped so a single
@@ -62,11 +74,33 @@ func (s *Store) InsertClientLogs(ctx context.Context, meta LogBatchMeta, items [
 				extraJSON = truncate(string(b), 2000)
 			}
 		}
+		// 环境快照：条目自带的优先（崩溃时冻结的那份），否则用批次级的
+		contextJSON := ""
+		ctxMap := it.Context
+		if len(ctxMap) == 0 {
+			ctxMap = meta.Context
+		}
+		if len(ctxMap) > 0 {
+			if b, err := json.Marshal(ctxMap); err == nil {
+				contextJSON = truncate(string(b), 8000)
+			}
+		}
+		breadcrumbJSON := ""
+		if len(it.Breadcrumbs) > 0 {
+			crumbs := it.Breadcrumbs
+			if len(crumbs) > 50 {
+				crumbs = crumbs[len(crumbs)-50:]
+			}
+			if b, err := json.Marshal(crumbs); err == nil {
+				breadcrumbJSON = truncate(string(b), 12000)
+			}
+		}
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO client_logs (user_id, session_id, level, tag, message, stack, extra_json, count, app_version, version_code, os, device, ip, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO client_logs (user_id, session_id, level, tag, message, stack, extra_json, count, app_version, version_code, os, device, ip, thread, context_json, breadcrumbs_json, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			meta.AppUID, truncate(it.SessionID, 64), level, tag, message, stack, extraJSON,
 			it.Count, truncate(meta.AppVersion, 40), meta.VersionCode, truncate(meta.OS, 40), truncate(meta.Device, 120), truncate(ip, 64),
+			truncate(it.Thread, 80), contextJSON, breadcrumbJSON,
 			nowMs); err != nil {
 			return accepted, err
 		}
@@ -126,6 +160,9 @@ type AdminClientLog struct {
 	OS          string            `json:"os"`
 	Device      string            `json:"device"`
 	IP          string            `json:"ip"`
+	Thread      string            `json:"thread"`
+	Context     map[string]string `json:"context"`
+	Breadcrumbs []BreadcrumbItem  `json:"breadcrumbs"`
 	CreatedAt   int64             `json:"createdAt"`
 }
 
@@ -153,7 +190,7 @@ func (s *Store) ListClientLogs(ctx context.Context, f ListClientLogsFilter) ([]A
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT l.id, l.user_id, COALESCE(u.username, ''), l.session_id, l.level, l.tag,
 		       l.message, l.stack, l.extra_json, l.count, l.app_version, l.version_code,
-		       l.os, l.device, l.ip, l.created_at
+		       l.os, l.device, l.ip, l.thread, l.context_json, l.breadcrumbs_json, l.created_at
 		FROM client_logs l
 		LEFT JOIN users u ON u.id = l.user_id
 		`+where+`
@@ -166,15 +203,21 @@ func (s *Store) ListClientLogs(ctx context.Context, f ListClientLogsFilter) ([]A
 	out := []AdminClientLog{}
 	for rows.Next() {
 		var r AdminClientLog
-		var extraJSON, stack string
+		var extraJSON, stack, ctxJSON, crumbJSON string
 		if err := rows.Scan(&r.ID, &r.UserID, &r.Username, &r.SessionID, &r.Level, &r.Tag,
 			&r.Message, &stack, &extraJSON, &r.Count, &r.AppVersion, &r.VersionCode,
-			&r.OS, &r.Device, &r.IP, &r.CreatedAt); err != nil {
+			&r.OS, &r.Device, &r.IP, &r.Thread, &ctxJSON, &crumbJSON, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		r.Stack = stack
 		if extraJSON != "" {
 			_ = json.Unmarshal([]byte(extraJSON), &r.Extra)
+		}
+		if ctxJSON != "" {
+			_ = json.Unmarshal([]byte(ctxJSON), &r.Context)
+		}
+		if crumbJSON != "" {
+			_ = json.Unmarshal([]byte(crumbJSON), &r.Breadcrumbs)
 		}
 		out = append(out, r)
 	}

@@ -144,6 +144,7 @@ var schema = []string{
       duration_ms    INTEGER NOT NULL DEFAULT 0,
       listened_at_ms INTEGER NOT NULL DEFAULT 0,
       updated_at_ms  INTEGER NOT NULL DEFAULT 0,
+      merged_ids     TEXT NOT NULL DEFAULT '',
       UNIQUE (user_id, event_id)
     )`,
 	`CREATE INDEX IF NOT EXISTS idx_play_events_user ON play_events(user_id, id)`,
@@ -186,6 +187,9 @@ var schema = []string{
       os           TEXT NOT NULL DEFAULT '',
       device       TEXT NOT NULL DEFAULT '',
       ip           TEXT NOT NULL DEFAULT '',
+      thread       TEXT NOT NULL DEFAULT '',
+      context_json TEXT NOT NULL DEFAULT '',
+      breadcrumbs_json TEXT NOT NULL DEFAULT '',
       created_at   INTEGER NOT NULL DEFAULT 0
     )`,
 	`CREATE INDEX IF NOT EXISTS idx_client_logs_time   ON client_logs(created_at)`,
@@ -248,6 +252,12 @@ func (s *Store) migrate() error {
 		`ALTER TABLE users ADD COLUMN last_active_at INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE play_events ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE playlists ADD COLUMN kind TEXT NOT NULL DEFAULT 'mine'`,
+		// 客户端日志的富上下文：出错线程、环境快照、崩溃前的操作轨迹
+		`ALTER TABLE client_logs ADD COLUMN thread TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE client_logs ADD COLUMN context_json TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE client_logs ADD COLUMN breadcrumbs_json TEXT NOT NULL DEFAULT ''`,
+		// 播放会话合并后已并入本条的事件 id 列表（"|"分隔），用于重试幂等
+		`ALTER TABLE play_events ADD COLUMN merged_ids TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, stmt := range alters {
 		_, _ = s.db.Exec(stmt)

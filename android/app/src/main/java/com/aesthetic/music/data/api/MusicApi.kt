@@ -569,6 +569,20 @@ data class LogBatchItem(
     val sessionId: String = "",
     /** 同指纹去重后的出现次数（≥1；服务端展示"×N"） */
     val count: Long = 1L,
+    /** 出错的线程名（主线程 / OkHttp / DefaultDispatcher-worker-3 …） */
+    val thread: String? = null,
+    /** 崩溃前的操作轨迹（仅 ERROR 批次随附） */
+    val breadcrumbs: List<BreadcrumbItem>? = null,
+    /** 该条日志自身的环境快照（崩溃时冻结，其余走批次级 context） */
+    val context: Map<String, String>? = null,
+)
+
+/** 面包屑：一条操作轨迹 */
+data class BreadcrumbItem(
+    val timeMs: Long = 0L,
+    val level: String = "",
+    val tag: String = "",
+    val message: String = "",
 )
 
 /** 批量上报请求体 */
@@ -580,6 +594,8 @@ data class LogBatchPayload(
     val device: String = "",
     /** 已登录用户的 id（未登录为 null；服务端同时记录 IP 便于关联） */
     val appUid: Long? = null,
+    /** 环境快照：设备/内存/存储/电池/网络/前台/播放状态等 */
+    val context: Map<String, String>? = null,
 )
 
 /** 批量上报响应（服务端可下发远程排障开关） */

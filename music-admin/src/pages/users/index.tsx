@@ -30,6 +30,7 @@ import {
   CopyOutlined,
 } from "@ant-design/icons";
 import { useGetIdentity } from "@refinedev/core";
+import { useSearchParams } from "react-router-dom";
 import { request } from "../../providers/api";
 import { UserDetailPage } from "../user-detail";
 
@@ -63,9 +64,19 @@ export const UsersPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
 
   // 搜索输入状态与实际触发查询的状态分离
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") || "";
+  const [searchInput, setSearchInput] = useState(initialQuery);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [roleFilter, setRoleFilter] = useState<string>("");
+
+  // 顶部导航条的搜索会带 ?q= 跳过来：URL 变化时同步到查询条件
+  useEffect(() => {
+    const q = searchParams.get("q") || "";
+    setSearchInput(q);
+    setSearchQuery(q);
+    setPage(1);
+  }, [searchParams]);
 
   // 模态框状态与 loading
   const [createModalVisible, setCreateModalVisible] = useState(false);

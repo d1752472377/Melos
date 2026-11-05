@@ -2,6 +2,8 @@ package com.aesthetic.music.ui.source
 
 import android.util.Log
 import com.aesthetic.music.data.source.DetectTarget
+import com.aesthetic.music.data.source.PlatformQualityGroup
+import com.aesthetic.music.data.source.PluginDetectState
 import com.aesthetic.music.data.source.ProbeStatus
 import com.aesthetic.music.data.source.SourceDetector
 import com.aesthetic.music.data.source.SourceManager
@@ -17,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -62,6 +65,11 @@ class SourceController(
     val engineReady: StateFlow<Boolean> = UserApiEngine.isEngineReady
     val engineError: StateFlow<String?> = UserApiEngine.engineError
     val declaredSources: StateFlow<List<String>> = UserApiEngine.declaredSources
+    val declaredQualities: StateFlow<Map<String, List<String>>> = UserApiEngine.declaredQualities
+
+    private val _pluginDetect = MutableStateFlow<PluginDetectState?>(null)
+    val pluginDetect: StateFlow<PluginDetectState?> = _pluginDetect.asStateFlow()
+    private var pluginDetectJob: kotlinx.coroutines.Job? = null
 
     private val detector = SourceDetector()
 
@@ -299,6 +307,110 @@ class SourceController(
             refresh()
             onToast("${target.label}：${probe.status.label}（${probe.latencyLabel}）")
         }
+    }
+
+    // ==================== 插件逐档检测 ====================
+
+    /**
+     * 打开某个插件的检测：quick=true 只测声明的最高两档，false 测全部声明的音质。
+     *
+     * 结果放在 [pluginDetect] 里实时更新，不写 [SourceStatsStore]；列表卡片仍然使用
+     * 平台级的检测结果。
+     */
+    fun startPluginDetect(pluginId: String, quick: Boolean) {
+        if (pluginDetectJob?.isActive == true) return
+        val plugin = SourceRegistryStore.find(pluginId)
+        if (plugin == null) {
+            onToast("插件不存在")
+            return
+        }
+        val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
+        _pluginDetect.value = PluginDetectState(
+            plugin = plugin,
+            quick = quick,
+            running = true,
+            total = 0,
+            done = 0,
+            groups = platforms.map { PlatformQualityGroup(it) },
+        )
+
+        pluginDetectJob = scope.launch {
+            try {
+                val loaded = SourceManager.withPlugin(plugin) {
+                    val declared = UserApiEngine.declaredQualities.value
+                    val plan = platforms.associateWith { platform ->
+                        val all = declared[platform.lxCode].orEmpty().ifEmpty { listOf("128k") }
+                        if (quick) all.takeLast(2) else all
+                    }
+                    val total = plan.values.sumOf { it.size }
+                    var done = 0
+                    _pluginDetect.update { it?.copy(total = total) }
+
+                    fun record(platform: SourcePlatform, probe: com.aesthetic.music.data.source.QualityProbe) {
+                        done++
+                        _pluginDetect.update { state ->
+                            state?.copy(
+                                done = done,
+                                groups = state.groups.map { group ->
+                                    if (group.platform == platform) {
+                                        group.copy(qualities = group.qualities + probe)
+                                    } else {
+                                        group
+                                    }
+                                },
+                            )
+                        }
+                    }
+
+                    for ((platform, qualities) in plan) {
+                        try {
+                            detector.detectPluginQualities(plugin, platform, qualities) { probe ->
+                                record(platform, probe)
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            qualities.forEach { quality ->
+                                record(
+                                    platform,
+                                    com.aesthetic.music.data.source.QualityProbe(
+                                        quality = quality,
+                                        status = ProbeStatus.FAIL,
+                                        detail = e.message ?: "检测异常",
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+                _pluginDetect.update {
+                    if (loaded == null) {
+                        it?.copy(running = false, error = "脚本未能加载到沙箱")
+                    } else {
+                        it?.copy(running = false)
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "插件检测中断: ${e.message}")
+                _pluginDetect.update { it?.copy(running = false, error = e.message ?: "检测中断") }
+            } finally {
+                // 取消/关闭面板时也要把沙箱恢复到用户当前指定的插件。
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    runCatching { SourceManager.restoreActive() }
+                }
+            }
+        }
+    }
+
+    /** 关闭检测面板；仍在跑就取消。 */
+    fun clearPluginDetect() {
+        if (pluginDetectJob?.isActive == true) {
+            pluginDetectJob?.cancel()
+        }
+        pluginDetectJob = null
+        _pluginDetect.value = null
     }
 
     companion object {

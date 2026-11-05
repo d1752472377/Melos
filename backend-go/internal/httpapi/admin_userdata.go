@@ -173,11 +173,23 @@ func (s *Server) handleAdminUserPlayEvents(c *gin.Context) {
 	id, _ := jsParseInt(c.Param("id"))
 	page, limit, offset := readPageParams(c)
 	ctx := c.Request.Context()
-	total, items, err := s.store.AdminUserPlayEvents(ctx, int64(id), offset, limit)
+	// 默认返回按"连续播放"合并后的会话（管理端看到的就是"一次播放"）；
+	// raw=1 时才返回逐条原始心跳，供核对上报行为。
+	if c.Query("raw") == "1" {
+		total, items, err := s.store.AdminUserPlayEvents(ctx, int64(id), offset, limit)
+		if err != nil {
+			s.fail500(c, err)
+			return
+		}
+		c.Header("x-total-count", i64toa(total))
+		ok(c, gin.H{"items": items, "total": total, "page": page, "limit": limit, "mode": "raw"})
+		return
+	}
+	total, items, err := s.store.AdminUserPlaySessions(ctx, int64(id), offset, limit)
 	if err != nil {
 		s.fail500(c, err)
 		return
 	}
 	c.Header("x-total-count", i64toa(total))
-	ok(c, gin.H{"items": items, "total": total, "page": page, "limit": limit})
+	ok(c, gin.H{"items": items, "total": total, "page": page, "limit": limit, "mode": "session"})
 }

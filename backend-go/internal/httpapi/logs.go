@@ -51,6 +51,7 @@ func (s *Server) handleLogBatch(c *gin.Context) {
 		OS:          asString(body["os"]),
 		Device:      asString(body["device"]),
 		AppUID:      uid,
+		Context:     asStringMap(body["context"]),
 	}
 
 	items := make([]store.ClientLogItem, 0, len(rawLogs))
@@ -67,14 +68,22 @@ func (s *Server) handleLogBatch(c *gin.Context) {
 			TimeMs:    numAsI64(m["timeMs"]),
 			SessionID: asString(m["sessionId"]),
 			Count:     numAsI64(m["count"]),
+			Thread:    asString(m["thread"]),
+			Extra:     asStringMap(m["extra"]),
+			Context:   asStringMap(m["context"]),
 		}
-		if extra, ok := m["extra"].(map[string]any); ok {
-			it.Extra = map[string]string{}
-			for k, v := range extra {
-				if k == "" {
+		if arr, ok := m["breadcrumbs"].([]any); ok {
+			for _, c := range arr {
+				cm, ok := c.(map[string]any)
+				if !ok {
 					continue
 				}
-				it.Extra[truncateStr(k, 80)] = truncateStr(asString(v), 500)
+				it.Breadcrumbs = append(it.Breadcrumbs, store.BreadcrumbItem{
+					TimeMs:  numAsI64(cm["timeMs"]),
+					Level:   truncateStr(asString(cm["level"]), 20),
+					Tag:     truncateStr(asString(cm["tag"]), 60),
+					Message: truncateStr(asString(cm["message"]), 300),
+				})
 			}
 		}
 		items = append(items, it)
@@ -164,4 +173,24 @@ func numAsI64(v any) int64 {
 		return 0
 	}
 	return int64(f)
+}
+
+// asStringMap normalises a decoded JSON object into map[string]string,
+// truncating keys/values so a hostile client cannot blow up a row.
+func asStringMap(v any) map[string]string {
+	m, ok := v.(map[string]any)
+	if !ok || len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, val := range m {
+		if k == "" {
+			continue
+		}
+		out[truncateStr(k, 60)] = truncateStr(asString(val), 300)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

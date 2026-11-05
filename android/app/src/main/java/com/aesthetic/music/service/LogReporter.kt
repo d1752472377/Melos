@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.api.ApiClient
+import com.aesthetic.music.data.api.BreadcrumbItem
 import com.aesthetic.music.data.api.LogBatchItem
 import com.aesthetic.music.data.api.LogBatchPayload
 import com.aesthetic.music.data.settings.SettingsStore
@@ -88,6 +89,38 @@ object LogReporter {
     /** 会话 ID：进程存活期间不变，便于把一批日志串起来 */
     private val sessionId: String = UUID.randomUUID().toString().take(8)
 
+    /**
+     * 面包屑：最近 [MAX_BREADCRUMBS] 条操作轨迹（含 INFO/DEBUG）。
+     *
+     * 崩溃或报错时最缺的不是堆栈，而是"崩之前他在干什么"——切了哪首歌、
+     * 点了哪个页面、同步重试了几次。堆栈指向代码，轨迹指向操作序列。
+     * 只在批次里含 ERROR 时随附，避免正常日志也背上几十条尾巴。
+     */
+    private data class Crumb(val timeMs: Long, val level: String, val tag: String, val message: String)
+
+    private val breadcrumbs = ArrayDeque<Crumb>()
+    private const val MAX_BREADCRUMBS = 40
+
+    private fun addBreadcrumb(level: String, tag: String, message: String, timeMs: Long) {
+        synchronized(breadcrumbs) {
+            breadcrumbs.addLast(Crumb(timeMs, level, tag, message.take(200)))
+            while (breadcrumbs.size > MAX_BREADCRUMBS) breadcrumbs.removeFirst()
+        }
+    }
+
+    /** 主动记一条操作轨迹（不进上报队列，只作为后续错误日志的上下文） */
+    fun breadcrumb(tag: String, message: String) {
+        addBreadcrumb("BREADCRUMB", tag, message, System.currentTimeMillis())
+    }
+
+    private fun breadcrumbsForUpload(): List<BreadcrumbItem>? {
+        val snapshot = synchronized(breadcrumbs) { breadcrumbs.toList() }
+        if (snapshot.isEmpty()) return null
+        return snapshot.map {
+            BreadcrumbItem(timeMs = it.timeMs, level = it.level, tag = it.tag, message = it.message)
+        }
+    }
+
     /** 远程下发的 DEBUG 采集截止时间（0 = 未开启） */
     @Volatile
     private var debugUntil = 0L
@@ -101,6 +134,7 @@ object LogReporter {
         if (started) return
         started = true
         appContext = context.applicationContext
+        LogContext.init(context)
         // 启动即补传上次残留的磁盘队列（崩溃日志等）
         scope.launch { drainDiskQueue() }
         scope.launch { flushLoop() }
@@ -168,7 +202,10 @@ object LogReporter {
         val item = LogBatchItem(
             level = level, tag = tag, message = message.take(2000), stack = stack.take(8000),
             extra = extra, timeMs = now, sessionId = sessionId,
+            thread = Thread.currentThread().name,
         )
+        // 每条日志都进面包屑（含 INFO/DEBUG 的降级），供后续错误回溯操作序列
+        addBreadcrumb(level, tag, message, now)
         synchronized(queueLock) {
             val prev = dedup[fp]
             if (prev != null && now - prev.first < DEDUP_WINDOW_MS) {
@@ -227,13 +264,19 @@ object LogReporter {
         val ctx = appContext ?: return false
         if (!SyncServerStore.isConfigured()) return false
         return try {
+            // 环境快照：设备/内存/存储/电池/网络/前台/播放状态等，每批现取一次
+            val contextMap = LogContext.snapshotOrEmpty()
+            // 面包屑只在批次含 ERROR 时随附（正常批次不必背几十条轨迹）
+            val crumbs = if (items.any { it.level == Level.ERROR }) breadcrumbsForUpload() else null
+            val enriched = if (crumbs == null) items else items.map { it.copy(breadcrumbs = crumbs) }
             val payload = LogBatchPayload(
-                logs = items,
+                logs = enriched,
                 appVersion = BuildConfig.VERSION_NAME,
                 versionCode = BuildConfig.VERSION_CODE.toLong(),
                 os = "Android ${Build.VERSION.RELEASE}",
                 device = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
                 appUid = UserStore.user()?.id?.takeIf { it > 0 },
+                context = contextMap,
             )
             val resp = ApiClient.api.logsBatch(payload)
             if (resp.code == 200 && resp.data != null) {
@@ -290,19 +333,32 @@ object LogReporter {
         }
     }
 
-    /** 崩溃时同步调用：把当前内存队列 + 崩溃本身落盘（不碰网络，进程随时会死） */
-    fun crashFlush(crashLogPath: String?) {
+    /**
+     * 崩溃时同步调用：把当前内存队列 + 崩溃本身落盘（不碰网络，进程随时会死）。
+     *
+     * 面包屑必须在这里**冻结**进条目：崩溃后进程没了，下次启动补传时
+     * 环形缓冲已经是新进程的轨迹，那时候再挂面包屑指向的是另一段历史。
+     * 环境快照同理，一并冻在这一条上。
+     */
+    fun crashFlush(crashLogPath: String?, error: Throwable? = null) {
         try {
             val ctx = appContext ?: return
+            val frozenCrumbs = breadcrumbsForUpload()
+            val frozenContext = LogContext.snapshotOrEmpty()
+            val crashItem = LogBatchItem(
+                level = Level.ERROR, tag = "CrashHandler",
+                message = "进程崩溃，崩溃日志: ${crashLogPath ?: "(写入失败)"}",
+                stack = error?.let { stackOf(it) },
+                timeMs = System.currentTimeMillis(), sessionId = sessionId,
+                thread = Thread.currentThread().name,
+                breadcrumbs = frozenCrumbs,
+                context = frozenContext,
+            )
             val items = synchronized(queueLock) {
                 val list = queue.toList()
                 queue.clear()
                 list
-            } + LogBatchItem(
-                level = Level.ERROR, tag = "CrashHandler",
-                message = "进程崩溃，崩溃日志: ${crashLogPath ?: "(写入失败)"}",
-                timeMs = System.currentTimeMillis(), sessionId = sessionId,
-            )
+            } + crashItem
             spillToDisk(items)
         } catch (_: Exception) {}
     }

@@ -39,8 +39,8 @@ object CrashHandler {
                     }
                 )
                 android.util.Log.e("CrashHandler", "崩溃日志已写入: ${file.absolutePath}", throwable)
-                // 崩溃场景来不及发请求：把内存队列 + 崩溃提示同步落盘，下次启动由 LogReporter 补传
-                LogReporter.crashFlush(file.absolutePath)
+                // 崩溃场景来不及发请求：把内存队列 + 崩溃本身同步落盘，下次启动由 LogReporter 补传
+                LogReporter.crashFlush(file.absolutePath, throwable)
             } catch (_: Exception) {
             }
             default?.uncaughtException(thread, throwable)

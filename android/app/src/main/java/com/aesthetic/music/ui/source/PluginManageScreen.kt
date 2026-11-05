@@ -3,6 +3,7 @@ package com.aesthetic.music.ui.source
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,32 +12,44 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -52,26 +65,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.R
 import com.aesthetic.music.data.settings.UserPrefs
 import com.aesthetic.music.data.source.DetectTarget
+import com.aesthetic.music.data.source.PlatformQualityGroup
+import com.aesthetic.music.data.source.PluginDetectState
 import com.aesthetic.music.data.source.ProbeStatus
+import com.aesthetic.music.data.source.QualityProbe
 import com.aesthetic.music.data.source.SourcePlatform
 import com.aesthetic.music.data.source.SourcePlugin
 import com.aesthetic.music.data.source.SourceProbe
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.home.iosGlassCard
-import com.aesthetic.music.ui.settings.SettingsDivider
-import com.aesthetic.music.ui.settings.SettingsGap
-import com.aesthetic.music.ui.settings.SettingsPageScaffold
-import com.aesthetic.music.ui.settings.SettingsSection
-import com.aesthetic.music.ui.settings.SettingsSwitchRow
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentMint
@@ -84,8 +97,6 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
-import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Locale
 
 data class SourceActions(
@@ -97,12 +108,21 @@ data class SourceActions(
     val reload: () -> Unit,
     val unload: () -> Unit,
     val remove: (id: String) -> Unit,
+    val refresh: () -> Unit,
     val detectAll: () -> Unit,
     val detectOne: (targetId: String) -> Unit,
+    val startPluginDetect: (pluginId: String, quick: Boolean) -> Unit,
+    val clearPluginDetect: () -> Unit,
     val setSourceFailover: (Boolean) -> Unit,
     val setSourceSmartSwitch: (Boolean) -> Unit,
     val setSourceFastest: (Boolean) -> Unit,
 )
+
+private enum class SortMode(val label: String) {
+    Recent("最近使用"),
+    Name("名称"),
+    Speed("速度"),
+}
 
 @Composable
 fun PluginManageScreen(
@@ -116,6 +136,7 @@ fun PluginManageScreen(
     loadedPluginId: String?,
     engineReady: Boolean,
     engineError: String?,
+    pluginDetect: PluginDetectState?,
     userPrefs: UserPrefs,
     actions: SourceActions,
     onToast: (String) -> Unit,
@@ -123,12 +144,19 @@ fun PluginManageScreen(
 ) {
     val context = LocalContext.current
     var importPlatform by remember { mutableStateOf("") }
+    var showAddSheet by remember { mutableStateOf(false) }
     var showUrlSheet by remember { mutableStateOf(false) }
     var urlInput by remember { mutableStateOf("") }
     var importingUrl by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<SourcePlugin?>(null) }
     var showUnloadConfirm by remember { mutableStateOf(false) }
     var platformSheetPlugin by remember { mutableStateOf<SourcePlugin?>(null) }
+    var showStatusSheet by remember { mutableStateOf(false) }
+    var showPlaybackSheet by remember { mutableStateOf(false) }
+    var detectChoicePlugin by remember { mutableStateOf<SourcePlugin?>(null) }
+    var sortMode by remember { mutableStateOf(SortMode.Speed) }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    var topMenuExpanded by remember { mutableStateOf(false) }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -137,78 +165,306 @@ fun PluginManageScreen(
             onToast("读取文件失败，请换一个文件或用「从连接导入」")
         } else {
             actions.importFromContent(text, importPlatform)
+            showAddSheet = false
         }
     }
 
-    SettingsPageScaffold(
-        title = "插件管理",
-        subtitle = "音源导入 · 检测 · 切换策略",
-        onBack = onBack,
+    val sortedPlugins = remember(plugins, probes, sortMode) {
+        when (sortMode) {
+            SortMode.Recent -> plugins.sortedByDescending { it.lastUsedAt }
+            SortMode.Name -> plugins.sortedBy { it.name.lowercase(Locale.getDefault()) }
+            SortMode.Speed -> plugins.sortedBy { pluginSpeed(it, probes) }
+        }
+    }
+    val enabledCount = plugins.count { it.enable }
+    val running = engineReady && loadedPluginId != null
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .statusBarsPadding(),
     ) {
-        CurrentSourceCard(
-            plugins = plugins,
-            activeId = activeId,
-            loadedPluginId = loadedPluginId,
-            engineReady = engineReady,
-            engineError = engineError,
-            userPrefs = userPrefs,
-            lastDetectAt = lastDetectAt,
-            targetCount = targets.size,
-            detecting = detecting,
-            onReload = actions.reload,
-            onDetectAll = actions.detectAll,
-            onUnload = { showUnloadConfirm = true },
-        )
+        // 顶栏
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                tint = TextPrimary,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(24.dp)
+                    .clickable(onClick = onBack),
+            )
+            Text(
+                text = "插件管理",
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 19.sp, fontWeight = FontWeight.Bold),
+                color = TextPrimary,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            Box(Modifier.align(Alignment.CenterEnd)) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { topMenuExpanded = true }
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("音源", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp), color = TextSoft)
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = TextSoft, modifier = Modifier.size(16.dp))
+                }
+                DropdownMenu(
+                    expanded = topMenuExpanded,
+                    onDismissRequest = { topMenuExpanded = false },
+                    modifier = Modifier.background(Surface),
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("刷新列表", fontSize = 14.sp, color = TextPrimary) },
+                        onClick = {
+                            topMenuExpanded = false
+                            actions.refresh()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("全部检测", fontSize = 14.sp, color = TextPrimary) },
+                        onClick = {
+                            topMenuExpanded = false
+                            actions.detectAll()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("停止使用脚本", fontSize = 14.sp, color = AccentRose) },
+                        onClick = {
+                            topMenuExpanded = false
+                            showUnloadConfirm = true
+                        },
+                    )
+                }
+            }
+        }
 
-        SettingsGap()
+        // 标题 + 添加插件
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "音源插件",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp, fontWeight = FontWeight.Bold),
+                    color = TextPrimary,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = "${plugins.size} 个已安装 · $enabledCount 个已启用",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = TextSoft,
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PrimaryBrown)
+                    .clickable { showAddSheet = true }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "添加插件",
+                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                    color = Color.White,
+                )
+            }
+        }
 
-        ImportSection(
-            importPlatform = importPlatform,
-            onPlatformChange = { importPlatform = it },
-            onPickFile = { filePicker.launch(arrayOf("*/*")) },
-            onImportUrl = { showUrlSheet = true },
-        )
+        // 运行状态 / 播放设置
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Surface)
+                .border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { showStatusSheet = true }
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                !engineError.isNullOrBlank() -> AccentRose
+                                running -> AccentMint
+                                else -> AccentAmber
+                            },
+                        ),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = when {
+                        !engineError.isNullOrBlank() -> "运行异常"
+                        running -> "运行正常"
+                        else -> "未加载"
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+            }
+            Box(Modifier.width(1.dp).height(18.dp).background(Stone200))
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { showPlaybackSheet = true }
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Tune, contentDescription = null, tint = TextSoft, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    text = "播放设置",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+            }
+        }
 
-        SettingsGap()
+        // 已安装
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "已安装 ${plugins.size}",
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                color = TextPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            Box {
+                IconButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Sort, contentDescription = "排序", tint = TextSoft, modifier = Modifier.size(18.dp))
+                }
+                DropdownMenu(
+                    expanded = sortMenuExpanded,
+                    onDismissRequest = { sortMenuExpanded = false },
+                    modifier = Modifier.background(Surface),
+                ) {
+                    SortMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = mode.label,
+                                    fontSize = 14.sp,
+                                    color = if (mode == sortMode) PrimaryBrown else TextPrimary,
+                                    fontWeight = if (mode == sortMode) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            },
+                            onClick = {
+                                sortMode = mode
+                                sortMenuExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+        }
 
-        PolicySection(
-            userPrefs = userPrefs,
-            onFailoverChange = actions.setSourceFailover,
-            onSmartSwitchChange = actions.setSourceSmartSwitch,
-            onFastestChange = actions.setSourceFastest,
-        )
+        if (plugins.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Surface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
+                    .padding(28.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("还没有音源插件", fontSize = 13.sp, color = TextMuted)
+            }
+        } else {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                sortedPlugins.forEach { plugin ->
+                    PluginCard(
+                        plugin = plugin,
+                        probes = probes,
+                        isActive = plugin.id == activeId,
+                        isRunning = plugin.id == loadedPluginId && engineReady,
+                        detecting = detecting || pluginDetect?.running == true,
+                        onActivate = { actions.activate(plugin.id) },
+                        onToggleEnable = { actions.setEnable(plugin.id, it) },
+                        onPickPlatform = { platformSheetPlugin = plugin },
+                        onDetect = { detectChoicePlugin = plugin },
+                        onDelete = { pendingDelete = plugin },
+                    )
+                }
+            }
+        }
 
-        SettingsGap()
+        Spacer(Modifier.height(28.dp))
+    }
 
-        SourceListSection(
-            plugins = plugins,
-            probes = probes,
-            activeId = activeId,
-            loadedPluginId = loadedPluginId,
-            detecting = detecting,
-            onActivate = actions.activate,
-            onReload = actions.reload,
-            onToggleEnable = actions.setEnable,
-            onPickPlatform = { platformSheetPlugin = it },
-            onDetectTarget = actions.detectOne,
-            onDelete = { pendingDelete = it },
-        )
+    // ==================== 添加插件 ====================
+    if (showAddSheet) {
+        AppBottomSheet(onDismissRequest = { showAddSheet = false }) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                SheetHeader(title = "添加插件", onClose = { showAddSheet = false })
+                Spacer(Modifier.height(14.dp))
+                Text("适用平台", fontSize = 12.sp, color = TextSoft)
+                Spacer(Modifier.height(6.dp))
+                PlatformPickerRow(selected = importPlatform, onSelect = { importPlatform = it })
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ImportTile(
+                        title = "从文件导入",
+                        subtitle = "选择 .js 文件",
+                        icon = Icons.Filled.Description,
+                        modifier = Modifier.weight(1f),
+                        onClick = { filePicker.launch(arrayOf("*/*")) },
+                    )
+                    ImportTile(
+                        title = "从连接导入",
+                        subtitle = "填写脚本直链",
+                        icon = Icons.Filled.Link,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            showAddSheet = false
+                            showUrlSheet = true
+                        },
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
     }
 
     if (showUrlSheet) {
         AppBottomSheet(onDismissRequest = { if (!importingUrl) showUrlSheet = false }) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Text(
-                    text = "从连接导入",
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "支持脚本直链（raw 链接、订阅地址）。导入后立即生效。",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = TextSoft,
-                )
+                SheetHeader(title = "从连接导入", onClose = { if (!importingUrl) showUrlSheet = false })
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = urlInput,
@@ -219,12 +475,9 @@ fun PluginManageScreen(
                     singleLine = true,
                 )
                 Spacer(Modifier.height(10.dp))
-                PlatformPickerRow(
-                    selected = importPlatform,
-                    onSelect = { importPlatform = it },
-                )
+                PlatformPickerRow(selected = importPlatform, onSelect = { importPlatform = it })
                 Spacer(Modifier.height(14.dp))
-                SheetPrimaryButton(
+                PrimaryWideButton(
                     text = if (importingUrl) "导入中…" else "导入",
                     enabled = !importingUrl && urlInput.isNotBlank(),
                     onClick = {
@@ -245,21 +498,280 @@ fun PluginManageScreen(
         }
     }
 
+    // ==================== 运行状态 ====================
+    if (showStatusSheet) {
+        AppBottomSheet(onDismissRequest = { showStatusSheet = false }) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                SheetHeader(
+                    title = "插件运行状态",
+                    subtitle = when {
+                        !engineError.isNullOrBlank() -> "运行异常"
+                        running -> "运行正常"
+                        else -> "未加载"
+                    },
+                    onClose = { showStatusSheet = false },
+                )
+                Spacer(Modifier.height(14.dp))
+                Text("运行概览", fontSize = 12.sp, color = TextSoft)
+                Spacer(Modifier.height(6.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Surface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                        .padding(14.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (engineError.isNullOrBlank()) Icons.Filled.CheckCircle else Icons.Filled.ErrorOutline,
+                            contentDescription = null,
+                            tint = if (engineError.isNullOrBlank()) AccentMint else AccentRose,
+                            modifier = Modifier.size(17.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = engineError ?: if (running) "插件已加载，暂未发现运行异常。" else "插件尚未加载。",
+                            fontSize = 12.sp,
+                            color = if (engineError.isNullOrBlank()) TextPrimary else AccentRose,
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        StatusStat("已启用", enabledCount, Modifier.weight(1f))
+                        StatusStat("已加载", if (running) 1 else 0, Modifier.weight(1f))
+                        StatusStat("暂时停用", plugins.count { !it.enable }, Modifier.weight(1f))
+                        StatusStat("启动失败", if (engineError.isNullOrBlank()) 0 else 1, Modifier.weight(1f))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "当前播放不受影响；正在取链或检测的任务会中断。",
+                    fontSize = 10.5.sp,
+                    color = TextMuted,
+                )
+                Spacer(Modifier.height(14.dp))
+                DangerWideButton("重新加载") {
+                    actions.reload()
+                    showStatusSheet = false
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+    }
+
+    // ==================== 播放设置 ====================
+    if (showPlaybackSheet) {
+        var policyExpanded by remember { mutableStateOf(false) }
+        val mode = when {
+            userPrefs.sourceSmartSwitch -> "智能切换"
+            userPrefs.sourceFailover -> "失败换源"
+            else -> "仅当前源"
+        }
+        val activePlugin = plugins.firstOrNull { it.id == activeId }
+
+        AppBottomSheet(onDismissRequest = { showPlaybackSheet = false }) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                SheetHeader(title = "播放设置", subtitle = "修改后立即生效", onClose = { showPlaybackSheet = false })
+                Spacer(Modifier.height(14.dp))
+                Text("音源选择", fontSize = 12.sp, color = TextSoft)
+                Spacer(Modifier.height(6.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Surface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
+                ) {
+                    SettingRow(
+                        icon = Icons.Filled.SwapHoriz,
+                        title = "取链策略",
+                        value = mode,
+                        onClick = { policyExpanded = !policyExpanded },
+                    )
+                    if (policyExpanded) {
+                        Row(
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            listOf("仅当前源", "失败换源", "智能切换").forEach { option ->
+                                ModeChip(
+                                    text = option,
+                                    selected = option == mode,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        actions.setSourceFailover(option != "仅当前源")
+                                        actions.setSourceSmartSwitch(option == "智能切换")
+                                        policyExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = Stone200.copy(alpha = 0.6f))
+                    SettingRow(
+                        icon = Icons.Filled.FilterAlt,
+                        title = "指定平台插件",
+                        value = activePlugin?.targetLabel ?: "自动选择",
+                        onClick = {
+                            val plugin = activePlugin
+                            if (plugin == null) {
+                                onToast("先在列表里选择一个插件")
+                            } else {
+                                showPlaybackSheet = false
+                                platformSheetPlugin = plugin
+                            }
+                        },
+                    )
+                    HorizontalDivider(color = Stone200.copy(alpha = 0.6f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { actions.setSourceFastest(!userPrefs.sourceFastest) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.Speed, contentDescription = null, tint = AccentMint, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("多插件智能切换", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text("优先使用取链更快的插件", fontSize = 11.sp, color = TextSoft)
+                        }
+                        Switch(
+                            checked = userPrefs.sourceFastest,
+                            onCheckedChange = { actions.setSourceFastest(it) },
+                            colors = sourceSwitchColors(),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+    }
+
+    // ==================== 检测方式 ====================
+    detectChoicePlugin?.let { plugin ->
+        AppBottomSheet(onDismissRequest = { detectChoicePlugin = null }) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                SheetHeader(
+                    title = "音源检测",
+                    subtitle = plugin.name,
+                    onClose = { detectChoicePlugin = null },
+                )
+                Spacer(Modifier.height(12.dp))
+                DetectChoiceRow(
+                    title = "快速检测",
+                    subtitle = "检测声明的最高两档音质",
+                    icon = Icons.Filled.Bolt,
+                    accent = AccentCyan,
+                ) {
+                    detectChoicePlugin = null
+                    actions.startPluginDetect(plugin.id, true)
+                }
+                Spacer(Modifier.height(8.dp))
+                DetectChoiceRow(
+                    title = "全档检测",
+                    subtitle = "检测声明的全部音质",
+                    icon = Icons.Filled.Tune,
+                    accent = PrimaryBrown,
+                ) {
+                    detectChoicePlugin = null
+                    actions.startPluginDetect(plugin.id, false)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("逐档检测样本，不下载整首歌曲。", fontSize = 10.5.sp, color = TextMuted)
+                Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
+
+    // ==================== 检测结果 ====================
+    pluginDetect?.let { state ->
+        AppBottomSheet(onDismissRequest = { actions.clearPluginDetect() }) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                SheetHeader(
+                    title = state.title,
+                    subtitle = state.plugin.name,
+                    onClose = { actions.clearPluginDetect() },
+                )
+                Spacer(Modifier.height(14.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Surface)
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                        .padding(14.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = when {
+                                state.running -> "正在切换检测项"
+                                state.error != null -> "检测中断"
+                                else -> "检测完成"
+                            },
+                            fontSize = 12.sp,
+                            color = TextPrimary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = if (state.total > 0) "已检测 ${state.done} / ${state.total} 档" else "准备中",
+                            fontSize = 10.5.sp,
+                            color = TextSoft,
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    val progress = if (state.total > 0) (state.done.toFloat() / state.total).coerceIn(0f, 1f) else 0f
+                    LinearProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = PrimaryBrown,
+                        trackColor = Stone100,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("样本结果不代表全部歌曲", fontSize = 10.5.sp, color = TextMuted)
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "本次样本",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "${state.groups.count { it.qualities.isNotEmpty() }} 个平台",
+                        fontSize = 10.5.sp,
+                        color = TextSoft,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                state.groups.filter { it.qualities.isNotEmpty() }.forEach { group ->
+                    QualityGroupCard(group)
+                    Spacer(Modifier.height(8.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                DangerWideButton(if (state.running) "取消检测" else "完成") {
+                    actions.clearPluginDetect()
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+    }
+
+    // ==================== 指定平台 ====================
     platformSheetPlugin?.let { plugin ->
         AppBottomSheet(onDismissRequest = { platformSheetPlugin = null }) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Text(
-                    text = "指定平台 · ${plugin.name}",
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
+                SheetHeader(
+                    title = "适用平台 · ${plugin.name}",
+                    onClose = { platformSheetPlugin = null },
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "指定后，这个插件只在播放该平台歌曲时参与解析；选「全平台通用」则任何平台都可使用。",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = TextSoft,
-                )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 PlatformOptionsList(
                     selected = plugin.targetPlatform,
                     onSelect = { code ->
@@ -276,7 +788,7 @@ fun PluginManageScreen(
         AppConfirmDialog(
             onDismissRequest = { pendingDelete = null },
             title = "删除插件",
-            message = "将删除「${plugin.name}」的脚本与配置，删除后需要重新导入。确定继续吗？",
+            message = "将删除「${plugin.name}」的脚本与配置。",
             confirmText = "删除",
             onConfirm = {
                 actions.remove(plugin.id)
@@ -289,7 +801,7 @@ fun PluginManageScreen(
         AppConfirmDialog(
             onDismissRequest = { showUnloadConfirm = false },
             title = "停止使用音源脚本",
-            message = "脚本会从沙箱中卸载，播放将回落到内置直连（音质可能下降）。插件本身不会被删除。",
+            message = "播放将回落到内置直连，插件本身不会删除。",
             confirmText = "停止使用",
             destructive = false,
             onConfirm = {
@@ -300,187 +812,533 @@ fun PluginManageScreen(
     }
 }
 
-// ==================== 当前音源总览 ====================
+// ==================== 插件卡片 ====================
 
 @Composable
-private fun CurrentSourceCard(
-    plugins: List<SourcePlugin>,
-    activeId: String?,
-    loadedPluginId: String?,
-    engineReady: Boolean,
-    engineError: String?,
-    userPrefs: UserPrefs,
-    lastDetectAt: Long,
-    targetCount: Int,
+private fun PluginCard(
+    plugin: SourcePlugin,
+    probes: Map<String, SourceProbe>,
+    isActive: Boolean,
+    isRunning: Boolean,
     detecting: Boolean,
-    onReload: () -> Unit,
-    onDetectAll: () -> Unit,
-    onUnload: () -> Unit,
+    onActivate: () -> Unit,
+    onToggleEnable: (Boolean) -> Unit,
+    onPickPlatform: () -> Unit,
+    onDetect: () -> Unit,
+    onDelete: () -> Unit,
 ) {
-    val enabledPlugins = plugins.filter { it.enable }
-    val activePlugin = enabledPlugins.firstOrNull { it.id == activeId } ?: enabledPlugins.firstOrNull()
-    val running = enabledPlugins.firstOrNull { it.id == loadedPluginId }
-
-    val title = when {
-        userPrefs.sourceFastest && enabledPlugins.isNotEmpty() -> "自动最快"
-        activePlugin != null -> activePlugin.name
-        else -> "内置直连"
-    }
-    val explain = when {
-        enabledPlugins.isEmpty() -> "未启用插件，播放使用各平台内置直连"
-        userPrefs.sourceFastest -> "已开启自动最快，将按实测速度在 ${enabledPlugins.size} 个启用插件中挑选"
-        userPrefs.sourceSmartSwitch -> "已开启智能切换，失败或偏慢的源会被跳过"
-        activePlugin != null -> "已手动指定该插件"
-        else -> "未指定插件，按最近使用顺序尝试"
+    val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
+    var menuExpanded by remember { mutableStateOf(false) }
+    val tested = platforms.mapNotNull { probes[SourceProbe.pluginTarget(plugin.id, it)] }
+        .filter { it.checkedAt > 0 }
+    val okCount = tested.count { it.ok }
+    val avgMs = tested.map { it.speedScoreMs }.takeIf { it.isNotEmpty() }?.average()
+    val summary = buildString {
+        if (tested.isEmpty()) {
+            append("未检测")
+        } else {
+            append("$okCount/${platforms.size} 平台可用")
+            if (avgMs != null && avgMs > 0) {
+                append(" · 平均 ")
+                append(String.format(Locale.US, "%.1fs", avgMs / 1000.0))
+            }
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Surface)
-            .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
+            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
             .padding(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.Top) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PrimaryBrown.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Extension, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(23.dp))
+            }
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = "当前音源",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = TextSoft,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = plugin.name,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (isRunning) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(AccentMint),
+                        )
+                    } else if (isActive) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("当前", fontSize = 10.sp, color = PrimaryBrown, fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 19.sp, fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = explain,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
+                    text = buildString {
+                        append("v${plugin.version}")
+                        if (plugin.author.isNotBlank()) {
+                            append(" · ")
+                            append(plugin.author)
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                     color = TextSoft,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.width(10.dp))
-            StatusBadge(
-                text = when {
-                    engineReady && running != null -> "运行中"
-                    enabledPlugins.isEmpty() -> "内置直连"
-                    else -> "未加载"
-                },
-                color = when {
-                    engineReady && running != null -> AccentMint
-                    enabledPlugins.isEmpty() -> AccentCyan
-                    else -> AccentAmber
-                },
-            )
+            Box {
+                IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(30.dp)) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "更多", tint = TextSoft, modifier = Modifier.size(19.dp))
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    modifier = Modifier.background(Surface),
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("设为当前", fontSize = 14.sp, color = TextPrimary) },
+                        onClick = {
+                            menuExpanded = false
+                            onActivate()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("指定平台", fontSize = 14.sp, color = TextPrimary) },
+                        onClick = {
+                            menuExpanded = false
+                            onPickPlatform()
+                        },
+                    )
+                    HorizontalDivider(color = Stone200.copy(alpha = 0.6f))
+                    DropdownMenuItem(
+                        text = { Text("移除插件", fontSize = 14.sp, color = AccentRose) },
+                        onClick = {
+                            menuExpanded = false
+                            onDelete()
+                        },
+                    )
+                }
+            }
         }
 
-        if (!engineError.isNullOrBlank() && plugins.isNotEmpty() && !engineReady) {
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Filled.ErrorOutline,
-                    contentDescription = null,
-                    tint = AccentRose,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = engineError,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = AccentRose,
-                )
+        Spacer(Modifier.height(12.dp))
+        Text("支持平台", fontSize = 11.sp, color = TextSoft)
+        Spacer(Modifier.height(7.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            platforms.take(5).forEach { platform ->
+                val probe = probes[SourceProbe.pluginTarget(plugin.id, platform)]
+                PlatformBadge(platform = platform, status = probe?.status ?: ProbeStatus.UNKNOWN)
             }
         }
 
         Spacer(Modifier.height(10.dp))
-        Text(
-            text = buildString {
-                append("已安装 ${plugins.size} 个插件 · 启用 ${plugins.count { it.enable }} 个")
-                append(" · ")
-                append(if (lastDetectAt > 0) "上次检测 ${relativeTime(lastDetectAt)}" else "尚未检测")
-                if (running != null && activePlugin != null && running.id != activePlugin.id) {
-                    append(" · 沙箱中：${running.name}")
-                }
-            },
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-            color = TextMuted,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(if (tested.isEmpty()) TextMuted else if (okCount > 0) AccentMint else AccentRose),
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(summary, fontSize = 11.sp, color = TextSoft)
+        }
 
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlineAction(
-                text = "重新加载",
-                icon = Icons.Filled.Refresh,
-                enabled = plugins.isNotEmpty(),
-                onClick = onReload,
-                modifier = Modifier.weight(1f),
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("已启用", fontSize = 12.sp, color = TextSoft)
+            Spacer(Modifier.width(7.dp))
+            Switch(
+                checked = plugin.enable,
+                onCheckedChange = onToggleEnable,
+                colors = sourceSwitchColors(),
+                modifier = Modifier.height(28.dp),
             )
-            OutlineAction(
-                text = if (detecting) "检测中…" else "全部检测",
-                icon = Icons.Filled.Bolt,
-                enabled = !detecting,
-                onClick = onDetectAll,
-                modifier = Modifier.weight(1f),
-                accent = MaterialTheme.colorScheme.primary,
-            )
-        }
-        if (plugins.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "停止使用音源脚本",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-                color = TextMuted,
+            Spacer(Modifier.weight(1f))
+            Row(
                 modifier = Modifier
-                    .align(Alignment.End)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onUnload)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
-        }
-    }
-}
-
-// ==================== 导入 ====================
-
-@Composable
-private fun ImportSection(
-    importPlatform: String,
-    onPlatformChange: (String) -> Unit,
-    onPickFile: () -> Unit,
-    onImportUrl: () -> Unit,
-) {
-    SettingsSection(title = "导入音源插件") {
-        Column(Modifier.padding(16.dp)) {
-            Text(
-                text = "可先指定这个插件的适用平台，再选择导入方式。",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = TextSoft,
-            )
-            Spacer(Modifier.height(10.dp))
-            PlatformPickerRow(selected = importPlatform, onSelect = onPlatformChange)
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ImportButton(
-                    title = "从文件导入",
-                    subtitle = "选择 .js 文件",
-                    icon = Icons.Filled.Description,
-                    modifier = Modifier.weight(1f),
-                    onClick = onPickFile,
-                )
-                ImportButton(
-                    title = "从连接导入",
-                    subtitle = "填写脚本直链",
-                    icon = Icons.Filled.Link,
-                    modifier = Modifier.weight(1f),
-                    onClick = onImportUrl,
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AccentCyan.copy(alpha = 0.10f))
+                    .clickable(enabled = !detecting, onClick = onDetect)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Tune, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "检测",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AccentCyan,
                 )
             }
         }
     }
 }
+
+// ==================== 平台 ====================
+
+@Composable
+private fun PlatformBadge(platform: SourcePlatform, status: ProbeStatus) {
+    val warning = status == ProbeStatus.FAIL || status == ProbeStatus.UNTESTABLE
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
+        Box(contentAlignment = Alignment.TopEnd) {
+            val icon = platformIconRes(platform)
+            if (icon != null) {
+                Image(
+                    painter = painterResource(id = icon),
+                    contentDescription = platform.label,
+                    modifier = Modifier.size(26.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(platformColor(platform)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("咪", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (warning) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(Surface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Warning, contentDescription = null, tint = AccentAmber, modifier = Modifier.size(11.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = platformShortLabel(platform),
+            fontSize = 9.sp,
+            color = TextSoft,
+            maxLines = 1,
+        )
+    }
+}
+
+private fun platformIconRes(platform: SourcePlatform): Int? = when (platform) {
+    SourcePlatform.NETEASE -> R.drawable.ic_netease_music
+    SourcePlatform.QQ -> R.drawable.ic_qq_music
+    SourcePlatform.KUGOU -> R.drawable.ic_kugou_music
+    SourcePlatform.KUWO -> R.drawable.ic_kuwo_music
+    SourcePlatform.MIGU -> null
+}
+
+private fun platformColor(platform: SourcePlatform): Color = when (platform) {
+    SourcePlatform.NETEASE -> Color(0xFFE53935)
+    SourcePlatform.QQ -> Color(0xFF31C27C)
+    SourcePlatform.KUGOU -> Color(0xFF1E88E5)
+    SourcePlatform.KUWO -> Color(0xFFFFB300)
+    SourcePlatform.MIGU -> Color(0xFFEC5B8A)
+}
+
+private fun platformShortLabel(platform: SourcePlatform): String = when (platform) {
+    SourcePlatform.NETEASE -> "网易云"
+    SourcePlatform.QQ -> "QQ"
+    SourcePlatform.KUGOU -> "酷狗"
+    SourcePlatform.KUWO -> "酷我"
+    SourcePlatform.MIGU -> "咪咕"
+}
+
+// ==================== 检测结果卡片 ====================
+
+@Composable
+private fun QualityGroupCard(group: PlatformQualityGroup) {
+    val passed = group.qualities.count { it.status == ProbeStatus.OK || it.status == ProbeStatus.SLOW }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface)
+            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val icon = platformIconRes(group.platform)
+            if (icon != null) {
+                Image(
+                    painter = painterResource(id = icon),
+                    contentDescription = group.platform.label,
+                    modifier = Modifier.size(18.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(platformColor(group.platform)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("咪", fontSize = 8.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.width(7.dp))
+            Text(
+                text = group.platform.label,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            Text("已通过 $passed 档", fontSize = 10.5.sp, color = TextSoft)
+        }
+        Spacer(Modifier.height(8.dp))
+        group.qualities.forEach { quality ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(quality.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(quality.latencyLabel, fontSize = 10.sp, color = TextSoft)
+                        if (quality.sizeLabel.isNotBlank()) {
+                            Text(" · ", fontSize = 10.sp, color = TextMuted)
+                            Text(quality.sizeLabel, fontSize = 10.sp, color = TextSoft)
+                        }
+                    }
+                    if (quality.status != ProbeStatus.OK && quality.detail.isNotBlank()) {
+                        Text(
+                            text = quality.detail.take(36),
+                            fontSize = 9.5.sp,
+                            color = TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                QualityStatusPill(quality.status)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QualityStatusPill(status: ProbeStatus) {
+    val (label, color) = when (status) {
+        ProbeStatus.OK -> "通过" to AccentMint
+        ProbeStatus.SLOW -> "偏慢" to AccentAmber
+        ProbeStatus.FAIL -> "未确认" to AccentAmber
+        ProbeStatus.UNTESTABLE -> "无法检测" to AccentAmber
+        ProbeStatus.UNKNOWN -> "未检测" to TextMuted
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (status == ProbeStatus.OK) {
+            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
+        } else {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
+        }
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 10.5.sp, color = color, fontWeight = FontWeight.Medium)
+    }
+}
+
+// ==================== 通用小组件 ====================
+
+@Composable
+private fun SheetHeader(title: String, subtitle: String? = null, onClose: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(subtitle, fontSize = 11.sp, color = TextSoft)
+            }
+        }
+        IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
+            Icon(Icons.Filled.Close, contentDescription = "关闭", tint = TextSoft, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun ImportTile(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Stone100)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(PrimaryBrown.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(9.dp))
+        Column {
+            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            Text(subtitle, fontSize = 9.5.sp, color = TextSoft)
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = TextSoft, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
+        Text(value, fontSize = 12.sp, color = TextSoft)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun ModeChip(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Stone100)
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) PrimaryBrown else TextSoft,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun DetectChoiceRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Stone100)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+            Text(subtitle, fontSize = 10.5.sp, color = TextSoft)
+        }
+        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun StatusStat(label: String, value: Int, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(Modifier.height(2.dp))
+        Text(label, fontSize = 10.sp, color = TextSoft)
+    }
+}
+
+@Composable
+private fun PrimaryWideButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (enabled) PrimaryBrown else Stone200)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    }
+}
+
+@Composable
+private fun DangerWideButton(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(AccentRose)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    }
+}
+
+@Composable
+private fun sourceSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = PrimaryBrown,
+    checkedBorderColor = Color.Transparent,
+    uncheckedThumbColor = Color.White,
+    uncheckedTrackColor = Stone200,
+    uncheckedBorderColor = Color.Transparent,
+)
 
 @Composable
 private fun PlatformPickerRow(selected: String, onSelect: (String) -> Unit) {
@@ -506,11 +1364,9 @@ private fun PlatformPickerRow(selected: String, onSelect: (String) -> Unit) {
             ) {
                 Text(
                     text = text,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    ),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else TextSoft,
+                    fontSize = 11.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) PrimaryBrown else TextSoft,
                     maxLines = 1,
                 )
             }
@@ -534,513 +1390,24 @@ private fun PlatformOptionsList(selected: String, onSelect: (String) -> Unit) {
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    ),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) PrimaryBrown else TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 if (isSelected) {
-                    StatusBadge(text = "当前", color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "咪咕等无内置搜索的平台不在列表中：应用无法主动搜索该平台歌曲，" +
-                    "脚本若声明支持它，播放该平台歌曲时依然会被使用。",
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
-            color = TextMuted,
-        )
-    }
-}
-
-@Composable
-private fun ImportButton(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Stone100)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-        }
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
-                color = TextPrimary,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                color = TextSoft,
-            )
-        }
-    }
-}
-
-// ==================== 切换策略 ====================
-
-@Composable
-private fun PolicySection(
-    userPrefs: UserPrefs,
-    onFailoverChange: (Boolean) -> Unit,
-    onSmartSwitchChange: (Boolean) -> Unit,
-    onFastestChange: (Boolean) -> Unit,
-) {
-    SettingsSection(title = "切换策略") {
-        SettingsSwitchRow(
-            icon = Icons.Filled.SwapHoriz,
-            title = "失败换源",
-            subtitle = "当前源解析失败时，自动按顺序尝试下一个音源；关闭后只用当前源",
-            checked = userPrefs.sourceFailover,
-            onCheckedChange = onFailoverChange,
-        )
-        SettingsDivider()
-        SettingsSwitchRow(
-            icon = Icons.Filled.Tune,
-            title = "智能切换",
-            subtitle = "不等失败：最近检测或播放实测中被判定为失败/偏慢的源会被直接跳过",
-            checked = userPrefs.sourceSmartSwitch,
-            onCheckedChange = onSmartSwitchChange,
-            iconTint = AccentCyan,
-        )
-        SettingsDivider()
-        SettingsSwitchRow(
-            icon = Icons.Filled.Speed,
-            title = "自动按照最快的进行使用",
-            subtitle = "按实测响应速度给音源排序，永远优先用当前最快的那个（检测与播放都会更新速度数据）",
-            checked = userPrefs.sourceFastest,
-            onCheckedChange = onFastestChange,
-            iconTint = AccentMint,
-        )
-    }
-}
-
-// ==================== 音源卡片列表 ====================
-
-@Composable
-private fun SourceListSection(
-    plugins: List<SourcePlugin>,
-    probes: Map<String, SourceProbe>,
-    activeId: String?,
-    loadedPluginId: String?,
-    detecting: Boolean,
-    onActivate: (String) -> Unit,
-    onReload: () -> Unit,
-    onToggleEnable: (String, Boolean) -> Unit,
-    onPickPlatform: (SourcePlugin) -> Unit,
-    onDetectTarget: (String) -> Unit,
-    onDelete: (SourcePlugin) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "已安装音源插件（${plugins.size}）",
-            style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
-            color = TextSoft,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
-        )
-
-        if (plugins.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Surface)
-                    .border(1.dp, CardBorder, RoundedCornerShape(18.dp))
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "暂未安装任何音源插件",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                    color = TextMuted,
-                )
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                plugins.forEach { plugin ->
-                    PluginCard(
-                        plugin = plugin,
-                        probes = probes,
-                        isActive = plugin.id == activeId,
-                        isRunning = plugin.id == loadedPluginId,
-                        detecting = detecting,
-                        onActivate = { onActivate(plugin.id) },
-                        onReload = onReload,
-                        onToggleEnable = { onToggleEnable(plugin.id, it) },
-                        onPickPlatform = { onPickPlatform(plugin) },
-                        onDetectAllPlatforms = {
-                            val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
-                            platforms.forEach { platform ->
-                                val targetId = SourceProbe.pluginTarget(plugin.id, platform)
-                                onDetectTarget(targetId)
-                            }
-                        },
-                        onDelete = { onDelete(plugin) },
-                    )
+                    Text("当前", fontSize = 10.sp, color = PrimaryBrown, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
     }
 }
 
-/**
- * 插件卡片与图 3 下拉菜单
- */
-@Composable
-private fun PluginCard(
-    plugin: SourcePlugin,
-    probes: Map<String, SourceProbe>,
-    isActive: Boolean,
-    isRunning: Boolean,
-    detecting: Boolean,
-    onActivate: () -> Unit,
-    onReload: () -> Unit,
-    onToggleEnable: (Boolean) -> Unit,
-    onPickPlatform: () -> Unit,
-    onDetectAllPlatforms: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val platforms = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
-    var menuExpanded by remember { mutableStateOf(false) }
-
-    // 1. 卡片外层：直接使用你们全局统一的 iosGlassCard 玻璃拟态修饰符！
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
-            .padding(16.dp),
-    ) {
-        // 顶部行：左侧插件图标 + 中间标题与状态 + 右侧统一开关与菜单
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(PrimaryBrown.copy(alpha = 0.1f)), // 对齐设置页统一透明度
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Filled.Extension,
-                    contentDescription = null,
-                    tint = PrimaryBrown,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-
-            Spacer(Modifier.width(12.dp))
-
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = plugin.name,
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                Spacer(Modifier.height(3.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    val (statusColor, statusText) = when {
-                        isRunning -> AccentMint to "运行中"
-                        isActive -> PrimaryBrown to "当前指定"
-                        plugin.enable -> AccentCyan to "已启用"
-                        else -> TextMuted to "已停用"
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(statusColor),
-                    )
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-                        color = statusColor,
-                    )
-
-                    Text(text = "·", color = TextMuted, fontSize = 11.sp)
-                    Text(
-                        text = "v${plugin.version}",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = TextSoft,
-                    )
-
-                    if (plugin.author.isNotBlank()) {
-                        Text(text = "·", color = TextMuted, fontSize = 11.sp)
-                        Text(
-                            text = plugin.author,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextSoft,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.width(6.dp))
-
-            // 2. 开关颜色：直接取自你发出来的 SettingsSwitchRow 源码配置！
-            Switch(
-                checked = plugin.enable,
-                onCheckedChange = onToggleEnable,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = PrimaryBrown,
-                    checkedBorderColor = Color.Transparent,
-                    uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = Stone200,
-                    uncheckedBorderColor = Color.Transparent,
-                ),
-            )
-
-            // 右侧更多操作按钮
-            Box {
-                IconButton(
-                    onClick = { menuExpanded = true },
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.MoreVert,
-                        contentDescription = "更多选项",
-                        tint = TextSoft,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-
-                MaterialTheme(
-                    shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(16.dp))
-                ) {
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                        offset = DpOffset(x = (-8).dp, y = 4.dp),
-                        modifier = Modifier
-                            .background(Surface)
-                            .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
-                    ) {
-                        DropdownMenuItem(
-                            leadingIcon = {
-                                Icon(Icons.Filled.Refresh, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
-                            },
-                            text = { Text("检测更新", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), color = TextPrimary) },
-                            onClick = {
-                                menuExpanded = false
-                                if (isRunning) onReload() else onActivate()
-                            },
-                        )
-
-                        DropdownMenuItem(
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Filled.FilterAlt, // 或 Icons.Filled.FilterList
-                                    contentDescription = null,
-                                    tint = TextSoft,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            text = { Text("指定平台...", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), color = TextPrimary) },
-                            onClick = {
-                                menuExpanded = false
-                                onPickPlatform()
-                            },
-                        )
-
-                        // 分割线（对齐你的 SettingsDivider 风格）
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            thickness = 0.8.dp,
-                            color = Stone200.copy(alpha = 0.6f),
-                        )
-
-                        DropdownMenuItem(
-                            leadingIcon = {
-                                Icon(Icons.Filled.Delete, contentDescription = null, tint = AccentRose, modifier = Modifier.size(18.dp))
-                            },
-                            text = { Text("移除插件...", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), color = AccentRose) },
-                            onClick = {
-                                menuExpanded = false
-                                onDelete()
-                            },
-                        )
-                    }
-                }
-            }
-        }
-
-        // 平台状态水平展示
-        Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            platforms.take(5).forEach { platform ->
-                val targetId = SourceProbe.pluginTarget(plugin.id, platform)
-                val probe = probes[targetId]
-                val status = probe?.status ?: ProbeStatus.UNKNOWN
-                val dotColor = statusColor(status)
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(5.dp)
-                            .clip(CircleShape)
-                            .background(dotColor),
-                    )
-                    Text(
-                        text = platform.label.replace("音乐", "").trim(),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = TextSoft,
-                    )
-                }
-            }
-        }
-
-        // 底部居中的【检测】按钮
-        Spacer(Modifier.height(12.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(Stone100)
-                .clickable(enabled = !detecting, onClick = onDetectAllPlatforms)
-                .padding(vertical = 9.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(
-                    Icons.Filled.Tune,
-                    contentDescription = null,
-                    tint = AccentCyan,
-                    modifier = Modifier.size(14.dp),
-                )
-                Text(
-                    text = if (detecting) "检测中…" else "检测",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    color = AccentCyan,
-                )
-            }
-        }
-    }
-}
-
-// ==================== 通用辅助组件 ====================
-
-@Composable
-private fun StatusBadge(text: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(color.copy(alpha = 0.13f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
-            color = color,
-            maxLines = 1,
-        )
-    }
-}
-
-@Composable
-private fun OutlineAction(
-    text: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    accent: Color = TextMuted,
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (enabled) accent.copy(alpha = 0.10f) else Stone100)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 9.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = if (enabled) accent else TextMuted.copy(alpha = 0.5f),
-            modifier = Modifier.size(15.dp),
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-            color = if (enabled) accent else TextMuted.copy(alpha = 0.5f),
-        )
-    }
-}
-
-@Composable
-private fun SheetPrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) MaterialTheme.colorScheme.primary else Stone200)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold),
-            color = Color.White,
-        )
-    }
-}
-
-@Composable
-private fun statusColor(status: ProbeStatus): Color = when (status) {
-    ProbeStatus.OK -> AccentMint
-    ProbeStatus.SLOW -> AccentAmber
-    ProbeStatus.FAIL -> AccentRose
-    ProbeStatus.UNTESTABLE -> AccentCyan
-    ProbeStatus.UNKNOWN -> TextSoft
+private fun pluginSpeed(plugin: SourcePlugin, probes: Map<String, SourceProbe>): Long {
+    val values = plugin.declaredPlatforms.ifEmpty { SourcePlatform.builtins }
+        .mapNotNull { probes[SourceProbe.pluginTarget(plugin.id, it)] }
+        .map { it.speedScoreMs }
+    return if (values.isEmpty()) SourceProbe.UNKNOWN_LATENCY_MS else values.average().toLong()
 }
 
 private fun readTextFromUri(context: Context, uri: android.net.Uri): String? = try {
@@ -1050,22 +1417,4 @@ private fun readTextFromUri(context: Context, uri: android.net.Uri): String? = t
     }
 } catch (e: Exception) {
     null
-}
-
-private fun relativeTime(timestamp: Long): String {
-    val diff = System.currentTimeMillis() - timestamp
-    return when {
-        diff < 60_000L -> "刚刚"
-        diff < 3_600_000L -> "${diff / 60_000L} 分钟前"
-        diff < 86_400_000L -> {
-            val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-            fmt.format(timestamp)
-        }
-        else -> {
-            val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
-            val now = Calendar.getInstance()
-            val days = ((now.timeInMillis - timestamp) / 86_400_000L).toInt()
-            if (days == 1) "昨天" else "${calendar.get(Calendar.MONTH) + 1}月${calendar.get(Calendar.DAY_OF_MONTH)}日"
-        }
-    }
 }

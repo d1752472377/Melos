@@ -22,6 +22,7 @@ func (s *Server) registerAdmin(r *gin.Engine) {
 	r.DELETE("/api/admin/users/:id", admin, s.handleAdminDeleteUser)
 	r.GET("/api/admin/sync/stats", admin, s.handleAdminSyncStats)
 	s.registerAdminUserData(r, admin)
+	s.registerAdminUserWrite(r, admin)
 	s.registerVersionAdmin(r, admin)
 }
 

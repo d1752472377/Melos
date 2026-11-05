@@ -146,3 +146,68 @@ data class SourceProbe(
         }
     }
 }
+
+/** 单档音质的检测结果（检测面板实时用，不落盘） */
+data class QualityProbe(
+    val quality: String,
+    val status: ProbeStatus = ProbeStatus.UNKNOWN,
+    val latencyMs: Long = -1L,
+    val sizeBytes: Long = -1L,
+    val detail: String = "",
+) {
+    val label: String get() = qualityLabel(quality)
+
+    val latencyLabel: String
+        get() = when {
+            latencyMs < 0 -> "—"
+            latencyMs < 1000 -> "${latencyMs}ms"
+            else -> String.format(java.util.Locale.US, "%.1fs", latencyMs / 1000.0)
+        }
+
+    val sizeLabel: String get() = formatSize(sizeBytes)
+
+    companion object {
+        fun qualityLabel(quality: String): String = when (quality.lowercase()) {
+            "128k" -> "标准"
+            "320k" -> "极高 HQ"
+            "flac" -> "无损 SQ"
+            "flac24bit" -> "24bit"
+            "hires" -> "Hi-Res"
+            "atmos" -> "杜比全景声"
+            "master" -> "母带"
+            else -> quality.uppercase()
+        }
+
+        fun formatSize(bytes: Long): String = when {
+            bytes <= 0L -> ""
+            bytes >= 1024L * 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f GB", bytes / (1024.0 * 1024 * 1024))
+            bytes >= 1024L * 1024 -> String.format(java.util.Locale.US, "%.1f MB", bytes / (1024.0 * 1024))
+            bytes >= 1024L -> "${bytes / 1024} KB"
+            else -> "$bytes B"
+        }
+    }
+}
+
+/** 一个平台下逐档检测的结果 */
+data class PlatformQualityGroup(
+    val platform: SourcePlatform,
+    val qualities: List<QualityProbe> = emptyList(),
+)
+
+/** 插件检测面板的实时状态 */
+data class PluginDetectState(
+    val plugin: SourcePlugin,
+    val quick: Boolean,
+    val running: Boolean = true,
+    val total: Int = 0,
+    val done: Int = 0,
+    val groups: List<PlatformQualityGroup> = emptyList(),
+    val error: String? = null,
+) {
+    val title: String get() = if (quick) "快速检测" else "全档检测"
+
+    val passed: Int
+        get() = groups.sumOf { group ->
+            group.qualities.count { it.status == ProbeStatus.OK || it.status == ProbeStatus.SLOW }
+        }
+}

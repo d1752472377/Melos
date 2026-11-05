@@ -331,7 +331,91 @@ func (s *Store) AdminUserDownloads(ctx context.Context, userID int64, offset, li
 	return total, items, rows.Err()
 }
 
-// AdminPlayEventRow is one append-only listening event.
+// AdminPlaySession is one continuous listening session: consecutive segments of
+// the same song on the same device (gap ≤ 15s) collapsed into a single play.
+//
+// Why the admin shows sessions instead of raw rows: clients report either a
+// 1-2s heartbeat (older builds) or a 20s segment (current), so raw rows make a
+// 5-minute listen look like "several 20-second plays". The raw table stays
+// intact for auditing; the view merges by playback continuity.
+type AdminPlaySession struct {
+	Platform   string `json:"platform"`
+	SongID     string `json:"songId"`
+	DeviceID   string `json:"deviceId"`
+	DeviceName string `json:"deviceName"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	StartedAt  int64  `json:"startedAt"`
+	LastAt     int64  `json:"lastAt"`
+	ListenedMs int64  `json:"listenedMs"`
+	DurationMs int64  `json:"durationMs"`
+	Segments   int64  `json:"segments"`
+}
+
+// playSessionsCTE groups play_events rows into playback sessions.
+//
+// A row starts a new session when the previous row of the same
+// (platform, song, device) ended more than 15s before it started. That window
+// matches the server-side ingest merge (playSessionGapMs), so what the admin
+// sees equals what the counters count.
+const playSessionsCTE = `
+WITH ordered AS (
+  SELECT id, platform, song_id, device_id, title, artist, listened_at_ms, listened_ms, duration_ms,
+         CASE WHEN LAG(listened_at_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id) IS NULL
+                OR listened_at_ms > LAG(listened_at_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id)
+                                   + LAG(listened_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id)
+                                   + 15000
+              THEN 1 ELSE 0 END AS is_new
+  FROM play_events
+  WHERE user_id = ?
+),
+numbered AS (
+  SELECT *, SUM(is_new) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id) AS sess
+  FROM ordered
+),
+play_sessions AS (
+  SELECT platform, song_id, device_id, sess,
+         MIN(listened_at_ms) AS started_at,
+         MAX(listened_at_ms) AS last_at,
+         SUM(listened_ms)    AS listened_ms,
+         MAX(duration_ms)    AS duration_ms,
+         COUNT(*)            AS segments,
+         MIN(title)          AS title,
+         MIN(artist)         AS artist
+  FROM numbered
+  GROUP BY platform, song_id, device_id, sess
+)`
+
+// AdminUserPlaySessions returns merged playback sessions, newest first.
+func (s *Store) AdminUserPlaySessions(ctx context.Context, userID int64, offset, limit int) (int64, []AdminPlaySession, error) {
+	var total int64
+	if err := s.db.QueryRowContext(ctx, playSessionsCTE+` SELECT COUNT(*) FROM play_sessions`, userID).Scan(&total); err != nil {
+		return 0, nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, playSessionsCTE+`
+		SELECT platform, song_id, device_id,
+		       COALESCE((SELECT device_name FROM sessions s2 WHERE s2.id = play_sessions.device_id), ''),
+		       title, artist, started_at, last_at, listened_ms, duration_ms, segments
+		FROM play_sessions
+		ORDER BY started_at DESC LIMIT ? OFFSET ?`, userID, limit, offset)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer rows.Close()
+
+	items := []AdminPlaySession{}
+	for rows.Next() {
+		var it AdminPlaySession
+		if err := rows.Scan(&it.Platform, &it.SongID, &it.DeviceID, &it.DeviceName, &it.Title, &it.Artist,
+			&it.StartedAt, &it.LastAt, &it.ListenedMs, &it.DurationMs, &it.Segments); err != nil {
+			return 0, nil, err
+		}
+		items = append(items, it)
+	}
+	return total, items, rows.Err()
+}
+
+// AdminPlayEventRow is one raw (unmerged) listening event row.
 type AdminPlayEventRow struct {
 	EventID      string `json:"eventId"`
 	DeviceID     string `json:"deviceId"`
@@ -345,7 +429,10 @@ type AdminPlayEventRow struct {
 	ListenedAtMs int64  `json:"listenedAtMs"`
 }
 
-// AdminUserPlayEvents returns the user's raw listening events (paginated).
+// AdminUserPlayEvents returns the raw listening events (paginated).
+//
+// 管理端「播放事件」Tab 用的是按会话合并后的 [AdminUserPlaySessions]；
+// 这个原始接口保留给需要逐条核对心跳的场景（排障/审计）。
 func (s *Store) AdminUserPlayEvents(ctx context.Context, userID int64, offset, limit int) (int64, []AdminPlayEventRow, error) {
 	var total int64
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM play_events WHERE user_id = ?`, userID).Scan(&total); err != nil {

@@ -1,80 +1,47 @@
 package com.aesthetic.music.data.userapi
 
 import android.content.Context
-import android.os.Handler
-import android.os.HandlerThread
-import android.util.Base64
 import android.util.Log
-import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.model.Song
-import com.google.gson.JsonObject
-import com.whl.quickjs.android.QuickJSLoader
-import com.whl.quickjs.wrapper.JSCallFunction
-import com.whl.quickjs.wrapper.QuickJSContext
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.FormBody
-import okhttp3.Headers
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import java.io.IOException
-import java.net.URLDecoder
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Android 本地音源脚本执行引擎（基于 QuickJS）
- * 完整模拟 LX Music 客户端规范，在移动设备本地沙箱中安全运行用户音源脚本。
+ * Android 本地音源脚本执行引擎。
+ *
+ * 现在它不再自带一套 preload.js + 原生桥接，而是加载服务器端同款的
+ * `assets/script/lx-core.js`：同一份 JS、同一套 `__host` 契约，宿主实现见
+ * [LxRuntime] / [HarlonQuickJsEngine]。这样服务器上验证过的脚本行为和 APK 一致。
+ *
+ * 对外 API（SourceManager / SourceController 使用）保持不变：
+ * [loadScript]、[unloadScript]、[resolveMusicUrl]、[resolveLyric]、
+ * [isAvailable] 以及 [declaredSources]、[isEngineReady]、[engineError]、[loadedPluginId]。
  */
 object UserApiEngine {
 
     private const val TAG = "UserApiEngine"
+    private const val CORE_ASSET = "script/lx-core.js"
+    private const val INIT_TIMEOUT_MS = 8_000L
+    private const val URL_TIMEOUT_MS = 15_000L
+    private const val LYRIC_TIMEOUT_MS = 10_000L
 
     private var appContext: Context? = null
-    private var handlerThread: HandlerThread? = null
-    private var workerHandler: Handler? = null
+    private val loadMutex = Mutex()
+    private val generation = AtomicLong(0)
 
-    private var jsContext: QuickJSContext? = null
-    private var instanceKey: String = ""
-    private var isInited = false
+    @Volatile private var runtime: LxRuntime? = null
+    @Volatile private var ready = false
+    @Volatile private var coreCache: String? = null
 
-    private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val gson = AppJson.gson
-
-    private val httpClient: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build()
-    }
-
-    // 当前在途的 Native 业务请求（等待脚本解析完成），key 为 requestKey
-    private val pendingNativeRequests = ConcurrentHashMap<String, CompletableDeferred<Result<String>>>()
-
-    // 当前在途的 Script 发起的 HTTP 请求，key 为 requestKey，用于支持取消请求
-    private val activeHttpCalls = ConcurrentHashMap<String, Call>()
-
-    private val requestIdCounter = AtomicLong(1000)
-
-    // 状态发布
     private val _activeMetadata = MutableStateFlow<ScriptMetadata?>(UserApiStore.getMetadata())
     val activeMetadata: StateFlow<ScriptMetadata?> = _activeMetadata.asStateFlow()
 
@@ -84,17 +51,13 @@ object UserApiEngine {
     private val _engineError = MutableStateFlow<String?>(null)
     val engineError: StateFlow<String?> = _engineError.asStateFlow()
 
-    /**
-     * 脚本自报支持的源（LX 源标识，如 wy/tx/kg/kw/mg）。
-     *
-     * 来源是脚本加载后往沙箱发的 `inited` 事件：预加载层把脚本声明的 `sources` 整理后回传原生
-     * （见 assets/script/user-api-preload.js 的 handleInit）。**以脚本自己的声明为准**，
-     * 而不是按"LX 规范支持五源"去猜——音源列表和检测都依赖这份真实声明。
-     */
     private val _declaredSources = MutableStateFlow<List<String>>(emptyList())
     val declaredSources: StateFlow<List<String>> = _declaredSources.asStateFlow()
 
-    /** 当前加载进沙箱的插件 id（由 [com.aesthetic.music.data.source.SourceManager] 传入） */
+    /** 脚本声明的音质（key 为 LX 源标识 wy/tx/kg/kw/mg），检测面板按它逐档测 */
+    private val _declaredQualities = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val declaredQualities: StateFlow<Map<String, List<String>>> = _declaredQualities.asStateFlow()
+
     private val _loadedPluginId = MutableStateFlow<String?>(null)
     val loadedPluginId: StateFlow<String?> = _loadedPluginId.asStateFlow()
 
@@ -102,573 +65,247 @@ object UserApiEngine {
         if (appContext != null) return
         appContext = context.applicationContext
         UserApiStore.init(context)
-
-        // 立即展示已保存的元数据，避免 UI 呈现"未安装"的假象
-        val savedMeta = UserApiStore.getMetadata()
-        if (savedMeta != null) {
-            _activeMetadata.value = savedMeta
-        }
-
-        // 启动专用 QuickJS 线程
-        val thread = HandlerThread("MelosUserApiThread").apply { start() }
-        handlerThread = thread
-        workerHandler = Handler(thread.looper)
-
-        workerHandler?.post {
-            try {
-                QuickJSLoader.init()
-                Log.i(TAG, "QuickJSLoader initialized successfully")
-            } catch (e: Exception) {
-                Log.e(TAG, "QuickJSLoader init failed: ${e.message}", e)
-                _engineError.value = "QuickJS 原生库初始化失败: ${e.message}"
-            }
-        }
-
-        // 注意：这里**不再**自动加载本地脚本。
-        // 自从支持多插件（见 SourceRegistryStore / SourceManager）后，"加载哪个脚本"由
-        // SourceManager 统一决定；引擎若仍按旧路径去加载 filesDir 里的单一脚本文件，
-        // 就会出现"沙箱里是 A、路由以为在用 B"的错位。启动预热改由 SourceManager 负责。
+        UserApiStore.getMetadata()?.let { _activeMetadata.value = it }
     }
 
-    fun isAvailable(): Boolean = _isEngineReady.value && jsContext != null
+    fun isAvailable(): Boolean = ready && runtime != null
 
     fun getScriptName(): String = _activeMetadata.value?.name ?: "自定义音源"
 
     /**
-     * 重新加载或安装新脚本，挂起等待编译与执行结果
+     * 重新加载或安装新脚本，挂起等待 QuickJS 编译与 init 结果。
      *
-     * @param pluginId 该脚本对应的插件 id（音源路由据此判断"沙箱里现在是谁"）
+     * 同一个对象只持有一个 [LxRuntime]；旧的会在新脚本成功加载后关闭。
      */
     suspend fun loadScript(
         scriptContent: String,
         meta: ScriptMetadata? = null,
         pluginId: String? = null,
-    ): Result<ScriptMetadata> {
+    ): Result<ScriptMetadata> = loadMutex.withLock {
+        val gen = generation.incrementAndGet()
         val actualMeta = meta ?: UserApiStore.parseScriptHeader(scriptContent)
         _activeMetadata.value = actualMeta
         _loadedPluginId.value = pluginId
-        // 声明源属于"上一个脚本"，换脚本前先清空，避免把旧脚本的平台列表挂到新脚本上
         _declaredSources.value = emptyList()
+        _declaredQualities.value = emptyMap()
+        _isEngineReady.value = false
+        _engineError.value = null
 
-        val handler = workerHandler ?: run {
-            val err = "QuickJS 引擎线程尚未就绪"
-            _engineError.value = err
-            _isEngineReady.value = false
-            return Result.failure(Exception(err))
-        }
+        closeRuntime()
 
-        val deferred = CompletableDeferred<Result<ScriptMetadata>>()
+        try {
+            val core = readCoreAsset()
+            val rt = LxRuntime(
+                engineFactory = { HarlonQuickJsEngine() },
+                coreJs = core,
+                onLog = { line -> Log.d("UserApi-JS", line) },
+                onUpdateAlert = { alert -> Log.i(TAG, "Script update alert: $alert") },
+            )
+            val info = JSONObject()
+                .put("id", actualMeta.id)
+                .put("name", actualMeta.name)
+                .put("version", actualMeta.version)
+                .put("description", actualMeta.description)
+                .put("author", actualMeta.author)
+                .put("homepage", actualMeta.homepage)
+                .put("env", "mobile")
 
-        handler.post {
-            destroyEngineInternal()
+            val init = rt.load(scriptContent, info.toString(), INIT_TIMEOUT_MS)
 
-            instanceKey = UUID.randomUUID().toString()
-            isInited = false
-
-            try {
-                val qjs = QuickJSContext.create()
-                jsContext = qjs
-
-                // 绑定控制台输出到 Logcat
-                qjs.setConsole(object : QuickJSContext.Console {
-                    override fun log(info: String) { Log.d("UserApi-JS", info) }
-                    override fun info(info: String) { Log.i("UserApi-JS", info) }
-                    override fun warn(info: String) { Log.w("UserApi-JS", info) }
-                    override fun error(info: String) { Log.e("UserApi-JS", info) }
-                })
-
-                // 注入宿主通信桥梁与原生工具函数
-                setupNativeBindings(qjs, instanceKey)
-
-                // 注入 instanceKey 和元数据到 JS 全局对象
-                val metaJson = gson.toJson(actualMeta)
-                qjs.evaluate("globalThis.__MELOS_KEY__ = '$instanceKey'; globalThis.__MELOS_META__ = $metaJson;")
-
-                // 加载并执行预加载脚本
-                val preloadCode = readAsset("script/user-api-preload.js")
-                if (preloadCode.isNullOrBlank()) {
-                    throw IllegalStateException("Preload script missing in assets!")
-                }
-                qjs.evaluate(preloadCode)
-
-                // 执行用户脚本源码
-                qjs.evaluate(scriptContent)
-
-                _activeMetadata.value = actualMeta
-                _isEngineReady.value = true
-                _engineError.value = null
-                Log.i(TAG, "UserApi script loaded successfully: [${actualMeta.name}] v${actualMeta.version}")
-                deferred.complete(Result.success(actualMeta))
-            } catch (e: Throwable) {
-                val errMsg = e.message ?: e.toString()
-                Log.e(TAG, "Failed to load UserApi script: $errMsg", e)
-                _isEngineReady.value = false
-                _engineError.value = errMsg
-                // 即使加载执行失败，元数据依旧保留以便用户在设置页查看报错详情、重新加载或卸载
-                _activeMetadata.value = actualMeta
-                deferred.complete(Result.failure(Exception(errMsg)))
+            // unloadScript() / 新的 loadScript() 可能在这 8 秒里发生。
+            if (gen != generation.get()) {
+                rt.close()
+                return@withLock Result.failure(Exception("加载已取消"))
             }
-        }
+            if (!init.ready) {
+                rt.close()
+                val message = init.message ?: "source init failed"
+                _engineError.value = message
+                _activeMetadata.value = actualMeta
+                Log.w(TAG, "用户脚本 init 失败: $message")
+                return@withLock Result.failure(Exception(message))
+            }
 
-        return deferred.await()
+            runtime = rt
+            ready = true
+            _isEngineReady.value = true
+            _engineError.value = null
+            _declaredSources.value = declaredSourcesFrom(init.sources)
+            _declaredQualities.value = declaredQualitiesFrom(init.sources)
+            _activeMetadata.value = actualMeta
+            Log.i(TAG, "用户脚本已加载: [${actualMeta.name}] v${actualMeta.version}, sources=${_declaredSources.value}")
+            Result.success(actualMeta)
+        } catch (t: Throwable) {
+            closeRuntime()
+            val message = t.message ?: t.toString()
+            _engineError.value = message
+            _isEngineReady.value = false
+            _activeMetadata.value = actualMeta
+            Log.e(TAG, "用户脚本加载失败: $message", t)
+            Result.failure(Exception(message))
+        }
     }
 
     /**
-     * 卸载清理当前运行的脚本环境（只是把脚本从沙箱拿走，**不删除**已安装的插件）。
-     *
-     * 旧实现在这里调 `UserApiStore.clearScript()`，等于"卸载"直接把用户唯一一份脚本删掉；
-     * 多插件模型下删除是插件管理页的显式动作（SourceRegistryStore.remove），卸载只停止使用。
+     * 卸载当前运行的脚本环境（不删除已安装的插件记录）。
      */
     fun unloadScript() {
-        workerHandler?.post {
-            destroyEngineInternal()
-            _activeMetadata.value = null
-            _isEngineReady.value = false
-            _engineError.value = null
-            _declaredSources.value = emptyList()
-            _loadedPluginId.value = null
-        }
+        generation.incrementAndGet()
+        closeRuntime()
+        _activeMetadata.value = null
+        _isEngineReady.value = false
+        _engineError.value = null
+        _declaredSources.value = emptyList()
+        _declaredQualities.value = emptyMap()
+        _loadedPluginId.value = null
     }
 
-    private fun destroyEngineInternal() {
-        pendingNativeRequests.values.forEach { it.cancel() }
-        pendingNativeRequests.clear()
-        activeHttpCalls.values.forEach { it.cancel() }
-        activeHttpCalls.clear()
-
-        try {
-            jsContext?.destroy()
-        } catch (e: Exception) {
-            Log.w(TAG, "QuickJS destroy exception: ${e.message}")
-        }
-        jsContext = null
-        isInited = false
+    private fun closeRuntime() {
+        ready = false
+        val old = runtime
+        runtime = null
+        old?.close()
     }
 
-    private fun readAsset(path: String): String? {
-        return try {
-            appContext?.assets?.open(path)?.use { input ->
+    private suspend fun readCoreAsset(): String {
+        coreCache?.let { return it }
+        val ctx = appContext ?: error("UserApiEngine 尚未初始化")
+        return withContext(Dispatchers.IO) {
+            ctx.assets.open(CORE_ASSET).use { input ->
                 input.bufferedReader(StandardCharsets.UTF_8).readText()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "readAsset failed for $path: ${e.message}")
-            null
+        }.also { coreCache = it }
+    }
+
+    /** 只列出真正声明了 musicUrl 的源（core 已经按上游规则过滤过 type/actions）。 */
+    private fun declaredSourcesFrom(sources: JSONObject?): List<String> {
+        if (sources == null) return emptyList()
+        val result = mutableListOf<String>()
+        val keys = sources.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val obj = sources.optJSONObject(key) ?: continue
+            if (obj.optString("type") != "music") continue
+            val actions = obj.optJSONArray("actions") ?: continue
+            var supportsUrl = false
+            for (i in 0 until actions.length()) {
+                if (actions.optString(i) == "musicUrl") {
+                    supportsUrl = true
+                    break
+                }
+            }
+            if (supportsUrl) result.add(key.lowercase())
         }
+        return result
+    }
+
+    /** key 是脚本的 LX 源标识（wy/tx/kg/kw/mg），value 是已过滤的音质列表。 */
+    private fun declaredQualitiesFrom(sources: JSONObject?): Map<String, List<String>> {
+        if (sources == null) return emptyMap()
+        val result = linkedMapOf<String, List<String>>()
+        val keys = sources.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val obj = sources.optJSONObject(key) ?: continue
+            val arr = obj.optJSONArray("qualitys") ?: continue
+            val qualities = buildList {
+                for (i in 0 until arr.length()) {
+                    val quality = arr.optString(i)
+                    if (quality.isNotBlank()) add(quality)
+                }
+            }
+            if (qualities.isNotEmpty()) result[key.lowercase()] = qualities
+        }
+        return result
     }
 
     /**
-     * 注册 QuickJS 与 Native 之间的桥接函数
-     */
-    private fun setupNativeBindings(qjs: QuickJSContext, key: String) {
-        val global = qjs.getGlobalObject()
-
-        // 核心事件通信函数
-        global.setProperty("__lx_native_call__", JSCallFunction { args ->
-            if (args.isEmpty() || args[0] != key) return@JSCallFunction null
-            val action = args.getOrNull(1) as? String ?: return@JSCallFunction null
-            val data = args.getOrNull(2) as? String ?: ""
-            handleJsNativeCall(action, data)
-            null
-        })
-
-        // 定时器桥接
-        global.setProperty("__lx_native_call__set_timeout", JSCallFunction { args ->
-            val id = args.getOrNull(0)
-            val timeout = (args.getOrNull(1) as? Number)?.toLong() ?: 0L
-            workerHandler?.postDelayed({
-                callJsAction("__set_timeout__", id)
-            }, timeout)
-            null
-        })
-
-        // 常用加密与编码工具桥接
-        global.setProperty("__lx_native_call__utils_str2b64", JSCallFunction { args ->
-            val str = args.getOrNull(0) as? String ?: ""
-            try {
-                Base64.encodeToString(str.toByteArray(StandardCharsets.UTF_8), Base64.NO_WRAP)
-            } catch (e: Exception) {
-                ""
-            }
-        })
-
-        global.setProperty("__lx_native_call__utils_b642buf", JSCallFunction { args ->
-            val str = args.getOrNull(0) as? String ?: ""
-            try {
-                val bytes = Base64.decode(str, Base64.NO_WRAP)
-                val sb = StringBuilder("[")
-                for (i in bytes.indices) {
-                    sb.append((bytes[i].toInt() and 0xFF))
-                    if (i < bytes.size - 1) sb.append(",")
-                }
-                sb.append("]")
-                sb.toString()
-            } catch (e: Exception) {
-                "[]"
-            }
-        })
-
-        global.setProperty("__lx_native_call__utils_str2md5", JSCallFunction { args ->
-            val encodedStr = args.getOrNull(0) as? String ?: ""
-            try {
-                val rawStr = URLDecoder.decode(encodedStr, "UTF-8")
-                val md = MessageDigest.getInstance("MD5")
-                val digest = md.digest(rawStr.toByteArray(StandardCharsets.UTF_8))
-                digest.joinToString("") { "%02x".format(it) }
-            } catch (e: Exception) {
-                ""
-            }
-        })
-
-        global.setProperty("__lx_native_call__utils_aes_encrypt", JSCallFunction { args ->
-            val data = args.getOrNull(0) as? String ?: ""
-            val keyStr = args.getOrNull(1) as? String ?: ""
-            val ivStr = args.getOrNull(2) as? String ?: ""
-            val mode = args.getOrNull(3) as? String ?: ""
-            CryptoUtils.aesEncrypt(data, keyStr, ivStr, mode)
-        })
-
-        global.setProperty("__lx_native_call__utils_rsa_encrypt", JSCallFunction { args ->
-            val data = args.getOrNull(0) as? String ?: ""
-            val keyStr = args.getOrNull(1) as? String ?: ""
-            val padding = args.getOrNull(2) as? String ?: ""
-            CryptoUtils.rsaEncrypt(data, keyStr, padding)
-        })
-    }
-
-    /**
-     * 处理 JS 发给 Native 的各类指令
-     */
-    private fun handleJsNativeCall(action: String, data: String) {
-        when (action) {
-            "init" -> {
-                isInited = true
-                captureDeclaredSources(data)
-            }
-            "request" -> {
-                // 脚本请求执行 HTTP 访问
-                handleScriptHttpRequest(data)
-            }
-            "cancelRequest" -> {
-                val reqKey = data.trim('"')
-                activeHttpCalls.remove(reqKey)?.cancel()
-            }
-            "response" -> {
-                // 脚本完成了一次音源解析，将结果回传给 Native
-                handleScriptActionResponse(data)
-            }
-            "showUpdateAlert" -> {
-                Log.i(TAG, "Script update alert: $data")
-            }
-            else -> {
-                Log.w(TAG, "Unhandled nativeCall action: $action")
-            }
-        }
-    }
-
-    /**
-     * 记录脚本自报支持的源。
-     *
-     * 预加载层回传的结构：
-     * `{"info":{"sources":{"wy":{"type":"music","actions":["musicUrl"],"qualitys":[...]}, ...}}, "status":true}`
-     * 只认 `type == "music"` 且带 `musicUrl` 动作的源——脚本声明了却不实现取链的源，
-     * 对播放没有意义，展示出来反而误导。
-     */
-    private fun captureDeclaredSources(rawJson: String) {
-        try {
-            val root = gson.fromJson(rawJson, JsonObject::class.java) ?: return
-            val sources = root.getAsJsonObject("info")?.getAsJsonObject("sources") ?: return
-            val declared = sources.entrySet().mapNotNull { (key, value) ->
-                val obj = value.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
-                val type = obj.get("type")?.asString
-                val actions = obj.getAsJsonArray("actions")?.mapNotNull { it.asString }
-                val supportsUrl = actions?.any { it == "musicUrl" } == true
-                key.lowercase().takeIf { type == "music" && supportsUrl }
-            }
-            _declaredSources.value = declared
-            Log.i(TAG, "脚本声明支持的源: ${declared.joinToString(",")}")
-        } catch (e: Exception) {
-            Log.w(TAG, "解析脚本声明源失败: ${e.message}")
-        }
-    }
-
-    /**
-     * 执行脚本发起的 HTTP 网络请求
-     */
-    private fun handleScriptHttpRequest(rawJson: String) {
-        engineScope.launch {
-            try {
-                val root = gson.fromJson(rawJson, JsonObject::class.java)
-                val requestKey = root.get("requestKey")?.asString ?: return@launch
-                val url = root.get("url")?.asString ?: return@launch
-                val options = root.getAsJsonObject("options") ?: JsonObject()
-
-                val method = options.get("method")?.asString?.uppercase() ?: "GET"
-                val headersObj = options.getAsJsonObject("headers")
-                val timeout = options.get("timeout")?.asLong ?: 15000L
-
-                val reqBuilder = Request.Builder().url(url)
-                reqBuilder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-                if (headersObj != null) {
-                    for (entry in headersObj.entrySet()) {
-                        if (!entry.value.isJsonNull) {
-                            reqBuilder.header(entry.key, entry.value.asString)
-                        }
-                    }
-                }
-
-                if (method != "GET" && method != "HEAD") {
-                    val bodyStr = options.get("body")?.let {
-                        if (it.isJsonObject || it.isJsonArray) it.toString() else it.asString
-                    }
-                    val formObj = options.getAsJsonObject("form")
-
-                    val reqBody = when {
-                        formObj != null -> {
-                            val formBuilder = FormBody.Builder()
-                            for (entry in formObj.entrySet()) {
-                                formBuilder.add(entry.key, entry.value.asString)
-                            }
-                            formBuilder.build()
-                        }
-                        bodyStr != null -> {
-                            val mediaType = headersObj?.get("Content-Type")?.asString
-                                ?: headersObj?.get("content-type")?.asString
-                                ?: "application/json; charset=utf-8"
-                            bodyStr.toRequestBody(mediaType.toMediaTypeOrNull())
-                        }
-                        else -> {
-                            ByteArray(0).toRequestBody(null)
-                        }
-                    }
-                    reqBuilder.method(method, reqBody)
-                } else {
-                    reqBuilder.method(method, null)
-                }
-
-                val client = if (timeout != 15000L) {
-                    httpClient.newBuilder().callTimeout(timeout, TimeUnit.MILLISECONDS).build()
-                } else {
-                    httpClient
-                }
-
-                val call = client.newCall(reqBuilder.build())
-                activeHttpCalls[requestKey] = call
-
-                call.enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        activeHttpCalls.remove(requestKey)
-                        sendHttpResponseToJs(requestKey, error = e.message ?: "Network error", response = null)
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        activeHttpCalls.remove(requestKey)
-                        try {
-                            val code = response.code
-                            val responseBody = response.body?.string().orEmpty()
-                            val headersMap = mutableMapOf<String, String>()
-                            for (name in response.headers.names()) {
-                                headersMap[name] = response.header(name).orEmpty()
-                            }
-
-                            // 尝试将响应体解析为 JSON 结构，方便 JS 脚本直接以对象形式读取
-                            val parsedBody: Any = try {
-                                gson.fromJson(responseBody, JsonObject::class.java)
-                            } catch (_: Exception) {
-                                responseBody
-                            }
-
-                            val respMap = mapOf(
-                                "statusCode" to code,
-                                "headers" to headersMap,
-                                "body" to parsedBody,
-                                "rawText" to responseBody
-                            )
-
-                            sendHttpResponseToJs(requestKey, error = null, response = respMap)
-                        } catch (e: Exception) {
-                            sendHttpResponseToJs(requestKey, error = e.message ?: "Read body failed", response = null)
-                        }
-                    }
-                })
-            } catch (e: Exception) {
-                Log.e(TAG, "handleScriptHttpRequest error: ${e.message}", e)
-            }
-        }
-    }
-
-    private fun sendHttpResponseToJs(requestKey: String, error: String?, response: Any?) {
-        val payload = mapOf(
-            "requestKey" to requestKey,
-            "error" to error,
-            "response" to response
-        )
-        callJsAction("response", payload)
-    }
-
-    /**
-     * 处理脚本返回的解析结果（响应给 Kotlin 调用的挂起函数）
-     */
-    private fun handleScriptActionResponse(rawJson: String) {
-        try {
-            val root = gson.fromJson(rawJson, JsonObject::class.java)
-            val reqKey = root.get("requestKey")?.asString ?: return
-            val deferred = pendingNativeRequests.remove(reqKey) ?: return
-
-            val status = root.get("status")?.asBoolean ?: false
-            if (status) {
-                val resultElem = root.get("result")
-                val url = when {
-                    resultElem == null || resultElem.isJsonNull -> null
-                    resultElem.isJsonPrimitive -> resultElem.asString
-                    resultElem.isJsonObject -> {
-                        val obj = resultElem.asJsonObject
-                        obj.get("url")?.asString
-                            ?: obj.getAsJsonObject("data")?.get("url")?.asString
-                            ?: obj.get("musicUrl")?.asString
-                            ?: obj.get("lyric")?.asString
-                            ?: obj.getAsJsonObject("data")?.get("lyric")?.asString
-                            ?: obj.get("lrc")?.asString
-                            ?: obj.getAsJsonObject("data")?.get("lrc")?.asString
-                    }
-                    else -> resultElem.toString()
-                }
-
-                if (!url.isNullOrBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
-                    deferred.complete(Result.success(url))
-                } else if (!url.isNullOrBlank()) {
-                    // 部分歌词直接返回整段文本而非直链 URL
-                    deferred.complete(Result.success(url))
-                } else {
-                    deferred.complete(Result.failure(Exception("音源脚本返回的地址无效")))
-                }
-            } else {
-                val msg = root.get("errorMessage")?.asString ?: "音源脚本解析失败"
-                deferred.complete(Result.failure(Exception(msg)))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "handleScriptActionResponse exception: ${e.message}", e)
-        }
-    }
-
-    private fun callJsAction(action: String, data: Any?) {
-        val handler = workerHandler ?: return
-        handler.post {
-            try {
-                val jsonStr = if (data != null) gson.toJson(data) else null
-                val fn = jsContext?.getGlobalObject()?.getJSFunction("__lx_native__")
-                fn?.call(instanceKey, action, jsonStr)
-            } catch (e: Exception) {
-                Log.e(TAG, "callJsAction error ($action): ${e.message}")
-            }
-        }
-    }
-
-    /**
-     * 核心接口：解析歌曲音频播放直链 URL
+     * 解析歌曲音频播放直链。
      */
     suspend fun resolveMusicUrl(platform: String, song: Song, quality: String): Result<String> {
-        if (!isAvailable()) {
+        val rt = runtime
+        if (!ready || rt == null) {
             return Result.failure(Exception("音源脚本未就绪或未安装"))
         }
 
         val lxSource = mapPlatformToLxSource(platform)
         val lxQuality = mapQualityToLxQuality(quality)
+        val reqInfo = JSONObject()
+            .put("type", lxQuality)
+            .put("musicInfo", buildMusicInfo(song, lxSource))
 
-        val requestKey = "req_url_${requestIdCounter.incrementAndGet()}"
-        val deferred = CompletableDeferred<Result<String>>()
-        pendingNativeRequests[requestKey] = deferred
-
-        val requestData = mapOf(
-            "requestKey" to requestKey,
-            "data" to mapOf(
-                "source" to lxSource,
-                "action" to "musicUrl",
-                "info" to mapOf(
-                    "type" to "music",
-                    "quality" to lxQuality,
-                    "source" to lxSource,
-                    "musicInfo" to mapOf(
-                        "id" to song.id,
-                        "songmid" to song.id,
-                        "hash" to song.id,
-                        "copyrightId" to song.id,
-                        "title" to song.title,
-                        "name" to song.title,
-                        "artist" to song.artist,
-                        "singer" to song.artist,
-                        "album" to song.album,
-                        "platform" to lxSource,
-                        "source" to lxSource,
-                        "types" to listOf(
-                            mapOf("type" to "128k"),
-                            mapOf("type" to "320k"),
-                            mapOf("type" to "flac"),
-                            mapOf("type" to "flac24bit")
-                        )
-                    )
-                )
-            )
-        )
-
-        callJsAction("request", requestData)
-
-        // 15 秒超时保护
-        val result = withTimeoutOrNull(15000L) {
-            deferred.await()
+        return try {
+            val result = rt.request(lxSource, "musicUrl", reqInfo, URL_TIMEOUT_MS)
+            val url = result.optJSONObject("data")?.optString("url").orEmpty()
+            if (url.isBlank()) {
+                Result.failure(Exception("音源脚本返回的地址无效"))
+            } else {
+                Result.success(url)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "resolveMusicUrl 失败: ${t.message}")
+            Result.failure(Exception(t.message ?: "音源脚本解析失败"))
         }
-
-        pendingNativeRequests.remove(requestKey)
-
-        return result ?: Result.failure(Exception("音源脚本解析超时（15秒）"))
     }
 
     /**
-     * 核心接口：解析歌词
+     * 解析歌词（在线源通常没有歌词动作，失败后 SourceManager 会回退到内置接口）。
      */
     suspend fun resolveLyric(platform: String, song: Song): Result<String> {
-        if (!isAvailable()) {
+        val rt = runtime
+        if (!ready || rt == null) {
             return Result.failure(Exception("音源脚本未就绪或未安装"))
         }
 
         val lxSource = mapPlatformToLxSource(platform)
-        val requestKey = "req_lrc_${requestIdCounter.incrementAndGet()}"
-        val deferred = CompletableDeferred<Result<String>>()
-        pendingNativeRequests[requestKey] = deferred
+        val reqInfo = JSONObject()
+            .put("type", "128k")
+            .put("musicInfo", buildMusicInfo(song, lxSource))
 
-        val requestData = mapOf(
-            "requestKey" to requestKey,
-            "data" to mapOf(
-                "source" to lxSource,
-                "action" to "lyric",
-                "info" to mapOf(
-                    "type" to "music",
-                    "source" to lxSource,
-                    "musicInfo" to mapOf(
-                        "id" to song.id,
-                        "songmid" to song.id,
-                        "hash" to song.id,
-                        "copyrightId" to song.id,
-                        "title" to song.title,
-                        "name" to song.title,
-                        "artist" to song.artist,
-                        "album" to song.album,
-                        "platform" to lxSource,
-                        "source" to lxSource
-                    )
-                )
-            )
-        )
-
-        callJsAction("request", requestData)
-
-        val result = withTimeoutOrNull(10000L) {
-            deferred.await()
+        return try {
+            val result = rt.request(lxSource, "lyric", reqInfo, LYRIC_TIMEOUT_MS)
+            val lyric = result.optJSONObject("data")?.optString("lyric").orEmpty()
+            if (lyric.isBlank()) {
+                Result.failure(Exception("音源脚本未返回歌词"))
+            } else {
+                Result.success(lyric)
+            }
+        } catch (t: Throwable) {
+            Result.failure(Exception(t.message ?: "歌词解析失败"))
         }
+    }
 
-        pendingNativeRequests.remove(requestKey)
-
-        return result ?: Result.failure(Exception("歌词解析超时（10秒）"))
+    /**
+     * 脚本收到的是 Q-music 的旧格式（songmid/hash/songId/copyrightId 平铺在顶层）。
+     * 本 App 的 Song 只有 id，所以哪些字段脚本会读，就把 id 填到哪些字段里。
+     */
+    private fun buildMusicInfo(song: Song, source: String): JSONObject {
+        val id = song.id
+        val types = JSONArray().apply {
+            put(JSONObject().put("type", "128k"))
+            put(JSONObject().put("type", "320k"))
+            put(JSONObject().put("type", "flac"))
+            put(JSONObject().put("type", "flac24bit"))
+        }
+        return JSONObject()
+            .put("id", id)
+            .put("songmid", id)
+            .put("songId", id)
+            .put("hash", id)
+            .put("copyrightId", id)
+            .put("title", song.title)
+            .put("name", song.title)
+            .put("artist", song.artist)
+            .put("singer", song.artist)
+            .put("album", song.album)
+            .put("albumName", song.album)
+            .put("albumId", "")
+            .put("img", song.artwork ?: "")
+            .put("interval", "0")
+            .put("platform", source)
+            .put("source", source)
+            .put("types", types)
+            .put("_types", JSONObject())
     }
 
     private fun mapPlatformToLxSource(platform: String): String {

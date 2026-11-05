@@ -256,9 +256,93 @@ class SourceDetector(
         }
     }
 
+    // ==================== 插件逐档音质 ====================
+
+    /**
+     * 只测一个插件的某个平台，按音质逐档取链并探测地址。
+     *
+     * 调用方应已通过 [SourceManager.withPlugin] 锁住沙箱；本方法内部对音质串行，
+     * 每出一档就通过 [onQuality] 回调，页面可以逐条点亮。
+     */
+    suspend fun detectPluginQualities(
+        plugin: SourcePlugin,
+        platform: SourcePlatform,
+        qualities: List<String>,
+        keyword: String = DEFAULT_KEYWORD,
+        onQuality: (QualityProbe) -> Unit = {},
+    ): List<QualityProbe> {
+        if (qualities.isEmpty()) return emptyList()
+        if (!platform.hasBuiltin) {
+            return qualities.map { quality ->
+                QualityProbe(
+                    quality = quality,
+                    status = ProbeStatus.UNTESTABLE,
+                    detail = "${platform.label}没有内置搜索入口",
+                ).also(onQuality)
+            }
+        }
+
+        val songs = try {
+            withContext(Dispatchers.IO) {
+                PlatformMusicService.search(keyword, limit = 3, platform = platform.code)
+            }
+        } catch (e: Exception) {
+            return qualities.map { quality ->
+                QualityProbe(
+                    quality = quality,
+                    status = ProbeStatus.FAIL,
+                    detail = "搜索失败：${e.message ?: "网络异常"}",
+                ).also(onQuality)
+            }
+        }
+        val song = songs.firstOrNull() ?: return qualities.map { quality ->
+            QualityProbe(
+                quality = quality,
+                status = ProbeStatus.FAIL,
+                detail = "无法取得探测歌曲（搜索无结果）",
+            ).also(onQuality)
+        }
+
+        return qualities.map { quality ->
+            val started = System.currentTimeMillis()
+            val probe = try {
+                val url = withContext(Dispatchers.IO) {
+                    UserApiEngine.resolveMusicUrl(platform.code, song, quality).getOrNull()
+                }
+                if (url.isNullOrBlank()) {
+                    QualityProbe(
+                        quality = quality,
+                        status = ProbeStatus.FAIL,
+                        latencyMs = System.currentTimeMillis() - started,
+                        detail = "脚本未返回地址",
+                    )
+                } else {
+                    val head = probeUrl(url)
+                    val cost = System.currentTimeMillis() - started
+                    QualityProbe(
+                        quality = quality,
+                        status = if (head.ok) SourceProbe.statusOf(cost, ok = true) else ProbeStatus.FAIL,
+                        latencyMs = cost,
+                        sizeBytes = head.sizeBytes,
+                        detail = head.summary,
+                    )
+                }
+            } catch (e: Exception) {
+                QualityProbe(
+                    quality = quality,
+                    status = ProbeStatus.FAIL,
+                    latencyMs = System.currentTimeMillis() - started,
+                    detail = e.message ?: "检测异常",
+                )
+            }
+            onQuality(probe)
+            probe
+        }
+    }
+
     // ==================== 地址探测 ====================
 
-    data class UrlProbeResult(val ok: Boolean, val summary: String)
+    data class UrlProbeResult(val ok: Boolean, val summary: String, val sizeBytes: Long = -1L)
 
     /**
      * 探测音频地址是否真实可访问。
@@ -272,7 +356,7 @@ class SourceDetector(
         } catch (e: Exception) {
             null
         }
-        val result = head?.takeIf { it.first != 405 && it.first != 403 && it.first != 501 }
+        val result = head?.takeIf { it.code != 405 && it.code != 403 && it.code != 501 }
             ?: runCatching {
                 execute(
                     Request.Builder()
@@ -283,30 +367,43 @@ class SourceDetector(
             }.getOrNull()
 
         if (result == null) return@withContext UrlProbeResult(false, "无法连接音频地址")
-        val (code, contentType, length) = result
-        val audioLike = contentType.contains("audio", ignoreCase = true) ||
-            contentType.contains("octet-stream", ignoreCase = true) ||
-            contentType.contains("video", ignoreCase = true) ||
-            contentType.contains("mpeg", ignoreCase = true)
-        val ok = (code == 200 || code == 206) && audioLike
-        val sizeText = if (length > 0) "，${length / 1024}KB" else ""
+        val audioLike = result.contentType.contains("audio", ignoreCase = true) ||
+            result.contentType.contains("octet-stream", ignoreCase = true) ||
+            result.contentType.contains("video", ignoreCase = true) ||
+            result.contentType.contains("mpeg", ignoreCase = true)
+        val ok = (result.code == 200 || result.code == 206) && audioLike
+        val size = if (result.totalBytes > 0) result.totalBytes else result.length
+        val sizeText = if (size > 0) "，${size / 1024}KB" else ""
         UrlProbeResult(
             ok = ok,
             summary = if (ok) {
-                "HTTP $code，${contentType.ifBlank { "未知类型" }}$sizeText"
+                "HTTP ${result.code}，${result.contentType.ifBlank { "未知类型" }}$sizeText"
             } else {
-                "HTTP $code" + if (contentType.isNotBlank()) "，类型 $contentType" else ""
+                "HTTP ${result.code}" + if (result.contentType.isNotBlank()) "，类型 ${result.contentType}" else ""
             },
+            sizeBytes = size,
         )
     }
 
-    /** 返回 (状态码, Content-Type, Content-Length) */
-    private fun execute(request: Request): Triple<Int, String, Long> {
+    private data class ProbeResponse(
+        val code: Int,
+        val contentType: String,
+        val length: Long,
+        val totalBytes: Long,
+    )
+
+    /** 返回状态码、Content-Type、Content-Length，以及 Range 请求里的总大小 */
+    private fun execute(request: Request): ProbeResponse {
         httpClient.newCall(request).execute().use { resp ->
-            return Triple(
-                resp.code,
-                resp.header("Content-Type").orEmpty(),
-                resp.header("Content-Length")?.toLongOrNull() ?: -1L,
+            val total = resp.header("Content-Range")
+                ?.substringAfterLast('/')
+                ?.toLongOrNull()
+                ?: -1L
+            return ProbeResponse(
+                code = resp.code,
+                contentType = resp.header("Content-Type").orEmpty(),
+                length = resp.header("Content-Length")?.toLongOrNull() ?: -1L,
+                totalBytes = total,
             )
         }
     }

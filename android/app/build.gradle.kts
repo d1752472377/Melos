@@ -16,6 +16,7 @@ android {
         targetSdk = 35
         versionCode = 30
         versionName = "2.1.5"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     lint {
         abortOnError = false        // 遇到剩余的 40 多个 lint 报错不打断编译
@@ -116,6 +117,10 @@ dependencies {
 
     // 纯逻辑单元测试（JVM，无需设备）
     testImplementation(libs.junit)
+
+    // QuickJS 核心冒烟测试（真机/模拟器）
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

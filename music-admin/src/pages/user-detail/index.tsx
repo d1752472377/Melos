@@ -15,6 +15,12 @@ import {
   Descriptions,
   Empty,
   Tooltip,
+  Popconfirm,
+  Form,
+  Switch,
+  Upload,
+  Alert,
+  Divider,
 } from "antd";
 import {
   UserOutlined,
@@ -28,6 +34,13 @@ import {
   HistoryOutlined,
   DesktopOutlined,
   UnorderedListOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  LinkOutlined,
+  UploadOutlined,
+  CodeOutlined,
+  ClearOutlined,
 } from "@ant-design/icons";
 import { request } from "../../providers/api";
 
@@ -144,6 +157,18 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
   const [tabPages, setTabPages] = useState<Record<string, number>>({});
   const [tabLoading, setTabLoading] = useState<Record<string, boolean>>({});
   const [activeDays, setActiveDays] = useState<any[]>([]);
+  /** 播放记录是否显示"原始心跳"（默认按会话合并显示） */
+  const [rawEvents, setRawEvents] = useState(false);
+  /** 脚本编辑弹窗 */
+  const [scriptModal, setScriptModal] = useState<{ open: boolean; item: any | null }>({
+    open: false,
+    item: null,
+  });
+  /** 歌单编辑弹窗 */
+  const [playlistModal, setPlaylistModal] = useState<{ open: boolean; item: any | null }>({
+    open: false,
+    item: null,
+  });
 
   const fetchOverview = useCallback(async () => {
     setLoading(true);
@@ -195,6 +220,8 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
         }
         if (tab === "playlists") url = `/admin/users/${userId}/playlists`;
         else if (tab === "scripts") url = `/admin/users/${userId}/scripts`;
+        else if (tab === "playEvents")
+          url = `/admin/users/${userId}/play-events?page=${page}&limit=${PAGE}${rawEvents ? "&raw=1" : ""}`;
         else url = `/admin/users/${userId}/${tab}?page=${page}&limit=${PAGE}`;
 
         const res = await request<{ items: any[]; total: number }>(url);
@@ -213,7 +240,7 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
         setTabLoading((m) => ({ ...m, [tab]: false }));
       }
     },
-    [userId, fetchActiveDays]
+    [userId, fetchActiveDays, rawEvents]
   );
 
   useEffect(() => {
@@ -232,6 +259,39 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
     showTotal: (t: number) => `共 ${t} 条`,
     onChange: (p: number) => fetchTab(tab, p),
   });
+
+  /** 让某个 Tab 失效（下次渲染自动重新拉取） */
+  const reloadTab = useCallback((tab: string) => {
+    setTabData((m) => {
+      const n = { ...m };
+      delete n[tab];
+      return n;
+    });
+  }, []);
+
+  /** 管理员写入后的统一收尾：刷新概览 + 指定 Tab */
+  const afterWrite = useCallback(
+    (tab: string, tip?: string) => {
+      if (tip) message.success(tip);
+      fetchOverview();
+      reloadTab(tab);
+    },
+    [fetchOverview, reloadTab]
+  );
+
+  /** 管理员删除类操作（统一封装，避免每个 Tab 重复写 try/catch） */
+  const adminDelete = useCallback(
+    async (url: string, tab: string, tip: string) => {
+      try {
+        const res = await request(url, { method: "DELETE" });
+        if (res.code === 200) afterWrite(tab, tip);
+        else message.error(res.msg || "操作失败");
+      } catch (e: any) {
+        message.error(e.message || "请求失败");
+      }
+    },
+    [afterWrite]
+  );
 
   const playlistSongsModal = (record: any) => (
     <PlaylistSongsModal userId={userId!} playlist={record} />
@@ -294,6 +354,31 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
           pagination={pagProps("favorites")}
           columns={songColumns([
             { title: "收藏时间", dataIndex: "updatedAtMs", key: "t", width: 180, render: fmtTime },
+            {
+              title: "操作",
+              key: "action",
+              width: 100,
+              render: (_: any, r: any) => (
+                <Popconfirm
+                  title="从该用户的收藏中移除？"
+                  description="会同步到用户的所有设备"
+                  okText="移除"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() =>
+                    adminDelete(
+                      `/admin/users/${userId}/favorites/${encodeURIComponent(r.platform)}/${encodeURIComponent(r.songId)}`,
+                      "favorites",
+                      "已取消收藏"
+                    )
+                  }
+                >
+                  <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                    移除
+                  </Button>
+                </Popconfirm>
+              ),
+            },
           ])}
         />
       ),
@@ -306,35 +391,80 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
         </span>
       ),
       children: (
-        <Table
-          rowKey="playlistId"
-          size="small"
-          loading={tabLoading["playlists"]}
-          dataSource={tabData["playlists"]?.items}
-          pagination={false}
-          columns={[
-            {
-              title: "歌单名",
-              dataIndex: "name",
-              key: "name",
-              render: (v: string, r: any) => (
-                <Space>
-                  {r.coverUrl ? <Avatar shape="square" size={32} src={r.coverUrl} /> : null}
-                  <Text strong>{v || "未命名歌单"}</Text>
-                  {r.kind === "fav" && <Tag color="red">收藏夹</Tag>}
-                </Space>
-              ),
-            },
-            { title: "歌曲数", dataIndex: "songCount", key: "songCount", width: 90 },
-            { title: "更新时间", dataIndex: "updatedAtMs", key: "t", width: 180, render: fmtTime },
-            {
-              title: "操作",
-              key: "action",
-              width: 100,
-              render: (_: any, record: any) => playlistSongsModal(record),
-            },
-          ]}
-        />
+        <div>
+          <Space style={{ marginBottom: 12 }}>
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => setPlaylistModal({ open: true, item: null })}
+            >
+              新建歌单
+            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              改名/换封面会同步到用户的所有设备
+            </Text>
+          </Space>
+          <Table
+            rowKey="playlistId"
+            size="small"
+            loading={tabLoading["playlists"]}
+            dataSource={tabData["playlists"]?.items}
+            pagination={false}
+            columns={[
+              {
+                title: "歌单名",
+                dataIndex: "name",
+                key: "name",
+                render: (v: string, r: any) => (
+                  <Space>
+                    {r.coverUrl ? <Avatar shape="square" size={32} src={r.coverUrl} /> : null}
+                    <Text strong>{v || "未命名歌单"}</Text>
+                    {r.kind === "fav" && <Tag color="red">收藏夹</Tag>}
+                  </Space>
+                ),
+              },
+              { title: "歌曲数", dataIndex: "songCount", key: "songCount", width: 90 },
+              { title: "更新时间", dataIndex: "updatedAtMs", key: "t", width: 170, render: fmtTime },
+              {
+                title: "操作",
+                key: "action",
+                width: 200,
+                render: (_: any, record: any) => (
+                  <Space size={0}>
+                    {playlistSongsModal(record)}
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => setPlaylistModal({ open: true, item: record })}
+                    >
+                      编辑
+                    </Button>
+                    <Popconfirm
+                      title="删除该歌单？"
+                      description="歌单及其中的歌曲都会从用户所有设备移除"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() =>
+                        adminDelete(
+                          `/admin/users/${userId}/playlists/${encodeURIComponent(record.playlistId)}`,
+                          "playlists",
+                          "歌单已删除"
+                        )
+                      }
+                    >
+                      <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                        删除
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+        </div>
       ),
     },
     {
@@ -345,51 +475,157 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
         </span>
       ),
       children: (
-        <Table
-          rowKey={(r) => `${r.platform}:${r.songId}`}
-          size="small"
-          loading={tabLoading["history"]}
-          dataSource={tabData["history"]?.items}
-          pagination={pagProps("history")}
-          columns={songColumns([
-            { title: "播放时间", dataIndex: "playedAtMs", key: "t", width: 180, render: fmtTime },
-          ])}
-        />
+        <div>
+          <Space style={{ marginBottom: 12 }}>
+            <Popconfirm
+              title="清空该用户的全部听歌历史？"
+              description="会同步删除用户所有设备上的历史记录，不可恢复"
+              okText="清空"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => adminDelete(`/admin/users/${userId}/history`, "history", "已清空历史")}
+            >
+              <Button size="small" danger icon={<ClearOutlined />}>
+                清空全部历史
+              </Button>
+            </Popconfirm>
+          </Space>
+          <Table
+            rowKey={(r) => `${r.platform}:${r.songId}`}
+            size="small"
+            loading={tabLoading["history"]}
+            dataSource={tabData["history"]?.items}
+            pagination={pagProps("history")}
+            columns={songColumns([
+              { title: "播放时间", dataIndex: "playedAtMs", key: "t", width: 170, render: fmtTime },
+              {
+                title: "操作",
+                key: "action",
+                width: 100,
+                render: (_: any, r: any) => (
+                  <Popconfirm
+                    title="删除这条历史？"
+                    okText="删除"
+                    cancelText="取消"
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() =>
+                      adminDelete(
+                        `/admin/users/${userId}/history/${encodeURIComponent(r.platform)}/${encodeURIComponent(r.songId)}`,
+                        "history",
+                        "已删除"
+                      )
+                    }
+                  >
+                    <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                      删除
+                    </Button>
+                  </Popconfirm>
+                ),
+              },
+            ])}
+          />
+        </div>
       ),
     },
     {
       key: "playEvents",
       label: (
         <span>
-          <PlayCircleOutlined /> 播放事件
+          <PlayCircleOutlined /> 播放记录
         </span>
       ),
       children: (
-        <Table
-          rowKey="eventId"
-          size="small"
-          loading={tabLoading["playEvents"]}
-          dataSource={tabData["playEvents"]?.items}
-          pagination={pagProps("playEvents")}
-          columns={[
-            {
-              title: "歌曲",
-              key: "song",
-              render: (_: any, r: any) => (
-                <div>
-                  <Text strong style={{ fontSize: 13 }}>{r.title || r.songId}</Text>
-                  <br />
-                  <Text type="secondary" style={{ fontSize: 12 }}>{r.artist || "-"}</Text>
-                </div>
-              ),
-            },
-            { title: "平台", dataIndex: "platform", key: "p", width: 90, render: (p: string) => <Tag color="geekblue">{p || "-"}</Tag> },
-            { title: "设备", dataIndex: "deviceName", key: "d", width: 130, render: (v: string, r: any) => v || r.deviceId || "-" },
-            { title: "已听时长", dataIndex: "listenedMs", key: "l", width: 110, render: fmtDuration },
-            { title: "歌曲时长", dataIndex: "durationMs", key: "du", width: 110, render: fmtDuration },
-            { title: "时间", dataIndex: "listenedAtMs", key: "t", width: 180, render: fmtTime },
-          ]}
-        />
+        <div>
+          <Space style={{ marginBottom: 12 }} size="middle" wrap>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              按「连续播放」合并：同一首歌同一设备，中断不超过 15 秒算同一次播放
+            </Text>
+            <Button
+              size="small"
+              onClick={() => {
+                setRawEvents(!rawEvents);
+                setTabData((m) => {
+                  const n = { ...m };
+                  delete n["playEvents"];
+                  return n;
+                });
+              }}
+            >
+              {rawEvents ? "查看合并后的播放" : "查看原始心跳"}
+            </Button>
+          </Space>
+          <Table
+            rowKey={(r: any) =>
+              rawEvents ? r.eventId : `${r.platform}:${r.songId}:${r.deviceId}:${r.startedAt}`
+            }
+            size="small"
+            loading={tabLoading["playEvents"]}
+            dataSource={tabData["playEvents"]?.items}
+            pagination={pagProps("playEvents")}
+            columns={
+              rawEvents
+                ? [
+                    {
+                      title: "歌曲",
+                      key: "song",
+                      render: (_: any, r: any) => (
+                        <div>
+                          <Text strong style={{ fontSize: 13 }}>{r.title || r.songId}</Text>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: 12 }}>{r.artist || "-"}</Text>
+                        </div>
+                      ),
+                    },
+                    { title: "平台", dataIndex: "platform", key: "p", width: 90, render: (p: string) => <Tag color="geekblue">{p || "-"}</Tag> },
+                    { title: "设备", dataIndex: "deviceName", key: "d", width: 130, render: (v: string, r: any) => v || r.deviceId || "-" },
+                    { title: "心跳时长", dataIndex: "listenedMs", key: "l", width: 100, render: fmtDuration },
+                    { title: "歌曲时长", dataIndex: "durationMs", key: "du", width: 100, render: fmtDuration },
+                    { title: "时间", dataIndex: "listenedAtMs", key: "t", width: 170, render: fmtTime },
+                  ]
+                : [
+                    {
+                      title: "歌曲",
+                      key: "song",
+                      render: (_: any, r: any) => (
+                        <div>
+                          <Text strong style={{ fontSize: 13 }}>{r.title || r.songId}</Text>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: 12 }}>{r.artist || "-"}</Text>
+                        </div>
+                      ),
+                    },
+                    { title: "平台", dataIndex: "platform", key: "p", width: 90, render: (p: string) => <Tag color="geekblue">{p || "-"}</Tag> },
+                    { title: "设备", dataIndex: "deviceName", key: "d", width: 130, render: (v: string, r: any) => v || r.deviceId || "-" },
+                    {
+                      title: "本次播放时长",
+                      dataIndex: "listenedMs",
+                      key: "l",
+                      width: 130,
+                      render: (v: number) => <Text strong>{fmtDuration(v)}</Text>,
+                    },
+                    { title: "歌曲时长", dataIndex: "durationMs", key: "du", width: 100, render: fmtDuration },
+                    {
+                      title: "开始时间",
+                      dataIndex: "startedAt",
+                      key: "t",
+                      width: 170,
+                      render: fmtTime,
+                    },
+                    {
+                      title: "分段",
+                      dataIndex: "segments",
+                      key: "seg",
+                      width: 70,
+                      render: (v: number) => (
+                        <Tooltip title="本次播放由多少条上报记录合并而成（旧版客户端逐秒心跳会很多）">
+                          <Tag>{v}</Tag>
+                        </Tooltip>
+                      ),
+                    },
+                  ]
+            }
+          />
+        </div>
       ),
     },
     {
@@ -400,42 +636,92 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
         </span>
       ),
       children: (
-        <Table
-          rowKey="scriptId"
-          size="small"
-          loading={tabLoading["scripts"]}
-          dataSource={tabData["scripts"]?.items}
-          pagination={false}
-          expandable={{
-            expandedRowRender: (r: any) => (
-              <pre
-                style={{
-                  maxHeight: 300,
-                  overflow: "auto",
-                  background: "#0f172a",
-                  color: "#e2e8f0",
-                  padding: 12,
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-              >
-                {r.code || "(空)"}
-              </pre>
-            ),
-          }}
-          columns={[
-            { title: "脚本名", dataIndex: "name", key: "name", render: (v: string) => v || "未命名" },
-            { title: "描述", dataIndex: "description", key: "d", ellipsis: true },
-            {
-              title: "启用",
-              dataIndex: "enabled",
-              key: "e",
-              width: 80,
-              render: (v: boolean) => (v ? <Tag color="green">启用</Tag> : <Tag>停用</Tag>),
-            },
-            { title: "更新时间", dataIndex: "updatedAtMs", key: "t", width: 180, render: fmtTime },
-          ]}
-        />
+        <div>
+          <Space style={{ marginBottom: 12 }} wrap>
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => setScriptModal({ open: true, item: null })}
+            >
+              新增脚本
+            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              支持手写 / 从链接导入（服务端拉取，避开跨域）/ 上传本地文件
+            </Text>
+          </Space>
+          <Table
+            rowKey="scriptId"
+            size="small"
+            loading={tabLoading["scripts"]}
+            dataSource={tabData["scripts"]?.items}
+            pagination={false}
+            expandable={{
+              expandedRowRender: (r: any) => (
+                <pre
+                  style={{
+                    maxHeight: 300,
+                    overflow: "auto",
+                    background: "#0f172a",
+                    color: "#e2e8f0",
+                    padding: 12,
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                >
+                  {r.code || "(空)"}
+                </pre>
+              ),
+            }}
+            columns={[
+              { title: "脚本名", dataIndex: "name", key: "name", render: (v: string) => v || "未命名" },
+              { title: "描述", dataIndex: "description", key: "d", ellipsis: true },
+              {
+                title: "启用",
+                dataIndex: "enabled",
+                key: "e",
+                width: 80,
+                render: (v: boolean) => (v ? <Tag color="green">启用</Tag> : <Tag>停用</Tag>),
+              },
+              { title: "更新时间", dataIndex: "updatedAtMs", key: "t", width: 170, render: fmtTime },
+              {
+                title: "操作",
+                key: "action",
+                width: 160,
+                render: (_: any, r: any) => (
+                  <Space size={0}>
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => setScriptModal({ open: true, item: r })}
+                    >
+                      编辑
+                    </Button>
+                    <Popconfirm
+                      title="删除该脚本？"
+                      description="会同步删除用户所有设备上的这个音源脚本"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() =>
+                        adminDelete(
+                          `/admin/users/${userId}/scripts/${encodeURIComponent(r.scriptId)}`,
+                          "scripts",
+                          "脚本已删除"
+                        )
+                      }
+                    >
+                      <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                        删除
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+        </div>
       ),
     },
     {
@@ -470,7 +756,32 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
               width: 100,
               render: (v: number) => (v > 0 ? `${(v / 1024 / 1024).toFixed(2)} MB` : "-"),
             },
-            { title: "下载时间", dataIndex: "downloadedAtMs", key: "t", width: 180, render: fmtTime },
+            { title: "下载时间", dataIndex: "downloadedAtMs", key: "t", width: 170, render: fmtTime },
+            {
+              title: "操作",
+              key: "action",
+              width: 100,
+              render: (_: any, r: any) => (
+                <Popconfirm
+                  title="删除这条下载记录？"
+                  description="仅删除记录，不影响设备上的文件"
+                  okText="删除"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() =>
+                    adminDelete(
+                      `/admin/users/${userId}/downloads/${encodeURIComponent(r.platform)}/${encodeURIComponent(r.songId)}/${encodeURIComponent(r.deviceId)}`,
+                      "downloads",
+                      "已删除"
+                    )
+                  }
+                >
+                  <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                    删除
+                  </Button>
+                </Popconfirm>
+              ),
+            },
           ]}
         />
       ),
@@ -588,6 +899,287 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
           </Tooltip>
         }
       />
+
+      {/* 脚本编辑：手写 / 链接导入 / 上传文件 */}
+      <ScriptEditorModal
+        userId={userId}
+        open={scriptModal.open}
+        item={scriptModal.item}
+        onClose={() => setScriptModal({ open: false, item: null })}
+        onSaved={() => {
+          setScriptModal({ open: false, item: null });
+          afterWrite("scripts", "脚本已保存");
+        }}
+      />
+
+      {/* 歌单新建 / 改名 / 换封面 */}
+      <PlaylistEditorModal
+        userId={userId}
+        open={playlistModal.open}
+        item={playlistModal.item}
+        onClose={() => setPlaylistModal({ open: false, item: null })}
+        onSaved={() => {
+          setPlaylistModal({ open: false, item: null });
+          afterWrite("playlists", "歌单已保存");
+        }}
+      />
+    </Modal>
+  );
+};
+
+/**
+ * 脚本编辑器：三种录入方式共用一份 code。
+ *
+ * - 手写：直接编辑源码；
+ * - 链接导入：交给服务端拉取（浏览器直连会撞 CORS，且脚本常托管在
+ *   GitHub raw / gist，前端 fetch 拿不到正文）；
+ * - 上传文件：读本地 .js 文本填进编辑器，保存仍走同一接口。
+ *
+ * 导入/上传都只是"把内容填进 textarea"，用户能先看一眼再保存——
+ * 避免管理员误把 HTML 错误页当成脚本写进用户设备。
+ */
+const ScriptEditorModal: React.FC<{
+  userId: number;
+  open: boolean;
+  item: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ userId, open, item, onClose, onSaved }) => {
+  const [form] = Form.useForm();
+  const [code, setCode] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const isEdit = !!item;
+
+  useEffect(() => {
+    if (!open) return;
+    if (item) {
+      form.setFieldsValue({
+        name: item.name,
+        description: item.description,
+        enabled: item.enabled,
+      });
+      setCode(item.code || "");
+    } else {
+      form.setFieldsValue({ name: "", description: "", enabled: true });
+      setCode("");
+    }
+    setImportUrl("");
+  }, [open, item, form]);
+
+  const handleImportUrl = async () => {
+    const url = importUrl.trim();
+    if (!url) {
+      message.warning("请填写脚本链接");
+      return;
+    }
+    setImporting(true);
+    try {
+      // 只拉取内容回填编辑器，不直接入库：管理员应先过目
+      const res = await request<any>(`/admin/users/${userId}/scripts/import-url`, {
+        method: "POST",
+        body: JSON.stringify({ url, name: form.getFieldValue("name") || undefined, dryRun: true }),
+      });
+      if (res.code === 200) {
+        // 后端导入接口会直接保存；这里为了"先看后存"，改成用返回的源码回填
+        setCode(res.data?.code || "");
+        if (res.data?.name && !form.getFieldValue("name")) {
+          form.setFieldsValue({ name: res.data.name });
+        }
+        message.success("已拉取脚本内容，确认无误后点保存");
+      } else {
+        message.error(res.msg || "导入失败");
+      }
+    } catch (e: any) {
+      message.error(e.message || "导入失败");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+      if (!code.trim()) {
+        message.warning("脚本内容不能为空");
+        return;
+      }
+      setSaving(true);
+      const id = item?.scriptId;
+      const url = isEdit
+        ? `/admin/users/${userId}/scripts/${encodeURIComponent(id)}`
+        : `/admin/users/${userId}/scripts`;
+      const res = await request(url, {
+        method: isEdit ? "PUT" : "POST",
+        body: JSON.stringify({
+          id,
+          name: values.name,
+          description: values.description || "",
+          enabled: values.enabled !== false,
+          code,
+        }),
+      });
+      if (res.code === 200) {
+        onSaved();
+      } else {
+        message.error(res.msg || "保存失败");
+      }
+    } catch (e: any) {
+      if (e?.errorFields) return; // 表单校验失败
+      message.error(e.message || "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={isEdit ? `编辑脚本：${item?.name || ""}` : "新增脚本"}
+      open={open}
+      onCancel={onClose}
+      onOk={handleSave}
+      confirmLoading={saving}
+      okText="保存"
+      width={860}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" size="small">
+        <Space size="middle" style={{ display: "flex" }} align="start">
+          <Form.Item name="name" label="脚本名" rules={[{ required: true, message: "请输入脚本名" }]} style={{ flex: 1 }}>
+            <Input placeholder="例如：墨澜聚合音源" />
+          </Form.Item>
+          <Form.Item name="description" label="描述" style={{ flex: 2 }}>
+            <Input placeholder="选填，会显示在用户端的音源列表里" />
+          </Form.Item>
+          <Form.Item name="enabled" label="启用" valuePropName="checked">
+            <Switch defaultChecked />
+          </Form.Item>
+        </Space>
+
+        <Divider style={{ margin: "4px 0 12px" }} orientation="left" plain>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            脚本内容
+          </Text>
+        </Divider>
+
+        <Space style={{ marginBottom: 8 }} wrap>
+          <Input
+            prefix={<LinkOutlined />}
+            placeholder="粘贴脚本直链（GitHub raw / gist / 自建）"
+            value={importUrl}
+            onChange={(e) => setImportUrl(e.target.value)}
+            style={{ width: 420 }}
+            allowClear
+          />
+          <Button onClick={handleImportUrl} loading={importing} icon={<LinkOutlined />}>
+            从链接导入
+          </Button>
+          <Upload
+            accept=".js,.mjs,.txt,text/javascript"
+            showUploadList={false}
+            beforeUpload={(file) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                setCode(String(reader.result || ""));
+                if (!form.getFieldValue("name")) {
+                  form.setFieldsValue({ name: file.name.replace(/\.[^.]+$/, "") });
+                }
+                message.success(`已读取 ${file.name}，确认后保存`);
+              };
+              reader.onerror = () => message.error("读取文件失败");
+              reader.readAsText(file);
+              return false; // 不上传到服务器，只在本地读取
+            }}
+          >
+            <Button icon={<UploadOutlined />}>上传本地文件</Button>
+          </Upload>
+        </Space>
+
+        <Input.TextArea
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          rows={16}
+          placeholder="// 在此粘贴或编辑脚本源码"
+          style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}
+        />
+        <Alert
+          style={{ marginTop: 8 }}
+          type="info"
+          showIcon
+          message="保存后会同步到该用户的所有设备，用户端下次同步即可看到这个音源脚本。"
+        />
+      </Form>
+    </Modal>
+  );
+};
+
+/** 歌单编辑：新建 / 改名 / 换封面 */
+const PlaylistEditorModal: React.FC<{
+  userId: number;
+  open: boolean;
+  item: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ userId, open, item, onClose, onSaved }) => {
+  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+  const isEdit = !!item;
+
+  useEffect(() => {
+    if (!open) return;
+    if (item) {
+      form.setFieldsValue({ name: item.name, coverUrl: item.coverUrl });
+    } else {
+      form.setFieldsValue({ name: "", coverUrl: "" });
+    }
+  }, [open, item, form]);
+
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      const url = isEdit
+        ? `/admin/users/${userId}/playlists/${encodeURIComponent(item.playlistId)}`
+        : `/admin/users/${userId}/playlists`;
+      const res = await request(url, {
+        method: isEdit ? "PUT" : "POST",
+        body: JSON.stringify({
+          id: item?.playlistId,
+          name: values.name,
+          coverUrl: values.coverUrl || "",
+          kind: item?.kind || "mine",
+        }),
+      });
+      if (res.code === 200) onSaved();
+      else message.error(res.msg || "保存失败");
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e.message || "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={isEdit ? `编辑歌单：${item?.name || ""}` : "新建歌单"}
+      open={open}
+      onCancel={onClose}
+      onOk={handleSave}
+      confirmLoading={saving}
+      okText="保存"
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" size="small">
+        <Form.Item name="name" label="歌单名" rules={[{ required: true, message: "请输入歌单名" }]}>
+          <Input placeholder="例如：通勤歌单" />
+        </Form.Item>
+        <Form.Item name="coverUrl" label="封面图 URL">
+          <Input placeholder="选填，图片直链" />
+        </Form.Item>
+        <Alert type="info" showIcon message="保存后会同步到该用户的所有设备。" />
+      </Form>
     </Modal>
   );
 };
@@ -658,7 +1250,42 @@ const PlaylistSongsModal: React.FC<{ userId: number; playlist: any }> = ({ userI
               fetchSongs(p);
             },
           }}
-          columns={songColumns([{ title: "位置", dataIndex: "position", key: "pos", width: 70 }])}
+          columns={songColumns([
+            { title: "位置", dataIndex: "position", key: "pos", width: 70 },
+            {
+              title: "操作",
+              key: "action",
+              width: 90,
+              render: (_: any, r: any) => (
+                <Popconfirm
+                  title="从歌单中移除这首歌？"
+                  okText="移除"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={async () => {
+                    try {
+                      const res = await request(
+                        `/admin/users/${userId}/playlists/${encodeURIComponent(playlist.playlistId)}/songs/${encodeURIComponent(r.platform)}/${encodeURIComponent(r.songId)}`,
+                        { method: "DELETE" }
+                      );
+                      if (res.code === 200) {
+                        message.success("已移除");
+                        fetchSongs(page);
+                      } else {
+                        message.error(res.msg || "移除失败");
+                      }
+                    } catch (e: any) {
+                      message.error(e.message || "移除失败");
+                    }
+                  }}
+                >
+                  <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                    移除
+                  </Button>
+                </Popconfirm>
+              ),
+            },
+          ])}
         />
       </Modal>
     </>

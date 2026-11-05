@@ -26,6 +26,7 @@ fun PluginManageDestination(
     val loadedPluginId by viewModel.loadedSourceId.collectAsState()
     val engineReady by viewModel.sourceEngineReady.collectAsState()
     val engineError by viewModel.sourceEngineError.collectAsState()
+    val pluginDetect by viewModel.sourcePluginDetect.collectAsState()
     val userPrefs by viewModel.settings.prefs.collectAsState()
 
     // 进入页面时重读注册表：启动迁移、其它入口的导入都会让内存里的列表过期
@@ -41,8 +42,11 @@ fun PluginManageDestination(
             reload = viewModel::reloadActiveSource,
             unload = viewModel::unloadSource,
             remove = viewModel::removeSource,
+            refresh = viewModel::refreshSources,
             detectAll = viewModel::detectSources,
             detectOne = viewModel::detectSourceTarget,
+            startPluginDetect = viewModel::startSourcePluginDetect,
+            clearPluginDetect = viewModel::clearSourcePluginDetect,
             setSourceFailover = viewModel::setSourceFailover,
             setSourceSmartSwitch = viewModel::setSourceSmartSwitch,
             setSourceFastest = viewModel::setSourceFastest,
@@ -60,6 +64,7 @@ fun PluginManageDestination(
         loadedPluginId = loadedPluginId,
         engineReady = engineReady,
         engineError = engineError,
+        pluginDetect = pluginDetect,
         userPrefs = userPrefs,
         actions = actions,
         onToast = onToast,

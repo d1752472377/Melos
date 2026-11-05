@@ -180,6 +180,28 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     LaunchedEffect(Unit) {
         playerManager.onPlaybackStarted = { song -> viewModel.addToHistory(song) }
         playerManager.onSongCompleted = { song -> viewModel.fmOnSignal(song) }
+        // 给日志上报挂上"当时在放什么/用的哪个音源"的上下文：
+        // 排查"播不了/卡住/闪退"时，光有堆栈不知道在哪首歌上，等于少一半线索
+        com.aesthetic.music.service.LogContext.playerState = {
+            val st = playerManager.state.value
+            val song = st.currentSong
+            val prog = playerManager.progress.value
+            buildMap {
+                if (song != null) {
+                    put("song", "${song.title} - ${song.artist}")
+                    put("songId", "${song.platform}:${song.id}")
+                }
+                put("isPlaying", st.isPlaying.toString())
+                put("positionMs", prog.positionMs.toString())
+                put("durationMs", prog.durationMs.toString())
+                put("playMode", st.playMode.name)
+                put("speed", "${st.speed}x")
+                st.errorMessage?.let { put("lastPlayError", it) }
+            }
+        }
+        com.aesthetic.music.service.LogContext.activeSource = {
+            com.aesthetic.music.data.source.SourceManager.lastSourceName.value ?: "官方直连"
+        }
     }
 
     fun shareSongs(songs: List<Song>) {
