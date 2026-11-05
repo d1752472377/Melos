@@ -37,15 +37,11 @@
 
 这些函数仍各自独立，只是不再各占一个文件。剩余 20 个 shell 文件中，`SearchDestination`、`RanksDestination`、`SheetSquareDestination`、`GuessDestination`、`ListeningStatsDestination`、`PluginManageDestination` 仍是 35–69 行的独立路由；它们分别对应不同功能入口，**建议保留独立文件**，不再为了数量继续合并。
 
-### 2.2 待评估：`data/settings` 的 7 个同构 Store
+### 2.2 已处理：`data/settings` 的 Store 模板
 
-`FavoriteStore`（54）、`FavoritePlaylistStore`（54）、`HistoryStore`（53）、`RecentSearchStore`（54）、`GuessHistoryStore`（81）、`PlayerSessionStore`（77）、`CloudDownloadStore`（70）都包含同一套：
+`FavoriteStore`、`FavoritePlaylistStore`、`HistoryStore`、`RecentSearchStore`、`GuessHistoryStore`、`PlayerSessionStore`、`CloudDownloadStore` 原先各自复制 `prefs + writer + load/save/clear`。
 
-```text
-PREFS/KEY + prefs + single-thread writer + init/load/save/clear
-```
-
-它们并非“无意义拆分”，每个 Store 有自己的数据语义；但模板重复约 300 行，且失败处理不一致。已按你的要求暂缓 `JsonPrefsStore`，**记录为后续候选**：先评估 1–2 个顶层公共函数能否消除模板，再决定是否引入泛型 Store。
+已新增 `data/settings/PrefsJson.kt`：只提供 `prefs()`、`load()`、`save()`、`clear()`、`runAsync()` 与 `jsonType<T>()` 顶层函数，**没有引入泛型 Store 类**。各 Store 保留自己的键、容量与数据语义，重复模板减少约 150 行。`CloudDownloadStore.save` 保持同步写入，避免 `apply()` 先读后写看到旧镜像；其余 Store 使用共享单线程写入器。
 
 ### 2.3 可以保留的小文件
 

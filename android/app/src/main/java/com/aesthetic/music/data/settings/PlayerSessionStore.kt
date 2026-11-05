@@ -26,17 +26,8 @@ object PlayerSessionStore {
     private var prefs: SharedPreferences? = null
     private val gson = AppJson.gson
 
-    /**
-     * 单线程后台写入器：队列 JSON 的序列化移出调用线程。
-     * 播放进度循环每 5 秒保存一次断点，此前在主线程序列化整个队列（大队列即掉帧）；
-     * 单线程保证多次保存按提交顺序落盘，不会旧数据覆盖新数据。
-     */
-    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
-
     fun init(context: Context) {
-        if (prefs == null) {
-            prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        }
+        prefs = PrefsJson.prefs(context, PREFS)
     }
 
     fun load(): PlayerSession = try {
@@ -56,7 +47,7 @@ object PlayerSessionStore {
         val queue = session.queue
         val index = session.currentIndex
         val position = session.positionMs
-        writer.execute {
+        PrefsJson.runAsync {
             try {
                 prefs?.edit()
                     ?.putString(KEY_QUEUE, gson.toJson(queue))

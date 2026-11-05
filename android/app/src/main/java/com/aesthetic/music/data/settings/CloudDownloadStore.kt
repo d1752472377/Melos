@@ -2,25 +2,12 @@ package com.aesthetic.music.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.api.SyncDownloadItem
-import com.google.gson.reflect.TypeToken
 
 /**
- * 「云端下载记录」的本地镜像。
- *
- * ## 为什么需要一个镜像，而不是直接把云端记录当成本机缓存
- * 本机缓存列表的数据源是**磁盘上的文件**（`cacheDir/audio_cache` + 索引）。
- * 云端下发的记录里只有"另一台设备下过这首歌"，本机并没有那个文件，
- * 凭空写进缓存索引会让"缓存列表"显示一堆点了播不出来的条目（谎报本机状态）。
- *
- * 因此分工是：
- * - 本机文件 → 缓存索引（真实、可播）；
- * - 云端记录 → 这里（清单镜像，回答"这个账号下载过哪些歌、在哪台设备上"）。
- *
- * 用途：换机/重装后能知道该重新下载哪些歌；将来在缓存页做"云端记录"分区时直接读这里。
- * 本次改动只落库、未做界面（见交付说明），不做界面也不算"假功能"——数据是真的，只是还没展示。
- * 键按账号命名空间隔离（见 [LibraryNamespace]）——下载记录跟随账号，不跟随设备。
+ * 「云端下载记录」的本地镜像：回答「这个账号下载过哪些歌、在哪台设备上」。
+ * 本机可播文件仍以缓存索引为准；这里只是清单镜像，不谎报本机状态。
+ * 键按账号命名空间隔离（见 [LibraryNamespace]）。
  */
 object CloudDownloadStore {
 
@@ -28,28 +15,18 @@ object CloudDownloadStore {
     private const val KEY_RECORDS = "records"
 
     private var prefs: SharedPreferences? = null
-    private val gson = AppJson.gson
 
     fun init(context: Context) {
-        if (prefs == null) {
-            prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        }
+        prefs = PrefsJson.prefs(context, PREFS)
     }
 
-    fun load(): List<SyncDownloadItem> = try {
-        val raw = LibraryNamespace.read(prefs, KEY_RECORDS) ?: return emptyList()
-        val type = object : TypeToken<List<SyncDownloadItem>>() {}.type
-        gson.fromJson<List<SyncDownloadItem>>(raw, type) ?: emptyList()
-    } catch (_: Exception) {
-        emptyList()
-    }
+    fun load(): List<SyncDownloadItem> =
+        PrefsJson.load(prefs, KEY_RECORDS, jsonType<List<SyncDownloadItem>>(), namespaced = true)
+            ?: emptyList()
 
-    fun save(records: List<SyncDownloadItem>) {
-        try {
-            LibraryNamespace.write(prefs, KEY_RECORDS, gson.toJson(records))
-        } catch (_: Exception) {
-        }
-    }
+    /** 保持同步写入：apply 内部先读后写，异步会让紧随其后的读取看到旧镜像 */
+    fun save(records: List<SyncDownloadItem>) =
+        PrefsJson.save(prefs, KEY_RECORDS, records, namespaced = true, async = false)
 
     /**
      * 用云端下发的变更更新镜像：`deleted=true` 的条目移除，其余按
