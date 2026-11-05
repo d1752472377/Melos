@@ -457,7 +457,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                     scope = scope,
                 ) { path ->
                     if (path != null) {
-                        saveSidecars(next)
+                        saveSidecarsAfterDownload(next)
                     } else {
                         if (preloadedKey == urlKey) preloadedKey = null
                     }
@@ -472,7 +472,12 @@ class PlayerManager private constructor(private val appContext: Context) {
      * 下载后补封面与歌词副文件（「下载与缓存 → 封面与歌词」开启时）。
      * 放在缓存成功之后做，避免为了副文件多做一次无谓的网络请求。
      */
-    private fun saveSidecars(song: Song) {
+    /**
+     * 下载/缓存成功后补封面与歌词副文件（「下载与缓存 → 封面与歌词」开启时）。
+     *
+     * 主动下载与后台预缓存共用这一份实现，避免两处对 `lyricOnline` 的判断不一致。
+     */
+    fun saveSidecarsAfterDownload(song: Song) {
         if (!userPrefs.downloadCoverLyrics) return
         scope.launch {
             runCatching {
@@ -1014,7 +1019,7 @@ class PlayerManager private constructor(private val appContext: Context) {
                     if (localPath != null) {
                         android.util.Log.d("PlayerManager", "后台缓存完成: $localPath")
                         // 「下载与缓存 → 封面与歌词」开启时补存封面/歌词副文件
-                        saveSidecars(song)
+                        saveSidecarsAfterDownload(song)
                     }
                 }
             }

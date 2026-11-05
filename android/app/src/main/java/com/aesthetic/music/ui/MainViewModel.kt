@@ -9,7 +9,6 @@ import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.player.LocalLyricStore
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.service.PlaybackService
 import com.aesthetic.music.service.UpdateInfo
@@ -406,7 +405,13 @@ class MainViewModel : ViewModel() {
         _appToast.value = msg
     }
 
-    /** 异步下载/缓存歌曲并提供全局提示（用户主动下载：不受"边听边下"限制） */
+    /**
+     * 用户主动下载。
+     *
+     * 与 PlayerManager 的后台预缓存共用 `AudioCacheService.cacheAudio` 与
+     * `PlayerManager.saveSidecarsAfterDownload`，但入口保持分开：
+     * 手动下载需要逐条提示失败原因，自动预缓存必须静默且可以先只预取直链。
+     */
     fun downloadSong(context: android.content.Context, song: Song) {
         viewModelScope.launch {
             val quality = SettingsStore.getQuality().value
@@ -444,23 +449,10 @@ class MainViewModel : ViewModel() {
             ) { path ->
                 if (path != null) {
                     showToast("「${song.title}」下载完成")
-                    saveSongSidecars(context, song)
+                    PlayerManager.get(context).saveSidecarsAfterDownload(song)
                 } else {
                     showToast("「${song.title}」下载失败")
                 }
-            }
-        }
-    }
-
-    /** 下载成功后补封面/歌词副文件（「下载与缓存 → 封面与歌词」开启时） */
-    private fun saveSongSidecars(context: android.content.Context, song: Song) {
-        if (!SettingsStore.readPrefs().downloadCoverLyrics) return
-        viewModelScope.launch {
-            runCatching {
-                repository.getLyric(song).getOrNull()?.let { d ->
-                    LocalLyricStore.saveLocalLyric(context, song, d.lyric)
-                }
-                com.aesthetic.music.player.SongSidecarStore.saveCover(context, song)
             }
         }
     }
