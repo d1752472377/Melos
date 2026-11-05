@@ -36,10 +36,6 @@ class ProfileController(
         private const val TAG = "MainViewModel"
     }
 
-    // 用户体系
-    private val _user = MutableStateFlow(UserStore.user())
-    val user: StateFlow<UserInfo?> = _user.asStateFlow()
-
     // 个人中心个性化状态
     private val _profileAvatar = MutableStateFlow(UserStore.getAvatarPath())
     val profileAvatar = _profileAvatar.asStateFlow()
@@ -96,25 +92,12 @@ class ProfileController(
      */
     fun syncFromStore() {
         val u = UserStore.user()
-        _user.value = u
         _username.value = u?.username.orEmpty()
         _email.value = u?.email
         _createdAt.value = u?.createdAt ?: 0L
         _profileNickname.value = UserStore.getNickname()
         _profileUserId.value = UserStore.getUserId()
         u?.let { restoreCloudImages(it) }
-    }
-
-    fun updateNickname(nickname: String) {
-        if (nickname.isBlank()) return
-        scope.launch {
-            repository.updateProfile(nickname = nickname).onSuccess { updated ->
-                applyUser(updated)
-                onToast("昵称已更新")
-            }.onFailure { e ->
-                onToast("更新失败: ${e.message ?: "网络异常"}")
-            }
-        }
     }
 
     /**
@@ -218,7 +201,6 @@ class ProfileController(
      * 避免出现"页面刷新后昵称/邮箱又变回去了"（UserStore 里还是旧的）。
      */
     private fun applyUser(updated: UserInfo) {
-        _user.value = updated
         UserStore.updateUser(updated)
         _profileNickname.value = updated.nickname.ifBlank { updated.username }
         _username.value = updated.username

@@ -307,17 +307,6 @@ class AuthController(
         }
     }
 
-    /** 服务器端资料（昵称等）刷新，登录后调用；失败静默（本地仍可用） */
-    fun refreshProfile() {
-        if (!UserStore.isLoggedIn()) return
-        scope.launch {
-            repository.getMe().onSuccess { info ->
-                UserStore.updateUser(info)
-                refresh()
-            }
-        }
-    }
-
     /**
      * 把异常翻译成用户能看懂的一句话。
      *
