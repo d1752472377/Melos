@@ -65,7 +65,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,8 +74,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.data.settings.MyPlaylist
-import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.ErrorBox
@@ -85,7 +82,6 @@ import com.aesthetic.music.ui.components.LiquidGlassButtonStyle
 import com.aesthetic.music.ui.components.LiquidGhostButton
 import com.aesthetic.music.ui.components.PlatformTag
 import com.aesthetic.music.ui.components.PlayingBars
-import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
@@ -184,25 +180,16 @@ fun PlaylistDetailScreen(
     isLoading: Boolean,
     error: String?,
     isFavorite: Boolean,
-    myPlaylists: List<MyPlaylist>,
     currentSong: Song?,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
     onPlayAll: (List<Song>) -> Unit,
     onToggleFavoritePlaylist: () -> Unit,
-    onToggleFavoriteSong: (Song) -> Unit,
-    isSongFavorite: (Song) -> Boolean,
-    onAddToQueue: (Song) -> Unit,
-    onPlayNext: (Song) -> Unit,
-    onDownloadSong: (Song) -> Unit,
-    onAddToPlaylist: (String, Song) -> Unit,
-    onCreatePlaylist: (String, Song?) -> Unit,
+    onMoreSong: (Song) -> Unit,
     onBackgroundColorChange: (Color?, Boolean) -> Unit = { _, _ -> },
 ) {
 
-
-    val context = LocalContext.current
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     // ===== 色系提取 =====
@@ -268,12 +255,6 @@ fun PlaylistDetailScreen(
             PlaylistSortOrder.ARTIST -> list.sortedBy { it.artist.lowercase() }
         }
     }
-
-    // ===== 抽屉状态 =====
-    // 选中的歌曲单曲操作菜单
-    var songForActionMenu by remember { mutableStateOf<Song?>(null) }
-    // 选中的歌曲加入自建歌单抽屉
-    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
 
     Box(
         modifier = Modifier
@@ -658,7 +639,7 @@ fun PlaylistDetailScreen(
                         song = song,
                         isCurrent = isCurrent,
                         onClick = { onPlaySong(song, displaySongs) },
-                        onMoreClick = { songForActionMenu = song }
+                        onMoreClick = { onMoreSong(song) }
                     )
                 }
             }
@@ -734,53 +715,6 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // ===== 单曲更多操作底部抽屉 =====
-    songForActionMenu?.let { song ->
-        val isSongFav = isSongFavorite(song)
-        SongActionSheet(
-            song = song,
-            isFavorite = isSongFav,
-            onDismiss = { songForActionMenu = null },
-            onToggleFavorite = {
-                onToggleFavoriteSong(song)
-                songForActionMenu = null
-            },
-            onAddToPlaylist = {
-                val target = song
-                songForActionMenu = null
-                songForAddToPlaylist = target
-            },
-            onAddToQueue = {
-                onAddToQueue(song)
-                songForActionMenu = null
-            },
-            onPlayNext = {
-                onPlayNext(song)
-                songForActionMenu = null
-            },
-            onDownload = {
-                onDownloadSong(song)
-                songForActionMenu = null
-            }
-        )
-    }
-
-    // ===== 添加到自建歌单抽屉 =====
-    songForAddToPlaylist?.let { song ->
-        AddToPlaylistSheet(
-            song = song,
-            myPlaylists = myPlaylists,
-            onDismiss = { songForAddToPlaylist = null },
-            onSelectPlaylist = { playlistId ->
-                onAddToPlaylist(playlistId, song)
-                songForAddToPlaylist = null
-            },
-            onCreateAndAdd = { newName ->
-                onCreatePlaylist(newName, song)
-                songForAddToPlaylist = null
-            }
-        )
-    }
 }
 
 // ==================== 歌曲行组件 ====================

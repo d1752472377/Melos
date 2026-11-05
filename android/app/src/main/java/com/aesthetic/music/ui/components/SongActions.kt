@@ -58,9 +58,9 @@ import com.aesthetic.music.ui.theme.TextSoft
 /**
  * 单曲操作相关公共组件。
  *
- * 这两块原先分别是 PlaylistDetailScreen 的私有实现（SongActionBottomSheet / AddToPlaylistBottomSheet）。
- * 搜索页也需要同一套「三个点 → 底部抽屉」交互，且歌单详情与专辑详情已在复用，共三处调用点，
- * 因此抽到公共层，避免第三份拷贝继续发散。
+ * 这两块原先是 PlaylistDetailScreen 的私有实现（SongActionBottomSheet / AddToPlaylistBottomSheet）。
+ * 现在统一由 `ui/shell/SongActionsHost.kt` 的宿主渲染，页面只上报目标歌曲，
+ * 不再各自维护两个抽屉状态与级联回调。
  */
 
 /** 单曲操作抽屉：顶部歌曲信息 + 一组动作 */

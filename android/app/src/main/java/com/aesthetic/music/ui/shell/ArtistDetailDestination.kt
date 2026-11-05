@@ -3,14 +3,9 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.artist.ArtistScreen
-import com.aesthetic.music.ui.components.SongActionsHost
 import com.aesthetic.music.ui.navigation.ScreenRoute
 
 /** 歌手页 */
@@ -30,9 +25,7 @@ fun ArtistDetailDestination(
     // 当前播放歌：PlayerManager 通过 state: StateFlow<PlayerState> 暴露，currentSong 是 PlayerState 的计算属性
     val playerState by playerManager.state.collectAsState()
     val currentSong = playerState.currentSong
-
-    var songForActionMenu by remember { mutableStateOf<Song?>(null) }
-    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
+    val songActions = rememberSongActionsState()
 
     val ref = artistRef ?: return
     val info = artistDetail?.info
@@ -55,32 +48,14 @@ fun ArtistDetailDestination(
             val list = if (allSongs.isNotEmpty()) allSongs else artistSongs
             if (list.isNotEmpty()) actions.playAll(list.shuffled())
         },
-        onMoreSong = { song -> songForActionMenu = song },
+        onMoreSong = songActions::showActions,
         onOpenAllSongs = { nav.navigate(ScreenRoute.ArtistAllSongs.route) },
     )
 
     SongActionsHost(
-        songForActionMenu = songForActionMenu,
-        songForAddToPlaylist = songForAddToPlaylist,
+        state = songActions,
+        viewModel = viewModel,
+        playerManager = playerManager,
         myPlaylists = myPlaylists,
-        isSongFavorite = { viewModel.isFavorite(it) },
-        onDismissActionMenu = { songForActionMenu = null },
-        onDismissAddToPlaylist = { songForAddToPlaylist = null },
-        onToggleFavorite = { viewModel.toggleFavorite(it) },
-        onPlayNext = { playerManager.playNext(it) },
-        onAddToQueue = { playerManager.addToQueue(it) },
-        onDownload = { /* 下载需要 Context；若 actions 里已有 downloadSong，改成 actions.downloadSong(it) */ },
-        onRequestAddToPlaylist = { song ->
-            songForActionMenu = null
-            songForAddToPlaylist = song
-        },
-        onSelectPlaylist = { playlistId, song ->
-            viewModel.addSongsToPlaylist(playlistId, listOf(song))
-            songForAddToPlaylist = null
-        },
-        onCreatePlaylist = { newName, song ->
-            viewModel.createPlaylist(newName, listOf(song))
-            songForAddToPlaylist = null
-        },
     )
 }

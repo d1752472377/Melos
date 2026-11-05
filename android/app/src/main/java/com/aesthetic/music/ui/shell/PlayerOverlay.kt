@@ -10,19 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.player.PlayerState
 import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.artist.ArtistRef
-import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.player.PlayerScreen
 import com.aesthetic.music.ui.search.SearchType
@@ -51,7 +46,7 @@ fun PlayerOverlay(
     val context = LocalContext.current
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val quality by viewModel.quality.collectAsState()
-    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
+    val songActions = rememberSongActionsState()
 
     AnimatedVisibility(
         visible = visible,
@@ -122,26 +117,17 @@ fun PlayerOverlay(
                     }
                 },
                 onAddToPlaylist = { song ->
-                    songForAddToPlaylist = song
+                    songActions.showAddToPlaylist(song)
                 },
                 hazeState = hazeState,
             )
 
-            songForAddToPlaylist?.let { song ->
-                AddToPlaylistSheet(
-                    song = song,
-                    myPlaylists = myPlaylists,
-                    onDismiss = { songForAddToPlaylist = null },
-                    onSelectPlaylist = { playlistId ->
-                        viewModel.addSongsToPlaylist(playlistId, listOf(song))
-                        songForAddToPlaylist = null
-                    },
-                    onCreateAndAdd = { newName ->
-                        viewModel.createPlaylist(newName, listOf(song))
-                        songForAddToPlaylist = null
-                    },
-                )
-            }
+            SongActionsHost(
+                state = songActions,
+                viewModel = viewModel,
+                playerManager = playerManager,
+                myPlaylists = myPlaylists,
+            )
         }
     }
 }

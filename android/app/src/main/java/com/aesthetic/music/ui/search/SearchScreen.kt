@@ -32,12 +32,9 @@ import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
-import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.MainViewModel
-import com.aesthetic.music.ui.components.AddToPlaylistSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.LoadingBox
-import com.aesthetic.music.ui.components.SongActionSheet
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.Background
@@ -66,14 +63,7 @@ fun SearchScreen(
     onOpenArtist: (ArtistItem) -> Unit,
     onOpenPlaylist: (PlaylistItem) -> Unit,
     onOpenAlbum: (AlbumItem) -> Unit,
-    myPlaylists: List<MyPlaylist>,
-    isSongFavorite: (Song) -> Boolean,
-    onToggleFavorite: (Song) -> Unit,
-    onPlayNext: (Song) -> Unit,
-    onAddToQueue: (Song) -> Unit,
-    onDownloadSong: (Song) -> Unit,
-    onAddToPlaylist: (String, Song) -> Unit,
-    onCreatePlaylist: (String, Song) -> Unit,
+    onMoreSong: (Song) -> Unit,
 ) {
     val query by viewModel.searchQuery.collectAsState()
     val searchType by viewModel.searchType.collectAsState()
@@ -89,9 +79,7 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    // 单曲操作抽屉：点击结果行右侧「...」时记录目标歌曲
-    var songForActionMenu by remember { mutableStateOf<Song?>(null) }
-    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
+    // 单曲操作抽屉由宿主渲染，这里只上报目标歌曲
     var showClearRecentConfirm by remember { mutableStateOf(false) }
 
     Box(
@@ -182,7 +170,7 @@ fun SearchScreen(
                                 currentSong = currentSong,
                                 emptyHint = searchError ?: "没有找到相关的单曲",
                                 onPlay = { song -> onPlaySong(song, songResults) },
-                                onMore = { song -> songForActionMenu = song },
+                                onMore = onMoreSong,
                                 bottomContentPadding = BottomContentSpacer,
                             )
 
@@ -207,40 +195,6 @@ fun SearchScreen(
                         }
                     }
                 }
-            }
-
-            // ===== 单曲操作抽屉 / 收藏到歌单抽屉 / 清空最近搜索确认 =====
-            songForActionMenu?.let { song ->
-                SongActionSheet(
-                    song = song,
-                    isFavorite = isSongFavorite(song),
-                    onDismiss = { songForActionMenu = null },
-                    onToggleFavorite = { onToggleFavorite(song) },
-                    onPlayNext = { onPlayNext(song) },
-                    onAddToQueue = { onAddToQueue(song) },
-                    onDownload = { onDownloadSong(song) },
-                    onAddToPlaylist = {
-                        val target = song
-                        songForActionMenu = null
-                        songForAddToPlaylist = target
-                    },
-                )
-            }
-
-            songForAddToPlaylist?.let { song ->
-                AddToPlaylistSheet(
-                    song = song,
-                    myPlaylists = myPlaylists,
-                    onDismiss = { songForAddToPlaylist = null },
-                    onSelectPlaylist = { playlistId ->
-                        onAddToPlaylist(playlistId, song)
-                        songForAddToPlaylist = null
-                    },
-                    onCreateAndAdd = { newName ->
-                        onCreatePlaylist(newName, song)
-                        songForAddToPlaylist = null
-                    },
-                )
             }
 
             if (showClearRecentConfirm) {
