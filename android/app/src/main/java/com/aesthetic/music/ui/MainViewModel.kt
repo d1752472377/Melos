@@ -18,7 +18,6 @@ import com.aesthetic.music.service.PlaybackService
 import com.aesthetic.music.service.UpdateInfo
 import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.account.AuthController
-import com.aesthetic.music.ui.album.AlbumController
 import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.fm.FmController
 import com.aesthetic.music.ui.guess.GuessController
@@ -96,7 +95,6 @@ class MainViewModel : ViewModel() {
 
     val sheet = SheetController(repository, viewModelScope)
     val artistPage = ArtistController(repository, viewModelScope)
-    val albumPage = AlbumController(repository, viewModelScope)
     val search = SearchController(repository, viewModelScope)
     val playlistDetail = PlaylistDetailController(repository, viewModelScope)
     val rank = RankController(repository, viewModelScope)
@@ -206,7 +204,6 @@ class MainViewModel : ViewModel() {
         // 切 Tab 时关闭二级页面，否则会盖住新 Tab 内容
         playlistDetail.close()
         artistPage.close()
-        albumPage.close()
         fm.setDriftActive(tab == AppTab.SHEET)
         if (tab == AppTab.PROFILE) refreshStats()
     }

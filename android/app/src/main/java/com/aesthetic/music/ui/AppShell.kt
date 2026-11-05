@@ -373,7 +373,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // 全局搜索�?
                 composable(ScreenRoute.Search.route) {
-                    SearchDestination(viewModel.search, viewModel.artistPage, viewModel.albumPage, viewModel.playlistDetail, viewModel.library, nav, actions, playerManager)
+                    SearchDestination(viewModel.search, viewModel.artistPage, viewModel.playlistDetail, viewModel.library, nav, actions, playerManager)
                 }
 
                 // 排行榜列表页
@@ -396,7 +396,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // 专辑详情�?
                 composable(ScreenRoute.AlbumDetail.route) {
-                    AlbumDetailDestination(viewModel.albumPage, viewModel.library, nav, actions, playerManager, viewModel::updatePageBackground)
+                    AlbumDetailDestination(viewModel.playlistDetail, viewModel.library, nav, actions, playerManager, viewModel::updatePageBackground)
                 }
 
                 // 歌手�?

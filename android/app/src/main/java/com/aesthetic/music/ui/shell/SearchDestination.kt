@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.aesthetic.music.player.PlayerManager
-import com.aesthetic.music.ui.album.AlbumController
 import com.aesthetic.music.ui.artist.ArtistController
 import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.navigation.ScreenRoute
@@ -17,7 +16,6 @@ import com.aesthetic.music.ui.search.SearchScreen
 fun SearchDestination(
     search: SearchController,
     artist: ArtistController,
-    album: AlbumController,
     playlistDetail: PlaylistDetailController,
     library: LibraryController,
     nav: ShellNav,
@@ -41,7 +39,7 @@ fun SearchDestination(
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
         onOpenAlbum = { item ->
-            album.open(item)
+            playlistDetail.openAlbum(item)
             nav.navigate(ScreenRoute.AlbumDetail.route)
         },
         onMoreSong = songActions::showActions,

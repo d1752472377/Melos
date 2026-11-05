@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.playlist
 
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
@@ -38,7 +39,11 @@ class PlaylistDetailController(
     @Volatile
     private var requestId = 0L
 
+    /** 最近一次网络加载动作，供详情页「重试」复用 */
+    private var lastAction: (() -> Unit)? = null
+
     fun open(item: PlaylistItem) {
+        lastAction = { open(item) }
         _showDetail.value = item
         _songs.value = emptyList()
         _error.value = null
@@ -69,6 +74,7 @@ class PlaylistDetailController(
     }
 
     fun openRank(item: PlaylistItem) {
+        lastAction = { openRank(item) }
         _showDetail.value = item
         _songs.value = emptyList()
         _error.value = null
@@ -86,8 +92,51 @@ class PlaylistDetailController(
         }
     }
 
+    /**
+     * 专辑详情：复用同一个详情状态与请求令牌，只是换用 album 接口。
+     * 专辑与歌单在展示层已经统一为 PlaylistItem，无需单独的 AlbumController。
+     */
+    fun openAlbum(album: AlbumItem) {
+        lastAction = { openAlbum(album) }
+        val item = PlaylistItem(
+            id = album.id,
+            name = album.name,
+            coverUrl = album.coverUrl,
+            trackCount = album.size ?: 0L,
+            platform = album.platform,
+        )
+        _showDetail.value = item
+        _songs.value = emptyList()
+        _error.value = null
+        val req = ++requestId
+        scope.launch {
+            _isLoading.value = true
+            repository.getAlbum(album.id).onSuccess { detail ->
+                if (req != requestId) return@onSuccess
+                _songs.value = detail.songs
+                detail.info?.let { info ->
+                    _showDetail.value = item.copy(
+                        name = info.name.ifBlank { item.name },
+                        coverUrl = info.coverUrl ?: item.coverUrl,
+                        trackCount = info.size ?: item.trackCount,
+                        platform = info.platform ?: item.platform,
+                    )
+                }
+            }.onFailure { e ->
+                if (req == requestId) _error.value = e.message ?: "获取专辑失败"
+            }
+            if (req == requestId) _isLoading.value = false
+        }
+    }
+
+    /** 重试最近一次网络加载（歌单 / 榜单 / 专辑） */
+    fun retry() {
+        lastAction?.invoke()
+    }
+
     /** 直接展示本地歌单（我的歌单），不发起网络请求；bump 令牌使在途请求作废 */
     fun showLocal(item: PlaylistItem, songs: List<Song>) {
+        lastAction = null
         ++requestId
         _error.value = null
         _songs.value = songs
@@ -109,6 +158,7 @@ class PlaylistDetailController(
     }
 
     fun close() {
+        lastAction = null
         _showDetail.value = null
     }
 }

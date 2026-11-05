@@ -62,7 +62,7 @@
 
 | 候选 | 理由 | 风险/决定 |
 |---|---|---|
-| `AlbumController` 并入 `PlaylistDetailController` | 两者都是“详情请求令牌 + songs + loading/error”，且专辑最终复用 `PlaylistDetailScreen` | 需要统一 album/playlist/rank/local 四种 target 与重试语义；**暂不动**，先记录 |
+| `AlbumController` 并入 `PlaylistDetailController` | 两者都是“详情请求令牌 + songs + loading/error”，且专辑最终复用 `PlaylistDetailScreen` | **已完成（第四批）**：`openAlbum(AlbumItem)` + `retry()` 并入 `PlaylistDetailController`，删除 `AlbumController`；专辑/歌单共享同一 detail 状态与请求令牌 |
 | `AuthController` + `ProfileController` | 都读写 `UserStore`，都存在用户资料状态 | 登录/资料/同步回调交错，合并后约 700 行；**暂不动** |
 | `data/settings` 7 个 Store | 模板重复 | 你已要求先评估简单公共函数；**暂缓** |
 | `SearchType.kt` 并入 `SearchController` | 5 行枚举，单一使用域 | 收益很小，**暂不动** |
