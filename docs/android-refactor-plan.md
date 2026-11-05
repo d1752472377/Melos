@@ -87,6 +87,15 @@
 - 专辑/歌单详情：先核对 `AlbumItem`/`PlaylistItem`/`PlaylistDetailData` 语义，再决定是否合并 Controller。
 - 设置 Store：先评估 1~2 个顶层公共函数能否消除模板，再决定是否引入 `JsonPrefsStore`。
 
+#### 阶段 1 执行记录（2026-11-05）
+
+- `5612179` 单曲操作抽屉：`SongActionsState` + `ui/shell/SongActionsHost`，7 处调用点统一；歌手页下载空回调已修复。
+- `fe9b237` 收藏/历史：新增 `ui/components/SongCollection.kt` 共享骨架；两页保留标题、清空入口、排序项与空态，没有做万能页面。
+- `933d78d` 版本更新：没有新增 Controller；`MainViewModel.checkForUpdate` + `isCheckingUpdate` 成为唯一状态源，`AppUpdateDialog` 统一渲染，删除 `UpdateLauncher`。
+- `6d8d858` 下载缓存：手动下载与后台预缓存**没有整体合并**（一个需要明确失败提示，一个必须静默且可只预取直链）；只统一了 `PlayerManager.saveSidecarsAfterDownload`，并修正手动下载忽略「在线歌词」开关的漂移。
+
+验证：每个提交前均通过 `:app:compileDebugKotlin` 与 `:app:testDebugUnitTest`（35 个测试）。未做真机手动冒烟。
+
 ### 阶段 2：收敛层级
 
 - 先梳理 `MainViewModel` 与各 Controller 的生命周期、初始化顺序、跨域回调，再删除只读/单行转发。
