@@ -795,18 +795,43 @@ class MainViewModel : ViewModel() {
     private val _appUpdateInfo = MutableStateFlow<UpdateInfo?>(null)
     val appUpdateInfo: StateFlow<UpdateInfo?> = _appUpdateInfo.asStateFlow()
 
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate = _isCheckingUpdate.asStateFlow()
+
     fun dismissAppUpdate() {
         _appUpdateInfo.value = null
     }
 
-    fun triggerAppStartupUpdateCheck() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            when (val res = UpdateService.checkUpdate()) {
-                is UpdateService.CheckResult.Available -> {
-                    _appUpdateInfo.value = res.info
+    /**
+     * 全 App 唯一的更新检查入口。
+     *
+     * - [manual] = true：个人页/设置页手动检查，无更新或失败时给出提示；
+     * - [onResult]：设置页用于更新一行文字状态；不传则只走全局弹窗/提示。
+     */
+    fun checkForUpdate(manual: Boolean = false, onResult: ((String) -> Unit)? = null) {
+        if (_isCheckingUpdate.value) return
+        _isCheckingUpdate.value = true
+        viewModelScope.launch {
+            val message = try {
+                when (val result = UpdateService.checkUpdate()) {
+                    is UpdateService.CheckResult.Available -> {
+                        _appUpdateInfo.value = result.info
+                        "发现新版本 ${result.info.versionName}"
+                    }
+                    is UpdateService.CheckResult.UpToDate -> "当前已是最新版本"
+                    is UpdateService.CheckResult.Failed ->
+                        "检查更新失败: ${result.reason ?: "网络错误"}"
                 }
-                else -> { /* 启动静默检查，无新版本或网络异常不打扰用户 */ }
+            } catch (e: Exception) {
+                "检查更新失败: ${e.message ?: "网络错误"}"
             }
+            _isCheckingUpdate.value = false
+            if (manual && _appUpdateInfo.value == null) showToast(message)
+            onResult?.invoke(message)
         }
+    }
+
+    fun triggerAppStartupUpdateCheck() {
+        checkForUpdate()
     }
 }

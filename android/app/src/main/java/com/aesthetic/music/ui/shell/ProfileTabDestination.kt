@@ -23,6 +23,7 @@ fun ProfileTabDestination(
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val localStats by viewModel.localStats.collectAsState()
     val sourcePlugins by viewModel.sourcePlugins.collectAsState()
+    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
     val profileNickname by viewModel.profileNickname.collectAsState()
     val profileAvatar by viewModel.profileAvatar.collectAsState()
     val profileBackground by viewModel.profileBackground.collectAsState()
@@ -70,6 +71,8 @@ fun ProfileTabDestination(
         onToggleBgBlur = { viewModel.toggleProfileBgBlur() },
         onRestoreDefaults = { viewModel.restoreProfileDefaults(context) },
         onLogout = { viewModel.logout() },
+        onCheckUpdate = { viewModel.checkForUpdate(manual = true) },
+        isCheckingUpdate = isCheckingUpdate,
         onShowToast = actions.toast,
     )
 }

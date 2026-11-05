@@ -86,9 +86,9 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit = {},
     onCheckUpdate: (onResult: (String) -> Unit) -> Unit,
+    isCheckingUpdate: Boolean = false,
 ) {
     var updateStatus by remember { mutableStateOf("点击检查是否有新版本") }
-    var checking by remember { mutableStateOf(false) }
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -197,14 +197,12 @@ fun SettingsScreen(
                 icon = Icons.Filled.SystemUpdate,
                 iconTint = PrimaryBrown,
                 label = "检查更新",
-                subtitle = updateStatus,
+                subtitle = if (isCheckingUpdate) "检查中…" else updateStatus,
                 onClick = {
-                    if (checking) return@SettingRow
-                    checking = true
+                    if (isCheckingUpdate) return@SettingRow
                     updateStatus = "检查中…"
                     onCheckUpdate { result ->
                         updateStatus = result
-                        checking = false
                     }
                 }
             )

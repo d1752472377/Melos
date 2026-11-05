@@ -58,7 +58,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,11 +79,7 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.settings.LocalStats
-import com.aesthetic.music.player.AudioCacheService
-import com.aesthetic.music.service.UpdateInfo
-import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.components.AppConfirmDialog
-import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.components.glassBorder
 import com.aesthetic.music.ui.home.iosGlassCard
@@ -186,18 +181,15 @@ fun ProfileScreen(
     onToggleBgBlur: () -> Unit,
     onRestoreDefaults: () -> Unit,
     onLogout: () -> Unit,
+    onCheckUpdate: () -> Unit = {},
+    isCheckingUpdate: Boolean = false,
     onShowToast: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     var showMenu by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
-
-    var checkingUpdate by remember { mutableStateOf(false) }
-    var updateAvailableInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-    var updateProgressText by remember { mutableStateOf<String?>(null) }
 
     val avatarPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -223,27 +215,6 @@ fun ProfileScreen(
                 onShowToast("背景图更新成功")
             } else {
                 onShowToast("背景图保存失败")
-            }
-        }
-    }
-
-    fun triggerCheckUpdate() {
-        if (checkingUpdate) return
-        checkingUpdate = true
-        scope.launch {
-            when (val result = UpdateService.checkUpdate()) {
-                is UpdateService.CheckResult.Available -> {
-                    checkingUpdate = false
-                    updateAvailableInfo = result.info
-                }
-                is UpdateService.CheckResult.UpToDate -> {
-                    checkingUpdate = false
-                    onShowToast("当前已是最新版本 (v${BuildConfig.VERSION_NAME})")
-                }
-                is UpdateService.CheckResult.Failed -> {
-                    checkingUpdate = false
-                    onShowToast("检查更新失败: ${result.reason ?: "网络连接异常"}")
-                }
             }
         }
     }
@@ -402,9 +373,9 @@ fun ProfileScreen(
                             icon = Icons.Filled.SystemUpdate,
                             iconTint = AccentCoral,
                             title = "检查更新",
-                            subtitle = if (checkingUpdate) "检查中…" else "v${BuildConfig.VERSION_NAME}",
-                            isLoading = checkingUpdate,
-                            onClick = { triggerCheckUpdate() },
+                            subtitle = if (isCheckingUpdate) "检查中…" else "v${BuildConfig.VERSION_NAME}",
+                            isLoading = isCheckingUpdate,
+                            onClick = onCheckUpdate,
                         )
                     }
                 }
@@ -440,82 +411,6 @@ fun ProfileScreen(
         )
     }
 
-    // ===== 发现新版本更新弹窗 =====
-    val updateInfo = updateAvailableInfo
-    if (updateInfo != null) {
-        val isReady = remember(updateInfo, updateProgressText) { UpdateService.isApkReady(context, updateInfo) }
-        AppDialog(
-            onDismissRequest = {
-                if (updateProgressText == null && !updateInfo.forceUpdate) updateAvailableInfo = null
-            },
-            title = if (updateInfo.forceUpdate) "发现重要更新 ${updateInfo.versionName}" else "发现新版本 ${updateInfo.versionName}",
-            confirmText = if (updateProgressText == null) {
-                if (isReady) "立即安装" else "立即更新"
-            } else null,
-            onConfirm = {
-                scope.launch {
-                    val alreadyDownloaded = UpdateService.isApkReady(context, updateInfo)
-                    updateProgressText = if (alreadyDownloaded) "正在打开安装程序…" else "准备下载…"
-                    try {
-                        val path = UpdateService.downloadApk(context, updateInfo) { received, total ->
-                            if (total > 0) {
-                                updateProgressText = "下载中 ${received * 100 / total}%"
-                            }
-                        }
-                        updateProgressText = "正在打开安装程序…"
-                        if (UpdateService.installApk(context, path)) {
-                            if (!updateInfo.forceUpdate) updateAvailableInfo = null
-                            updateProgressText = null
-                        } else {
-                            onShowToast("请允许「安装未知应用」后重新安装")
-                            updateProgressText = null
-                        }
-                    } catch (e: Exception) {
-                        onShowToast("更新失败: ${e.message ?: "未知错误"}")
-                        updateProgressText = null
-                        if (!updateInfo.forceUpdate) updateAvailableInfo = null
-                    }
-                }
-            },
-            cancelText = if (updateProgressText == null && !updateInfo.forceUpdate) "稍后再说" else null,
-            onCancel = { updateAvailableInfo = null },
-        ) {
-            Column {
-                if (updateProgressText != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Text(updateProgressText ?: "正在处理…", style = MaterialTheme.typography.bodyMedium)
-                    }
-                } else {
-                    Text(
-                        text = if (updateInfo.updateLog.isNotBlank()) updateInfo.updateLog else "修复已知问题，提升使用体验。",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "大小: ${AudioCacheService.formatSize(updateInfo.apkSize)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSoft,
-                        )
-                        if (isReady) {
-                            Text(
-                                text = "已就绪 (免流量)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 /**
