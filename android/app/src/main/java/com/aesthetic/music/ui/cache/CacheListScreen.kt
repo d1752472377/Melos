@@ -59,7 +59,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 @Composable
 fun CacheListScreen(
     songs: List<AudioCacheService.CachedSong>,
-    onBack: () -> Unit,
     onRemoveOne: (String) -> Unit,
     onClearAll: () -> Unit,
 ) {

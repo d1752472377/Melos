@@ -43,7 +43,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.ui.components.BottomContentSpacer
@@ -68,7 +67,7 @@ import com.aesthetic.music.ui.theme.appIsDark
  * | 2 | 搜索栏（顶栏的平级兄弟节点） | `:8714` |
  * | 3 | 时段场景大卡 `DailyStackHero` | `:8790` |
  * | 4 | 三大拟态入口 `HomeEntryCards` | `:8815` |
- * | 5 | 分类盲盒 `CategoryBlindBoxRow` | `:497`（按 3 个切块） |
+ * | 5 | ~~分类盲盒~~ | 本版未使用，组件已删除 |
  * | 6 | 新歌首发（三个地区新歌榜） | 取代原「新碟首发」`NewAlbumSection`（`:8845`） |
  * | 7 | ~~情绪电台~~ | **已删除**，见下方「心情电台已移除」 |
  * | 8 | 折叠排行榜 `ChartCard` / `PhoneChartCard` | `:10798` / `:9208` |
@@ -97,8 +96,8 @@ import com.aesthetic.music.ui.theme.appIsDark
  * 正在刷新推荐内容…」那套底部上拉刷新（那是 Antigravity 自造的交互，GZ 中不存在）。
  *
  * ## 横向留白
- * GZ 的每个版块都自己带 16.dp 横向内边距（`HomeScreenKt.java:3067`、`:7503`、
- * `CategoryBlindBoxRowKt.java:199`），列表层不加横向 padding，避免双重缩进。
+ * GZ 的每个版块都自己带 16.dp 横向内边距（`HomeScreenKt.java:3067`、`:7503`），
+ * 列表层不加横向 padding，避免双重缩进。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -108,8 +107,6 @@ fun HomeScreen(
     hotSongs: List<Song>,
     hotPlaylists: List<PlaylistItem>,
     ranks: List<PlaylistItem>,
-    homeCategories: List<HomeCategoryDto> = emptyList(),
-    favorites: Set<String>,
     recommendSongs: List<Song> = emptyList(),
     isLoadingRecommendSongs: Boolean = false,
     onLoadRecommendSongs: (PlaylistItem) -> Unit = {},
@@ -131,7 +128,6 @@ fun HomeScreen(
     onOpenGuess: () -> Unit,
     onOpenRanksPage: () -> Unit,
     onOpenFm: () -> Unit = {},
-    onToggleFavorite: (Song) -> Unit,
     isPlaying: Boolean = false,
 ) {
     // 候选歌曲池（优先新歌、热歌），去重防止下游 key 冲突
@@ -160,8 +156,7 @@ fun HomeScreen(
     // [GZ 真值] 时段场景（defpackage/me3.java:1031-1043）—— 旧实现里的「时段问候」是编造的
     val timeScene = remember { resolveTimeScene(currentHourOfDay()) }
 
-    // 盲盒已从首页移除（见下方板块列表处的说明）；其随机取数逻辑（GZ me3.java:39 的 6 个分类名
-    // 经 me3.java:1096 `shuffled().take(3)`）随组件一起留在 CategoryBlindBoxRow 的使用方那里。
+    // 盲盒已从首页移除（见下方板块列表处的说明）。
 
     val songsMap = remember(newSongs, hotSongs, poolSongs) {
         mapOf(
@@ -222,7 +217,6 @@ fun HomeScreen(
                         previewSongs = (if (recommendSongs.isNotEmpty()) recommendSongs else poolSongs).take(3),
                         isLoadingSongs = isLoadingRecommendSongs && recommendSongs.isEmpty(),
                         isPlaying = isPlaying,
-                        onPlaySong = onPlaySong,
                         onOpenPlaylist = onOpenPlaylistDetail,
                     )
                 }
@@ -254,12 +248,10 @@ fun HomeScreen(
             }
 
             // ── [已移除] 分类盲盒 ──
-            // 依据：GZ 真机截图上，手机端首页在「三大入口」下方**直接就是心情电台**
-            // （见 .shots/compare/ref_gz_home.png），并没有盲盒那一排。
-            // `CategoryBlindBoxRow` 的真实调用点在 HomeScreenKt.java:497-1945，那是**另一个内容函数**
-            // （不是 8072 起的这个 HomeScreen），此前按调用行号把它排进首页属于排序错误。
-            // 组件本身保留在 ui/home/CategoryBlindBoxRow.kt，可供歌单广场等页面复用。
-            // 注：心情电台现在也已删除，所以「三大入口」下方直接是「新歌首发」。
+            // GZ 真机截图上，手机端首页在「三大入口」下方**直接就是心情电台**，
+            // 并没有盲盒那一排。`CategoryBlindBoxRow` 的调用点在 HomeScreenKt.java:497-1945，
+            // 那是**另一个内容函数**（不是 8072 起的这个 HomeScreen），此前按调用行号把它排进首页属于排序错误。
+            // 本版已删除该组件；心情电台也已移除，所以「三大入口」下方直接是「新歌首发」。
 
             // ── [已删除] 心情电台 ──
             // 原第 7 块 `MoodRadioPanel`（GZ HomeScreenKt.java:10049 频道标签 + :10634 插画）已整块移除，

@@ -9,18 +9,14 @@ import com.aesthetic.music.ui.profile.CloudManageScreen
 /** 账号与云端同步页 */
 @Composable
 fun CloudManageDestination(viewModel: MainViewModel, nav: ShellNav) {
-    val syncServerUrl by viewModel.syncServerUrl.collectAsState()
     val lastSyncedAt by viewModel.lastSyncedAt.collectAsState()
     val lastSyncStatus by viewModel.lastSyncStatus.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
-    val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val user by viewModel.currentUser.collectAsState()
     val sessions by viewModel.loginSessions.collectAsState()
     val isLoadingSessions by viewModel.isLoadingSessions.collectAsState()
 
     CloudManageScreen(
-        serverUrl = syncServerUrl,
-        isLoggedIn = isLoggedIn,
         user = user,
         sessions = sessions,
         isLoadingSessions = isLoadingSessions,

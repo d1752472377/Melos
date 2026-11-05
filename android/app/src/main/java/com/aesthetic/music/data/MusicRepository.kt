@@ -65,11 +65,6 @@ class MusicRepository(
     suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): Result<List<Song>> =
         apiCatching { PlatformMusicService.search(keyword, limit, platform) }
 
-    /** 热搜词（搜索页热门搜索：直连官方热搜） */
-    suspend fun hotSearchWords(): Result<List<String>> = apiCatching {
-        PlatformMusicService.hotSearchWords()
-    }
-
     /** 歌单搜索（多平台：网易云 / 酷狗 / 酷我；QQ 暂不支持） */
     suspend fun searchPlaylists(keyword: String, limit: Int = 20, platform: String? = null): Result<List<PlaylistItem>> =
         apiCatching { PlatformMusicService.searchPlaylists(keyword, limit, platform) }

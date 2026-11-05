@@ -85,7 +85,6 @@ fun SearchScreen(
     val isSearching by viewModel.isSearching.collectAsState()
     val searchError by viewModel.searchError.collectAsState()
     val recentSearches by viewModel.recentSearches.collectAsState()
-//    val hotWords by viewModel.hotSearchWords.collectAsState()
 
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -168,13 +167,6 @@ fun SearchScreen(
                         },
                         onClearAll = { showClearRecentConfirm = true },
                     )
-//                    SearchHotSearch(
-//                        words = hotWords.map { HotSearchWord(it) },
-//                        onPick = { word ->
-//                            viewModel.submitSearch(word)
-//                            keyboard?.hide()
-//                        },
-//                    )
                 }
             } else {
                 // 有关键词：分类型结果，卡片贴屏幕左右边、底部探到屏幕底

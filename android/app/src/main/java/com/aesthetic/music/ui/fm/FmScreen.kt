@@ -146,7 +146,6 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /**
  * 心动 FM 电台：全屏沉浸式拟物黑胶唱机播放页面。
@@ -1282,14 +1281,4 @@ private fun FmEmptyState(
             )
         }
     }
-}
-
-/**
- * 格式化时间 00:00
- */
-private fun formatDuration(ms: Long): String {
-    val totalSeconds = (ms / 1000).coerceAtLeast(0)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
 }

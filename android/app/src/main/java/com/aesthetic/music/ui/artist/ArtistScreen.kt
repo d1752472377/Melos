@@ -87,7 +87,6 @@ fun ArtistScreen(
     isLoading: Boolean,
     errorMessage: String? = null,
     onRetry: (() -> Unit)? = null,
-    favorites: Set<String>,
     currentSong: Song?,
     onPlaySong: (Song) -> Unit,
     onPlayAll: () -> Unit,

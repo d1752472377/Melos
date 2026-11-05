@@ -96,7 +96,6 @@ fun FavoritesScreen(
     onBack: () -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
     onPlayAll: (List<Song>) -> Unit,
-    onRemoveFavorite: (Song) -> Unit,
     isPlaying: Boolean = false,
     onMoreSong: (Song) -> Unit = {},
 ) {

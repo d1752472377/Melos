@@ -19,10 +19,6 @@ import kotlinx.coroutines.withContext
  */
 @Stable
 class CacheState {
-    var size by mutableStateOf(0L)
-        internal set
-    var count by mutableStateOf(0)
-        internal set
     var songs by mutableStateOf<List<AudioCacheService.CachedSong>>(emptyList())
         internal set
 
@@ -43,12 +39,8 @@ fun rememberCacheState(context: Context, scope: CoroutineScope): CacheState {
     state.bindRefresher {
         scope.launch(Dispatchers.IO) {
             val songs = AudioCacheService.listCached(context)
-            val size = AudioCacheService.getCacheSize(context)
-            val count = AudioCacheService.getCacheCount(context)
             withContext(Dispatchers.Main) {
                 state.songs = songs
-                state.size = size
-                state.count = count
             }
         }
     }

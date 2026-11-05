@@ -32,7 +32,6 @@ import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchType
 import com.aesthetic.music.ui.settings.SettingsController
 import com.aesthetic.music.ui.sheet.SheetController
-import com.aesthetic.music.ui.sheet.SheetTags
 import com.aesthetic.music.data.settings.ListeningStats
 import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.data.settings.QualityLevel
@@ -172,9 +171,6 @@ class MainViewModel : ViewModel() {
     val showPlaylistDetail get() = playlistDetail.showDetail
     private val _showImportDialog = MutableStateFlow(false)
     val showImportDialog = _showImportDialog.asStateFlow()
-    /** 最近播放独立页（从"我的"页进入；不再跳转到歌单 Tab） */
-    private val _showHistory = MutableStateFlow(false)
-    val showHistory = _showHistory.asStateFlow()
 
     // 弹层/播放器的显式开关。
     // 这些状态对外只读（暴露 StateFlow 而非 MutableStateFlow），外部只能经这些方法变更，
@@ -248,9 +244,7 @@ class MainViewModel : ViewModel() {
     )
 
     val fmChannels get() = fm.channels
-    val fmStyles get() = fm.styles
     val currentFmChannel get() = fm.currentChannel
-    val fmStyle get() = fm.style
     val fmQueue get() = fm.queue
     val fmIndex get() = fm.index
     val fmLoading get() = fm.loading
@@ -272,7 +266,6 @@ class MainViewModel : ViewModel() {
     val rankLoadedAt get() = rank.loadedAt
 
     // 用户 / 个人中心状态：已抽到 ProfileController，保留同名只读委托
-    val user get() = profile.user
     val profileAvatar get() = profile.profileAvatar
     val profileBackground get() = profile.profileBackground
     val isProfileBgBlur get() = profile.isProfileBgBlur
@@ -390,8 +383,6 @@ class MainViewModel : ViewModel() {
 
     fun openArtist(ref: ArtistRef) = artistPage.open(ref)
 
-    fun closeArtist() = artistPage.close()
-
     // ==================== 最近播放 / 收藏（委托 LibraryController） ====================
 
     fun addToHistory(song: Song) = library.addToHistory(song)
@@ -399,9 +390,6 @@ class MainViewModel : ViewModel() {
     fun removeFromHistory(song: Song) = library.removeFromHistory(song)
 
     fun clearHistory() = library.clearHistory()
-
-    fun openHistory() { _showHistory.value = true }
-    fun closeHistory() { _showHistory.value = false }
 
     fun toggleFavorite(song: Song) = library.toggleFavorite(song)
 
@@ -497,16 +485,6 @@ class MainViewModel : ViewModel() {
     /** 进入歌单广场时调用（幂等）：没有数据才联网，避免"空列表被当成空分类" */
     fun ensureSheetPlaylistsLoaded() = sheet.ensureLoaded()
 
-    /**
-     * 首页分类卡片 → 歌单广场：先把分类归一到广场认识的标签再进页面。
-     *
-     * 归一化交给 [SheetTags]（有单测）：卡片上叫"电音"，广场标签是"电子"，
-     * 直接拿卡片名当 cat 去请求只会得到空结果。
-     */
-    fun openSheetCategory(cardTitle: String?) {
-        sheet.setCat(SheetTags.normalize(cardTitle, sheet.tags))
-    }
-
     // ==================== FM 电台（委托 FmController） ====================
 
     fun fmStart(channel: FmChannel = fm.channels[0], onReady: ((Song, List<Song>) -> Unit)? = null) =
@@ -524,8 +502,6 @@ class MainViewModel : ViewModel() {
     fun fmToggleLike(song: Song) = fm.toggleLike(song)
 
     fun fmOnSignal(song: Song) = fm.onSignal(song)
-
-    fun fmStopDrift() = fm.stopDrift()
 
     // ==================== 歌单（委托 PlaylistDetailController） ====================
 
@@ -583,8 +559,6 @@ class MainViewModel : ViewModel() {
         sourceName = sourceName,
     )
 
-    fun renamePlaylist(id: String, name: String) = library.renamePlaylist(id, name)
-
     /** 编辑歌单信息：name/cover 传 null 表示该项不变，cover 传空串表示清除自定义封面 */
     fun updatePlaylistInfo(id: String, name: String? = null, cover: String? = null) =
         library.updatePlaylistInfo(id, name, cover)
@@ -633,8 +607,6 @@ class MainViewModel : ViewModel() {
     val loadedSourceId get() = sources.loadedPluginId
     val sourceEngineReady get() = sources.engineReady
     val sourceEngineError get() = sources.engineError
-    val sourceDeclaredSources get() = sources.declaredSources
-    val sourceDeclaredQualities get() = sources.declaredQualities
     val sourcePluginDetect get() = sources.pluginDetect
 
     // 云端同步状态：已抽到 LibraryController，保留同名只读委托
@@ -643,10 +615,6 @@ class MainViewModel : ViewModel() {
     val lastSyncedAt get() = library.lastSyncedAt
     val lastSyncStatus get() = library.lastSyncStatus
     val isSyncing get() = library.isSyncing
-    val isTestingSync get() = library.isTestingSync
-
-    /** 保存服务器地址（设备级配置；账号登录态另见 [auth]） */
-    fun saveSyncServerUrl(serverUrl: String) = library.saveServerUrl(serverUrl)
 
     fun testSyncConnection(onResult: ((Boolean, String) -> Unit)? = null) =
         library.testSyncConnection(onResult)
@@ -737,8 +705,6 @@ class MainViewModel : ViewModel() {
     /** 退出登录：统一走 [AuthController]（撤销服务端会话 + 清本机登录态 + 刷新同步状态） */
     fun logout() = auth.logout()
 
-    fun updateNickname(nickname: String) = profile.updateNickname(nickname)
-
     fun setProfileAvatar(path: String?) = profile.setProfileAvatar(path)
 
     fun setProfileBackground(path: String?) = profile.setProfileBackground(path)
@@ -789,14 +755,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** 清空本机统计记录（统计页的"清空统计记录"） */
-    fun clearListeningStats() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { StatsStore.clearAll() }
-            refreshStats()
-        }
-    }
-
     // ==================== 主题 ====================
 
     fun setThemeMode(mode: ThemeMode, systemDark: Boolean) {
@@ -818,7 +776,6 @@ class MainViewModel : ViewModel() {
         playlistDetail.close()
         artistPage.close()
         albumPage.close()
-        _showHistory.value = false
         // FM 漂移开关由 FmController 持有（切走 FM 页即暂停漂移）
         fm.setDriftActive(tab == AppTab.SHEET)
         if (tab == AppTab.PROFILE) refreshStats()

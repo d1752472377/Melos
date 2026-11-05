@@ -801,25 +801,6 @@ object PlatformMusicService {
     }
     // ==================== 以下保持原有实现：详情 / 榜单 / 歌词 / 直链 / 辅助 ====================
 
-    suspend fun hotSearchWords(): List<String> {
-        return try {
-            val root = getJson("https://music.163.com/api/search/hot/detail")
-            val dataArr = root.getAsJsonArray("data")
-            if (dataArr != null && dataArr.size() > 0) {
-                dataArr.mapNotNull { elem ->
-                    elem.asJsonObject?.get("searchWord")?.asString?.takeIf { it.isNotBlank() }
-                }.take(15)
-            } else {
-                val fallbackRoot = getJson("https://music.163.com/api/search/hot")
-                val hots = fallbackRoot.getAsJsonObject("result")?.getAsJsonArray("hots")
-                hots?.mapNotNull { it.asJsonObject?.get("first")?.asString }?.take(15).orEmpty()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Get hot words failed: ${e.message}")
-            emptyList()
-        }
-    }
-
     suspend fun getNeteaseSingerSongs(artistId: String, offset: Int, limit: Int): Pair<Long, List<Song>> {
         val url = "https://music.163.com/api/v1/artist/songs?id=${URLEncoder.encode(artistId, "UTF-8")}&offset=$offset&limit=$limit"
         val root = getJson(url)

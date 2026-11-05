@@ -21,8 +21,6 @@ fun HomeDestination(
     val hotSongs by viewModel.hotSongs.collectAsState()
     val hotPlaylists by viewModel.hotPlaylists.collectAsState()
     val ranks by viewModel.ranks.collectAsState()
-    val homeCategories by viewModel.homeCategories.collectAsState()
-    val favorites by viewModel.favorites.collectAsState()
     val contentError by viewModel.contentError.collectAsState()
     val isLoadingContent by viewModel.isLoadingContent.collectAsState()
     val recommendPlaylistSongs by viewModel.recommendPlaylistSongs.collectAsState()
@@ -34,8 +32,6 @@ fun HomeDestination(
         hotSongs = hotSongs,
         hotPlaylists = hotPlaylists,
         ranks = ranks,
-        homeCategories = homeCategories,
-        favorites = favorites,
         recommendSongs = recommendPlaylistSongs,
         isLoadingRecommendSongs = isLoadingRecommendSongs,
         onLoadRecommendSongs = viewModel::loadRecommendPlaylistSongs,
@@ -56,7 +52,6 @@ fun HomeDestination(
         onOpenGuess = { nav.navigateSingleTop(ScreenRoute.GuessYouLike.route) },
         onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
         onOpenFm = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
-        onToggleFavorite = viewModel::toggleFavorite,
         isPlaying = isPlaying,
     )
 }

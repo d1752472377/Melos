@@ -1,6 +1,5 @@
 package com.aesthetic.music.ui.home
 
-import android.graphics.Color as AndroidColor
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -27,10 +26,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -48,7 +45,6 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,9 +62,7 @@ import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.ui.components.glassToneCard
 import com.aesthetic.music.ui.components.rememberCoverTone
 import com.aesthetic.music.ui.components.textHigh
-import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.components.textMedium
-import com.aesthetic.music.ui.theme.appIsDark
 import kotlin.math.max
 
 /*
@@ -220,7 +214,6 @@ fun HomeDailyHero(
     isPlaying: Boolean = false,
     hasCustomCover: Boolean = !pages.firstOrNull()?.coverUrl.isNullOrBlank(),
     heroHeight: Dp = 216.dp,
-    onPlaySong: (Song, List<Song>) -> Unit,
     onOpenPlaylist: (PlaylistItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -806,168 +799,6 @@ private fun HomeCoverPlayButton(
     }
 }
 
-/**
- * 试听歌曲行（`m46HomePreviewSongRowiJQMabo`，HomeScreenKt.java:7899-8032）。
- *
- * GZ 逐节点（修饰符自左向右 = 由外到内）：
- * ```
- * Row(Modifier.fillMaxWidth().heightIn(minHeight = 38.dp),          // 7932
- *     horizontalArrangement = Arrangement.Start,                    // 7933 zh.b
- *     verticalAlignment = Alignment.CenterVertically) {             // 7933 il0.f0
- *     Box(Modifier.size(30.dp)                                      // 7956 ij7.n
- *              .clip(RoundedCornerShape(8.dp))                      // 7956 by6.a(8.0f)
- *              .background(coverPlaceholder())) {                   // 7956 hp1.s
- *         if (coverUrl.isBlank()) Icon(Icons.Rounded.MusicNote, null, Modifier.size(16.dp), textLow()) // 7979
- *         else AsyncImage(model, null, Modifier.fillMaxSize(), ContentScale.Crop)                      // 7984
- *     }
- *     Spacer(Modifier.width(10.dp))                                 // 7990 ij7.r
- *     Column(Modifier.weight(1f)) {                                 // 7991 ez3(1.0f, true)
- *         Text(name,   color = 行标题色, fontSize = 12.sp, fontWeight = Medium, lineHeight = 16.sp,
- *              overflow = Ellipsis, softWrap = false, maxLines = 1)  // 8007
- *         Text(artist, color = textLow(), fontSize = 10.sp, lineHeight = 13.sp,
- *              overflow = Ellipsis, softWrap = false, maxLines = 1)  // 8012
- *     }
- *     Spacer(Modifier.width(8.dp))                                  // 8014 f30.t
- *     HomeCoverPlayButton(toneTint, "播放" + name, onClick, glassCircle = false,
- *                         size = 28.dp, iconSize = 16.dp)           // 8020
- * }
- * ```
- * 行自身**没有底色**：面的 `jC`（7919）只被播放按钮用到（8020）。也**没有 Hi-Res / 音质徽标**，
- * 没有任何进度条或时长文本。
- *
- * @param tone GZ 第 2 个业务参数 `long j2`（封面主色）。
- */
-@Composable
-private fun HomePreviewSongRow(
-    song: Song,
-    tone: Color,
-    onPlayClick: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    val dark = appIsDark() // HomeScreenKt.java:7918 —— ThemeKt.appIsDark(composer, 0)
-
-    // HomeScreenKt.java:7919 —— g91.c(zAppIsDark ? 0.68f : 0.54f, j2)：只给播放按钮用（8020）
-    val toneTint = tone.copy(alpha = if (dark) 0.68f else 0.54f)
-
-    // HomeScreenKt.java:7920-7929 —— 标题色：HSV 饱和度 ×0.18，深色下明度下限 0.8，浅色下明度 ×0.92
-    val titleColor = rowTitleColor(tone, dark)
-
-    Row(
-        modifier = modifier
-            // HomeScreenKt.java:7932 —— ij7.j(ij7.g(c05.a, 1.0f), 38.0f, 0.0f, 2) = fillMaxWidth().heightIn(min = 38.dp)
-            .heightIn(min = 38.dp),
-        horizontalArrangement = Arrangement.Start, // HomeScreenKt.java:7933 —— zh.b
-        verticalAlignment = Alignment.CenterVertically, // HomeScreenKt.java:7933 —— il0.f0
-    ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp) // HomeScreenKt.java:7956 —— ij7.n(c05Var2, 30.0f)
-                .clip(RoundedCornerShape(8.dp)) // HomeScreenKt.java:7956 —— hq3.g(..., by6.a(8.0f))
-                .background(coverPlaceholder()), // HomeScreenKt.java:7956 —— hp1.s(..., coverPlaceholder(), hp1.n)
-            contentAlignment = Alignment.Center, // HomeScreenKt.java:7957 —— jj0.d(il0.o, false)
-        ) {
-            if (song.artwork.isNullOrBlank()) {
-                Icon(
-                    imageVector = Icons.Rounded.MusicNote, // HomeScreenKt.java:7979 —— tf2.w()
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp), // HomeScreenKt.java:7979 —— ij7.n(c05Var2, 16.0f)
-                    tint = textLow(), // HomeScreenKt.java:7979 —— GlassTokensKt.textLow
-                )
-            } else {
-                val context = LocalContext.current
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(song.artwork)
-                        // HomeScreenKt.java:7984 —— rememberCoverModel(coverUrl, 64, ...)
-                        .size(64)
-                        .crossfade(200) // Melos 加载约定（Components.kt:81），非 GZ 数值
-                        .build(),
-                    contentDescription = null,
-                    // HomeScreenKt.java:7984 —— ij7.e(c05Var2, 1.0f)
-                    modifier = Modifier.fillMaxSize(),
-                    // TODO(未确定) ①：GZ 走 tf2.f 的默认 contentScale（tf2.java:530 → qh1.b）
-                    contentScale = ContentScale.Crop,
-                )
-            }
-        }
-
-        // HomeScreenKt.java:7990 —— wl7.d(oy2Var, ij7.r(c05Var, 10.0f)) = Spacer(Modifier.width(10.dp))
-        Spacer(modifier = Modifier.width(10.dp))
-
-        Column(
-            // HomeScreenKt.java:7991 —— ez3(1.0f, true) = Modifier.weight(1f, fill = true)
-            modifier = Modifier.weight(1f, fill = true),
-            // HomeScreenKt.java:7992 —— aa1.a(zh.d, il0.h0, ...)
-            // zh.d 解码为 Arrangement#Top（HomeHeader.kt 报告已逐类核对 h10.java），
-            // 且 Column 需要的是 Arrangement.Vertical —— Arrangement.Start 是 Horizontal，不能用于 Column。
-            verticalArrangement = Arrangement.Top,
-        ) {
-            Text(
-                text = song.title,
-                color = titleColor, // HomeScreenKt.java:8007 —— 第 3 实参 jO
-                fontSize = 12.sp, // HomeScreenKt.java:8007 —— co7.j(12)
-                // 注意 GZ 的 c88.b 形参顺序为 (text, modifier, color, fontStyle, fontSize, fontWeight, ...)
-                fontWeight = FontWeight.Medium, // HomeScreenKt.java:8007 —— sq2.j = FontWeight(500)
-                letterSpacing = 0.sp, // HomeScreenKt.java:8007 —— 第 8 实参 0L
-                lineHeight = 16.sp, // HomeScreenKt.java:8007 —— co7.j(16)
-                overflow = TextOverflow.Ellipsis, // HomeScreenKt.java:8007 —— 第 11 实参 2
-                softWrap = false, // HomeScreenKt.java:8007 —— 第 12 实参 false
-                maxLines = 1, // HomeScreenKt.java:8007 —— 第 13 实参 1
-                // HomeScreenKt.java:7930 的 style 只用来带 overflow = Ellipsis，上面 overflow 已显式给出，
-                // 故不再传 style（避免与逐参数写法重复）。
-            )
-            Text(
-                // HomeScreenKt.java:8008-8011 —— artist.isBlank() → "未知歌手"
-                text = song.artist.ifBlank { "未知歌手" },
-                color = textLow(), // HomeScreenKt.java:8012 —— GlassTokensKt.textLow
-                fontSize = 10.sp, // HomeScreenKt.java:8012 —— co7.j(10)
-                fontWeight = null, // HomeScreenKt.java:8012 —— 第 6 实参 null（继承 style）
-                letterSpacing = 0.sp, // HomeScreenKt.java:8012 —— 第 8 实参 0L
-                lineHeight = 13.sp, // HomeScreenKt.java:8012 —— co7.j(13)
-                overflow = TextOverflow.Ellipsis, // HomeScreenKt.java:8012 —— 第 11 实参 2
-                softWrap = false, // HomeScreenKt.java:8012 —— 第 12 实参 false
-                maxLines = 1, // HomeScreenKt.java:8012 —— 第 13 实参 1
-            )
-        }
-
-        // HomeScreenKt.java:8014 —— f30.t(composer, true, c05.a, 8.0f, composer) = Spacer(Modifier.width(8.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // HomeScreenKt.java:8015-8023 —— ys2Var == null 时整颗按钮不渲染
-        if (onPlayClick != null) {
-            HomeCoverPlayButton(
-                color = toneTint, // HomeScreenKt.java:8019 —— jC
-                // HomeScreenKt.java:8020 —— f30.n("播放", playlistSong.getName()) = "播放" + 歌名
-                contentDescription = "播放" + song.title,
-                onClick = onPlayClick,
-                // HomeScreenKt.java:8020 —— 第 5 实参 f05Var = null（无额外 modifier）
-                glassCircle = false, // HomeScreenKt.java:8020 —— 第 9 实参 z2 = false
-                size = 28.dp, // HomeScreenKt.java:8020 —— 第 6 实参 28.0f
-                // HomeScreenKt.java:8020 —— 第 7 实参 0.0f（f9：仅玻璃分支用，本分支不参与）
-                circleSize = 0.dp,
-                iconSize = 16.dp, // HomeScreenKt.java:8020 —— 第 8 实参 16.0f
-            )
-        }
-    }
-}
-
-/**
- * 行标题色（`m46HomePreviewSongRowiJQMabo`，HomeScreenKt.java:7920-7929）：
- * ```
- * val hsv = FloatArray(3); colorToHSV(j2, hsv)     // 7921
- * hsv[1] *= 0.18f                                  // 7922
- * if (dark) hsv[2] = max(hsv[2], 0.8f)             // 7924
- * else      hsv[2] *= 0.92f                        // 7926
- * pr6.O(hsv[0], hsv[1], hsv[2])                    // 7929 = Color.hsv(h, s, v)
- * ```
- */
-private fun rowTitleColor(tone: Color, dark: Boolean): Color {
-    val hsv = FloatArray(3)
-    AndroidColor.colorToHSV(tone.toArgb(), hsv)
-    hsv[1] = hsv[1] * 0.18f
-    hsv[2] = if (dark) max(hsv[2], 0.8f) else hsv[2] * 0.92f
-    return Color.hsv(hsv[0], hsv[1], hsv[2])
-}
 
 /*
  * ============================================================================

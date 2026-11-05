@@ -1,0 +1,107 @@
+# Android 架构精简计划（2026-11-05）
+
+> 本文件是后续重构的唯一依据。任何自动化或 AI 执行前先读本文件。
+
+## 总规则
+
+**重构的首要目标是减少重复代码、无意义抽象和调用链，而不是追求架构模式的完整性、文件数量的减少或组件复用率的提高。**
+
+具体约束：
+
+1. 不为了“分层完整”新增 Controller / Manager / Repository / 接口。
+2. 不为了减少文件数合并职责不同的文件。
+3. 不为了复用率把只使用一次、未来也不确定的 UI 抽成公共组件。
+4. 每一项删除/合并都要先确认调用点、反射、序列化/ProGuard 引用。
+5. 先理清现有设计规范与重复样式，最后才抽基础控件；不能把现有混乱封装成更复杂的组件库。
+6. 不一次性执行全部阶段，每个阶段单独提交、单独验证。
+
+## 阶段顺序
+
+1. **阶段 0：死代码清理**（不改变行为）
+2. **阶段 1：消除重复实现**
+3. **阶段 2：收敛 MainViewModel 与 Destination 层级**
+4. **阶段 3：状态归位、目录整理、设计控件统一**
+
+## 已确认的修正决定
+
+- 删除死代码：支持，但逐项核验引用与反射后执行。
+- 合并单曲操作抽屉：强烈支持。
+- 收藏页/历史页：只抽取重复部分，不强制做“万能页面”。
+- 删除 MainViewModel 转发：支持，但先检查生命周期与依赖关系。
+- `JsonPrefsStore`：暂缓，先评估简单公共函数是否足够。
+- `AppUpdateController`：支持，但避免为统一弹窗增加过多状态层。
+- 合并专辑/歌单详情：支持，但先确认两种详情的数据语义。
+- `SongCollectionScreen`：不允许变成二三十个参数的万能组件；只抽真正重复的搜索/排序/列表骨架。
+- 按钮/开关等设计控件统一样式：放在最后阶段。
+
+## 阶段 0 记录
+
+执行前已保护工作区：
+
+- 备份分支：`backup/pre-android-refactor-20261105`
+- 备份提交：`518965e checkpoint: 架构重构前保护当前工作区修改`
+- 阶段 0 分支：`refactor/android-phase-0`
+
+已删除（整文件、确认无代码/反射/Keep 引用）：
+
+- `ui/home/HomeCategories.kt`
+- `ui/home/CategoryBlindBoxRow.kt`
+- `ui/home/HomeLeaderboard.kt`
+- `ui/home/HomeRandomSongs.kt`
+- `ui/home/HomeRecommend.kt`
+- `ui/home/HomeTodayFeatured.kt`
+- `ui/sheet/ThemeSheet.kt`
+- `ui/library/LibraryCloudMerge.kt`
+- `ui/player/lyrics/LyricTimeEngine.kt`
+- `ui/search/SearchHotSearch.kt`
+- `ui/components/CardStyles.kt`
+- `data/api/platform/PlatformMusicService.kt.bak`（历史备份文件）
+
+已删除（活动文件内的死代码/死接线）：
+
+- `HomeDailyHero` 中未被调用的 `HomePreviewSongRow` 与 `rowTitleColor`。
+- `PlaylistScreen` 中未被调用的 `PlaylistHeaderCard` 与 `BottomSheetActionItem`。
+- `FmScreen` 中未被调用的 `formatDuration`。
+- 整条热搜链路：`HotWordDto`、`MusicRepository.hotSearchWords`、`PlatformMusicService.hotSearchWords`。
+- `ShellActions.shareSongs` 与 `AppShell` 中对应的未使用实现。
+- `MainViewModel` 中零引用/只写不读的成员：`showHistory`/`openHistory`/`closeHistory`、`fmStyles`、`fmStyle`、`user`、`closeArtist`、`openSheetCategory`、`fmStopDrift`、`renamePlaylist`、`sourceDeclaredSources`、`sourceDeclaredQualities`、`isTestingSync`、`saveSyncServerUrl`、`updateNickname`、`clearListeningStats`。
+- `CacheState` 的 `count`、`size`（无消费者）。
+- 一批 Screen 参数：`HomeScreen.homeCategories/favorites/onToggleFavorite`、`HomeDailyHero.onPlaySong`、`ArtistScreen.favorites`、`FavoritesScreen.onRemoveFavorite`、`CacheListScreen.onBack`、`CloudManageScreen` 的 12 个未读取参数、`PluginManageScreen.targets/detectProgress/lastDetectAt`、`ProfileScreen.cacheSize/isSyncConfigured`、`NavigationDock.onSheet/onPlaylist/containerColor`、`FmDestination.nav`、`ArtistAllSongsDestination.nav`。
+
+确认后保留（有意图，不按死代码删除）：
+
+- `ui/theme/Type.kt` 的 `AppTypography`（Theme.kt 明确标注为回退用）。
+- `GzTheme` 的 schedule 主题常量/函数（移植自 GZ，尚未接设置）。
+- `Color.kt` 的未使用色 token、`GlassTokens`/`StatsKit` 的未使用设计组件、`CoverTone` 的未使用导出、`Lyric.mergeRomanization`。
+- `AuthController.refreshProfile` 与 `logoutAndClearLocalData`（产品 API，暂无 UI 入口）。
+- `DeviceSyncAdapter`、`JsEngine` 接口（暂不作为本阶段清理目标）。
+
+## 后续阶段
+
+### 阶段 1：消除重复实现
+
+- 单曲操作抽屉：抽 `SongActionsState`/统一宿主，替换 7 处级联；顺手修复歌手页下载空回调。
+- 版本更新：抽一个轻量 `AppUpdateController` + 单个 `AppUpdateDialog`；不引入多层状态机。
+- 下载缓存：统一 `PlayerManager`/`AudioCacheService` 的下载与副文件流程。
+- 收藏/历史：只抽公共的搜索、排序、统计、列表骨架；页头与动作保留各自配置。
+- 专辑/歌单详情：先核对 `AlbumItem`/`PlaylistItem`/`PlaylistDetailData` 语义，再决定是否合并 Controller。
+- 设置 Store：先评估 1~2 个顶层公共函数能否消除模板，再决定是否引入 `JsonPrefsStore`。
+
+### 阶段 2：收敛层级
+
+- 先梳理 `MainViewModel` 与各 Controller 的生命周期、初始化顺序、跨域回调，再删除只读/单行转发。
+- 保留跨域编排方法；不要为了“ViewModel 干净”把逻辑塞回 UI。
+- Destination 先合并重复路由（专辑/歌单、简单设置页），不要一次性删除整个 shell 层。
+- 搜索页先统一为一种模式：要么 Route 收集、Screen 纯 UI；要么 Screen 持 VM，不两边都做。
+
+### 阶段 3：状态与设计控件
+
+- 把 PlayerScreen/CacheManageScreen 直接读写的设置并入 `SettingsController`/`UserPrefs`。
+- 移动单消费者组件到对应领域包；`ui/components` 只放设计系统与通用工具。
+- 最后再统一按钮/开关等基础控件，先盘点现有样式与重复实现。
+
+## 验证要求
+
+- 每个阶段：`./gradlew :app:compileDebugKotlin --offline` + `./gradlew :app:testDebugUnitTest --offline`。
+- 手动冒烟：登录、首页、搜索、歌手页、歌单/专辑详情、收藏、历史、播放器、设置、插件管理、检查更新。
+- 每阶段单独提交；不把行为变更与纯清理混在一个提交里。

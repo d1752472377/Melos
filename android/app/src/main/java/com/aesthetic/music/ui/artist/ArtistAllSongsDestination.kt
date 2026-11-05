@@ -12,13 +12,11 @@ import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.artist.ArtistAllSongsScreen
 import com.aesthetic.music.ui.components.SongActionsHost
 import com.aesthetic.music.ui.shell.ShellActions
-import com.aesthetic.music.ui.shell.ShellNav
 
 /** 全部演唱页 */
 @Composable
 fun ArtistAllSongsDestination(
     viewModel: MainViewModel,
-    nav: ShellNav,
     actions: ShellActions,
     playerManager: PlayerManager,
 ) {

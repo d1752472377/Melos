@@ -143,14 +143,11 @@ fun NavigationDock(
     currentTab: AppTab,
     currentArtwork: String?,
     onHome: () -> Unit,
-    onSheet: () -> Unit = {},
-    onPlaylist: () -> Unit = {},
     onProfile: () -> Unit,
     onOpenPlayer: () -> Unit,
     isSpinning: Boolean = false,
     progressFlow: StateFlow<PlaybackProgress>? = null,
     modifier: Modifier = Modifier,
-    containerColor: Color = Color.White,  // 这行的 Color 是 android.graphics.Color
     isDarkBackground: Boolean = false,
     /**
      * 内容层的 Haze 数据源（`AppShell` 已用 `.hazeSource(state = …)` 注册过）。

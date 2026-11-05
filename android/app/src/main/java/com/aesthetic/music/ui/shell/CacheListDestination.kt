@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.player.AudioCacheService
-import com.aesthetic.music.ui.MainViewModel
 import com.aesthetic.music.ui.cache.CacheListScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,8 +13,6 @@ import kotlinx.coroutines.withContext
 /** 缓存列表页 */
 @Composable
 fun CacheListDestination(
-    viewModel: MainViewModel,
-    nav: ShellNav,
     cacheState: CacheState,
     scope: CoroutineScope,
 ) {
@@ -25,10 +22,6 @@ fun CacheListDestination(
 
     CacheListScreen(
         songs = cacheState.songs,
-        onBack = {
-            viewModel.updatePageBackground(null, false)
-            nav.popBack()
-        },
         onRemoveOne = { path ->
             scope.launch(Dispatchers.IO) {
                 AudioCacheService.removeCacheByPath(context, path)

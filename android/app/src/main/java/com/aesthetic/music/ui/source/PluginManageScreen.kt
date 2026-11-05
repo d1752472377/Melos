@@ -74,7 +74,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.R
 import com.aesthetic.music.data.settings.UserPrefs
-import com.aesthetic.music.data.source.DetectTarget
 import com.aesthetic.music.data.source.PlatformQualityGroup
 import com.aesthetic.music.data.source.PluginDetectState
 import com.aesthetic.music.data.source.ProbeStatus
@@ -128,10 +127,7 @@ private enum class SortMode(val label: String) {
 fun PluginManageScreen(
     plugins: List<SourcePlugin>,
     probes: Map<String, SourceProbe>,
-    targets: List<DetectTarget>,
     detecting: Boolean,
-    detectProgress: Pair<Int, Int>,
-    lastDetectAt: Long,
     activeId: String?,
     loadedPluginId: String?,
     engineReady: Boolean,

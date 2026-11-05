@@ -79,30 +79,18 @@ import java.util.Locale
  */
 @Composable
 fun CloudManageScreen(
-    serverUrl: String = "",
-    isServerConfigured: Boolean = true,
-    isLoggedIn: Boolean = true,
     user: UserInfo? = null,
-    isBusy: Boolean = false,
-    authError: String? = null,
     sessions: List<SessionDto> = emptyList(),
     isLoadingSessions: Boolean = false,
     lastSyncedAt: Long = 0,
     lastSyncStatus: String? = null,
     isSyncing: Boolean = false,
-    isTesting: Boolean = false,
     onBack: () -> Unit = {},
-    onSaveServerUrl: (String) -> Unit = {},
-    onTestConnection: ((Boolean, String) -> Unit) -> Unit = {},
-    onLogin: (String, String) -> Unit = { _, _ -> },
-    onRegister: (String, String, String) -> Unit = { _, _, _ -> },
-    onClearAuthError: () -> Unit = {},
     onLoadSessions: () -> Unit = {},
     onRevokeSession: (String) -> Unit = {},
     onLogout: () -> Unit = {},
     onLogoutAll: () -> Unit = {},
     onPerformSync: () -> Unit = {},
-    onLogoutAndClearLocal: () -> Unit = {},
 ) {
     var showSessions by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }

@@ -5,12 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,33 +21,23 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,20 +65,15 @@ import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.PlaylistEditorResult
 import com.aesthetic.music.ui.components.PlaylistEditorSheet
-import com.aesthetic.music.ui.components.QuadCover
 import com.aesthetic.music.ui.components.SelectionBottomSheet
 import com.aesthetic.music.ui.components.SelectionItem
 import com.aesthetic.music.ui.components.PlaylistCoverImage
-import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
-import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.AccentCoral
-import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.SurfaceSoft
-import com.aesthetic.music.ui.theme.TextFaint
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -679,207 +662,6 @@ fun PlaylistScreen(
     }
 }
 
-/**
- * 顶部 Hero 大卡片（对应参考图 2）
- */
-@Composable
-private fun PlaylistHeaderCard(
-    covers: List<String>,
-    platformLabel: String,
-    onPlatformClick: () -> Unit,
-    onSearchClick: () -> Unit,
-    playlistCount: Int,
-    songCount: Int,
-    onCreatePlaylist: () -> Unit,
-    onImportPlaylist: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val isDark = Palette.isDark
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .iosGlassCard(shape = RoundedCornerShape(24.dp), elevation = 4.dp)
-            .padding(18.dp)
-    ) {
-        // 第一行：左侧 2x2 拼图 + 标题/筛选药丸 + 右侧管理与搜索
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            QuadCover(
-                covers = covers,
-                size = 76.dp,
-                corner = 16.dp,
-            )
-
-            Spacer(Modifier.width(14.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "我的歌单",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                // 平台下拉药丸胶囊
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(SurfaceSoft)
-                        .clickable(onClick = onPlatformClick)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = null,
-                        tint = TextPrimary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = platformLabel,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = TextPrimary
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            // 右上角操作区：搜索小按钮
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceSoft)
-                    .clickable(onClick = onSearchClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = "搜索",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // 第二行：内嵌 2 列统计卡片（歌单数 / 歌曲数）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (isDark) SurfaceSoft.copy(alpha = 0.5f) else Surface)
-                .height(IntrinsicSize.Min)
-                .padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PlaylistStatsColumn(
-                label = "歌单",
-                value = "$playlistCount",
-                modifier = Modifier.weight(1f)
-            )
-
-            Box(
-                modifier = Modifier
-                    .width(0.8.dp)
-                    .fillMaxHeight()
-                    .padding(vertical = 4.dp)
-                    .background(Stone200.copy(alpha = 0.45f))
-            )
-
-            PlaylistStatsColumn(
-                label = "歌曲",
-                value = "$songCount",
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // 第三行：新建歌单（墨绿实心）与导入歌单（浅白底）
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 左：新建歌单 (墨绿色背景胶囊)
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF2C5E43))
-                    .clickable(onClick = onCreatePlaylist),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(19.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "新建歌单",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = Color.White
-                )
-            }
-
-            // 右：导入歌单 (浅白底胶囊)
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (isDark) SurfaceSoft else Surface)
-                    .clickable(onClick = onImportPlaylist),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Download,
-                    contentDescription = null,
-                    tint = TextPrimary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "导入歌单",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = TextPrimary
-                )
-            }
-        }
-    }
-}
 
 /**
  * 统计单列
@@ -1048,35 +830,6 @@ private fun PlaylistRowItem(
     }
 }
 
-@Composable
-private fun BottomSheetActionItem(
-    icon: ImageVector,
-    text: String,
-    textColor: Color = TextPrimary,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = textColor,
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(Modifier.width(14.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
-            color = textColor
-        )
-    }
-}
 
 /**
  * 动作弹窗里的一行：图标 + 标题（可选副标题）+ 文本色。

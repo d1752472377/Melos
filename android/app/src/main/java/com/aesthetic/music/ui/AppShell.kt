@@ -204,17 +204,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         }
     }
 
-    fun shareSongs(songs: List<Song>) {
-        if (songs.isEmpty()) return
-        val text = songs.mapIndexed { i, s -> "${i + 1}. ${s.title} - ${s.artist}" }.joinToString("\n")
-        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(android.content.Intent.EXTRA_SUBJECT, "我本次淘到的宝藏歌单")
-            putExtra(android.content.Intent.EXTRA_TEXT, text)
-        }
-        context.startActivity(android.content.Intent.createChooser(intent, "导出歌名列表"))
-    }
-
     fun playSong(song: Song, list: List<Song>) {
         val idx = list.indexOfFirst { it.id == song.id && it.platform == song.platform }.coerceAtLeast(0)
         playerManager.playQueue(list, idx)
@@ -274,7 +263,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         ShellActions(
             playSong = { song, list -> playSong(song, list) },
             playAll = { list -> if (list.isNotEmpty()) playSong(list.first(), list) },
-            shareSongs = { songs -> shareSongs(songs) },
             toast = { msg -> viewModel.showToast(msg) },
         )
     }
@@ -390,7 +378,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // FM 电台
                 composable(ScreenRoute.Fm.route) {
-                    FmDestination(viewModel, nav, actions, playerManager)
+                    FmDestination(viewModel, actions, playerManager)
                 }
 
                 // 歌单广场 Tab
@@ -436,7 +424,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     ArtistDetailDestination(viewModel, nav, actions, playerManager)
                 }
                 composable(ScreenRoute.ArtistAllSongs.route) {
-                    ArtistAllSongsDestination(viewModel, nav, actions, playerManager)
+                    ArtistAllSongsDestination(viewModel, actions, playerManager)
                 }
 
                 // 我的收藏�?
@@ -446,7 +434,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // 缓存列表�?
                 composable(ScreenRoute.CacheList.route) {
-                    CacheListDestination(viewModel, nav, cacheState, scope)
+                    CacheListDestination(cacheState, scope)
                 }
 
                 // ===== 设置子页面（设置主页只做入口，各项独立成页） =====
@@ -535,15 +523,12 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 isSpinning = playerState.isPlaying,
                 progressFlow = playerManager.progress,
                 onHome = { nav.switchTab(ScreenRoute.Home.route, AppTab.HOME) },
-                onSheet = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
-                onPlaylist = { nav.switchTab(ScreenRoute.Playlist.route, AppTab.PLAYLIST) },
                 onProfile = { nav.switchTab(ScreenRoute.Profile.route, AppTab.PROFILE) },
                 onOpenPlayer = {
                     playerManager.startProgress()
                     viewModel.openPlayer()
                 },
                 isDarkBackground = isDarkPage,
-                containerColor = pageBackground as? Color ?: Color.White,
                 // 复用内容层已经注册过的 Haze 数据源（本文件 :308 创建、:314 `.hazeSource`），
                 // 让导航条得到 GZ 真机那种「真实背景模糊」的透明玻璃（而非半透明纯色）。
                 hazeState = hazeState,

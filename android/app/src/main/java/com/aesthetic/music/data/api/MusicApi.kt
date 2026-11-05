@@ -153,11 +153,6 @@ data class PlaylistDetailData(
     val songs: List<Song> = emptyList(),
 )
 
-/** 热搜词 */
-data class HotWordDto(
-    val word: String = "",
-)
-
 /** 每日推荐 */
 data class DailyData(
     val title: String = "每日推荐",

@@ -39,7 +39,6 @@ fun FavoritesDestination(
         },
         onPlaySong = { song, list -> actions.playSong(song, list) },
         onPlayAll = { list -> actions.playAll(list) },
-        onRemoveFavorite = viewModel::toggleFavorite,
         onMoreSong = { songForActionMenu = it },
     )
 

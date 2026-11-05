@@ -22,7 +22,6 @@ fun ProfileTabDestination(
     val favorites by viewModel.favorites.collectAsState()
     val myPlaylists by viewModel.myPlaylists.collectAsState()
     val localStats by viewModel.localStats.collectAsState()
-    val isSyncConfigured by viewModel.isSyncConfigured.collectAsState()
     val sourcePlugins by viewModel.sourcePlugins.collectAsState()
     val profileNickname by viewModel.profileNickname.collectAsState()
     val profileAvatar by viewModel.profileAvatar.collectAsState()
@@ -44,9 +43,7 @@ fun ProfileTabDestination(
         playlistsCount = myPlaylists.size,
         // 「下载音乐」只数用户主动下载的（播放缓存在「本地缓存」里，不算下载）
         cacheCount = cacheState.songs.count { it.manual },
-        cacheSize = cacheState.size,
         localStats = localStats,
-        isSyncConfigured = isSyncConfigured,
         sourceSummary = when {
             sourcePlugins.isEmpty() -> "内置直连"
             sourcePlugins.count { it.enable } == 0 -> "${sourcePlugins.size} 个插件（全部停用）"
@@ -61,7 +58,6 @@ fun ProfileTabDestination(
             nav.navigate(ScreenRoute.Downloads.route)
         },
         onOpenHistory = {
-            viewModel.openHistory()
             nav.navigate(ScreenRoute.History.route)
         },
         onOpenListeningStats = { nav.navigate(ScreenRoute.ListeningStats.route) },

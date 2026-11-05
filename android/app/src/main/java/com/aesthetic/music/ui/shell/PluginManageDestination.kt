@@ -18,10 +18,7 @@ fun PluginManageDestination(
 ) {
     val plugins by viewModel.sourcePlugins.collectAsState()
     val probes by viewModel.sourceProbes.collectAsState()
-    val targets by viewModel.sourceTargets.collectAsState()
     val detecting by viewModel.sourceDetecting.collectAsState()
-    val detectProgress by viewModel.sourceDetectProgress.collectAsState()
-    val lastDetectAt by viewModel.sourceLastDetectAt.collectAsState()
     val activeId by viewModel.activeSourceId.collectAsState()
     val loadedPluginId by viewModel.loadedSourceId.collectAsState()
     val engineReady by viewModel.sourceEngineReady.collectAsState()
@@ -56,10 +53,7 @@ fun PluginManageDestination(
     PluginManageScreen(
         plugins = plugins,
         probes = probes,
-        targets = targets,
         detecting = detecting,
-        detectProgress = detectProgress,
-        lastDetectAt = lastDetectAt,
         activeId = activeId,
         loadedPluginId = loadedPluginId,
         engineReady = engineReady,

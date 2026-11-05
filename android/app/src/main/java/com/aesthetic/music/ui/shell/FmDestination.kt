@@ -15,7 +15,6 @@ import com.aesthetic.music.ui.theme.Palette
 @Composable
 fun FmDestination(
     viewModel: MainViewModel,
-    nav: ShellNav,
     actions: ShellActions,
     playerManager: PlayerManager,
 ) {

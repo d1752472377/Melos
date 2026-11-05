@@ -25,7 +25,6 @@ fun ArtistDetailDestination(
     val artistDetail by viewModel.artistDetail.collectAsState()
     val isLoadingArtist by viewModel.isLoadingArtist.collectAsState()
     val artistError by viewModel.artistError.collectAsState()
-    val favorites by viewModel.favorites.collectAsState()
     val myPlaylists by viewModel.myPlaylists.collectAsState()
 
     // 当前播放歌：PlayerManager 通过 state: StateFlow<PlayerState> 暴露，currentSong 是 PlayerState 的计算属性
@@ -48,7 +47,6 @@ fun ArtistDetailDestination(
         isLoading = isLoadingArtist,
         errorMessage = artistError,
         onRetry = { viewModel.openArtist(ref) },
-        favorites = favorites,
         currentSong = currentSong,
         onPlaySong = { actions.playSong(it, if (allSongs.isNotEmpty()) allSongs else artistSongs) },
         onPlayAll = { actions.playAll(if (allSongs.isNotEmpty()) allSongs else artistSongs) },
