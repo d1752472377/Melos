@@ -1,5 +1,7 @@
 package com.aesthetic.music.ui.source
 
+import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.aesthetic.music.data.source.DetectTarget
 import com.aesthetic.music.data.source.PlatformQualityGroup
@@ -121,6 +123,23 @@ class SourceController(
                 }
             )
         }
+    }
+
+    /** 从系统文件选择器拿到的脚本文件：读取内容后走与文本导入相同的校验流程 */
+    fun importFromUri(context: Context, uri: Uri, targetPlatform: String) {
+        val text = try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val bytes = input.readBytes()
+                if (bytes.size > 4 * 1024 * 1024) null else bytes.toString(Charsets.UTF_8)
+            }
+        } catch (_: Exception) {
+            null
+        }
+        if (text.isNullOrBlank()) {
+            onToast("读取文件失败，请换一个文件或用「从连接导入」")
+            return
+        }
+        importFromContent(text, targetPlatform)
     }
 
     /** 从链接导入：先下载，再走与文件导入相同的校验与登记流程 */

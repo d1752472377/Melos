@@ -1,5 +1,7 @@
 package com.aesthetic.music.ui.profile
 
+import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.aesthetic.music.MelosApplication
 import com.aesthetic.music.data.MusicRepository
@@ -264,6 +266,20 @@ class ProfileController(
     }
 
     // ===== 个人中心个性化管理 =====
+
+    /** 从系统选择器拿到的头像 URI：拷贝进私有目录并更新头像。返回落盘路径或 null */
+    fun saveAvatarFromUri(context: Context, uri: Uri): String? {
+        val path = ProfileUtils.saveImageToInternal(context, uri, "avatar") ?: return null
+        setProfileAvatar(path)
+        return path
+    }
+
+    /** 从系统选择器拿到的背景 URI：拷贝进私有目录并更新背景。返回落盘路径或 null */
+    fun saveBackgroundFromUri(context: Context, uri: Uri): String? {
+        val path = ProfileUtils.saveImageToInternal(context, uri, "background") ?: return null
+        setProfileBackground(path)
+        return path
+    }
 
     fun setProfileAvatar(path: String?) {
         UserStore.setAvatarPath(path)

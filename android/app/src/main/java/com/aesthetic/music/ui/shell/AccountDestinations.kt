@@ -3,6 +3,10 @@ package com.aesthetic.music.ui.shell
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import com.aesthetic.music.ui.account.AuthController
+import com.aesthetic.music.ui.library.LibraryController
+import com.aesthetic.music.ui.profile.CloudManageScreen
 import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.profile.ProfileEditScreen
 
@@ -13,6 +17,7 @@ fun ProfileEditDestination(
     nav: ShellNav,
     actions: ShellActions,
 ) {
+    val context = LocalContext.current
     val profileNickname by profile.profileNickname.collectAsState()
     val profileBio by profile.profileBio.collectAsState()
     val profileAvatar by profile.profileAvatar.collectAsState()
@@ -30,6 +35,7 @@ fun ProfileEditDestination(
         createdAt = profileCreatedAt,
         onBack = nav.popBack,
         onSave = { nick, bio, avatar -> profile.saveProfileInfo(nick, bio, avatar) },
+        onPickAvatar = { uri -> profile.saveAvatarFromUri(context, uri) },
         onSendEmailCode = { email, scene, onSent ->
             profile.sendEmailCode(email, scene, onSent)
         },
@@ -43,5 +49,36 @@ fun ProfileEditDestination(
             profile.changePassword(oldPwd, newPwd, onSuccess)
         },
         onShowToast = actions.toast,
+    )
+}
+
+
+/** 账号与云端同步页 */
+@Composable
+fun CloudManageDestination(
+    auth: AuthController,
+    library: LibraryController,
+    nav: ShellNav,
+) {
+    val lastSyncedAt by library.lastSyncedAt.collectAsState()
+    val lastSyncStatus by library.lastSyncStatus.collectAsState()
+    val isSyncing by library.isSyncing.collectAsState()
+    val user by auth.user.collectAsState()
+    val sessions by auth.sessions.collectAsState()
+    val isLoadingSessions by auth.isLoadingSessions.collectAsState()
+
+    CloudManageScreen(
+        user = user,
+        sessions = sessions,
+        isLoadingSessions = isLoadingSessions,
+        lastSyncedAt = lastSyncedAt,
+        lastSyncStatus = lastSyncStatus,
+        isSyncing = isSyncing,
+        onBack = nav.popBack,
+        onLoadSessions = { auth.loadSessions() },
+        onRevokeSession = { auth.revokeSession(it) },
+        onLogout = { auth.logout() },
+        onLogoutAll = { auth.logoutAll() },
+        onPerformSync = { library.performCloudSync() },
     )
 }

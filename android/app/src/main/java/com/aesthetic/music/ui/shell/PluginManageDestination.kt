@@ -34,6 +34,7 @@ fun PluginManageDestination(
     val actions = remember(sources, settings) {
         SourceActions(
             importFromContent = sources::importFromContent,
+            importFromUri = sources::importFromUri,
             importFromUrl = sources::importFromUrl,
             setEnable = sources::setEnable,
             setPlatform = sources::setTargetPlatform,

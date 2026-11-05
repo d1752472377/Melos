@@ -95,6 +95,7 @@ fun ProfileEditScreen(
     createdAt: Long,
     onBack: () -> Unit,
     onSave: (nickname: String, bio: String, avatarPath: String?) -> Unit,
+    onPickAvatar: (Uri) -> String?,
     onSendEmailCode: (email: String, scene: String, onSent: () -> Unit) -> Unit = { _, _, _ -> },
     onBindEmail: (email: String, code: String, onSuccess: () -> Unit) -> Unit = { _, _, _ -> },
     onUnbindEmail: (code: String, onSuccess: () -> Unit) -> Unit = { _, _ -> },
@@ -118,7 +119,7 @@ fun ProfileEditScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val savedPath = ProfileUtils.saveImageToInternal(context, uri, "avatar")
+            val savedPath = onPickAvatar(uri)
             if (savedPath != null) {
                 avatarPath = savedPath
                 onSave(nickname.trim(), bio.trim(), savedPath)

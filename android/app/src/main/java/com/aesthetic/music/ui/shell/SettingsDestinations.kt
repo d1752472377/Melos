@@ -18,9 +18,54 @@ import com.aesthetic.music.ui.settings.LyricSettingsScreen
 import com.aesthetic.music.ui.settings.PlaybackSettingsScreen
 import com.aesthetic.music.ui.settings.QualitySettingsScreen
 import com.aesthetic.music.ui.settings.SettingsController
+import com.aesthetic.music.ui.settings.SettingsPage
+import com.aesthetic.music.ui.settings.SettingsScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
+/**
+ * 设置页。
+ *
+ * 本页只保留「常用设置 / 播放与音效 / 关于」：
+ * 「插件管理」「账号与同步」在个人页都有入口，重复入口已移除；
+ * 「桌面悬浮胶囊」已整体删除。
+ */
+@Composable
+fun SettingsDestination(
+    settings: SettingsController,
+    isCheckingUpdate: Boolean,
+    onCheckUpdate: (onResult: (String) -> Unit) -> Unit,
+    nav: ShellNav,
+) {
+    val themeMode by settings.themeMode.collectAsState()
+    val qualityLevel by settings.quality.collectAsState()
+    val userPrefs by settings.prefs.collectAsState()
+
+    SettingsScreen(
+        themeMode = themeMode,
+        quality = qualityLevel,
+        userPrefs = userPrefs,
+        onBack = nav.popBack,
+        // 设置项各自独立成页：主页只做入口，改设置不再需要一页滚到底
+        onOpenPage = { page ->
+            nav.navigate(
+                when (page) {
+                    SettingsPage.APPEARANCE -> ScreenRoute.SettingsAppearance
+                    SettingsPage.QUALITY -> ScreenRoute.SettingsQuality
+                    SettingsPage.PLAYBACK -> ScreenRoute.SettingsPlayback
+                    SettingsPage.EQUALIZER -> ScreenRoute.Equalizer
+                    SettingsPage.LYRICS -> ScreenRoute.SettingsLyrics
+                    SettingsPage.DOWNLOAD -> ScreenRoute.SettingsDownload
+                    SettingsPage.CACHE -> ScreenRoute.SettingsCache
+                }.route
+            )
+        },
+        onCheckUpdate = onCheckUpdate,
+        isCheckingUpdate = isCheckingUpdate,
+    )
+}
+
 
 /**
  * 设置子页面（主题与外观 / 音质 / 播放 / 歌词 / 下载 / 缓存）的目的地。

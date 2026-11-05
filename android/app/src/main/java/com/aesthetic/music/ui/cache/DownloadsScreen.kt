@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.profile
+package com.aesthetic.music.ui.cache
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

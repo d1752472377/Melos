@@ -176,8 +176,8 @@ fun ProfileScreen(
     onOpenEqualizer: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenPluginManage: () -> Unit,
-    onUpdateAvatar: (String?) -> Unit,
-    onUpdateBackground: (String?) -> Unit,
+    onPickAvatar: (Uri) -> String?,
+    onPickBackground: (Uri) -> String?,
     onToggleBgBlur: () -> Unit,
     onRestoreDefaults: () -> Unit,
     onLogout: () -> Unit,
@@ -185,8 +185,6 @@ fun ProfileScreen(
     isCheckingUpdate: Boolean = false,
     onShowToast: (String) -> Unit = {},
 ) {
-    val context = LocalContext.current
-
     var showMenu by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
@@ -195,9 +193,8 @@ fun ProfileScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val saved = ProfileUtils.saveImageToInternal(context, uri, "avatar")
+            val saved = onPickAvatar(uri)
             if (saved != null) {
-                onUpdateAvatar(saved)
                 onShowToast("头像更新成功")
             } else {
                 onShowToast("头像保存失败")
@@ -209,9 +206,8 @@ fun ProfileScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val saved = ProfileUtils.saveImageToInternal(context, uri, "background")
+            val saved = onPickBackground(uri)
             if (saved != null) {
-                onUpdateBackground(saved)
                 onShowToast("背景图更新成功")
             } else {
                 onShowToast("背景图保存失败")

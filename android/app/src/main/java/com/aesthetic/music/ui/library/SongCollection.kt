@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.components
+package com.aesthetic.music.ui.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,6 +41,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.BottomContentPadding
+import com.aesthetic.music.ui.components.QuadCover
+import com.aesthetic.music.ui.components.SelectionBottomSheet
+import com.aesthetic.music.ui.components.SelectionItem
+import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.Palette

@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.profile
+package com.aesthetic.music.ui.library
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,10 +41,6 @@ import com.aesthetic.music.ui.components.AppConfirmDialog
 import com.aesthetic.music.ui.components.EmptyBox
 import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SelectionItem
-import com.aesthetic.music.ui.components.SongCollectionHeaderCard
-import com.aesthetic.music.ui.components.SongCollectionList
-import com.aesthetic.music.ui.components.SongCollectionSortSheet
-import com.aesthetic.music.ui.components.SongCollectionTopBar
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft

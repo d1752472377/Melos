@@ -100,6 +100,7 @@ import java.util.Locale
 
 data class SourceActions(
     val importFromContent: (content: String, targetPlatform: String) -> Unit,
+    val importFromUri: (Context, android.net.Uri, targetPlatform: String) -> Unit,
     val importFromUrl: (url: String, targetPlatform: String, onFinished: (Boolean, String) -> Unit) -> Unit,
     val setEnable: (id: String, enable: Boolean) -> Unit,
     val setPlatform: (id: String, platformCode: String) -> Unit,
@@ -156,13 +157,8 @@ fun PluginManageScreen(
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val text = readTextFromUri(context, uri)
-        if (text.isNullOrBlank()) {
-            onToast("读取文件失败，请换一个文件或用「从连接导入」")
-        } else {
-            actions.importFromContent(text, importPlatform)
-            showAddSheet = false
-        }
+        actions.importFromUri(context, uri, importPlatform)
+        showAddSheet = false
     }
 
     val sortedPlugins = remember(plugins, probes, sortMode) {
@@ -1404,13 +1400,4 @@ private fun pluginSpeed(plugin: SourcePlugin, probes: Map<String, SourceProbe>):
         .mapNotNull { probes[SourceProbe.pluginTarget(plugin.id, it)] }
         .map { it.speedScoreMs }
     return if (values.isEmpty()) SourceProbe.UNKNOWN_LATENCY_MS else values.average().toLong()
-}
-
-private fun readTextFromUri(context: Context, uri: android.net.Uri): String? = try {
-    context.contentResolver.openInputStream(uri)?.use { input ->
-        val bytes = input.readBytes()
-        if (bytes.size > 4 * 1024 * 1024) null else bytes.toString(Charsets.UTF_8)
-    }
-} catch (e: Exception) {
-    null
 }
