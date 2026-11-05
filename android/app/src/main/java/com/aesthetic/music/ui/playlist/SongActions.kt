@@ -1,4 +1,4 @@
-package com.aesthetic.music.ui.components
+package com.aesthetic.music.ui.playlist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,6 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.ui.components.AppBottomSheet
+import com.aesthetic.music.ui.components.AppDialog
+import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.theme.Stone100

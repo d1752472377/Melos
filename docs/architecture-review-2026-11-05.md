@@ -102,9 +102,10 @@
 | `ui/theme/GzTheme.kt` | `LocalAppIsDark` / `appIsDark()` / schedule 常量 | 深浅色判断统一入口 |
 | `ui/theme/Theme.kt` | `AestheticMusicTheme`、`ScaleIndication`、无 ripple | 唯一主题入口 |
 | `ui/theme/Type.kt` | `AppTypography` | 当前未使用；保留为回退项 |
+| `ui/theme/AppDimens.kt` | `AppRadius` / `AppSpacing` | 共享圆角/间距 token；已在 `SongCollection`、`States`、`Overlays` 采用 |
 | `ui/components/GlassTokens.kt` | 玻璃背景/描边/文字色、`glassCard` 等 Modifier | GZ 风格卡片/玻璃控件来源 |
 
-当前没有统一的圆角、间距 token。实际高频字面量：`RoundedCornerShape(14.dp)` 44 处、`12.dp` 39 处、`20.dp` 38 处、`10.dp` 38 处、`8.dp` 31 处、`16.dp` 29 处。**不建议一次性全量替换**；新增共享控件时再抽 `AppRadius`/`AppSpacing`，并只迁移被触碰的共享组件。
+圆角/间距高频值：`14.dp` 44 处、`12.dp` 39 处、`20.dp` 38 处、`10.dp` 38 处、`8.dp` 31 处、`16.dp` 29 处。已新增 `AppRadius`/`AppSpacing` 并在共享 primitives 中使用；**没有一次性全量替换**页面级字面量，避免视觉回归。
 
 硬编码颜色集中在 `PlayerScreen`（26）、`ProfileScreen`（21）、`PlayerThemeViews`（26）、`EqualizerScreen`（24）、`LibraryBentoSection`（11）、`RankPage`（10）等；多数是封面/主题/可视化专用色，不应机械替换为全局 token。
 

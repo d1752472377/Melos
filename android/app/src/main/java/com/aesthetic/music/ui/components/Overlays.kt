@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.AppRadius
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
@@ -87,7 +88,7 @@ fun AppDialog(
     AlertDialog(
         onDismissRequest = onDismissRequest,
         containerColor = containerColor,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(AppRadius.xl),
         title = title?.let {
             {
                 Text(
@@ -189,7 +190,7 @@ fun AppBottomSheet(
         modifier = modifier,
         sheetState = sheetState,
         containerColor = containerColor,
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        shape = RoundedCornerShape(topStart = AppRadius.card, topEnd = AppRadius.card),
         dragHandle = if (showDragHandle) {
             { BottomSheetDefaults.DragHandle(color = handleColor) }
         } else {

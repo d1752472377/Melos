@@ -25,13 +25,14 @@ Screens（组合业务组件，展示 UI State，发出事件）
 | `ui/theme/GzTheme.kt` | `LocalAppIsDark`、`appIsDark()`、主题模式常量 |
 | `ui/theme/Theme.kt` | 唯一主题入口 `AestheticMusicTheme`、全局 `ScaleIndication` |
 | `ui/theme/Type.kt` | `AppTypography`（当前未启用，保留为回退项） |
+| `ui/theme/AppDimens.kt` | `AppRadius` / `AppSpacing`：共享圆角与间距 token |
 | `ui/components/GlassTokens.kt` | 玻璃表面/描边/文字色、`glassCard` 等 Modifier |
 
 ### 2.2 规则
 
 1. 新代码必须优先使用上述 token，不在页面里新建 `Color(0x...)` 调色板。
 2. 允许的例外：封面取色、均衡器频谱、播放器主题等**由内容动态生成**的颜色；这类颜色应集中在对应 feature 文件，并注明来源。
-3. 当前没有统一的圆角/间距 token。高频值：8/10/12/14/16/20/24dp。**不要一次性全量替换**；新增共享控件时再抽 `AppRadius`/`AppSpacing`，并只迁移被触碰的共享组件。
+3. 圆角/间距统一使用 `AppRadius` / `AppSpacing`（`ui/theme/AppDimens.kt`）。当前已在 `SongCollection`、`States`、`Overlays` 等共享 primitives 中采用；页面级特殊视觉仍可保留字面量，**不要一次性全量替换**，避免视觉回归。
 4. `Type.kt` 未启用：如果确定不回退，可删除；否则保留并在 Theme 注释中说明，不要在两处各维护一套 Typography。
 
 ## 3. 第二层：UI Primitives

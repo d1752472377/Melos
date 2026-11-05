@@ -49,6 +49,7 @@ import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.WaveBars
 import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.AccentCoral
+import com.aesthetic.music.ui.theme.AppRadius
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
@@ -114,7 +115,7 @@ fun SongCollectionHeaderCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .iosGlassCard(shape = RoundedCornerShape(24.dp), elevation = 4.dp)
+            .iosGlassCard(shape = RoundedCornerShape(AppRadius.hero), elevation = 4.dp)
             .padding(18.dp)
     ) {
         // 第一行：左侧 2x2 拼图 + 标题/排序药丸 + 右侧搜索按钮
@@ -147,7 +148,7 @@ fun SongCollectionHeaderCard(
                 // 排序下拉药丸
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(AppRadius.md))
                         .background(SurfaceSoft)
                         .clickable(onClick = onSortClick)
                         .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -202,7 +203,7 @@ fun SongCollectionHeaderCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(AppRadius.lg))
                 .background(if (isDark) SurfaceSoft.copy(alpha = 0.5f) else Surface)
                 .height(IntrinsicSize.Min)
                 .padding(vertical = 10.dp),
@@ -244,7 +245,7 @@ fun SongCollectionHeaderCard(
                 modifier = Modifier
                     .weight(1f)
                     .height(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(AppRadius.lg))
                     .background(Color(0xFF2C2E33))
                     .clickable(onClick = onPlayAll),
                 verticalAlignment = Alignment.CenterVertically,
@@ -272,7 +273,7 @@ fun SongCollectionHeaderCard(
                 modifier = Modifier
                     .weight(1f)
                     .height(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(AppRadius.lg))
                     .background(if (isDark) SurfaceSoft else Surface)
                     .clickable(onClick = onShuffle),
                 verticalAlignment = Alignment.CenterVertically,
@@ -363,7 +364,7 @@ fun SongCollectionList(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(AppRadius.card))
                 .background(Surface),
             contentPadding = BottomContentPadding,
         ) {
@@ -421,7 +422,7 @@ private fun SongCollectionRow(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(AppRadius.sm))
                         .background(Color.Black.copy(alpha = 0.45f)),
                     contentAlignment = Alignment.Center,
                 ) {

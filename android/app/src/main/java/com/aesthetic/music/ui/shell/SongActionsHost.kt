@@ -10,8 +10,8 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.player.PlayerManager
 import com.aesthetic.music.ui.library.LibraryController
-import com.aesthetic.music.ui.components.AddToPlaylistSheet
-import com.aesthetic.music.ui.components.SongActionSheet
+import com.aesthetic.music.ui.playlist.AddToPlaylistSheet
+import com.aesthetic.music.ui.playlist.SongActionSheet
 
 /**
  * 单曲操作抽屉的共享状态：当前打开的操作菜单 / 当前加入歌单的歌曲。
