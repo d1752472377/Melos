@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.aesthetic.music.service.LogReporter
 
 /**
  * 音源路由：把"用哪个音源解析这首歌"这件事集中到一处。
@@ -160,13 +161,15 @@ object SourceManager {
             }
         }
 
-        throw Exception(
+        val failure = Exception(
             if (tried.isEmpty()) {
                 "未获取到播放直链：请先在「插件管理」中导入音源插件"
             } else {
                 "已尝试 ${tried.joinToString("、")}及跨平台换源，均未取到播放直链"
             }
         )
+        LogReporter.e("SourceManager", "所有音源均失败 song=${song.platform}:${song.id}", failure)
+        throw failure
     }
 
     /**

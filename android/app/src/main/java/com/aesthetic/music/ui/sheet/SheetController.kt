@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.sheet
 
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.service.LogReporter
 import com.aesthetic.music.data.api.PlaylistItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,7 +59,12 @@ class SheetController(
             _error.value = null
             repository.sheetPlaylists(_cat.value, _order.value)
                 .onSuccess { list -> if (req == requestId) _playlists.value = list }
-                .onFailure { e -> if (req == requestId) _error.value = e.message ?: "获取歌单失败" }
+                .onFailure { e ->
+                    if (req == requestId) {
+                        LogReporter.w("Sheet", "歌单广场加载失败", e)
+                        _error.value = e.message ?: "获取歌单失败"
+                    }
+                }
             if (req == requestId) _isLoading.value = false
         }
     }

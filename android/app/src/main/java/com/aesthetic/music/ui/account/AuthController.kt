@@ -10,6 +10,7 @@ import com.aesthetic.music.data.api.SessionDto
 import com.aesthetic.music.data.api.UserInfo
 import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.sync.SyncStateStore
+import com.aesthetic.music.service.LogReporter
 import com.aesthetic.music.ui.profile.ProfileFormat
 import com.aesthetic.music.ui.profile.ProfileUtils
 import java.io.File
@@ -154,7 +155,10 @@ class AuthController(
             _error.value = null
             repository.login(u, password, deviceName = SyncStateStore.deviceName())
                 .onSuccess { onAuthSuccess(it, isRegister = false) }
-                .onFailure { _error.value = friendly(it, "登录失败") }
+                .onFailure {
+                    LogReporter.w("Auth", "登录失败", it)
+                    _error.value = friendly(it, "登录失败")
+                }
             _isBusy.value = false
         }
     }
@@ -208,7 +212,10 @@ class AuthController(
                 nickname = nickname.trim(),
                 deviceName = SyncStateStore.deviceName(),
             ).onSuccess { onAuthSuccess(it, isRegister = true) }
-                .onFailure { _error.value = friendly(it, "注册失败") }
+                .onFailure {
+                    LogReporter.w("Auth", "注册失败", it)
+                    _error.value = friendly(it, "注册失败")
+                }
             _isBusy.value = false
         }
     }
@@ -235,7 +242,10 @@ class AuthController(
                     onToast("验证码已发送至 $e，请查收")
                     startCountdown(60)
                 }
-                .onFailure { _error.value = friendly(it, "发送验证码失败") }
+                .onFailure {
+                    LogReporter.w("Auth", "发送验证码失败 scene=$scene", it)
+                    _error.value = friendly(it, "发送验证码失败")
+                }
             _isSendingCode.value = false
         }
     }
@@ -260,7 +270,10 @@ class AuthController(
             _error.value = null
             repository.emailLogin(e, c, deviceName = SyncStateStore.deviceName())
                 .onSuccess { onAuthSuccess(it, isRegister = false) }
-                .onFailure { _error.value = friendly(it, "登录失败") }
+                .onFailure {
+                    LogReporter.w("Auth", "登录失败", it)
+                    _error.value = friendly(it, "登录失败")
+                }
             _isBusy.value = false
         }
     }
@@ -284,6 +297,7 @@ class AuthController(
         // 唯一的登录态写入点：以前 MusicRepository.login 的返回值没人保存，
         // 结果"登录"这件事在应用里从未真正发生过（UserStore.save 没有调用方）。
         UserStore.save(data.token, data.user)
+        LogReporter.breadcrumb("Auth", "login success uid=${data.user.id}")
         refresh()
         onToast(if (isRegister) "注册成功，已自动登录" else "已登录：${data.user.username}")
         onAuthChanged()
@@ -298,6 +312,7 @@ class AuthController(
      */
     fun logout() {
         val hadSession = UserStore.isLoggedIn()
+        LogReporter.breadcrumb("Auth", "logout")
         scope.launch {
             if (hadSession) repository.logout()
             UserStore.logout()
@@ -354,7 +369,10 @@ class AuthController(
             _isLoadingSessions.value = true
             repository.getSessions()
                 .onSuccess { _sessions.value = it }
-                .onFailure { onToast("设备列表获取失败：${it.message ?: "网络错误"}") }
+                .onFailure {
+                    LogReporter.w("Auth", "设备列表获取失败", it)
+                    onToast("设备列表获取失败：${it.message ?: "网络错误"}")
+                }
             _isLoadingSessions.value = false
         }
     }
@@ -367,7 +385,10 @@ class AuthController(
                     _sessions.value = _sessions.value.filterNot { it.id == sessionId }
                     onToast("已退出该设备")
                 }
-                .onFailure { onToast("操作失败：${it.message ?: "网络错误"}") }
+                .onFailure {
+                    LogReporter.w("Auth", "撤销设备会话失败 session=$sessionId", it)
+                    onToast("操作失败：${it.message ?: "网络错误"}")
+                }
         }
     }
 
@@ -435,6 +456,7 @@ class AuthController(
                 onToast("验证码已发送至 $target，请查收")
                 onSent()
             }.onFailure { e ->
+                LogReporter.w("Auth", "邮箱验证码发送失败 scene=$scene", e)
                 onToast("验证码发送失败: ${e.message ?: "网络异常"}")
             }
         }
@@ -462,6 +484,7 @@ class AuthController(
                 onToast("邮箱绑定成功")
                 onSuccess()
             }.onFailure { e ->
+                LogReporter.w("Auth", "绑定邮箱失败", e)
                 onToast("绑定失败: ${e.message ?: "网络异常"}")
             }
         }
@@ -484,6 +507,7 @@ class AuthController(
                 onToast("邮箱已成功解绑")
                 onSuccess()
             }.onFailure { e ->
+                LogReporter.w("Auth", "解绑邮箱失败", e)
                 onToast("解绑失败: ${e.message ?: "网络异常"}")
             }
         }
@@ -508,6 +532,7 @@ class AuthController(
                 onToast("密码修改成功")
                 onSuccess()
             }.onFailure { e ->
+                LogReporter.w("Auth", "修改密码失败", e)
                 onToast("修改密码失败: ${e.message ?: "网络异常"}")
             }
         }
@@ -515,14 +540,20 @@ class AuthController(
 
     /** 从系统选择器拿到的头像 URI：拷贝进私有目录并更新头像。返回落盘路径或 null */
     fun saveAvatarFromUri(context: Context, uri: Uri): String? {
-        val path = ProfileUtils.saveImageToInternal(context, uri, "avatar") ?: return null
+        val path = ProfileUtils.saveImageToInternal(context, uri, "avatar") ?: run {
+            LogReporter.w("Profile", "头像保存失败")
+            return null
+        }
         setProfileAvatar(path)
         return path
     }
 
     /** 从系统选择器拿到的背景 URI：拷贝进私有目录并更新背景。返回落盘路径或 null */
     fun saveBackgroundFromUri(context: Context, uri: Uri): String? {
-        val path = ProfileUtils.saveImageToInternal(context, uri, "background") ?: return null
+        val path = ProfileUtils.saveImageToInternal(context, uri, "background") ?: run {
+            LogReporter.w("Profile", "背景图保存失败")
+            return null
+        }
         setProfileBackground(path)
         return path
     }
@@ -612,6 +643,7 @@ class AuthController(
                     applyUser(updated)
                     onToast("个人信息已保存")
                 }.onFailure { e ->
+                    LogReporter.w("Auth", "保存个人资料失败", e)
                     onToast("保存失败: ${e.message ?: "网络异常"}")
                 }
             }

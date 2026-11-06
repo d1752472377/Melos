@@ -27,6 +27,7 @@ import com.aesthetic.music.data.sync.SyncKey
 import com.aesthetic.music.data.sync.SyncMapper
 import com.aesthetic.music.data.sync.SyncPlan
 import com.aesthetic.music.data.sync.SyncStateStore
+import com.aesthetic.music.service.LogReporter
 import com.aesthetic.music.service.StatsTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -602,6 +603,7 @@ class LibraryController(
             return
         }
         if (isSyncing.value) return
+        LogReporter.breadcrumb("Sync", "performCloudSync uid=$uid")
 
         scope.launch {
             _isSyncing.value = true
@@ -660,10 +662,12 @@ class LibraryController(
                         SyncStateStore.updateSyncStatus(uid, "同步成功", now)
                         _lastSyncedAt.value = now
                         _lastSyncStatus.value = "同步成功"
+                        LogReporter.breadcrumb("Sync", "sync success uid=$uid")
                         onToast("云端同步完成")
                     } catch (e: Exception) {
                         if (takenEvents.isNotEmpty()) StatsTracker.reenqueueEvents(takenEvents)
                         val err = e.message ?: "未知错误"
+                        LogReporter.e("Sync", "同步异常 uid=$uid", e)
                         markSyncFailed(uid, err)
                     } finally {
                         _isSyncing.value = false
@@ -674,6 +678,7 @@ class LibraryController(
     }
 
     private fun markSyncFailed(uid: Long, err: String) {
+        LogReporter.w("Sync", "同步失败 uid=$uid err=$err")
         val status = "同步失败: $err"
         SyncStateStore.updateSyncStatus(uid, status)
         _lastSyncStatus.value = status
@@ -1003,6 +1008,7 @@ class LibraryController(
         val oversized = SyncMapper.oversizedScripts(bundle.scripts).map { it.id }.toSet()
         if (oversized.isNotEmpty() && oversized != warnedOversizedScripts) {
             warnedOversizedScripts = oversized
+            LogReporter.w("Sync", "跳过超大音源脚本 ${oversized.size} 个")
             onToast("有 ${oversized.size} 个音源脚本超过 ${SyncMapper.MAX_SCRIPT_BYTES / 1024}KB，已跳过同步（仍保留在本机）")
         } else if (oversized.isEmpty()) {
             warnedOversizedScripts = emptySet()

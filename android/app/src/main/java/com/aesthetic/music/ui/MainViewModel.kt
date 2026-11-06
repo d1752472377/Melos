@@ -88,6 +88,8 @@ class MainViewModel : ViewModel() {
             runCatching {
                 PlayerManager.get(MelosApplication.instance).applyUserPrefs(prefs)
                 PlaybackService.refreshCard(MelosApplication.instance)
+            }.onFailure {
+                com.aesthetic.music.service.LogReporter.w("Settings", "应用播放设置失败", it)
             }
         },
     )
@@ -253,10 +255,18 @@ class MainViewModel : ViewModel() {
             showToast("正在获取「${song.title}」下载链接…")
             val url = repository.getSongUrl(song, quality).getOrNull()?.url
             if (url.isNullOrBlank()) {
+                com.aesthetic.music.service.LogReporter.w(
+                    "Download",
+                    "手动下载取链失败 song=${song.platform}:${song.id} quality=$quality",
+                )
                 showToast("下载失败：未能获取「${song.title}」直链")
                 return@launch
             }
             showToast("开始下载「${song.title}」…")
+            com.aesthetic.music.service.LogReporter.breadcrumb(
+                "Download",
+                "manual ${song.platform}:${song.id} quality=$quality",
+            )
             com.aesthetic.music.player.AudioCacheService.cacheAudio(
                 context = context,
                 platformCode = song.platform,
@@ -305,6 +315,7 @@ class MainViewModel : ViewModel() {
                         "检查更新失败: ${result.reason ?: "网络错误"}"
                 }
             } catch (e: Exception) {
+                com.aesthetic.music.service.LogReporter.w("Update", "检查更新异常", e)
                 "检查更新失败: ${e.message ?: "网络错误"}"
             }
             _isCheckingUpdate.value = false

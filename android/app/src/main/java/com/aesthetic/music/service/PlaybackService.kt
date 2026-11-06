@@ -48,6 +48,7 @@ class PlaybackService : MediaSessionService() {
 
         // 自定义媒体卡片（封面 / 歌名 / 歌手 / 专辑·音质·音源 / 收藏按钮）
         runCatching { setMediaNotificationProvider(MelosMediaNotificationProvider(this)) }
+            .onFailure { LogReporter.w("PlaybackService", "设置自定义媒体通知失败", it) }
 
         instance = this
         startCardStateWatcher()
@@ -217,7 +218,7 @@ class PlaybackService : MediaSessionService() {
                         startForeground(NOTIFICATION_ID, buildForegroundNotification())
                         foregroundedWithId = NOTIFICATION_ID
                     } catch (e: Exception) {
-                        android.util.Log.w("PlaybackService", "保持前台服务失败: ${e.message}")
+                        LogReporter.w("PlaybackService", "保持前台服务失败", e)
                     }
                 }
 
@@ -327,7 +328,7 @@ class PlaybackService : MediaSessionService() {
                 if (manager.areNotificationsEnabled()) {
                     manager.notify(NOTIFICATION_ID, notification)
                 }
-            }
+            }.onFailure { LogReporter.w("PlaybackService", "刷新媒体卡片失败", it) }
         }
     }
 

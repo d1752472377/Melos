@@ -64,7 +64,7 @@ object LogReporter {
     private const val FLUSH_INTERVAL_MS = 30_000L
     private const val FLUSH_BATCH_SIZE = 15
     private const val MAX_QUEUE = 200              // 内存队列上限（磁盘队列另有上限）
-    private const val DISK_QUEUE_MAX_FILES = 30    // 磁盘待发文件上限
+    private const val DISK_QUEUE_MAX_FILES = 10    // 只落盘待重试的 WARN/ERROR，最多 10 批
     private const val RETRY_BACKOFF_MS = 60_000L   // 失败后退避基数
 
     // ===== 防风暴 =====
@@ -304,9 +304,12 @@ object LogReporter {
     }
 
     private fun spillToDisk(items: List<LogBatchItem>) {
+        // 正常日志不落盘：断网时只保留 WARN/ERROR，避免本地日志无限增长。
+        val keep = items.filter { it.level == Level.WARN || it.level == Level.ERROR }
+        if (keep.isEmpty()) return
         val dir = diskDir() ?: return
         try {
-            val json = com.aesthetic.music.data.AppJson.gson.toJson(items)
+            val json = com.aesthetic.music.data.AppJson.gson.toJson(keep)
             File(dir, "batch_${System.currentTimeMillis()}.json").writeText(json)
             // 超上限删最旧
             dir.listFiles()?.sortedByDescending { it.lastModified() }

@@ -5,6 +5,7 @@ import com.aesthetic.music.data.settings.DownloadFailurePolicy
 import com.aesthetic.music.data.settings.DownloadNaming
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.UserNotice
+import com.aesthetic.music.service.LogReporter
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CoroutineScope
@@ -132,7 +133,8 @@ object AudioCacheService {
             block(index)
             try {
                 indexFile(context).writeText(gson.toJson(index))
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                LogReporter.w("AudioCache", "缓存索引写入失败", e)
             }
         }
     }
@@ -230,6 +232,10 @@ object AudioCacheService {
             val ext = extractExt(url)
             val baseName = baseFileName(name, artist, songId)
             var done: String? = null
+            // 失败策略：自动重试 = 首次 + 最多 2 次重试（递增退避）；其余策略只尝试一次
+            val maxAttempts =
+                if (prefs.downloadFailurePolicy == DownloadFailurePolicy.RETRY) 3 else 1
+            var lastError: Throwable? = null
             // 记录本协程 Job：不能引用尚未初始化完成的外层 val（编译器拒绝自引用）；
             // 清理逻辑也用到它，声明必须提到 try 之前
             val selfJob = coroutineContext[kotlinx.coroutines.Job]
@@ -238,9 +244,6 @@ object AudioCacheService {
                 getCachedPath(context, platformCode, songId, quality)?.let { onDone(it); return@launch }
                 synchronized(indexLock) { if (selfJob != null) downloadJobs[key] = selfJob }
 
-                // 失败策略：自动重试 = 首次 + 最多 2 次重试（递增退避）；其余策略只尝试一次
-                val maxAttempts =
-                    if (prefs.downloadFailurePolicy == DownloadFailurePolicy.RETRY) 3 else 1
                 var attempt = 0
                 while (attempt < maxAttempts && done == null) {
                     attempt++
@@ -281,7 +284,8 @@ object AudioCacheService {
                     } catch (ce: kotlinx.coroutines.CancellationException) {
                         tmp.delete()
                         throw ce
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        lastError = e
                         tmp.delete()
                     }
                     if (done == null && attempt < maxAttempts) delay(800L * attempt)
@@ -290,6 +294,13 @@ object AudioCacheService {
                 synchronized(indexLock) { if (downloadJobs[key] === selfJob) downloadJobs.remove(key) }
             }
             // 「提示我」策略下失败要说话；其余策略静默（避免连播时刷屏）
+            if (done == null) {
+                LogReporter.w(
+                    "AudioCache",
+                    "缓存失败 song=$platformCode:$songId quality=$quality manual=$manual attempts=$maxAttempts",
+                    lastError,
+                )
+            }
             if (done == null && prefs.downloadFailurePolicy == DownloadFailurePolicy.NOTIFY) {
                 UserNotice.post("缓存失败：「${name.ifBlank { songId }}」，可在下载设置里调整失败策略")
             }
@@ -330,7 +341,8 @@ object AudioCacheService {
                 } catch (_: Exception) {
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            LogReporter.w("AudioCache", "缓存容量清理失败", e)
         }
     }
 

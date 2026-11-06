@@ -4,6 +4,7 @@ import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.api.ArtistDetailData
 import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -94,6 +95,7 @@ class ArtistController(
                 }
             }.onFailure { e ->
                 if (req != requestId) return@launch
+                LogReporter.w("Artist", "歌手详情加载失败 platform=${ref.platform} id=${ref.id}", e)
                 // 失败要可见：否则页面显示"暂无相关歌曲"，把网络错误伪装成歌手无作品
                 _error.value = e.message ?: "获取歌手失败"
             }
@@ -122,6 +124,7 @@ class ArtistController(
             }
         }.onFailure { e ->
             if (req != requestId) return@onFailure
+            LogReporter.w("Artist", "全部歌曲加载失败 platform=${ref.platform} id=${ref.id}", e)
             // 如果已有种子单曲（如详情页前50首），不覆写页面为纯错误态，仅记录供重试
             _allSongsError.value = e.message ?: "拉取全部曲目失败"
         }

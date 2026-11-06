@@ -108,7 +108,7 @@ object MediaCardArtwork {
                     onReady()
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "封面加载失败: ${e.message}")
+                LogReporter.w("MediaCardArtwork", "封面加载失败", e)
             } finally {
                 synchronized(this@MediaCardArtwork) { if (pendingUrl == key) pendingUrl = null }
             }
@@ -179,7 +179,7 @@ object MediaCardArtwork {
             byteCache.put(key, bytes)
             bytes
         } catch (e: Exception) {
-            Log.w(TAG, "封面编码失败: ${e.message}")
+            LogReporter.w("MediaCardArtwork", "封面编码失败", e)
             null
         }
     }

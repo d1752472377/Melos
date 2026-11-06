@@ -4,6 +4,7 @@ import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.GuessHistoryStore
 import com.aesthetic.music.data.settings.StatsStore
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -196,6 +197,7 @@ class GuessController(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
+                LogReporter.w("Guess", "猜你喜欢生成失败", e)
                 _state.value = State.Error(e.message ?: EMPTY_MESSAGE)
             } finally {
                 _refreshing.value = false

@@ -14,6 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicLong
+import com.aesthetic.music.service.LogReporter
 
 /**
  * Android 本地音源脚本执行引擎。
@@ -142,6 +143,7 @@ object UserApiEngine {
             _isEngineReady.value = false
             _activeMetadata.value = actualMeta
             Log.e(TAG, "用户脚本加载失败: $message", t)
+            LogReporter.e("UserApi", "用户脚本加载失败", t)
             Result.failure(Exception(message))
         }
     }
@@ -244,6 +246,7 @@ object UserApiEngine {
             }
         } catch (t: Throwable) {
             Log.w(TAG, "resolveMusicUrl 失败: ${t.message}")
+            LogReporter.w("UserApi", "取链失败 platform=$platform quality=$quality", t)
             Result.failure(Exception(t.message ?: "音源脚本解析失败"))
         }
     }
@@ -271,6 +274,7 @@ object UserApiEngine {
                 Result.success(lyric)
             }
         } catch (t: Throwable) {
+            LogReporter.w("UserApi", "歌词解析失败 platform=$platform", t)
             Result.failure(Exception(t.message ?: "歌词解析失败"))
         }
     }

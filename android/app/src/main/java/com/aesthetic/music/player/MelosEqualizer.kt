@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.media.audiofx.Equalizer
 import android.util.Log
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -107,7 +108,7 @@ object MelosEqualizer {
             eq.enabled = _state.value.isEnabled
             Log.d(TAG, "Attached to audioSessionId: $sessionId (hardware bands=${eq.numberOfBands})")
         } catch (e: Throwable) {
-            Log.w(TAG, "Failed to initialize hardware Equalizer: ${e.message}")
+            LogReporter.w("Equalizer", "attachAudioSession 失败 session=$sessionId", e)
             hardwareEqualizer = null
         }
     }
@@ -126,7 +127,7 @@ object MelosEqualizer {
         try {
             hardwareEqualizer?.enabled = enabled
         } catch (e: Throwable) {
-            Log.w(TAG, "setEnabled failed: ${e.message}")
+            LogReporter.w("Equalizer", "setEnabled 失败 enabled=$enabled", e)
         }
     }
 
@@ -138,6 +139,7 @@ object MelosEqualizer {
 
     fun applyPreset(presetId: String) {
         val preset = PRESETS.firstOrNull { it.id == presetId } ?: return
+        LogReporter.breadcrumb("Equalizer", "preset=$presetId")
         val newGains = preset.gains
         _state.value = _state.value.copy(
             currentPresetId = presetId,
@@ -202,7 +204,7 @@ object MelosEqualizer {
                 eq.setBandLevel(hwBand.toShort(), levelMB)
             }
         } catch (e: Throwable) {
-            Log.w(TAG, "applyHardwareBands error: ${e.message}")
+            LogReporter.w("Equalizer", "applyHardwareBands 失败", e)
         }
     }
 

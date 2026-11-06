@@ -3,6 +3,7 @@ package com.aesthetic.music.data.settings
 import android.content.Context
 import android.content.SharedPreferences
 import com.aesthetic.music.data.AppJson
+import com.aesthetic.music.service.LogReporter
 import com.google.gson.reflect.TypeToken
 import java.lang.reflect.Type
 import java.util.concurrent.Executors
@@ -35,7 +36,8 @@ internal object PrefsJson {
             prefs?.getString(key, null)
         }
         raw?.let { AppJson.gson.fromJson<T>(it, type) }
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        LogReporter.w("PrefsJson", "读取失败 key=$key", e)
         null
     }
 
@@ -54,8 +56,8 @@ internal object PrefsJson {
                 } else {
                     prefs?.edit()?.putString(key, json)?.apply()
                 }
-            } catch (_: Exception) {
-                // 本地持久化失败不应打断播放/界面
+            } catch (e: Exception) {
+                LogReporter.w("PrefsJson", "保存失败 key=$key", e)
             }
             Unit
         }
@@ -68,7 +70,8 @@ internal object PrefsJson {
         } else {
             try {
                 prefs?.edit()?.remove(key)?.apply()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                LogReporter.w("PrefsJson", "清除失败 key=$key", e)
             }
         }
     }

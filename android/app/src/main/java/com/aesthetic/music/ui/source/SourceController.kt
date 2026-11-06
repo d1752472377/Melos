@@ -13,6 +13,7 @@ import com.aesthetic.music.data.source.SourcePlatform
 import com.aesthetic.music.data.source.SourcePlugin
 import com.aesthetic.music.data.source.SourceProbe
 import com.aesthetic.music.data.source.SourceRegistryStore
+import com.aesthetic.music.service.LogReporter
 import com.aesthetic.music.data.source.SourceStatsStore
 import com.aesthetic.music.data.userapi.UserApiEngine
 import com.aesthetic.music.data.userapi.UserApiStore
@@ -132,10 +133,12 @@ class SourceController(
                 val bytes = input.readBytes()
                 if (bytes.size > 4 * 1024 * 1024) null else bytes.toString(Charsets.UTF_8)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            LogReporter.w("Source", "读取脚本文件失败", e)
             null
         }
         if (text.isNullOrBlank()) {
+            LogReporter.w("Source", "导入脚本失败：文件为空或过大")
             onToast("读取文件失败，请换一个文件或用「从连接导入」")
             return
         }
@@ -169,11 +172,13 @@ class SourceController(
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "下载脚本失败: ${e.message}")
+                LogReporter.w("Source", "下载脚本失败", e)
                 onFinished(false, "下载失败：${e.message ?: "网络异常"}")
                 return@launch
             }
             val problem = validate(content)
             if (problem != null) {
+                LogReporter.w("Source", "脚本校验未通过：$problem")
                 onFinished(false, problem)
                 return@launch
             }
@@ -307,6 +312,7 @@ class SourceController(
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "检测异常: ${e.message}")
+                LogReporter.w("Source", "音源检测异常", e)
                 onToast("检测中断：${e.message ?: "未知错误"}")
             } finally {
                 _detecting.value = false
@@ -413,6 +419,7 @@ class SourceController(
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "插件检测中断: ${e.message}")
+                LogReporter.w("Source", "插件检测中断", e)
                 _pluginDetect.update { it?.copy(running = false, error = e.message ?: "检测中断") }
             } finally {
                 // 取消/关闭面板时也要把沙箱恢复到用户当前指定的插件。

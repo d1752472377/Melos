@@ -6,6 +6,7 @@ import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.api.HomeCategoryDto
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -118,6 +119,7 @@ class ContentController(
                 }
             }.onFailure { e ->
                 // 失败要可见：此前静默，"热门歌单"区块直接消失且无法重试
+                LogReporter.w("Home", "热门歌单加载失败", e)
                 _hotPlaylistsError.value = e.message ?: "获取热门歌单失败"
             }
             _isLoadingHot.value = false
@@ -173,8 +175,10 @@ class ContentController(
                 }
             }.onFailure { failures++; failureMsg = "排行榜" }
             if (failures == 4) {
+                LogReporter.w("Home", "首页内容全部加载失败")
                 _contentError.value = "内容加载失败，请检查网络"
             } else if (failures > 0) {
+                LogReporter.w("Home", "首页部分内容加载失败 count=$failures sections=$failureMsg")
                 // 部分失败也要可见：此前只有全挂才报错，单个区块（如排行榜）失败后
                 // 永久消失且无提示（contentLoaded=true 还拦截了重拉）
                 _contentError.value = "部分内容加载失败（$failureMsg），可点重试"

@@ -12,6 +12,7 @@ import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.settings.SyncServerStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -135,6 +136,7 @@ object UpdateService {
             }
         } catch (e: Exception) {
             // 网络异常必须显式区分，不能静默当成"无更新"
+            LogReporter.w("Update", "检查更新失败", e)
             if (serverHasNoNewerVersion) CheckResult.UpToDate else CheckResult.Failed(e.message)
         }
     }
@@ -168,7 +170,10 @@ object UpdateService {
         }
 
         // 签名一致性校验
-        if (!verifyApkSignature(context, file.absolutePath)) return false
+        if (!verifyApkSignature(context, file.absolutePath)) {
+            LogReporter.w("Update", "安装包签名校验失败 path=${file.name}")
+            return false
+        }
 
         return true
     }
@@ -277,6 +282,7 @@ object UpdateService {
                 }
             }
             if (!verifyApkSignature(context, tmpFile.absolutePath)) {
+                LogReporter.w("Update", "新下载安装包签名不一致，已拦截")
                 tmpFile.delete()
                 throw Exception("安装包签名与当前应用不一致，已拦截，请通过官方渠道更新")
             }

@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.rank
 
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.service.LogReporter
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.platform.RankCatalog
 import kotlinx.coroutines.CoroutineScope
@@ -105,6 +106,7 @@ class RankController(
                 if (cleaned.isEmpty()) _error.value = "该平台暂未返回榜单"
             }.onFailure { e ->
                 if (req != requestId) return@onFailure
+                LogReporter.w("Rank", "榜单加载失败 platform=$platform", e)
                 // 失败时清空列表：留着上一个平台的榜单配着新 tag 显示，比空页面更容易误判
                 cache.remove(platform)
                 _ranks.value = emptyList()

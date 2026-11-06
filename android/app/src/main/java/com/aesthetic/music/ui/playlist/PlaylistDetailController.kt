@@ -6,6 +6,7 @@ import com.aesthetic.music.data.api.platform.RankCatalog
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,7 +68,10 @@ class PlaylistDetailController(
             }.onFailure { e ->
                 // 失败要可见：此前只写 onSuccess，失败后列表空 + 无 loading，
                 // Overlay 渲染 0 项 LazyColumn 白页，无文案无重试
-                if (req == requestId) _error.value = e.message ?: "歌单加载失败"
+                if (req == requestId) {
+                    LogReporter.w("PlaylistDetail", "歌单加载失败 platform=${item.platform} id=${item.id}", e)
+                    _error.value = e.message ?: "歌单加载失败"
+                }
             }
             if (req == requestId) _isLoading.value = false
         }
@@ -86,7 +90,10 @@ class PlaylistDetailController(
             repository.getRankSongs(item.platform ?: RankCatalog.DEFAULT, item.id).onSuccess { list ->
                 if (req == requestId) _songs.value = list
             }.onFailure { e ->
-                if (req == requestId) _error.value = e.message ?: "榜单加载失败"
+                if (req == requestId) {
+                    LogReporter.w("PlaylistDetail", "榜单歌曲加载失败 platform=${item.platform} id=${item.id}", e)
+                    _error.value = e.message ?: "榜单加载失败"
+                }
             }
             if (req == requestId) _isLoading.value = false
         }
@@ -123,7 +130,10 @@ class PlaylistDetailController(
                     )
                 }
             }.onFailure { e ->
-                if (req == requestId) _error.value = e.message ?: "获取专辑失败"
+                if (req == requestId) {
+                    LogReporter.w("PlaylistDetail", "专辑加载失败 platform=${item.platform} id=${item.id}", e)
+                    _error.value = e.message ?: "获取专辑失败"
+                }
             }
             if (req == requestId) _isLoading.value = false
         }

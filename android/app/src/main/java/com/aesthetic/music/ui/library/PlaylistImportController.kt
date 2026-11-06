@@ -5,6 +5,7 @@ import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.api.PlaylistLink
 import com.aesthetic.music.data.api.PlaylistLinkParser
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -110,6 +111,7 @@ class PlaylistImportController(
                     onImported(item)
                 }
                 .onFailure { e ->
+                    LogReporter.w("PlaylistImport", "导入收藏失败", e)
                     _import.value = PlaylistResolveState.Failed(
                         "导入失败：${e.message ?: "网络异常"}"
                     )
@@ -122,6 +124,7 @@ class PlaylistImportController(
         scope.launch {
             val link = resolveLink(text)
             if (link == null) {
+                LogReporter.w("PlaylistImport", "无法解析歌单链接")
                 emit(PlaylistResolveState.Failed(parseFailureMessage(text)))
                 return@launch
             }
@@ -144,6 +147,7 @@ class PlaylistImportController(
                     )
                 }
                 .onFailure { e ->
+                    LogReporter.w("PlaylistImport", "解析歌单详情失败", e)
                     emit(PlaylistResolveState.Failed("解析失败：${e.message ?: "网络异常"}"))
                 }
         }

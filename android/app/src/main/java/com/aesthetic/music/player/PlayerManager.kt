@@ -21,6 +21,7 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.PlayerSessionStore
 import com.aesthetic.music.data.settings.SettingsStore
 import com.aesthetic.music.data.settings.UserPrefs
+import com.aesthetic.music.service.LogReporter
 import com.aesthetic.music.service.MediaCardArtwork
 import com.aesthetic.music.service.StatsTracker
 import com.mocharealm.accompanist.lyrics.core.model.SyncedLyrics
@@ -157,6 +158,12 @@ class PlayerManager private constructor(private val appContext: Context) {
     private val repository = MusicRepository()
 
     val player: ExoPlayer by lazy {
+        // 预生成 AudioSessionId 并在建播放器时写入：默认情况下 ExoPlayer 要到首次起播
+        // 初始化音频输出才创建 session，此时再挂 Equalizer 会在第一首歌开头产生爆音。
+        // 先固定 session，效果器可以在播放前（静音状态）就绑定好，首曲不再重建。
+        val audioSessionId = appContext.getSystemService(AudioManager::class.java)
+            ?.generateAudioSessionId()
+            ?: C.AUDIO_SESSION_ID_UNSET
         // handleAudioFocus=true：来电/导航/其他 App 播放时自动让出焦点（暂停或降音量）；
         // setHandleAudioBecomingNoisy(true)：拔耳机（AUDIO_BECOMING_NOISY）自动暂停；
         // setWakeMode(C.WAKE_MODE_NETWORK)：后台播放时持有 CPU WakeLock 和 WifiLock，防止息屏时音频流中断。
@@ -172,6 +179,9 @@ class PlayerManager private constructor(private val appContext: Context) {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .apply {
+                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+                    setAudioSessionId(audioSessionId)
+                }
                 setPlaybackSpeed(SettingsStore.getPlaybackSpeed())
             }
     }
@@ -710,6 +720,12 @@ class PlayerManager private constructor(private val appContext: Context) {
 
             override fun onPlayerError(error: PlaybackException) {
                 releaseTransitionLock()
+                val song = _state.value.currentSong
+                LogReporter.e(
+                    "PlayerManager",
+                    "播放错误 song=${song?.platform}:${song?.id} code=${error.errorCodeName}",
+                    error,
+                )
                 // 播放中途出错（解码失败 / 直链过期 / 数据流中断）：
                 // **先尝试跳到下一首**，队列里没有别的歌（或连续失败太多次）才停下。
                 // 以前这里直接 player.stop()，用户遇到「某首歌没音源」时整条播放链就断了，
@@ -749,7 +765,8 @@ class PlayerManager private constructor(private val appContext: Context) {
             } else {
                 appContext.startService(intent)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            LogReporter.w("PlayerManager", "启动播放服务失败", e)
         }
     }
 
@@ -960,6 +977,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         playJob?.cancel()
         playJob = scope.launch {
             val quality = SettingsStore.getQuality().value
+            LogReporter.breadcrumb("Player", "play ${song.platform}:${song.id} quality=$quality")
 
             // 先查本地缓存：命中直接播本地，不碰网络。
             // 此前是"先联网取直链、成功后才查缓存"——飞行模式/直链接口故障时
@@ -1000,6 +1018,11 @@ class PlayerManager private constructor(private val appContext: Context) {
                         }
                     }
                     if (resolved == null && lastFailure != null && gen == playGeneration) {
+                        LogReporter.w(
+                            "PlayerManager",
+                            "取直链失败 song=${song.platform}:${song.id} quality=$quality attempts=$URL_RESOLVE_ATTEMPTS",
+                            lastFailure,
+                        )
                         _state.value = _state.value.copy(isLoading = false, lastError = friendlyError(lastFailure!!))
                         notifyState()
                     }
@@ -1157,7 +1180,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            android.util.Log.w("PlayerManager", "歌词加载失败: ${e.message}")
+            LogReporter.w("PlayerManager", "歌词加载失败 song=${song.platform}:${song.id}", e)
             clearLyrics(gen, keepLoadingState = true)
         } finally {
             setLyricsLoading(false, gen)
@@ -1383,9 +1406,11 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     fun toggle() {
         if (player.isPlaying) {
+            LogReporter.breadcrumb("Player", "pause")
             // 淡出后暂停（关闭「淡入淡出」时直接 pause）
             fadeOutThenPause()
         } else {
+            LogReporter.breadcrumb("Player", "resume")
             // 从暂停/失败恢复也可能发生在服务已被回收之后：先确保 MediaSession 存在。
             ensurePlaybackService()
             when (player.playbackState) {
@@ -1413,6 +1438,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     fun next() {
         val s = _state.value
         if (s.queue.isEmpty()) return
+        LogReporter.breadcrumb("Player", "next from=${s.currentIndex}")
         acquireTransitionLock()
         val idx = if (s.playMode == PlayMode.SHUFFLE && s.queue.size > 1) {
             (0 until s.queue.size).filterNot { it == s.currentIndex }.random()
@@ -1428,6 +1454,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     fun previous() {
         val s = _state.value
         if (s.queue.isEmpty()) return
+        LogReporter.breadcrumb("Player", "previous from=${s.currentIndex}")
         acquireTransitionLock()
         val idx = (s.currentIndex - 1 + s.queue.size) % s.queue.size
         pendingSeekMs = 0

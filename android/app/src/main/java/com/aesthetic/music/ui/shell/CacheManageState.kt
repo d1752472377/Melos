@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.aesthetic.music.data.cache.CacheCenter
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,14 +58,19 @@ class CacheManageState(
      * 避免界面上还挂着"清理前的数字"让人以为没清掉。
      */
     fun clear(kind: CacheKind) {
+        LogReporter.breadcrumb("Cache", "clear kind=$kind")
         scope.launch {
-            withContext(Dispatchers.IO) {
-                when (kind) {
-                    CacheKind.MUSIC -> CacheCenter.clearMusic(context)
-                    CacheKind.IMAGES -> CacheCenter.clearImages(context)
-                    CacheKind.TEMP -> CacheCenter.clearTemp(context)
-                    CacheKind.ALL -> CacheCenter.clearAll(context)
+            try {
+                withContext(Dispatchers.IO) {
+                    when (kind) {
+                        CacheKind.MUSIC -> CacheCenter.clearMusic(context)
+                        CacheKind.IMAGES -> CacheCenter.clearImages(context)
+                        CacheKind.TEMP -> CacheCenter.clearTemp(context)
+                        CacheKind.ALL -> CacheCenter.clearAll(context)
+                    }
                 }
+            } catch (e: Exception) {
+                LogReporter.w("Cache", "清理缓存失败 kind=$kind", e)
             }
             breakdown = withContext(Dispatchers.IO) { CacheCenter.scan(context) }
             cachedSongCount = breakdown?.songCount ?: 0

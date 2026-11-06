@@ -92,6 +92,12 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    LaunchedEffect(currentRoute) {
+        val route = currentRoute ?: return@LaunchedEffect
+        com.aesthetic.music.service.LogContext.currentPage = { route }
+        com.aesthetic.music.service.LogReporter.breadcrumb("Nav", route)
+    }
+
     val tab by viewModel.currentTab.collectAsState()
     val showPlayer by viewModel.showPlayer.collectAsState()
     val showImportDialog by viewModel.showImportDialog.collectAsState()

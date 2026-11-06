@@ -6,6 +6,7 @@ import com.aesthetic.music.data.api.ArtistItem
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.RecentSearchStore
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -179,22 +180,34 @@ class SearchController(
                     SearchType.SONG -> repository.search(kw, 30, plat).onSuccess {
                         _songResults.value = it
                         executedSearchKeys[searchType] = key
-                    }.onFailure { e -> _searchError.value = e.message ?: "搜索失败" }
+                    }.onFailure { e ->
+                        LogReporter.w("Search", "歌曲搜索失败 platform=${plat ?: "*"}", e)
+                        _searchError.value = e.message ?: "搜索失败"
+                    }
 
                     SearchType.ARTIST -> repository.searchArtists(kw, 12, plat).onSuccess {
                         _artistResults.value = it
                         executedSearchKeys[searchType] = key
-                    }.onFailure { e -> _searchError.value = e.message ?: "歌手搜索失败" }
+                    }.onFailure { e ->
+                        LogReporter.w("Search", "歌手搜索失败 platform=${plat ?: "*"}", e)
+                        _searchError.value = e.message ?: "歌手搜索失败"
+                    }
 
                     SearchType.PLAYLIST -> repository.searchPlaylists(kw, 20, plat).onSuccess {
                         _playlistResults.value = it
                         executedSearchKeys[searchType] = key
-                    }.onFailure { e -> _searchError.value = e.message ?: "歌单搜索失败" }
+                    }.onFailure { e ->
+                        LogReporter.w("Search", "歌单搜索失败 platform=${plat ?: "*"}", e)
+                        _searchError.value = e.message ?: "歌单搜索失败"
+                    }
 
                     SearchType.ALBUM -> repository.searchAlbums(kw, 20, plat).onSuccess {
                         _albumResults.value = it
                         executedSearchKeys[searchType] = key
-                    }.onFailure { e -> _searchError.value = e.message ?: "专辑搜索失败" }
+                    }.onFailure { e ->
+                        LogReporter.w("Search", "专辑搜索失败 platform=${plat ?: "*"}", e)
+                        _searchError.value = e.message ?: "专辑搜索失败"
+                    }
                 }
             } finally {
                 val anyActive = searchJobs.values.any { it.isActive }

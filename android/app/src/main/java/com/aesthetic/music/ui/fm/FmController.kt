@@ -2,6 +2,7 @@ package com.aesthetic.music.ui.fm
 
 import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -113,6 +114,7 @@ class FmController(
                     onReady?.invoke(songs.first(), songs)
                 }
             }.onFailure { e ->
+                LogReporter.w("Fm", "电台调频失败", e)
                 _error.value = e.message ?: "电台调频失败，请点击重新调频"
                 _loading.value = false
             }
