@@ -62,6 +62,10 @@
 
 `AuthController.logoutAndClearLocalData` 同样没有 UI 入口，但语义完整且属于产品级“退出并清空本机数据”能力，**保留并在此记录**，不按死代码处理。
 
+### 2.6 已处理：未接入的分段 tabs（第十批）
+
+`ui/components/LiquidGlassSegmentTabs.kt`（383 行）里的 `LiquidGlassIconContainer` 与 `LiquidGlassSegmentedTabs` 在全仓没有任何调用点（只有文件内 KDoc 自引用），整文件删除。`LiquidGlassButton` 与 `LiquidGlassComponents` 仍有实际调用，保留。
+
 ### 2.4 已合并/移动
 
 - `ProfileFormat.kt` + `ProfileUtils.kt` → `ui/profile/ProfileUtils.kt`（两个 object 同域）。
@@ -124,7 +128,7 @@
 - `ui/settings/SettingsKit.kt`：`SettingsPageScaffold`、`SettingsSection`、`SettingsNavRow`、`SettingsSwitchRow`、`SettingsSegmentRow`、`SettingsOptionList`、`SettingsValueRow`、`SettingsNote`、`SettingsDivider`、`SettingsGap`。
 - `ui/components/States.kt`：`LoadingBox`、`ErrorBox`、`EmptyBox`、`DangerTextButton`、`DangerCapsuleButton`。
 - `ui/components/Overlays.kt`：`AppDialog`、`AppConfirmDialog`、`AppBottomSheet`。
-- `ui/components/LiquidGlassButton.kt`、`LiquidGlassComponents.kt`、`LiquidGlassSegmentTabs.kt`：玻璃按钮、幽灵按钮、胶囊 chip、分段 tabs。
+- `ui/components/LiquidGlassButton.kt`、`LiquidGlassComponents.kt`：玻璃按钮、幽灵按钮、胶囊 chip。
 - `ui/components/ListSearchBar.kt`、`SelectionBottomSheet.kt`、`SecondaryPageTopBar.kt`、`KeepScreenOn.kt`、`ScaleIndication.kt`。
 
 **没有统一的 AppButton / AppSwitch / AppTextField / AppChip**。目前按钮多为页面私有实现（如 `FmSolidButton`、`PrimaryWideButton`、`DangerWideButton`、`PillButton`、`GuessPlayAllButton`、`PlayerChip` 等），视觉差异真实存在。复审结论：**先不创建万能 AppButton**；优先复用 `LiquidGlassButton` / `SettingsKit` / `States` / `Overlays`，当同一形态出现第 3 个稳定调用点时再抽最小 primitives。

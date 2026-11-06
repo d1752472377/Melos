@@ -45,7 +45,6 @@ Screens（组合业务组件，展示 UI State，发出事件）
 | `ui/components/Overlays.kt` | `AppDialog` / `AppConfirmDialog` / `AppBottomSheet` |
 | `ui/components/LiquidGlassButton.kt` | `LiquidGlassButton`、玻璃背景 Modifier |
 | `ui/components/LiquidGlassComponents.kt` | `LiquidGhostButton`、`LiquidBentoCard`、`LiquidCapsuleChip` |
-| `ui/components/LiquidGlassSegmentTabs.kt` | 玻璃分段 tabs、图标容器 |
 | `ui/components/ListSearchBar.kt` | 列表页搜索框 |
 | `ui/components/SelectionBottomSheet.kt` | 通用选择抽屉 |
 | `ui/components/SecondaryPageTopBar.kt` | 二级页顶栏（目前 2 个调用方） |
