@@ -41,11 +41,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +66,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.util.Locale
 import com.aesthetic.music.ui.theme.AppSpacing
+
+/**
+ * 指示线在容器中的纵向位置比例。
+ * contentPadding、指示线位置、[centerItemIndex] 的锚点都从这里推导，
+ * 三者改动时始终对齐。
+ */
+private const val LYRIC_ANCHOR_RATIO = 0.30f
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -143,46 +148,61 @@ fun MelosLyricsView(
     val scrollCtl = rememberAutoScrollController(listState, cooldownMs = 2500L)
     scrollCtl.BindUserInteraction()
 
-    val lineHeightsPx: SnapshotStateMap<Int, Int> = remember { mutableStateMapOf() }
     var activeIndex by remember { mutableIntStateOf(0) }
 
     // 用容器高度替代 BoxWithConstraints 的 maxHeight
     var containerHeightPx by remember { mutableIntStateOf(0) }
-    // 活跃歌词定位：顶部留 30% 容器高，底部留 70%，歌词整体偏上显示
-    val topPaddingDp: Dp = with(density) { (containerHeightPx * 0.30f).toDp() }
-    val bottomPaddingDp: Dp = with(density) { (containerHeightPx * 0.70f).toDp() }
+    // 活跃歌词定位：顶部留 30% 容器高，底部留 70%，歌词整体偏上显示。
+    // 指示线、锚点、padding 都从同一个比例推导，三者不会互相漂移。
+    val topPaddingDp: Dp = with(density) { (containerHeightPx * LYRIC_ANCHOR_RATIO).toDp() }
+    val bottomPaddingDp: Dp =
+        with(density) { (containerHeightPx * (1f - LYRIC_ANCHOR_RATIO)).toDp() }
+
+    val latestActiveIndexProvider by rememberUpdatedState(activeIndexProvider)
 
     LaunchedEffect(lyrics) {
         while (isActive) {
-            val idx = activeIndexProvider().coerceIn(0, lyrics.lastIndex)
+            val idx = latestActiveIndexProvider().coerceIn(0, lyrics.lastIndex)
             if (idx != activeIndex) activeIndex = idx
             delay(80)
         }
     }
 
-    // contentPadding 上下留半屏：scrollToItem(N, 0) 让 N 行顶部对齐内容区起点即视口中线
-    fun offsetFor(@Suppress("UNUSED_PARAMETER") index: Int): Int = 0
-
-    // 首次加载 / 切歌：瞬时定位
-    LaunchedEffect(lyrics) {
-        lineHeightsPx.clear()
-        val initialIdx = activeIndexProvider().coerceIn(0, lyrics.lastIndex)
-        activeIndex = initialIdx
-        scrollCtl.forceScrollTo(initialIdx, offsetFor(initialIdx), animate = false)
+    // 同一首歌内歌词可能被增量补齐（翻译、逐字数据晚到）：这类变化不应抢走
+    // 用户正在看的位置。只有行数/首尾时间变了（换歌）才重新定位。
+    val lyricsIdentity = remember(lyrics) {
+        Triple(lyrics.size, lyrics.firstOrNull()?.timeMs, lyrics.lastOrNull()?.timeMs)
     }
 
-    // 播放中自动跟唱
-    LaunchedEffect(activeIndex) {
-        if (activeIndex in lyrics.indices) {
-            scrollCtl.autoScrollTo(activeIndex, offsetFor(activeIndex), animate = true)
+    // 首次加载 / 切歌 / 容器尺寸变化：等到高度就绪再瞬时定位。
+    // containerHeightPx == 0 时 contentPadding 还是 0，此时定位会错位。
+    LaunchedEffect(lyricsIdentity, containerHeightPx) {
+        if (containerHeightPx <= 0) return@LaunchedEffect
+        val initialIdx = latestActiveIndexProvider().coerceIn(0, lyrics.lastIndex)
+        activeIndex = initialIdx
+        scrollCtl.forceScrollTo(initialIdx, animate = false)
+    }
+
+    // 播放中自动跟唱；冷却自然结束（followResumeTick 递增）后补做一次跟随，
+    // 冷却期间被静默跳过的那次跟随不会丢。强制滚动不会触发它。
+    LaunchedEffect(activeIndex, scrollCtl.followResumeTick) {
+        if (containerHeightPx <= 0) return@LaunchedEffect
+        if (!scrollCtl.isUserControlling && activeIndex in lyrics.indices) {
+            scrollCtl.autoScrollTo(activeIndex, animate = true)
         }
     }
 
     val centerIndex by remember {
-        derivedStateOf { listState.layoutInfo.centerItemIndex(fallback = activeIndex) }
+        derivedStateOf {
+            listState.layoutInfo.centerItemIndex(
+                fallback = activeIndex,
+                anchorRatio = LYRIC_ANCHOR_RATIO,
+            )
+        }
     }
     val centerLine = lyrics.getOrNull(centerIndex)
     val isUserBrowsing = scrollCtl.isUserControlling
+    val latestOnSeek by rememberUpdatedState(onSeek)
 
     Box(
         modifier = modifier
@@ -228,7 +248,6 @@ fun MelosLyricsView(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onSizeChanged { size -> lineHeightsPx[index] = size.height }
                         .graphicsLayer {
                             scaleX = lineScale
                             scaleY = lineScale
@@ -240,8 +259,8 @@ fun MelosLyricsView(
                             indication = null,
                             onClick = {
                                 if (isUserBrowsing) {
-                                    onSeek(line.timeMs)
-                                    scrollCtl.forceScrollTo(index, offsetFor(index), animate = true)
+                                    latestOnSeek(line.timeMs)
+                                    scrollCtl.forceScrollTo(index, animate = true)
                                 } else {
                                     onToggleLyricMode?.invoke()
                                 }
@@ -251,13 +270,14 @@ fun MelosLyricsView(
                         .padding(horizontal = AppSpacing.xl, vertical = 5.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
+                    // 所有行使用同一套字号/行高/字重：高亮只改 scale、alpha 和颜色。
+                    // 否则高亮在滑动中移动会不断改变行高，内容在手指下方抖动。
                     if (showRomanization && !line.romanization.isNullOrBlank() && line.romanization != line.text) {
                         Text(
                             text = line.romanization,
                             color = if (isHighlighted) AmberLight.copy(alpha = 0.70f)
                             else Color.White.copy(alpha = 0.25f),
-                            fontSize = if (isHighlighted) (fontSizeSp - 9).coerceAtLeast(11).sp
-                            else (fontSizeSp - 11).coerceAtLeast(10).sp,
+                            fontSize = (fontSizeSp - 10).coerceAtLeast(11).sp,
                             fontWeight = FontWeight.Normal,
                             lineHeight = (fontSizeSp * 0.85f).sp,
                             textAlign = TextAlign.Start,
@@ -279,11 +299,9 @@ fun MelosLyricsView(
                             color = if (isHighlighted) {
                                 if (isFocused) Color.White else AmberLight
                             } else Color.White,
-                            fontSize = if (isHighlighted) fontSizeSp.sp
-                            else (fontSizeSp - 3).coerceAtLeast(14).sp,
-                            fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.SemiBold,
-                            lineHeight = if (isHighlighted) (fontSizeSp * 1.38f).sp
-                            else (fontSizeSp * 1.28f).sp,
+                            fontSize = fontSizeSp.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = (fontSizeSp * 1.38f).sp,
                             textAlign = TextAlign.Start,
                         )
                     }
@@ -296,11 +314,9 @@ fun MelosLyricsView(
                             text = line.translated,
                             color = if (isHighlighted) AmberLight.copy(alpha = 0.92f)
                             else Color.White.copy(alpha = 0.32f),
-                            fontSize = if (isHighlighted) (fontSizeSp - 6).coerceAtLeast(13).sp
-                            else (fontSizeSp - 8).coerceAtLeast(12).sp,
+                            fontSize = (fontSizeSp - 7).coerceAtLeast(12).sp,
                             fontWeight = FontWeight.Medium,
-                            lineHeight = if (isHighlighted) (fontSizeSp * 0.95f).sp
-                            else (fontSizeSp * 0.85f).sp,
+                            lineHeight = (fontSizeSp * 0.90f).sp,
                             textAlign = TextAlign.Start,
                         )
                     }
@@ -310,7 +326,8 @@ fun MelosLyricsView(
 
 
         // 翻阅指示线（仅在用户手动滑动时出现，自动跟唱不触发）
-        val topAnchorDp: Dp = with(LocalDensity.current) { (containerHeightPx * 0.30f).toDp() }
+        val topAnchorDp: Dp =
+            with(LocalDensity.current) { (containerHeightPx * LYRIC_ANCHOR_RATIO).toDp() }
         AnimatedVisibility(
             visible = isUserBrowsing && centerLine != null,
             enter = fadeIn(tween(180)),
@@ -357,10 +374,8 @@ fun MelosLyricsView(
                             onClick = {
                                 val target = centerLine
                                 if (target != null) {
-                                    onSeek(target.timeMs)
-                                    scrollCtl.forceScrollTo(
-                                        centerIndex, offsetFor(centerIndex), animate = true
-                                    )
+                                    latestOnSeek(target.timeMs)
+                                    scrollCtl.forceScrollTo(centerIndex, animate = true)
                                 }
                             }
                         ),
@@ -393,7 +408,9 @@ fun MelosLyricsView(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {
-                            scrollCtl.forceScrollTo(activeIndex, offsetFor(activeIndex), animate = true)
+                            val target = latestActiveIndexProvider().coerceIn(0, lyrics.lastIndex)
+                            activeIndex = target
+                            scrollCtl.forceScrollTo(target, animate = true)
                         }
                     )
                     .padding(horizontal = AppSpacing.xl, vertical = 7.dp),
