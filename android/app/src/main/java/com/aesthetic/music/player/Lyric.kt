@@ -270,43 +270,6 @@ fun mergeTranslation(original: List<LyricLine>, translation: List<LyricLine>?): 
     }
 }
 
-/**
- * 二分查找高效合并罗马音歌词
- */
-fun mergeRomanization(original: List<LyricLine>, romanization: List<LyricLine>?): List<LyricLine> {
-    if (romanization.isNullOrEmpty()) return original
-    val sortedRoma = romanization.sortedBy { it.timeMs }
-
-    return original.map { orig ->
-        var low = 0
-        var high = sortedRoma.size - 1
-        var bestIndex = -1
-        var minDelta = Long.MAX_VALUE
-
-        while (low <= high) {
-            val mid = (low + high) ushr 1
-            val romaLine = sortedRoma[mid]
-            val delta = kotlin.math.abs(romaLine.timeMs - orig.timeMs)
-
-            if (delta < minDelta) {
-                minDelta = delta
-                bestIndex = mid
-            }
-
-            when {
-                romaLine.timeMs < orig.timeMs -> low = mid + 1
-                romaLine.timeMs > orig.timeMs -> high = mid - 1
-                else -> break
-            }
-        }
-
-        val matchedRoma = if (bestIndex != -1 && minDelta <= 1200L) {
-            sortedRoma[bestIndex].text
-        } else null
-
-        if (matchedRoma != null) orig.copy(romanization = matchedRoma) else orig
-    }
-}
 
 /**
  * 二分查找根据当前播放位置找到当前高亮歌词下标，O(log N) 复杂度

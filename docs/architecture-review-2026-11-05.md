@@ -66,6 +66,13 @@
 
 `ui/components/LiquidGlassSegmentTabs.kt`（383 行）里的 `LiquidGlassIconContainer` 与 `LiquidGlassSegmentedTabs` 在全仓没有任何调用点（只有文件内 KDoc 自引用），整文件删除。`LiquidGlassButton` 与 `LiquidGlassComponents` 仍有实际调用，保留。
 
+### 2.7 已处理：无调用的私有/旧版函数（第十一批）
+
+- `ui/home/HomeDailyHero.kt` 的 `HomeCoverPlayButton`（87 行）与 `ui/playlist/PlaylistScreen.kt` 的 `PlaylistStatsColumn`（41 行）：仅有声明，无任何调用。
+- `ui/home/HomeHeader.kt` 的 `HomeHeaderTabletTitle`（平板备用顶栏）与 `moodScenePalette`（心情电台配色）：无调用方，连同对应 KDoc 一并删除；时段问候语的 TODO 说明保留。
+- `player/Lyric.kt` 的 `mergeRomanization`：无人调用，罗马音合并没有接入渲染链路。
+- `rankMetaText` / `rankKindLabel` 仍被 `RankPageHelpersTest` 引用，保留。
+
 ### 2.4 已合并/移动
 
 - `ProfileFormat.kt` + `ProfileUtils.kt` → `ui/profile/ProfileUtils.kt`（两个 object 同域）。

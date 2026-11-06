@@ -669,47 +669,6 @@ fun PlaylistScreen(
 }
 
 
-/**
- * 统计单列
- */
-@Composable
-private fun PlaylistStatsColumn(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(4.dp)
-                    .clip(CircleShape)
-                    .background(TextSoft)
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                color = TextSoft
-            )
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold
-            ),
-            color = TextPrimary
-        )
-    }
-}
 
 /**
  * 歌单列表单项（对应参考图 2）：
