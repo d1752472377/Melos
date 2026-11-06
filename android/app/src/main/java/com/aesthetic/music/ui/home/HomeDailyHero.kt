@@ -64,6 +64,7 @@ import com.aesthetic.music.ui.components.rememberCoverTone
 import com.aesthetic.music.ui.components.textHigh
 import com.aesthetic.music.ui.components.textMedium
 import kotlin.math.max
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /*
  * ============================================================================
@@ -158,8 +159,8 @@ import kotlin.math.max
  * ```
  * Column(Modifier.fillMaxWidth()) {                       // 3726
  *     if (list2.isNotEmpty()) {                           // list2 = 公告列表
- *         HomeNoticeStrip(list2, ..., Modifier.padding(horizontal = 16.dp))   // 3753
- *         if (hero.isEmpty() || loading) Spacer(Modifier.height(12.dp))       // 3963 (ij1.w)
+ *         HomeNoticeStrip(list2, ..., Modifier.padding(horizontal = AppSpacing.xxl))   // 3753
+ *         if (hero.isEmpty() || loading) Spacer(Modifier.height(AppSpacing.lg))       // 3963 (ij1.w)
  *     }
  *     DailyHeroCard(hero.take(3), onClick, loading, 216.dp * uiScale)         // 3765
  * }
@@ -247,8 +248,8 @@ fun HomeDailyHero(
             modifier = Modifier
                 .fillMaxWidth() // HomeScreenKt.java:3067 —— ij7.g(c05.a, 1.0f)
                 // HomeScreenKt.java:3067 —— hp1.q0(ij7.g(c05.a, 1.0f), 16.0f, 0.0f, 掩码 2)
-                //   = Modifier.padding(horizontal = 16.dp)（vertical 走掩码默认 0.dp）
-                .padding(horizontal = 16.dp)
+                //   = Modifier.padding(horizontal = AppSpacing.xxl)（vertical 走掩码默认 0.dp）
+                .padding(horizontal = AppSpacing.xxl)
         ) {
             // HomeScreenKt.java:3378-3387 —— fC 即卡片高度（qj0 = BoxWithConstraintsScope，c() = maxWidth）
             val cardHeight = if (heroLoading) {
@@ -324,7 +325,7 @@ fun HomeDailyHero(
                     // HomeScreenKt.java:3439 —— `HeroPageIndicator(vp5Var.d.b.h(), i2, hp1.s0(…), …)`
                     //   第 1 实参 = pagerState.currentPage；第 2 = 页数；
                     //   第 3 = `hp1.s0(oj0.a.a(c05.a, il0.Y), 0f, 0f, 0f, b, 7)`
-                    //        = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+                    //        = Modifier.align(Alignment.BottomCenter).padding(bottom = AppSpacing.lg)
                     //        （oj0.a.a = BoxScope.align，oj0.java:9-11；il0.Y = xg0(0f, 1f) = BottomCenter，il0.java:58；
                     //          hp1.s0 掩码 7 → 只有第 4 个 padding 值 b = 12.0f 生效，hp1.java:3980-3993/3972-3974 + ko5.java:11）
                     HomeHeroIndicator(
@@ -466,7 +467,7 @@ private val HeroTinyLineHeight = 12.sp // HomeScreenKt.java:9796 —— co7.j(12
  *
  * 结构（自上而下/自左向右，括号内是数值出处）：
  * ```
- * Row(fillMaxSize, padding(start = 24.dp, end = 21.dp, top = 卡高 * 0.21), Top) {   // TODO ⑫
+ * Row(fillMaxSize, padding(start = AppSpacing.section, end = 21.dp, top = 卡高 * 0.21), Top) {   // TODO ⑫
  *     Box(size = 卡高 * 0.59, clip(RoundedCornerShape(6.dp))) {                    // TODO ⑫
  *         HomeHeroCover(...)                                                       // 3532/3547-3577 的图片分支
  *     }
@@ -632,7 +633,7 @@ private val HeroDotSpacing = 4.dp // HomeScreenKt.java:305 —— e = 4.0f（441
  *     }
  * }
  * ```
- * 位置：`Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)`（3439）—— **叠在卡片上**，
+ * 位置：`Modifier.align(Alignment.BottomCenter).padding(bottom = AppSpacing.lg)`（3439）—— **叠在卡片上**，
  * 即封面之上、卡片底边上方 12.dp 处居中（内层是 3420 的 Box，不是 Column，所以是真·图层叠加）。
  * 颜色：只有一个色 —— 白色按透明度插值（未选中 0.42f → 选中 0.95f），没有「选中色/未选中色」两个常量。
  * 动画：tween(200ms, delay 0, CubicBezierEasing(0.2, 0, 0, 1))，逐点独立（每个点一个 animateFloatAsState）。
@@ -743,7 +744,7 @@ private fun HomeHeroIndicator(
  *    整体宽 = 4.dp*(n-1) + 14.dp*n（4412）、右下角圆角 = 高/2 = 3.dp 的胶囊（uw1.java:63/65）、
  *    颜色 = Color.White.copy(alpha = 0.42f + 0.53f·t)（uw1.java:65，未选中 0.42 / 选中 0.95）、
  *    动画 = tween(200ms, delay 0, CubicBezierEasing(0.2f, 0f, 0f, 1f))（4405 + qk5.java:1654 + bs4.java:6）、
- *    位置 = 叠在卡片内、`align(Alignment.BottomCenter).padding(bottom = 12.dp)`（3439 + il0.java:58 + b=12.0f）、
+ *    位置 = 叠在卡片内、`align(Alignment.BottomCenter).padding(bottom = AppSpacing.lg)`（3439 + il0.java:58 + b=12.0f）、
  *    `pageCount <= 1` 时整个指示器不渲染（4367-4371）。
  *    **层叠偏移**：m41/m42 里**没有**任何 `Modifier.offset`/负边距式错位；所谓“堆叠”=
  *    竖直 Column 堆叠（公告条 → 12dp → 卡片，HomeScreenKt.java:3726-3771）
@@ -778,8 +779,8 @@ private fun HomeHeroIndicator(
  *    同一张卡片自身的 16.dp，HomeScreenKt.java:3067）。若上游首页已有自己的 16.dp 容器，请去掉这里的 padding。
  *
  * ⑧ 其它未纳入的元素
- *    - 公告条 `HomeNoticeStrip(list2, ..., Modifier.padding(horizontal = 16.dp))`（HomeScreenKt.java:3753）
- *      与「公告条 → 卡片」之间的 `Spacer(Modifier.height(12.dp))`（3963 `ij1.w(..., 12.0f, ...)`，仅在
+ *    - 公告条 `HomeNoticeStrip(list2, ..., Modifier.padding(horizontal = AppSpacing.xxl))`（HomeScreenKt.java:3753）
+ *      与「公告条 → 卡片」之间的 `Spacer(Modifier.height(AppSpacing.lg))`（3963 `ij1.w(..., 12.0f, ...)`，仅在
  *      hero 为空或载入中时插入）不属于本次接口范围，未实现。
  *    - 载入骨架：HomeScreenKt.java:11187-11250 有一段骨架屏（112.dp / 19.dp / 24.dp / 36.dp 等），
  *      属于另一个区块（不是 m41/m46），未合并进来。

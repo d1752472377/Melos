@@ -73,6 +73,8 @@ import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 private enum class AuthTab {
     LOGIN,
@@ -136,10 +138,10 @@ fun AuthScreen(auth: AuthController) {
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 24.dp),
+                .padding(horizontal = AppSpacing.section, vertical = AppSpacing.section),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             // ===== 1. 品牌 Header =====
             Image(
@@ -150,7 +152,7 @@ fun AuthScreen(auth: AuthController) {
                     .clip(CircleShape),
             )
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             Text(
                 text = "Melos",
@@ -162,7 +164,7 @@ fun AuthScreen(auth: AuthController) {
                 color = TextPrimary,
             )
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AppSpacing.xs))
 
             Text(
                 text = "探索声音与灵感的纯粹栖所",
@@ -180,7 +182,7 @@ fun AuthScreen(auth: AuthController) {
                     .clip(RoundedCornerShape(9999.dp))
                     .background(SurfaceSoft)
                     .border(1.dp, CardBorder, RoundedCornerShape(9999.dp))
-                    .padding(4.dp),
+                    .padding(AppSpacing.xxs),
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     // 登录 Tab
@@ -195,7 +197,7 @@ fun AuthScreen(auth: AuthController) {
                                     auth.clearError()
                                 }
                             }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = AppSpacing.sm),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -220,7 +222,7 @@ fun AuthScreen(auth: AuthController) {
                                     auth.clearError()
                                 }
                             }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = AppSpacing.sm),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -256,7 +258,7 @@ fun AuthScreen(auth: AuthController) {
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                                 color = TextSoft,
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                             OutlinedTextField(
                                 value = loginAccount,
                                 onValueChange = {
@@ -276,14 +278,14 @@ fun AuthScreen(auth: AuthController) {
                                 ),
                             )
 
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(AppSpacing.xxl))
 
                             Text(
                                 text = "密码",
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                                 color = TextSoft,
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                             OutlinedTextField(
                                 value = loginPassword,
                                 onValueChange = {
@@ -315,7 +317,7 @@ fun AuthScreen(auth: AuthController) {
                                 ),
                             )
 
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(AppSpacing.lg))
 
                             // 切换到邮箱验证码登录
                             Row(
@@ -332,7 +334,7 @@ fun AuthScreen(auth: AuthController) {
                                             loginMode = LoginMode.EMAIL_CODE
                                             auth.clearError()
                                         }
-                                        .padding(4.dp),
+                                        .padding(AppSpacing.xxs),
                                 )
                             }
                         } else {
@@ -342,7 +344,7 @@ fun AuthScreen(auth: AuthController) {
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                                 color = TextSoft,
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                             OutlinedTextField(
                                 value = loginEmail,
                                 onValueChange = {
@@ -363,18 +365,18 @@ fun AuthScreen(auth: AuthController) {
                                 ),
                             )
 
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(AppSpacing.xxl))
 
                             Text(
                                 text = "验证码",
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                                 color = TextSoft,
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
                             ) {
                                 OutlinedTextField(
                                     value = loginCode,
@@ -403,7 +405,7 @@ fun AuthScreen(auth: AuthController) {
                                         .clickable(enabled = codeCountdown <= 0 && !isSendingCode) {
                                             auth.sendCode(loginEmail, scene = "login")
                                         }
-                                        .padding(horizontal = 14.dp),
+                                        .padding(horizontal = AppSpacing.xl),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     if (isSendingCode) {
@@ -418,7 +420,7 @@ fun AuthScreen(auth: AuthController) {
                                 }
                             }
 
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(AppSpacing.lg))
 
                             // 切换回密码登录
                             Row(
@@ -435,12 +437,12 @@ fun AuthScreen(auth: AuthController) {
                                             loginMode = LoginMode.PASSWORD
                                             auth.clearError()
                                         }
-                                        .padding(4.dp),
+                                        .padding(AppSpacing.xxs),
                                 )
                             }
                         }
 
-                        Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(AppSpacing.page))
 
                         // 错误提示区
                         AnimatedVisibility(visible = authError != null) {
@@ -449,16 +451,16 @@ fun AuthScreen(auth: AuthController) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFFFFF1F0))
-                                        .border(1.dp, Color(0xFFFFA39E), RoundedCornerShape(10.dp))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        .background(AppColors.errorSurface)
+                                        .border(1.dp, AppColors.errorBorder, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                                 ) {
-                                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Color(0xFFCF1322), modifier = Modifier.size(16.dp))
-                                    Text(text = err, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = Color(0xFFCF1322))
+                                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = AppColors.errorText, modifier = Modifier.size(16.dp))
+                                    Text(text = err, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = AppColors.errorText)
                                 }
-                                Spacer(Modifier.height(14.dp))
+                                Spacer(Modifier.height(AppSpacing.xl))
                             }
                         }
 
@@ -482,12 +484,12 @@ fun AuthScreen(auth: AuthController) {
                             contentAlignment = Alignment.Center,
                         ) {
                             if (isBusy) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFFF7F6F2))
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AppColors.onAccent)
                             } else {
                                 Text(
                                     text = "登录并进入 Melos",
                                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
-                                    color = Color(0xFFF7F6F2),
+                                    color = AppColors.onAccent,
                                 )
                             }
                         }
@@ -499,7 +501,7 @@ fun AuthScreen(auth: AuthController) {
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                             color = TextSoft,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         OutlinedTextField(
                             value = regEmail,
                             onValueChange = {
@@ -520,7 +522,7 @@ fun AuthScreen(auth: AuthController) {
                             ),
                         )
 
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(AppSpacing.xl))
 
                         // 2. 验证码
                         Text(
@@ -528,11 +530,11 @@ fun AuthScreen(auth: AuthController) {
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                             color = TextSoft,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
                         ) {
                             OutlinedTextField(
                                 value = regCode,
@@ -560,7 +562,7 @@ fun AuthScreen(auth: AuthController) {
                                     .clickable(enabled = codeCountdown <= 0 && !isSendingCode) {
                                         auth.sendCode(regEmail, scene = "register")
                                     }
-                                    .padding(horizontal = 14.dp),
+                                    .padding(horizontal = AppSpacing.xl),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 if (isSendingCode) {
@@ -575,7 +577,7 @@ fun AuthScreen(auth: AuthController) {
                             }
                         }
 
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(AppSpacing.xl))
 
                         // 3. 用户名
                         Text(
@@ -583,7 +585,7 @@ fun AuthScreen(auth: AuthController) {
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                             color = TextSoft,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         OutlinedTextField(
                             value = regUsername,
                             onValueChange = {
@@ -603,7 +605,7 @@ fun AuthScreen(auth: AuthController) {
                             ),
                         )
 
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(AppSpacing.xl))
 
                         // 4. 密码
                         Text(
@@ -611,7 +613,7 @@ fun AuthScreen(auth: AuthController) {
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                             color = TextSoft,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         OutlinedTextField(
                             value = regPassword,
                             onValueChange = {
@@ -643,7 +645,7 @@ fun AuthScreen(auth: AuthController) {
                             ),
                         )
 
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(AppSpacing.xl))
 
                         // 5. 昵称（选填）
                         Text(
@@ -651,7 +653,7 @@ fun AuthScreen(auth: AuthController) {
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
                             color = TextSoft,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         OutlinedTextField(
                             value = regNickname,
                             onValueChange = {
@@ -668,7 +670,7 @@ fun AuthScreen(auth: AuthController) {
                             ),
                         )
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(AppSpacing.xxl))
 
                         // 协议勾选
                         Row(
@@ -676,14 +678,14 @@ fun AuthScreen(auth: AuthController) {
                                 .fillMaxWidth()
                                 .clickable { agreedToTerms = !agreedToTerms },
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                         ) {
                             Box(
                                 modifier = Modifier
                                     .size(18.dp)
                                     .clip(CircleShape)
-                                    .background(if (agreedToTerms) Color(0xFF2C2523) else Color.Transparent)
-                                    .border(1.5.dp, if (agreedToTerms) Color(0xFF2C2523) else Stone200, CircleShape),
+                                    .background(if (agreedToTerms) AppColors.authCheck else Color.Transparent)
+                                    .border(1.5.dp, if (agreedToTerms) AppColors.authCheck else Stone200, CircleShape),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 if (agreedToTerms) {
@@ -697,7 +699,7 @@ fun AuthScreen(auth: AuthController) {
                             )
                         }
 
-                        Spacer(Modifier.height(18.dp))
+                        Spacer(Modifier.height(AppSpacing.xxxl))
 
                         // 错误提示区
                         AnimatedVisibility(visible = authError != null) {
@@ -706,16 +708,16 @@ fun AuthScreen(auth: AuthController) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFFFFF1F0))
-                                        .border(1.dp, Color(0xFFFFA39E), RoundedCornerShape(10.dp))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        .background(AppColors.errorSurface)
+                                        .border(1.dp, AppColors.errorBorder, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                                 ) {
-                                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Color(0xFFCF1322), modifier = Modifier.size(16.dp))
-                                    Text(text = err, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = Color(0xFFCF1322))
+                                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = AppColors.errorText, modifier = Modifier.size(16.dp))
+                                    Text(text = err, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = AppColors.errorText)
                                 }
-                                Spacer(Modifier.height(14.dp))
+                                Spacer(Modifier.height(AppSpacing.xl))
                             }
                         }
 
@@ -741,12 +743,12 @@ fun AuthScreen(auth: AuthController) {
                             contentAlignment = Alignment.Center,
                         ) {
                             if (isBusy) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFFF7F6F2))
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AppColors.onAccent)
                             } else {
                                 Text(
                                     text = "注册并开启音乐之旅",
                                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
-                                    color = Color(0xFFF7F6F2),
+                                    color = AppColors.onAccent,
                                 )
                             }
                         }

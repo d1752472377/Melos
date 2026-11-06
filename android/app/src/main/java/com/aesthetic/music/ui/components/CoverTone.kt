@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import coil.Coil
 import coil.request.ImageRequest
+import com.aesthetic.music.ui.theme.AppColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -71,7 +72,7 @@ import java.util.PriorityQueue
  * 注意与 [DefaultCoverTone]（`0xFFFA243C` = `CoverToneKt.b`，`CoverToneKt.java:29`）区分：
  * 后者是**选中态强调色**，不是封面主色兜底值。
  */
-val CoverToneFallback: Color = Color(0xFF8E8E93) // CoverToneKt.java:28
+val CoverToneFallback: Color = AppColors.coverToneFallback // CoverToneKt.java:28
 
 /** 量化调色板的目标色数：GZ `iq5Var.c = 24`（`CoverAmbientKt.java:6217`，同 `:5857`/`:5862`）。 */
 private const val QUANTIZE_MAX_COLORS = 24 // CoverAmbientKt.java:6217

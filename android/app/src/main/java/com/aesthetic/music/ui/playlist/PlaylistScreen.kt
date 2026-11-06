@@ -77,6 +77,8 @@ import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /** 统一展示的歌单模型（合并自建与收藏） */
 private sealed class UnifiedPlaylistItem {
@@ -222,7 +224,7 @@ fun PlaylistScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = statusBarTop + 16.dp)
+                .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
             // ===== 1. 顶部 Apple Bento 网格媒体库大卡片 =====
             LibraryBentoSection(
@@ -257,10 +259,10 @@ fun PlaylistScreen(
                 },
                 onCreatePlaylist = { showCreateSheet = true },
                 onImportPlaylist = onOpenImport,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
 
             // ===== 2. 搜索栏展开 =====
             if (isSearchExpanded) {
@@ -269,9 +271,9 @@ fun PlaylistScreen(
                     onQueryChange = { searchQuery = it },
                     placeholder = "搜索歌单名称…",
                     focusRequester = searchFocus,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.page),
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
             }
 
             // ===== 3. 列表标题栏 =====
@@ -296,7 +298,7 @@ fun PlaylistScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { sortAscending = !sortAscending }
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                        .padding(horizontal = AppSpacing.xs, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -317,7 +319,7 @@ fun PlaylistScreen(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
 
             // ===== 4. 歌单列表容器 =====
             if (allUnifiedPlaylists.isEmpty()) {
@@ -329,7 +331,7 @@ fun PlaylistScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 20.dp)
+                        .padding(horizontal = AppSpacing.page)
                 ) {
                     LazyColumn(
                         modifier = Modifier
@@ -371,7 +373,7 @@ fun PlaylistScreen(
 
                             if (index < filtered.size - 1) {
                                 HorizontalDivider(
-                                    modifier = Modifier.padding(start = 78.dp, end = 16.dp),
+                                    modifier = Modifier.padding(start = 78.dp, end = AppSpacing.xxl),
                                     thickness = 0.6.dp,
                                     color = Stone200.copy(alpha = 0.45f)
                                 )
@@ -435,7 +437,7 @@ fun PlaylistScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = AppSpacing.page)
                     .padding(bottom = 28.dp)
             ) {
                 // 歌单信息条
@@ -444,7 +446,7 @@ fun PlaylistScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(SurfaceSoft)
-                        .padding(12.dp),
+                        .padding(AppSpacing.lg),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.size(48.dp)) {
@@ -467,7 +469,7 @@ fun PlaylistScreen(
                             }
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AppSpacing.lg))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = actionItem.name,
@@ -497,11 +499,11 @@ fun PlaylistScreen(
                                 showActionSheet = false
                                 selectedItem = null
                             }
-                            .padding(4.dp)
+                            .padding(AppSpacing.xxs)
                     )
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
 
                 // 动作组（一张圆角卡，条目间 1dp 分隔线）
                 Column(
@@ -685,7 +687,7 @@ private fun PlaylistRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 封面：有封面展示封面，无封面展示灰色圆角加音符
@@ -713,7 +715,7 @@ private fun PlaylistRowItem(
             }
         }
 
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(AppSpacing.xl))
 
         // 歌单标题与副标题信息
         Column(modifier = Modifier.weight(1f)) {
@@ -728,7 +730,7 @@ private fun PlaylistRowItem(
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 平台小标签胶囊
@@ -736,8 +738,8 @@ private fun PlaylistRowItem(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(if (isCustom) SurfaceSoft else Color(0xFFE8F5E9))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(if (isCustom) SurfaceSoft else AppColors.successSurfaceSoft)
+                        .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
                 ) {
                     Text(
                         text = item.platformTag,
@@ -745,11 +747,11 @@ private fun PlaylistRowItem(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         ),
-                        color = if (isCustom) TextMuted else Color(0xFF2E7D32)
+                        color = if (isCustom) TextMuted else AppColors.successText
                     )
                 }
 
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppSpacing.sm))
 
                 Text(
                     text = "${item.songCount} 首",
@@ -775,7 +777,7 @@ private fun PlaylistRowItem(
             )
         }
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xxs))
 
         // 三点菜单
         Box(
@@ -815,7 +817,7 @@ private fun PlaylistSheetAction(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.xl),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -824,7 +826,7 @@ private fun PlaylistSheetAction(
             tint = textColor,
             modifier = Modifier.size(20.dp)
         )
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(AppSpacing.xl))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = text,
@@ -842,7 +844,7 @@ private fun PlaylistSheetAction(
         }
     }
     HorizontalDivider(
-        modifier = Modifier.padding(start = 50.dp, end = 16.dp),
+        modifier = Modifier.padding(start = 50.dp, end = AppSpacing.xxl),
         thickness = 0.6.dp,
         color = Stone200.copy(alpha = 0.45f)
     )

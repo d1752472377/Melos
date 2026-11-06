@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.sin
+import com.aesthetic.music.ui.theme.AppColors
 
 private data class ParticleSpec(
     val angleRad: Double,
@@ -48,7 +49,7 @@ fun FavoriteBurstButton(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
     iconSize: Dp = 24.dp,
-    activeColor: Color = Color(0xFFFF3366),
+    activeColor: Color = AppColors.favorite,
     inactiveColor: Color = Color.White.copy(alpha = 0.75f),
 ) {
     val heartScale = remember { Animatable(1.0f) }

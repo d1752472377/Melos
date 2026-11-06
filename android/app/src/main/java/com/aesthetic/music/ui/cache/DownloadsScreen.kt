@@ -67,6 +67,8 @@ import com.aesthetic.music.ui.theme.TextFaint
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 我的下载 / 下载管理页：按收藏页的样式重塑。
@@ -122,13 +124,13 @@ fun DownloadsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = statusBarTop + 16.dp)
+                .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
             // ===== 1. 顶部大标题 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = AppSpacing.page),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
@@ -139,7 +141,7 @@ fun DownloadsScreen(
                         .size(24.dp)
                         .clickable(onClick = onBack)
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(AppSpacing.lg))
                 Text(
                     text = "我的下载",
                     style = MaterialTheme.typography.headlineMedium.copy(
@@ -150,7 +152,7 @@ fun DownloadsScreen(
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             // ===== 2. 顶部汇总卡片 =====
             if (songs.isNotEmpty()) {
@@ -174,9 +176,9 @@ fun DownloadsScreen(
                         isSearchExpanded = !isSearchExpanded
                         if (!isSearchExpanded) searchQuery = ""
                     },
-                    modifier = Modifier.padding(horizontal = 20.dp)
+                    modifier = Modifier.padding(horizontal = AppSpacing.page)
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
             }
 
             // ===== 2.5 列表内搜索（点汇总卡片的「搜索」展开） =====
@@ -186,16 +188,16 @@ fun DownloadsScreen(
                     onQueryChange = { searchQuery = it },
                     placeholder = "搜索已下载的歌曲、歌手…",
                     focusRequester = searchFocus,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.page),
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
             }
 
             // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = AppSpacing.page),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -216,7 +218,7 @@ fun DownloadsScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             // ===== 4. 歌曲列表 =====
             if (songs.isEmpty()) {
@@ -226,7 +228,7 @@ fun DownloadsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                     contentPadding = BottomContentPadding
                 ) {
                     itemsIndexed(
@@ -278,14 +280,14 @@ private fun DownloadsSummaryCard(
         modifier = modifier
             .fillMaxWidth()
             .iosGlassCard(shape = RoundedCornerShape(22.dp), elevation = 6.dp)
-            .padding(18.dp)
+            .padding(AppSpacing.xxxl)
     ) {
         // 标签
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .background(AccentMint.copy(alpha = 0.15f))
-                .padding(horizontal = 8.dp, vertical = 3.dp)
+                .padding(horizontal = AppSpacing.sm, vertical = 3.dp)
         ) {
             Text(
                 text = "离线音乐",
@@ -297,7 +299,7 @@ private fun DownloadsSummaryCard(
             )
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AppSpacing.md))
 
         // 标题
         Text(
@@ -309,7 +311,7 @@ private fun DownloadsSummaryCard(
             color = TextPrimary
         )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AppSpacing.xxs))
 
         // 统计信息
         Text(
@@ -318,7 +320,7 @@ private fun DownloadsSummaryCard(
             color = TextSoft
         )
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
 
         // 操作按钮行
         Row(
@@ -342,7 +344,7 @@ private fun DownloadsSummaryCard(
                     tint = Color.White,
                     modifier = Modifier.size(18.dp)
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AppSpacing.xs))
                 Text(
                     "播放全部",
                     style = MaterialTheme.typography.labelLarge.copy(
@@ -352,7 +354,7 @@ private fun DownloadsSummaryCard(
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.lg))
 
             // 随机播放按钮
             Box(
@@ -370,7 +372,7 @@ private fun DownloadsSummaryCard(
                 )
             }
 
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(AppSpacing.md))
 
             // 搜索按钮
             Box(
@@ -404,10 +406,10 @@ private fun DownloadRow(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = AppSpacing.page)
             .iosGlassCard(shape = RoundedCornerShape(16.dp), elevation = 2.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.md),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -418,7 +420,7 @@ private fun DownloadRow(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (Palette.isDark) Color(0xFF142E25) else Color(0xFFEBFBF5)),
+                    .background(if (Palette.isDark) AppColors.successSurfaceDark else AppColors.successSurfaceLight),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -429,7 +431,7 @@ private fun DownloadRow(
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.lg))
 
             // 歌曲信息
             Column(Modifier.weight(1f)) {

@@ -94,6 +94,8 @@ import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /** 歌单排序规则 */
 enum class PlaylistSortOrder(val label: String) {
@@ -310,7 +312,7 @@ fun PlaylistDetailScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = statusBarPadding + 52.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
+                        .padding(top = statusBarPadding + 52.dp, start = AppSpacing.page, end = AppSpacing.page, bottom = AppSpacing.xxl)
                 ) {
                     Spacer(Modifier.height(56.dp))
 
@@ -365,7 +367,7 @@ fun PlaylistDetailScreen(
                             }
                         }
 
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(AppSpacing.xxl))
 
                         // 右侧信息区
                         Column(
@@ -384,7 +386,7 @@ fun PlaylistDetailScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
 
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(AppSpacing.sm))
 
                             // 平台标签
                             if (!playlist.platform.isNullOrBlank()) {
@@ -392,7 +394,7 @@ fun PlaylistDetailScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(Color.White.copy(alpha = 0.16f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                                        .padding(horizontal = AppSpacing.sm, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
@@ -404,13 +406,13 @@ fun PlaylistDetailScreen(
                                         )
                                     )
                                 }
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(AppSpacing.xs))
                             }
 
                             // 歌曲数与播放量
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                             ) {
                                 Text(
                                     text = "${playlist.trackCount ?: songs.size} 首歌曲",
@@ -440,13 +442,13 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(AppSpacing.page))
 
                     // 核心流体操作栏（LiquidGlassButton 播放全部 + 随机 + 搜索 + 收藏 + 排序）
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         // [GZ 真值] LiquidGlassButton 已换成逐值还原版（LiquidGlassButtonKt.java:101）：
                         // GZ 的 API 不含 text/icon/accentColor/height —— 尺寸走 modifier，文案与图标走 content。
@@ -470,7 +472,7 @@ fun PlaylistDetailScreen(
                                         tint = Color.White,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                    Spacer(Modifier.width(6.dp))
+                                    Spacer(Modifier.width(AppSpacing.xs))
                                     Text(
                                         text = "播放全部",
                                         color = Color.White,
@@ -531,13 +533,13 @@ fun PlaylistDetailScreen(
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()
                     ) {
-                        Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Column(modifier = Modifier.padding(top = AppSpacing.lg)) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color.White.copy(alpha = 0.14f))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
@@ -546,7 +548,7 @@ fun PlaylistDetailScreen(
                                     tint = Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(AppSpacing.sm))
                                 BasicTextField(
                                     value = searchQuery,
                                     onValueChange = { searchQuery = it },
@@ -580,7 +582,7 @@ fun PlaylistDetailScreen(
                                 Text(
                                     text = "共找到 ${displaySongs.size} 首匹配歌曲",
                                     style = TextStyle(fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f)),
-                                    modifier = Modifier.padding(top = 6.dp, start = 4.dp)
+                                    modifier = Modifier.padding(top = AppSpacing.xs, start = AppSpacing.xxs)
                                 )
                             }
                         }
@@ -649,7 +651,7 @@ fun PlaylistDetailScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = statusBarPadding + 6.dp, start = 16.dp, end = 16.dp),
+                .padding(top = statusBarPadding + AppSpacing.xs, start = AppSpacing.xxl, end = AppSpacing.xxl),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -678,7 +680,7 @@ fun PlaylistDetailScreen(
             confirmText = null,
             cancelText = "取消",
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xxs)) {
                 PlaylistSortOrder.entries.forEach { option ->
                     val selected = sortOrder == option
                     Row(
@@ -690,7 +692,7 @@ fun PlaylistDetailScreen(
                                 sortOrder = option
                                 showSortDialog = false
                             }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -726,16 +728,16 @@ private fun PlaylistSongRow(
     onClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
-    val activeTitleColor = Color(0xFF38BDF8)
+    val activeTitleColor = AppColors.sky
     val titleColor = if (isCurrent) activeTitleColor else Color.White
-    val rowBg = if (isCurrent) Color(0x2838BDF8) else Color.Transparent
+    val rowBg = if (isCurrent) AppColors.activeRowBgDark else Color.Transparent
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(rowBg)
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = AppSpacing.page, vertical = AppSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 封面
@@ -745,7 +747,7 @@ private fun PlaylistSongRow(
             corner = 10.dp
         )
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
 
         // 歌曲与歌手/专辑
         Column(modifier = Modifier.weight(1f)) {
@@ -769,13 +771,13 @@ private fun PlaylistSongRow(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(3.dp))
-                        .background(Color(0xFFE11D48).copy(alpha = 0.25f))
-                        .border(0.5.dp, Color(0xFFE11D48).copy(alpha = 0.6f), RoundedCornerShape(3.dp))
+                        .background(AppColors.crimson.copy(alpha = 0.25f))
+                        .border(0.5.dp, AppColors.crimson.copy(alpha = 0.6f), RoundedCornerShape(3.dp))
                         .padding(horizontal = 3.dp, vertical = 0.5.dp)
                 ) {
                     Text(
                         text = "SQ",
-                        style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFB7185))
+                        style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AppColors.coral)
                     )
                 }
                 Spacer(Modifier.width(5.dp))
@@ -796,11 +798,11 @@ private fun PlaylistSongRow(
             PlayingBars(
                 isPlaying = true,
                 color = activeTitleColor,
-                modifier = Modifier.height(13.dp).padding(horizontal = 6.dp),
+                modifier = Modifier.height(13.dp).padding(horizontal = AppSpacing.xs),
             )
         }
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xxs))
 
         // 更多操作按钮 "..."
         Box(

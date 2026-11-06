@@ -49,6 +49,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 顶部悬浮灵动胶囊通知（Top Floating Capsule Toast）。
@@ -81,8 +83,8 @@ fun MelosToastHost(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = topInset + 10.dp)
-            .padding(horizontal = 20.dp),
+            .padding(top = topInset + AppSpacing.md)
+            .padding(horizontal = AppSpacing.page),
         contentAlignment = Alignment.TopCenter,
     ) {
         AnimatedVisibility(
@@ -105,9 +107,9 @@ fun MelosToastHost(
             }
 
             val iconTint = when {
-                isError -> Color(0xFFF87171)
-                isSuccess -> Color(0xFF4ADE80)
-                else -> Color(0xFFFDE68A)
+                isError -> AppColors.toastError
+                isSuccess -> AppColors.toastSuccess
+                else -> AppColors.toastInfo
             }
 
             Row(
@@ -115,11 +117,11 @@ fun MelosToastHost(
                     .clip(RoundedCornerShape(9999.dp))
                     .background(
                         Brush.horizontalGradient(
-                            colors = listOf(Color(0xE6241E1C), Color(0xE638302C))
+                            colors = listOf(AppColors.toastBgTop, AppColors.toastBgBottom)
                         )
                     )
-                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(9999.dp))
-                    .shadow(elevation = 12.dp, shape = RoundedCornerShape(9999.dp), spotColor = Color(0x66000000))
+                    .border(1.dp, AppColors.bentoOverlayWhite20, RoundedCornerShape(9999.dp))
+                    .shadow(elevation = 12.dp, shape = RoundedCornerShape(9999.dp), spotColor = AppColors.toastShadow)
                     .clickable {
                         currentMsg = null
                         onDismiss()
@@ -132,7 +134,7 @@ fun MelosToastHost(
                             }
                         }
                     }
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md)
                     .widthIn(min = 120.dp, max = 360.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -143,14 +145,14 @@ fun MelosToastHost(
                     tint = iconTint,
                     modifier = Modifier.size(17.dp),
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppSpacing.sm))
                 Text(
                     text = text,
                     style = MaterialTheme.typography.labelMedium.copy(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     ),
-                    color = Color(0xFFF7F6F2),
+                    color = AppColors.onAccent,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

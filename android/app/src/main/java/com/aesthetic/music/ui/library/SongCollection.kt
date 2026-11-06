@@ -57,6 +57,8 @@ import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 收藏 / 历史两页共用的“歌曲集合”骨架。
@@ -74,7 +76,7 @@ fun SongCollectionTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = AppSpacing.page),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -116,7 +118,7 @@ fun SongCollectionHeaderCard(
         modifier = modifier
             .fillMaxWidth()
             .iosGlassCard(shape = RoundedCornerShape(AppRadius.hero), elevation = 4.dp)
-            .padding(18.dp)
+            .padding(AppSpacing.xxxl)
     ) {
         // 第一行：左侧 2x2 拼图 + 标题/排序药丸 + 右侧搜索按钮
         Row(
@@ -129,7 +131,7 @@ fun SongCollectionHeaderCard(
                 corner = 16.dp,
             )
 
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(AppSpacing.xl))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -143,7 +145,7 @@ fun SongCollectionHeaderCard(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
 
                 // 排序下拉药丸
                 Row(
@@ -151,7 +153,7 @@ fun SongCollectionHeaderCard(
                         .clip(RoundedCornerShape(AppRadius.md))
                         .background(SurfaceSoft)
                         .clickable(onClick = onSortClick)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                        .padding(horizontal = AppSpacing.md, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -160,7 +162,7 @@ fun SongCollectionHeaderCard(
                         tint = TextPrimary,
                         modifier = Modifier.size(15.dp),
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(AppSpacing.xxs))
                     Text(
                         text = sortTitle,
                         style = MaterialTheme.typography.bodySmall.copy(
@@ -197,7 +199,7 @@ fun SongCollectionHeaderCard(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         // 第二行：内嵌 3 列统计卡片
         Row(
@@ -206,7 +208,7 @@ fun SongCollectionHeaderCard(
                 .clip(RoundedCornerShape(AppRadius.lg))
                 .background(if (isDark) SurfaceSoft.copy(alpha = 0.5f) else Surface)
                 .height(IntrinsicSize.Min)
-                .padding(vertical = 10.dp),
+                .padding(vertical = AppSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SongCollectionStatColumn(
@@ -232,12 +234,12 @@ fun SongCollectionHeaderCard(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         // 第三行：双胶囊操作按钮
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 左：播放全部（深色背景实心胶囊）
@@ -246,7 +248,7 @@ fun SongCollectionHeaderCard(
                     .weight(1f)
                     .height(44.dp)
                     .clip(RoundedCornerShape(AppRadius.lg))
-                    .background(Color(0xFF2C2E33))
+                    .background(AppColors.coverPlateDark)
                     .clickable(onClick = onPlayAll),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -257,7 +259,7 @@ fun SongCollectionHeaderCard(
                     tint = Color.White,
                     modifier = Modifier.size(19.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AppSpacing.xs))
                 Text(
                     text = "播放全部",
                     style = MaterialTheme.typography.labelLarge.copy(
@@ -285,7 +287,7 @@ fun SongCollectionHeaderCard(
                     tint = TextPrimary,
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AppSpacing.xs))
                 Text(
                     text = "随机播放",
                     style = MaterialTheme.typography.labelLarge.copy(
@@ -305,7 +307,7 @@ private fun SongCollectionStatDivider() {
         modifier = Modifier
             .width(0.8.dp)
             .fillMaxHeight()
-            .padding(vertical = 4.dp)
+            .padding(vertical = AppSpacing.xxs)
             .background(Stone200.copy(alpha = 0.45f)),
     )
 }
@@ -330,7 +332,7 @@ private fun SongCollectionStatColumn(
                     .clip(CircleShape)
                     .background(TextSoft),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AppSpacing.xxs))
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
@@ -386,7 +388,7 @@ fun SongCollectionList(
 
                 if (index < songs.size - 1) {
                     HorizontalDivider(
-                        modifier = Modifier.padding(start = 76.dp, end = 16.dp),
+                        modifier = Modifier.padding(start = 76.dp, end = AppSpacing.xxl),
                         thickness = 0.6.dp,
                         color = Stone200.copy(alpha = 0.45f),
                     )
@@ -408,7 +410,7 @@ private fun SongCollectionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 封面 + 播放状态波形指示
@@ -440,7 +442,7 @@ private fun SongCollectionRow(
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
 
         // 歌曲信息
         Column(modifier = Modifier.weight(1f)) {

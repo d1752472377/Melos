@@ -98,6 +98,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 /**
  * 异步分析图片平均亮度：
  * 返回 true 表示浅色图片（文本使用黑色/深色），false 表示深色图片（文本使用白色/浅色）
@@ -227,7 +229,7 @@ fun ProfileScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.xxl),
             contentPadding = PaddingValues(
                 top = statusBarTop + 16.dp,
                 start = 20.dp,
@@ -275,7 +277,7 @@ fun ProfileScreen(
             // 卡与卡之间还各有 12dp 间距，光这两块就占掉半屏；而它们的视觉权重完全相同，
             // 读者要扫 7 次才能看完。现在收敛成「1 + 1」两张卡，用分隔线而不是间距区分条目。
             item(key = "music_entry_section") {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
                     MusicStatsCard(
                         favoritesCount = favoritesCount,
                         playlistsCount = playlistsCount,
@@ -305,17 +307,17 @@ fun ProfileScreen(
                             ProfileRowDivider()
                             ProfileFeatureRow(
                                 icon = Icons.Filled.Tune,
-                                iconTint = Color(0xFF38BDF8),
+                                iconTint = AppColors.sky,
                                 title = "专业调音台",
                                 subtitle = "大师级频响预设 · 动态平滑曲线",
                                 badge = "10段EQ",
-                                badgeTint = Color(0xFF0284C7),
+                                badgeTint = AppColors.skyDeep,
                                 onClick = onOpenEqualizer,
                             )
                             ProfileRowDivider()
                             ProfileFeatureRow(
                                 icon = Icons.Filled.CloudSync,
-                                iconTint = Color(0xFFA855F7),
+                                iconTint = AppColors.purple,
                                 title = "云端备份与同步",
                                 subtitle = "WebDAV / 多端云歌单同步",
                                 onClick = onOpenCloudManage,
@@ -328,7 +330,7 @@ fun ProfileScreen(
 
             // ===== 3. 分组标题：系统与设置 =====
             item(key = "section_system_settings") {
-                Column(modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)) {
+                Column(modifier = Modifier.padding(start = AppSpacing.xxs, top = AppSpacing.sm, bottom = AppSpacing.xxs)) {
                     Text(
                         text = "系统与设置",
                         style = MaterialTheme.typography.titleMedium.copy(
@@ -348,7 +350,7 @@ fun ProfileScreen(
                         .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
                         // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
                         .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = AppSpacing.xxs),
                 ) {
                     Column {
                         ProfileMenuItem(
@@ -446,8 +448,8 @@ private fun TopProfileCard(
     }
 
     // 根据明暗动态派生色彩系统
-    val primaryTextColor = if (isLightBackground) Color(0xFF1E2329) else Color.White
-    val secondaryTextColor = if (isLightBackground) Color(0xFF5E6B7A) else Color.White.copy(alpha = 0.72f)
+    val primaryTextColor = if (isLightBackground) AppColors.profileOnLight else Color.White
+    val secondaryTextColor = if (isLightBackground) AppColors.profileSecondaryOnLight else Color.White.copy(alpha = 0.72f)
     val buttonBgColor = if (isLightBackground) Color.White.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.15f)
     val buttonBorderColor = if (isLightBackground) Color.White else Color.White.copy(alpha = 0.22f)
     val avatarBorderColor = if (isLightBackground) Color.White else Color.White.copy(alpha = 0.85f)
@@ -460,9 +462,9 @@ private fun TopProfileCard(
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        Color(0xFFCCE4FF),
-                        Color(0xFFF7FAFD),
-                        Color(0xFFFFB3C6),
+                        AppColors.profileAvatar1,
+                        AppColors.profileAvatar2,
+                        AppColors.profileAvatar3,
                     ),
                     start = Offset(0f, Float.POSITIVE_INFINITY),
                     end = Offset(Float.POSITIVE_INFINITY, 0f)
@@ -507,7 +509,7 @@ private fun TopProfileCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(AppSpacing.page)
         ) {
             // 顶栏：微型标题与三点菜单
             Row(
@@ -548,12 +550,12 @@ private fun TopProfileCard(
                     ) {
                         // 1. 更换背景（带加号图标）
                         DropdownMenuItem(
-                            text = { Text("更换背景", color = Color(0xFF1E2329), fontSize = 13.sp) },
+                            text = { Text("更换背景", color = AppColors.profileOnLight, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Filled.AddPhotoAlternate,
                                     contentDescription = null,
-                                    tint = Color(0xFF1E2329),
+                                    tint = AppColors.profileOnLight,
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
@@ -565,7 +567,7 @@ private fun TopProfileCard(
                             text = {
                                 Text(
                                     text = if (isBackgroundBlur) "取消模糊" else "背景模糊",
-                                    color = Color(0xFF1E2329),
+                                    color = AppColors.profileOnLight,
                                     fontSize = 13.sp,
                                 )
                             },
@@ -573,7 +575,7 @@ private fun TopProfileCard(
                                 Icon(
                                     imageVector = Icons.Filled.BlurOn,
                                     contentDescription = null,
-                                    tint = Color(0xFF1E2329),
+                                    tint = AppColors.profileOnLight,
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
@@ -583,12 +585,12 @@ private fun TopProfileCard(
                         // 3. 恢复默认（仅在用户改动了背景图或开启了模糊时显示，默认状态下自动隐藏）
                         if (isCustomBackground) {
                             DropdownMenuItem(
-                                text = { Text("恢复默认", color = Color(0xFF1E2329), fontSize = 13.sp) },
+                                text = { Text("恢复默认", color = AppColors.profileOnLight, fontSize = 13.sp) },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Filled.RestartAlt,
                                         contentDescription = null,
-                                        tint = Color(0xFF1E2329),
+                                        tint = AppColors.profileOnLight,
                                         modifier = Modifier.size(18.dp),
                                     )
                                 },
@@ -613,7 +615,7 @@ private fun TopProfileCard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             // 用户头像与基本信息
             Row(
@@ -629,10 +631,10 @@ private fun TopProfileCard(
                             2.dp,
                             Brush.sweepGradient(
                                 listOf(
-                                    Color(0xFFF59E0B),
-                                    Color(0xFF38BDF8),
-                                    Color(0xFFEC4899),
-                                    Color(0xFFF59E0B)
+                                    AppColors.amber,
+                                    AppColors.sky,
+                                    AppColors.pink,
+                                    AppColors.amber
                                 )
                             ),
                             CircleShape
@@ -660,12 +662,12 @@ private fun TopProfileCard(
                     }
                 }
 
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(AppSpacing.xxl))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         Text(
                             text = nickname,
@@ -691,16 +693,16 @@ private fun TopProfileCard(
                     val remainMin = totalMinutes % 60
                     val durationStr = if (totalHours > 0) "${totalHours}h${remainMin}m" else "${remainMin}m"
 
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AppSpacing.xs))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
                     ) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(primaryTextColor.copy(alpha = 0.08f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
                         ) {
                             Text(
                                 text = "听歌 ${localStats.totalPlays} 首",
@@ -712,7 +714,7 @@ private fun TopProfileCard(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(primaryTextColor.copy(alpha = 0.08f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
                         ) {
                             Text(
                                 text = "时长 $durationStr",
@@ -724,7 +726,7 @@ private fun TopProfileCard(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             // 宽幅自适应编辑资料按钮
             Row(
@@ -735,7 +737,7 @@ private fun TopProfileCard(
                     .background(buttonBgColor)
                     .border(1.dp, buttonBorderColor, RoundedCornerShape(21.dp))
                     .clickable(onClick = onEditProfileClick)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = AppSpacing.xxl),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -746,7 +748,7 @@ private fun TopProfileCard(
                         tint = primaryTextColor,
                         modifier = Modifier.size(16.dp),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(AppSpacing.sm))
                     Text(
                         text = "编辑音乐资料",
                         style = MaterialTheme.typography.bodyMedium.copy(
@@ -762,7 +764,7 @@ private fun TopProfileCard(
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = secondaryTextColor,
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(AppSpacing.xxs))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                         contentDescription = null,
@@ -799,13 +801,13 @@ private fun MusicStatsCard(
             .fillMaxWidth()
             .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
             .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
-            .padding(vertical = 12.dp),
+            .padding(vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CompactStatItem(
             modifier = Modifier.weight(1f),
             icon = Icons.Filled.Favorite,
-            iconTint = Color(0xFFFF4D6D),
+            iconTint = AppColors.rose,
             label = "收藏",
             count = favoritesCount,
             onClick = onOpenFavorites,
@@ -814,7 +816,7 @@ private fun MusicStatsCard(
         CompactStatItem(
             modifier = Modifier.weight(1f),
             icon = Icons.AutoMirrored.Filled.QueueMusic,
-            iconTint = Color(0xFF6366F1),
+            iconTint = AppColors.indigo,
             label = "歌单",
             count = playlistsCount,
             onClick = onOpenMyPlaylists,
@@ -832,7 +834,7 @@ private fun MusicStatsCard(
         CompactStatItem(
             modifier = Modifier.weight(1f),
             icon = Icons.Filled.DownloadDone,
-            iconTint = Color(0xFF10B981),
+            iconTint = AppColors.emerald,
             label = "下载",
             count = cacheCount,
             onClick = onOpenDownloads,
@@ -912,7 +914,7 @@ private fun ProfileMenuItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -929,7 +931,7 @@ private fun ProfileMenuItem(
                 modifier = Modifier.size(17.dp),
             )
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(AppSpacing.xl))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -952,7 +954,7 @@ private fun ProfileMenuItem(
                 color = TextSoft,
             )
         }
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(AppSpacing.xs))
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
             contentDescription = null,
@@ -983,7 +985,7 @@ private fun ProfileFeatureRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -992,7 +994,7 @@ private fun ProfileFeatureRow(
             tint = iconTint,
             modifier = Modifier.size(20.dp),
         )
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(AppSpacing.xl))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -1004,7 +1006,7 @@ private fun ProfileFeatureRow(
                     color = TextPrimary,
                 )
                 if (badge != null) {
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(AppSpacing.xs))
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -1044,7 +1046,7 @@ private fun ProfileRowDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = AppSpacing.xxl)
             .height(1.dp)
             .background(Stone200.copy(alpha = 0.5f)),
     )

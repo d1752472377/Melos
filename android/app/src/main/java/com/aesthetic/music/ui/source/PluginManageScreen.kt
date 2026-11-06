@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -83,6 +84,7 @@ import com.aesthetic.music.data.source.SourcePlugin
 import com.aesthetic.music.data.source.SourceProbe
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.AppSolidButton
 import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.AccentAmber
 import com.aesthetic.music.ui.theme.AccentCyan
@@ -97,6 +99,8 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import java.util.Locale
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 data class SourceActions(
     val importFromContent: (content: String, targetPlatform: String) -> Unit,
@@ -181,7 +185,7 @@ fun PluginManageScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md),
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
@@ -203,7 +207,7 @@ fun PluginManageScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { topMenuExpanded = true }
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                        .padding(horizontal = AppSpacing.xs, vertical = AppSpacing.xxs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("音源", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp), color = TextSoft)
@@ -243,7 +247,7 @@ fun PluginManageScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(horizontal = AppSpacing.page, vertical = AppSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -264,11 +268,11 @@ fun PluginManageScreen(
                     .clip(RoundedCornerShape(12.dp))
                     .background(PrimaryBrown)
                     .clickable { showAddSheet = true }
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                    .padding(horizontal = AppSpacing.xl, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(AppSpacing.xxs))
                 Text(
                     text = "添加插件",
                     style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -281,7 +285,7 @@ fun PluginManageScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xs)
                 .clip(RoundedCornerShape(14.dp))
                 .background(Surface)
                 .border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
@@ -291,7 +295,7 @@ fun PluginManageScreen(
                 modifier = Modifier
                     .weight(1f)
                     .clickable { showStatusSheet = true }
-                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                    .padding(horizontal = AppSpacing.xl, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
@@ -306,7 +310,7 @@ fun PluginManageScreen(
                             },
                         ),
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppSpacing.sm))
                 Text(
                     text = when {
                         !engineError.isNullOrBlank() -> "运行异常"
@@ -324,7 +328,7 @@ fun PluginManageScreen(
                 modifier = Modifier
                     .weight(1f)
                     .clickable { showPlaybackSheet = true }
-                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                    .padding(horizontal = AppSpacing.xl, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Tune, contentDescription = null, tint = TextSoft, modifier = Modifier.size(15.dp))
@@ -343,7 +347,7 @@ fun PluginManageScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp),
+                .padding(start = AppSpacing.page, end = AppSpacing.lg, top = AppSpacing.xxl, bottom = AppSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -384,7 +388,7 @@ fun PluginManageScreen(
         if (plugins.isEmpty()) {
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = AppSpacing.page)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
                     .background(Surface)
@@ -396,8 +400,8 @@ fun PluginManageScreen(
             }
         } else {
             Column(
-                modifier = Modifier.padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(horizontal = AppSpacing.page),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.lg),
             ) {
                 sortedPlugins.forEach { plugin ->
                     PluginCard(
@@ -422,14 +426,14 @@ fun PluginManageScreen(
     // ==================== 添加插件 ====================
     if (showAddSheet) {
         AppBottomSheet(onDismissRequest = { showAddSheet = false }) {
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.page)) {
                 SheetHeader(title = "添加插件", onClose = { showAddSheet = false })
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 Text("适用平台", fontSize = 12.sp, color = TextSoft)
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
                 PlatformPickerRow(selected = importPlatform, onSelect = { importPlatform = it })
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Spacer(Modifier.height(AppSpacing.xl))
+                Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
                     ImportTile(
                         title = "从文件导入",
                         subtitle = "选择 .js 文件",
@@ -448,16 +452,16 @@ fun PluginManageScreen(
                         },
                     )
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.page))
             }
         }
     }
 
     if (showUrlSheet) {
         AppBottomSheet(onDismissRequest = { if (!importingUrl) showUrlSheet = false }) {
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.page)) {
                 SheetHeader(title = "从连接导入", onClose = { if (!importingUrl) showUrlSheet = false })
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
                 OutlinedTextField(
                     value = urlInput,
                     onValueChange = { urlInput = it },
@@ -466,12 +470,14 @@ fun PluginManageScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 PlatformPickerRow(selected = importPlatform, onSelect = { importPlatform = it })
-                Spacer(Modifier.height(14.dp))
-                PrimaryWideButton(
+                Spacer(Modifier.height(AppSpacing.xl))
+                AppSolidButton(
                     text = if (importingUrl) "导入中…" else "导入",
                     enabled = !importingUrl && urlInput.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 12.dp),
                     onClick = {
                         importingUrl = true
                         actions.importFromUrl(urlInput, importPlatform) { ok, message ->
@@ -485,7 +491,7 @@ fun PluginManageScreen(
                         }
                     },
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.page))
             }
         }
     }
@@ -493,7 +499,7 @@ fun PluginManageScreen(
     // ==================== 运行状态 ====================
     if (showStatusSheet) {
         AppBottomSheet(onDismissRequest = { showStatusSheet = false }) {
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.page)) {
                 SheetHeader(
                     title = "插件运行状态",
                     subtitle = when {
@@ -503,16 +509,16 @@ fun PluginManageScreen(
                     },
                     onClose = { showStatusSheet = false },
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 Text("运行概览", fontSize = 12.sp, color = TextSoft)
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(Surface)
                         .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                        .padding(14.dp),
+                        .padding(AppSpacing.xl),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -521,14 +527,14 @@ fun PluginManageScreen(
                             tint = if (engineError.isNullOrBlank()) AccentMint else AccentRose,
                             modifier = Modifier.size(17.dp),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AppSpacing.sm))
                         Text(
                             text = engineError ?: if (running) "插件已加载，暂未发现运行异常。" else "插件尚未加载。",
                             fontSize = 12.sp,
                             color = if (engineError.isNullOrBlank()) TextPrimary else AccentRose,
                         )
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(AppSpacing.xxl))
                     Row(Modifier.fillMaxWidth()) {
                         StatusStat("已启用", enabledCount, Modifier.weight(1f))
                         StatusStat("已加载", if (running) 1 else 0, Modifier.weight(1f))
@@ -536,18 +542,24 @@ fun PluginManageScreen(
                         StatusStat("启动失败", if (engineError.isNullOrBlank()) 0 else 1, Modifier.weight(1f))
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 Text(
                     text = "当前播放不受影响；正在取链或检测的任务会中断。",
                     fontSize = 10.5.sp,
                     color = TextMuted,
                 )
-                Spacer(Modifier.height(14.dp))
-                DangerWideButton("重新加载") {
-                    actions.reload()
-                    showStatusSheet = false
-                }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
+                AppSolidButton(
+                    text = "重新加载",
+                    destructive = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                    onClick = {
+                        actions.reload()
+                        showStatusSheet = false
+                    },
+                )
+                Spacer(Modifier.height(AppSpacing.page))
             }
         }
     }
@@ -563,11 +575,11 @@ fun PluginManageScreen(
         val activePlugin = plugins.firstOrNull { it.id == activeId }
 
         AppBottomSheet(onDismissRequest = { showPlaybackSheet = false }) {
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.page)) {
                 SheetHeader(title = "播放设置", subtitle = "修改后立即生效", onClose = { showPlaybackSheet = false })
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 Text("音源选择", fontSize = 12.sp, color = TextSoft)
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -583,8 +595,8 @@ fun PluginManageScreen(
                     )
                     if (policyExpanded) {
                         Row(
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(start = AppSpacing.xxl, end = AppSpacing.xxl, bottom = AppSpacing.lg),
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                         ) {
                             listOf("仅当前源", "失败换源", "智能切换").forEach { option ->
                                 ModeChip(
@@ -620,11 +632,11 @@ fun PluginManageScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { actions.setSourceFastest(!userPrefs.sourceFastest) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.Filled.Speed, contentDescription = null, tint = AccentMint, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(AppSpacing.lg))
                         Column(Modifier.weight(1f)) {
                             Text("多插件智能切换", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                             Text("优先使用取链更快的插件", fontSize = 11.sp, color = TextSoft)
@@ -636,7 +648,7 @@ fun PluginManageScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.page))
             }
         }
     }
@@ -644,13 +656,13 @@ fun PluginManageScreen(
     // ==================== 检测方式 ====================
     detectChoicePlugin?.let { plugin ->
         AppBottomSheet(onDismissRequest = { detectChoicePlugin = null }) {
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.page)) {
                 SheetHeader(
                     title = "音源检测",
                     subtitle = plugin.name,
                     onClose = { detectChoicePlugin = null },
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
                 DetectChoiceRow(
                     title = "快速检测",
                     subtitle = "检测声明的最高两档音质",
@@ -660,7 +672,7 @@ fun PluginManageScreen(
                     detectChoicePlugin = null
                     actions.startPluginDetect(plugin.id, true)
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 DetectChoiceRow(
                     title = "全档检测",
                     subtitle = "检测声明的全部音质",
@@ -670,9 +682,9 @@ fun PluginManageScreen(
                     detectChoicePlugin = null
                     actions.startPluginDetect(plugin.id, false)
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 Text("逐档检测样本，不下载整首歌曲。", fontSize = 10.5.sp, color = TextMuted)
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(AppSpacing.xxxl))
             }
         }
     }
@@ -680,20 +692,20 @@ fun PluginManageScreen(
     // ==================== 检测结果 ====================
     pluginDetect?.let { state ->
         AppBottomSheet(onDismissRequest = { actions.clearPluginDetect() }) {
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.page)) {
                 SheetHeader(
                     title = state.title,
                     subtitle = state.plugin.name,
                     onClose = { actions.clearPluginDetect() },
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(Surface)
                         .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                        .padding(14.dp),
+                        .padding(AppSpacing.xl),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -712,7 +724,7 @@ fun PluginManageScreen(
                             color = TextSoft,
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     val progress = if (state.total > 0) (state.done.toFloat() / state.total).coerceIn(0f, 1f) else 0f
                     LinearProgressIndicator(
                         progress = progress,
@@ -724,9 +736,9 @@ fun PluginManageScreen(
                         trackColor = Stone100,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 Text("样本结果不代表全部歌曲", fontSize = 10.5.sp, color = TextMuted)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "本次样本",
@@ -741,16 +753,20 @@ fun PluginManageScreen(
                         color = TextSoft,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 state.groups.filter { it.qualities.isNotEmpty() }.forEach { group ->
                     QualityGroupCard(group)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                 }
-                Spacer(Modifier.height(6.dp))
-                DangerWideButton(if (state.running) "取消检测" else "完成") {
-                    actions.clearPluginDetect()
-                }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
+                AppSolidButton(
+                    text = if (state.running) "取消检测" else "完成",
+                    destructive = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                    onClick = { actions.clearPluginDetect() },
+                )
+                Spacer(Modifier.height(AppSpacing.page))
             }
         }
     }
@@ -758,12 +774,12 @@ fun PluginManageScreen(
     // ==================== 指定平台 ====================
     platformSheetPlugin?.let { plugin ->
         AppBottomSheet(onDismissRequest = { platformSheetPlugin = null }) {
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.page)) {
                 SheetHeader(
                     title = "适用平台 · ${plugin.name}",
                     onClose = { platformSheetPlugin = null },
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 PlatformOptionsList(
                     selected = plugin.targetPlatform,
                     onSelect = { code ->
@@ -771,7 +787,7 @@ fun PluginManageScreen(
                         platformSheetPlugin = null
                     },
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.page))
             }
         }
     }
@@ -841,7 +857,7 @@ private fun PluginCard(
         modifier = Modifier
             .fillMaxWidth()
             .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
-            .padding(16.dp),
+            .padding(AppSpacing.xxl),
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Box(
@@ -853,7 +869,7 @@ private fun PluginCard(
             ) {
                 Icon(Icons.Filled.Extension, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(23.dp))
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.lg))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -865,7 +881,7 @@ private fun PluginCard(
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     if (isRunning) {
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(AppSpacing.xs))
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
@@ -873,7 +889,7 @@ private fun PluginCard(
                                 .background(AccentMint),
                         )
                     } else if (isActive) {
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(AppSpacing.xs))
                         Text("当前", fontSize = 10.sp, color = PrimaryBrown, fontWeight = FontWeight.SemiBold)
                     }
                 }
@@ -927,17 +943,17 @@ private fun PluginCard(
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AppSpacing.lg))
         Text("支持平台", fontSize = 11.sp, color = TextSoft)
         Spacer(Modifier.height(7.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             platforms.take(5).forEach { platform ->
                 val probe = probes[SourceProbe.pluginTarget(plugin.id, platform)]
                 PlatformBadge(platform = platform, status = probe?.status ?: ProbeStatus.UNKNOWN)
             }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -949,7 +965,7 @@ private fun PluginCard(
             Text(summary, fontSize = 11.sp, color = TextSoft)
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AppSpacing.lg))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("已启用", fontSize = 12.sp, color = TextSoft)
             Spacer(Modifier.width(7.dp))
@@ -965,7 +981,7 @@ private fun PluginCard(
                     .clip(RoundedCornerShape(10.dp))
                     .background(AccentCyan.copy(alpha = 0.10f))
                     .clickable(enabled = !detecting, onClick = onDetect)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Tune, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(13.dp))
@@ -1038,11 +1054,11 @@ private fun platformIconRes(platform: SourcePlatform): Int? = when (platform) {
 }
 
 private fun platformColor(platform: SourcePlatform): Color = when (platform) {
-    SourcePlatform.NETEASE -> Color(0xFFE53935)
-    SourcePlatform.QQ -> Color(0xFF31C27C)
-    SourcePlatform.KUGOU -> Color(0xFF1E88E5)
-    SourcePlatform.KUWO -> Color(0xFFFFB300)
-    SourcePlatform.MIGU -> Color(0xFFEC5B8A)
+    SourcePlatform.NETEASE -> AppColors.brandNetease
+    SourcePlatform.QQ -> AppColors.brandQQ
+    SourcePlatform.KUGOU -> AppColors.brandKugou
+    SourcePlatform.KUWO -> AppColors.brandKuwo
+    SourcePlatform.MIGU -> AppColors.brandMigu
 }
 
 private fun platformShortLabel(platform: SourcePlatform): String = when (platform) {
@@ -1064,7 +1080,7 @@ private fun QualityGroupCard(group: PlatformQualityGroup) {
             .clip(RoundedCornerShape(16.dp))
             .background(Surface)
             .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-            .padding(14.dp),
+            .padding(AppSpacing.xl),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val icon = platformIconRes(group.platform)
@@ -1096,7 +1112,7 @@ private fun QualityGroupCard(group: PlatformQualityGroup) {
             )
             Text("已通过 $passed 档", fontSize = 10.5.sp, color = TextSoft)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
         group.qualities.forEach { quality ->
             Row(
                 modifier = Modifier
@@ -1144,7 +1160,7 @@ private fun QualityStatusPill(status: ProbeStatus) {
         } else {
             Icon(Icons.Filled.Warning, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
         }
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xxs))
         Text(label, fontSize = 10.5.sp, color = color, fontWeight = FontWeight.Medium)
     }
 }
@@ -1180,7 +1196,7 @@ private fun ImportTile(
             .clip(RoundedCornerShape(12.dp))
             .background(Stone100)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -1211,14 +1227,14 @@ private fun SettingRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = TextSoft, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
         Text(value, fontSize = 12.sp, color = TextSoft)
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xxs))
         Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
     }
 }
@@ -1235,7 +1251,7 @@ private fun ModeChip(
             .clip(RoundedCornerShape(9.dp))
             .background(if (selected) PrimaryBrown.copy(alpha = 0.12f) else Stone100)
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = AppSpacing.sm),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -1262,7 +1278,7 @@ private fun DetectChoiceRow(
             .clip(RoundedCornerShape(14.dp))
             .background(Stone100)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -1289,36 +1305,6 @@ private fun StatusStat(label: String, value: Int, modifier: Modifier = Modifier)
         Text(value.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(2.dp))
         Text(label, fontSize = 10.sp, color = TextSoft)
-    }
-}
-
-@Composable
-private fun PrimaryWideButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) PrimaryBrown else Stone200)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-    }
-}
-
-@Composable
-private fun DangerWideButton(text: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(AccentRose)
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 
@@ -1377,7 +1363,7 @@ private fun PlatformOptionsList(selected: String, onSelect: (String) -> Unit) {
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (isSelected) Stone100 else Color.Transparent)
                     .clickable { onSelect(code) }
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.lg),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(

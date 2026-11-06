@@ -53,6 +53,7 @@ import com.aesthetic.music.ui.components.textHigh
 import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.theme.appIsDark
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 首页。
@@ -194,7 +195,7 @@ fun HomeScreen(
             ),
             // 18.dp 是 Melos 原有的版块间距（非 GZ token）——GZ 的版块间距由各版块自己给定
             // （例如场景大卡前的公告条间隔 12.dp，HomeScreenKt.java:3963）
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.xxxl)
         ) {
             // 1. 标题「发现好音乐」（HomeScreenKt.java:8698 → :9571 HomeTopBar；内部自带 statusBarsPadding）
             item(key = "home_top_bar") {
@@ -283,7 +284,7 @@ fun HomeScreen(
             }
 
             item(key = "bottom_spacer") {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
             }
         }
     }
@@ -327,7 +328,7 @@ private fun Modifier.gzPressScale(pressedScale: Float, onClick: () -> Unit): Mod
  *
  * 真值（行号均指 `HomeScreenKt.java`）：
  *  - 圆角 `RoundedCornerShape(24.dp)`（:11322）
- *  - 外链：`fillMaxWidth → padding(horizontal = 16.dp) → height(48.dp)`（:11325）
+ *  - 外链：`fillMaxWidth → padding(horizontal = AppSpacing.xxl) → height(48.dp)`（:11325）
  *  - 表面：`liquidGlassCardSurface(shape, tone = null, tones = null, selected = false,
  *    gradient = false, elevation = 0f, flat = true, settings = null)`（:11325）
  *    —— `settings = null` ⇒ `usesLiquidGlassButtons` 返回 false ⇒ 走 **flat 降级路径**；
@@ -347,7 +348,7 @@ private fun HomeSearchEntry(onClick: () -> Unit, onMicClick: (() -> Unit)?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = AppSpacing.xxl)
             .height(48.dp) // :11325
             .liquidGlassCardSurface(
                 shape = shape,
@@ -357,7 +358,7 @@ private fun HomeSearchEntry(onClick: () -> Unit, onMicClick: (() -> Unit)?) {
                 liquidGlassEnabled = false,
             )
             .gzPressScale(pressedScale = 0.985f, onClick = onClick) // :11325
-            .padding(start = 14.dp, top = 0.dp, end = 6.dp, bottom = 0.dp), // :11325
+            .padding(start = AppSpacing.xl, top = 0.dp, end = AppSpacing.xs, bottom = 0.dp), // :11325
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -373,7 +374,7 @@ private fun HomeSearchEntry(onClick: () -> Unit, onMicClick: (() -> Unit)?) {
             fontWeight = FontWeight.W500, // :11350 sq2.j = FontWeight(500)
             maxLines = 1,
             modifier = Modifier
-                .padding(start = 10.dp)
+                .padding(start = AppSpacing.md)
                 .weight(1f, fill = true), // :11350 jj1.h(…, 1.0f, true)
         )
 

@@ -131,20 +131,21 @@
 
 | 文件 | 内容 | 使用建议 |
 |---|---|---|
-| `ui/theme/Color.kt` | 背景/表面/文字/强调色/FM/统计/榜单色 | 全局颜色唯一来源；不要再在页面新建平行调色板 |
+| `ui/theme/Color.kt` | 背景/表面/文字/强调色 + `AppColors`（平台品牌、播放器、统计、首页等页面级静态色） | 全局颜色唯一来源；页面不再出现非动态 `Color(0x...)` |
 | `ui/theme/GzColorScheme.kt` | Material3 light/dark ColorScheme | `MaterialTheme.colorScheme` 的来源 |
 | `ui/theme/GzTheme.kt` | `LocalAppIsDark` / `appIsDark()` / schedule 常量 | 深浅色判断统一入口 |
 | `ui/theme/Theme.kt` | `AestheticMusicTheme`、`ScaleIndication`、无 ripple | 唯一主题入口；Typography / Shapes 使用 M3 默认值 |
 | `ui/theme/AppDimens.kt` | `AppRadius` / `AppSpacing` | 共享圆角/间距 token；已在 `SongCollection`、`States`、`Overlays`、`SettingsKit`、`ListSearchBar`、`SecondaryPageTopBar`、`SelectionBottomSheet` 采用 |
 | `ui/components/GlassTokens.kt` | 玻璃背景/描边/文字色、`glassCard` 等 Modifier | GZ 风格卡片/玻璃控件来源 |
 
-圆角/间距高频值：`14.dp` 44 处、`12.dp` 39 处、`20.dp` 38 处、`10.dp` 38 处、`8.dp` 31 处、`16.dp` 29 处。已新增 `AppRadius`/`AppSpacing` 并在共享 primitives 中使用；**没有一次性全量替换**页面级字面量，避免视觉回归。`ui/theme/Type.kt` 已删除，全局字体沿用 M3 默认值。
+圆角/间距高频值：`14.dp`、`12.dp`、`20.dp`、`10.dp`、`8.dp`、`16.dp`。`AppRadius`/`AppSpacing` 已覆盖全部页面级 `padding`、`Spacer` 与 `Arrangement.spacedBy`；颜色字面量除封面取色等动态色外已全部迁入 `AppColors`。`ui/theme/Type.kt` 已删除，全局字体沿用 M3 默认值。
 
 硬编码颜色集中在 `PlayerScreen`（26）、`ProfileScreen`（21）、`PlayerThemeViews`（26）、`EqualizerScreen`（24）、`LibraryBentoSection`（11）、`RankPage`（10）等；多数是封面/主题/可视化专用色，不应机械替换为全局 token。
 
 ### 5.2 已有基础控件
 
 - `ui/settings/SettingsKit.kt`：`SettingsPageScaffold`、`SettingsSection`、`SettingsNavRow`、`SettingsSwitchRow`、`SettingsSegmentRow`、`SettingsOptionList`、`SettingsValueRow`、`SettingsNote`、`SettingsDivider`、`SettingsGap`。
+- `ui/components/Buttons.kt`：`AppSolidButton`（主色/危险/禁用，可选前置图标），已替换插件管理页与歌单编辑页的三份私有实现。
 - `ui/components/States.kt`：`LoadingBox`、`ErrorBox`、`EmptyBox`、`DangerTextButton`、`DangerCapsuleButton`。
 - `ui/components/Overlays.kt`：`AppDialog`、`AppConfirmDialog`、`AppBottomSheet`。
 - `ui/components/LiquidGlassButton.kt`、`LiquidGlassComponents.kt`：玻璃按钮、幽灵按钮、胶囊 chip。
@@ -154,9 +155,9 @@
 
 ## 6. 重复定义与不统一样式
 
-- 圆角/间距：见上，集中在 8/10/12/14/16/20/24dp；没有统一来源。
-- 按钮：玻璃按钮、深色主按钮、白色次按钮、胶囊 chip、圆形图标按钮至少 5 类；不同页面的同名形态参数不完全一致。
-- 颜色：主题色已集中在 `Color.kt`，但播放页/个人页/均衡器等仍有大量页面级 `Color(0x...)`，其中一些是封面动态色或可视化专用色，属于合理例外。
+- 圆角/间距：已统一到 `AppRadius` / `AppSpacing`；页面里不再保留可映射的字面量。
+- 按钮：`AppSolidButton` 覆盖实心主按钮形态；玻璃按钮、圆形播放按钮、渐变胶囊仍按场景保留。
+- 颜色：主题色与页面级静态色集中在 `Color.kt` / `AppColors`；播放器封面主色、统计/均衡器动态色仍由内容计算，属于合理例外。
 - 阴影/模糊：`iosGlassCard`、`glassCard`、`liquidGlassCardSurface` 三套玻璃外观并存；当前按页面历史沿用，暂不强行统一，避免视觉回归。
 
 ## 7. 建议目录结构

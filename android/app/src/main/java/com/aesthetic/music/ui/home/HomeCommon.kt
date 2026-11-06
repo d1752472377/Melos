@@ -28,6 +28,7 @@ import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 // ==================== 公共头部组件 ====================
 
@@ -55,7 +56,7 @@ fun SectionHeader(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onClickMore)
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .padding(horizontal = AppSpacing.xs, vertical = AppSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -106,7 +107,7 @@ fun HomeErrorBanner(
     ) {
         Text(message, color = TextSoft, style = MaterialTheme.typography.bodyMedium)
         if (onRetry != null) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             Text(
                 text = "重试",
                 color = PrimaryBrown,
@@ -115,7 +116,7 @@ fun HomeErrorBanner(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onRetry)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.sm),
             )
         }
     }

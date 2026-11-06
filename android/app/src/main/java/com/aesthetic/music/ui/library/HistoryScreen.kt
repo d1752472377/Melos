@@ -44,6 +44,7 @@ import com.aesthetic.music.ui.components.SelectionItem
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /** 历史排序选项 */
 enum class HistorySortOrder(val title: String, val subtitle: String) {
@@ -119,7 +120,7 @@ fun HistoryScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = statusBarTop + 12.dp)
+                .padding(top = statusBarTop + AppSpacing.lg)
         ) {
             SongCollectionTopBar(
                 onBack = onBack,
@@ -143,7 +144,7 @@ fun HistoryScreen(
                 } else null,
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
 
             SongCollectionHeaderCard(
                 title = "播放历史",
@@ -159,10 +160,10 @@ fun HistoryScreen(
                 albumCount = albumCount,
                 onPlayAll = { if (filtered.isNotEmpty()) onPlayAll(filtered) },
                 onShuffle = { if (filtered.isNotEmpty()) onPlayAll(filtered.shuffled()) },
-                modifier = Modifier.padding(horizontal = 20.dp),
+                modifier = Modifier.padding(horizontal = AppSpacing.page),
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
 
             if (isSearchExpanded) {
                 ListSearchBar(
@@ -170,9 +171,9 @@ fun HistoryScreen(
                     onQueryChange = { searchQuery = it },
                     placeholder = "搜索播放历史、歌手、专辑…",
                     focusRequester = searchFocus,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.page),
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
             }
 
             Row(
@@ -200,7 +201,7 @@ fun HistoryScreen(
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
 
             if (songs.isEmpty()) {
                 EmptyBox("暂无播放记录\n去播放你喜欢的音乐吧")
@@ -216,7 +217,7 @@ fun HistoryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 20.dp),
+                        .padding(horizontal = AppSpacing.page),
                     listKey = { index, song -> "${song.platform}:${song.id}:$index" },
                     contentType = { _, _ -> "history_song" },
                 )

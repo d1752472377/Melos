@@ -28,6 +28,7 @@ import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /** 最近搜索：本地持久化的词条流式排列 + 带二次确认的清空入口 */
 @OptIn(ExperimentalLayoutApi::class)
@@ -58,16 +59,16 @@ fun SearchRecentSearches(
                 onClick = onClearAll,
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
         ) {
             words.forEach { word ->
                 WordChip(word = word) { onPick(word) }
             }
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
     }
 }
 
@@ -78,7 +79,7 @@ private fun WordChip(word: String, onClick: () -> Unit) {
         modifier = Modifier
             .glassCard(shape = RoundedCornerShape(99.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs),
     ) {
         Text(
             word,

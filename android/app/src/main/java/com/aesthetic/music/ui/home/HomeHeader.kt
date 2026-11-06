@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.components.textHigh
 import java.util.Calendar
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /*
  * ============================================================================
@@ -192,7 +193,7 @@ fun currentHourOfDay(): Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
  *     Modifier
  *         .statusBarsPadding()                  // 9575
  *         .fillMaxWidth(1.0f)                   // 9575
- *         .padding(start=16.dp, top=12.dp, end=16.dp, bottom=2.dp),  // 9575
+ *         .padding(start=AppSpacing.xxl, top=AppSpacing.lg, end=AppSpacing.xxl, bottom=2.dp),  // 9575
  *     verticalAlignment = Alignment.CenterVertically                 // 9576 (il0.f0)
  * ) {
  *     Column(Modifier.weight(1.0f, fill = true)) // 9598 / 9602
@@ -218,8 +219,8 @@ fun HomeHeader(modifier: Modifier = Modifier) {
             // HomeScreenKt.java:9575 —— ij7.g(…, 1.0f) == Modifier.fillMaxWidth(1.0f)
             .fillMaxWidth(1.0f)
             // HomeScreenKt.java:9575 —— hp1.r0(…, 16.0f, 12.0f, 16.0f, 2.0f)
-            //                        == Modifier.padding(start=16.dp, top=12.dp, end=16.dp, bottom=2.dp)
-            .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 2.dp),
+            //                        == Modifier.padding(start=AppSpacing.xxl, top=AppSpacing.lg, end=AppSpacing.xxl, bottom=2.dp)
+            .padding(start = AppSpacing.xxl, top = AppSpacing.lg, end = AppSpacing.xxl, bottom = 2.dp),
         // HomeScreenKt.java:9576 —— gy6.a(zh.b, il0.f0)；il0.f0 = wg0(0.0f) = Vertical(bias=0.0)
         verticalAlignment = Alignment.CenterVertically,
         // HomeScreenKt.java:9576 —— zh.b = g10(3) = "Arrangement#Start"（Row 的默认值）

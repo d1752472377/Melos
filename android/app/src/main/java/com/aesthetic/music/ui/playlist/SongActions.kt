@@ -57,6 +57,7 @@ import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 单曲操作相关公共组件。
@@ -89,17 +90,17 @@ fun SongActionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 18.dp)
+                .padding(vertical = AppSpacing.xxxl)
         ) {
             // 顶部歌曲信息
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SongCover(song.artwork, Modifier.size(46.dp), corner = 8.dp)
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(AppSpacing.lg))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = song.title,
@@ -123,7 +124,7 @@ fun SongActionSheet(
             }
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 12.dp),
+                modifier = Modifier.padding(vertical = AppSpacing.lg),
                 thickness = 0.5.dp,
                 color = Stone200
             )
@@ -176,7 +177,7 @@ fun SongActionSheet(
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
         }
     }
 }
@@ -193,7 +194,7 @@ fun SongActionMenuItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 13.dp),
+            .padding(horizontal = AppSpacing.page, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -202,7 +203,7 @@ fun SongActionMenuItem(
             tint = iconTint,
             modifier = Modifier.size(20.dp)
         )
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(AppSpacing.xl))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -230,13 +231,13 @@ fun AddToPlaylistSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 18.dp)
+                .padding(vertical = AppSpacing.xxxl)
         ) {
             // 标题
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                    .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -266,7 +267,7 @@ fun AddToPlaylistSheet(
             }
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 10.dp),
+                modifier = Modifier.padding(vertical = AppSpacing.md),
                 thickness = 0.5.dp,
                 color = Stone200
             )
@@ -297,7 +298,7 @@ fun AddToPlaylistSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onSelectPlaylist(playlist.id) }
-                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                                .padding(horizontal = AppSpacing.page, vertical = AppSpacing.md),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             SongCover(
@@ -305,7 +306,7 @@ fun AddToPlaylistSheet(
                                 modifier = Modifier.size(46.dp),
                                 corner = 8.dp
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(AppSpacing.lg))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = playlist.name,
@@ -331,7 +332,7 @@ fun AddToPlaylistSheet(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Stone100)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
                                 )
                             }
                         }
@@ -339,7 +340,7 @@ fun AddToPlaylistSheet(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
         }
     }
 
@@ -376,7 +377,7 @@ fun AddToPlaylistSheet(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
                     .background(Stone100)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
                 decorationBox = { inner ->
                     if (newPlaylistName.isEmpty()) {
                         Text("请输入歌单名称", color = TextMuted, fontSize = 14.sp)

@@ -73,6 +73,7 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.delay
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 个人资料页（最终版）。
@@ -138,8 +139,8 @@ fun ProfileEditScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
-                .padding(top = 24.dp)
+                .padding(horizontal = AppSpacing.page)
+                .padding(top = AppSpacing.section)
                 .padding(bottom = BottomContentSpacer)
                 .verticalScroll(rememberScrollState()),
         ) {
@@ -162,7 +163,7 @@ fun ProfileEditScreen(
                         modifier = Modifier.size(28.dp),
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppSpacing.sm))
                 Text(
                     text = "个人资料",
                     style = MaterialTheme.typography.titleLarge.copy(
@@ -173,7 +174,7 @@ fun ProfileEditScreen(
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AppSpacing.section))
 
             // ===== 卡片一：头像与基本信息 =====
             Column(
@@ -181,7 +182,7 @@ fun ProfileEditScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface)
-                    .padding(20.dp),
+                    .padding(AppSpacing.page),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -218,7 +219,7 @@ fun ProfileEditScreen(
                         }
                     }
 
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(AppSpacing.xxl))
 
                     Column {
                         Text(
@@ -229,7 +230,7 @@ fun ProfileEditScreen(
                             ),
                             color = TextPrimary,
                         )
-                        Spacer(Modifier.height(6.dp))    // 间距从 4 拉到 6
+                        Spacer(Modifier.height(AppSpacing.xs))    // 间距从 4 拉到 6
                         Text(
                             text = "@${ProfileFormat.usernameDisplay(username)}",
                             style = MaterialTheme.typography.bodySmall.copy(
@@ -240,7 +241,7 @@ fun ProfileEditScreen(
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
 
                 Box(
                     modifier = Modifier
@@ -249,7 +250,7 @@ fun ProfileEditScreen(
                         .background(Stone200.copy(alpha = 0.5f))
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
 
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -258,7 +259,7 @@ fun ProfileEditScreen(
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
                             color = TextMuted,
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AppSpacing.xxs))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = userId,
@@ -268,7 +269,7 @@ fun ProfileEditScreen(
                                 ),
                                 color = TextPrimary,
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AppSpacing.xs))
                             Icon(
                                 imageVector = Icons.Filled.ContentCopy,
                                 contentDescription = "复制 ID",
@@ -289,7 +290,7 @@ fun ProfileEditScreen(
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
                             color = TextMuted,
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AppSpacing.xxs))
                         Text(
                             text = ProfileFormat.joinedSummary(createdAt) ?: "未知",
                             style = MaterialTheme.typography.bodyMedium.copy(
@@ -302,7 +303,7 @@ fun ProfileEditScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             // ===== 卡片二：账号设置 =====
             Column(
@@ -310,7 +311,7 @@ fun ProfileEditScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(Surface)
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = AppSpacing.sm),
             ) {
                 SettingItem(
                     icon = Icons.Filled.Person,
@@ -392,7 +393,7 @@ private fun SettingItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xxl),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -401,7 +402,7 @@ private fun SettingItem(
             tint = PrimaryBrown,
             modifier = Modifier.size(22.dp),
         )
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(AppSpacing.xxl))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
@@ -414,7 +415,7 @@ private fun SettingItem(
             color = valueColor,
             maxLines = 1,
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AppSpacing.sm))
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
@@ -446,7 +447,7 @@ private fun UnderlineInput(
             fontSize = 12.sp,
             color = TextMuted,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(AppSpacing.xs))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -476,7 +477,7 @@ private fun UnderlineInput(
                 },
             )
             if (isPassword) {
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppSpacing.sm))
                 Icon(
                     imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                     contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
@@ -487,7 +488,7 @@ private fun UnderlineInput(
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -581,7 +582,7 @@ private fun ChangePasswordDialog(
                     isPassword = true,
                     placeholder = "请输入原密码",
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
                 UnderlineInput(
                     value = newPwd,
                     onValueChange = { newPwd = it },
@@ -589,7 +590,7 @@ private fun ChangePasswordDialog(
                     isPassword = true,
                     placeholder = "请输入 5-64 位新密码",
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
                 UnderlineInput(
                     value = confirmPwd,
                     onValueChange = { confirmPwd = it },
@@ -677,7 +678,7 @@ private fun BindEmailDialog(
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                     color = TextMuted,
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
 
                 UnderlineInput(
                     value = emailInput,
@@ -685,12 +686,12 @@ private fun BindEmailDialog(
                     label = "新邮箱地址",
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
                 ) {
                     UnderlineInput(
                         value = codeInput,
@@ -714,7 +715,7 @@ private fun BindEmailDialog(
                                 }
                                 onSendCode(target, "bind") { countdown = 60 }
                             }
-                            .padding(horizontal = 14.dp),
+                            .padding(horizontal = AppSpacing.xl),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -815,11 +816,11 @@ private fun UnbindEmailDialog(
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                     color = TextMuted,
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
                 ) {
                     UnderlineInput(
                         value = codeInput,
@@ -838,7 +839,7 @@ private fun UnbindEmailDialog(
                             .clickable(enabled = canSend) {
                                 onSendCode(currentEmail, "unbind") { countdown = 60 }
                             }
-                            .padding(horizontal = 14.dp),
+                            .padding(horizontal = AppSpacing.xl),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(

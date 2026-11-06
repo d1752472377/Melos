@@ -60,6 +60,8 @@ import com.aesthetic.music.ui.components.textHigh
 import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.theme.appIsDark
 import kotlin.math.min
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 首页「三大拟态入口卡」——逐值还原 GZ Music
@@ -70,9 +72,9 @@ import kotlin.math.min
  * ```
  * Row(                                  // 7503-7520 —— gy6.a(...) = Row 量测策略
  *   Modifier.fillMaxWidth()             // 7503  ij7.g(c05.a, 1.0f)
- *           .padding(horizontal = 16.dp)// 7503  hp1.q0(..., 16.0f, 0.0f, 2)
+ *           .padding(horizontal = AppSpacing.xxl)// 7503  hp1.q0(..., 16.0f, 0.0f, 2)
  *           .height(IntrinsicSize.Min)  // 7503  zh.A(...) → xp3 → yp3.i0 = bq3.c = IntrinsicSize.Min
- *   , horizontalArrangement = Arrangement.spacedBy(10.dp) // 7504  j10(10.0f, true, c(9))
+ *   , horizontalArrangement = Arrangement.spacedBy(AppSpacing.md) // 7504  j10(10.0f, true, c(9))
  *   , verticalAlignment = Alignment.Top                    // 7504  il0.e0 = wg0(-1.0f)
  * ) {
  *   3 × HomeDiscoveryEntryCard(         // 7493 / 7496 / 7502  oa3 数据
@@ -85,7 +87,7 @@ import kotlin.math.min
  * Box(Modifier.discoveryGradientCard(RoundedCornerShape(20.dp), palette)
  *          .pressScale(0.98f, onClick))
  *   ├─ Spacer(matchParentSize().entryHalo(...))   // 7162（仅浅色）+ 7838 HomeEntryHalo
- *   ├─ Column(fillMaxSize().padding(10.dp))       // 7166-7168
+ *   ├─ Column(fillMaxSize().padding(AppSpacing.md))       // 7166-7168
  *   │    ├─ Text(label,  14sp / W800 / -0.4sp / 19sp / Ellipsis / 单行)  // 7184
  *   │    ├─ Spacer(height = 2.dp)                                        // 7185
  *   │    ├─ Text(status,  9sp / 13sp / Ellipsis / 单行)                   // 7196
@@ -164,7 +166,7 @@ fun HomeEntryCards(
         modifier = modifier
             // HomeScreenKt.java:7503 —— ij7.g(c05.a, 1.0f) = fillMaxWidth(1f)
             .fillMaxWidth(1f)
-            // HomeScreenKt.java:7503 —— hp1.q0(..., 16.0f, 0.0f, 2) = padding(horizontal = 16.dp)
+            // HomeScreenKt.java:7503 —— hp1.q0(..., 16.0f, 0.0f, 2) = padding(horizontal = AppSpacing.xxl)
             .padding(horizontal = horizontalPadding)
             // HomeScreenKt.java:7503 —— zh.A(...)：zh.java:103 + xp3.java:9 + yp3.java:9
             // + bq3.java:13 → IntrinsicSize.Min
@@ -172,7 +174,7 @@ fun HomeEntryCards(
         // HomeScreenKt.java:7504 —— gy6.a(new j10(10.0f, true, new c(9)), il0.e0, ...)
         // j10 = Arrangement.SpacedAligned(10.0f)（j10.java:16/41 → P0(10.0f)），
         // c(9) 的对齐 lambda = Alignment.Start（与 PlayingBarsKt 里同一套解码）
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
         // HomeScreenKt.java:7504 —— il0.e0 = new wg0(-1.0f)（il0.java:60）= Alignment.Top
         verticalAlignment = Alignment.Top,
     ) {
@@ -220,9 +222,9 @@ private data class HomeEntryItem(
  * 字节码：`wi0.A(new g91(hp1.e(4294942158L)), new g91(hp1.e(4294952412L)), new g91(hp1.e(4294961395L)))`
  */
 private val EntryGradientArtwork0 = listOf(
-    Color(0xFFFF9DCE), // 4294942158 —— HomeScreenKt.java:7107
-    Color(0xFFFFC5DC), // 4294952412 —— HomeScreenKt.java:7107
-    Color(0xFFFFE8F3), // 4294961395 —— HomeScreenKt.java:7107
+    AppColors.entryPink1, // 4294942158 —— HomeScreenKt.java:7107
+    AppColors.entryPink2, // 4294952412 —— HomeScreenKt.java:7107
+    AppColors.entryPink3, // 4294961395 —— HomeScreenKt.java:7107
 )
 
 /**
@@ -230,9 +232,9 @@ private val EntryGradientArtwork0 = listOf(
  * 字节码：`wi0.A(new g91(hp1.e(4290633466L)), new g91(hp1.e(4289587699L)), new g91(hp1.e(4288541661L)))`
  */
 private val EntryGradientArtwork1 = listOf(
-    Color(0xFFBDDEFA), // 4290633466 —— HomeScreenKt.java:7105
-    Color(0xFFADE9F3), // 4289587699 —— HomeScreenKt.java:7105
-    Color(0xFF9DF3DD), // 4288541661 —— HomeScreenKt.java:7105
+    AppColors.entryBlue1, // 4290633466 —— HomeScreenKt.java:7105
+    AppColors.entryBlue2, // 4289587699 —— HomeScreenKt.java:7105
+    AppColors.entryGreen1, // 4288541661 —— HomeScreenKt.java:7105
 )
 
 /**
@@ -240,9 +242,9 @@ private val EntryGradientArtwork1 = listOf(
  * 字节码：`wi0.A(new g91(hp1.e(4290310137L)), new g91(hp1.e(4290571997L)), new g91(hp1.e(4293458600L)))`
  */
 private val EntryGradientArtwork2 = listOf(
-    Color(0xFFB8EFF9), // 4290310137 —— HomeScreenKt.java:7105
-    Color(0xFFBCEEDD), // 4290571997 —— HomeScreenKt.java:7105
-    Color(0xFFE8FAA8), // 4293458600 —— HomeScreenKt.java:7105
+    AppColors.entryCyan, // 4290310137 —— HomeScreenKt.java:7105
+    AppColors.entryMint, // 4290571997 —— HomeScreenKt.java:7105
+    AppColors.entryLime, // 4293458600 —— HomeScreenKt.java:7105
 )
 
 /**
@@ -250,9 +252,9 @@ private val EntryGradientArtwork2 = listOf(
  * 4288541678 = 0xFF9DF3EE 与渐变末色 4288541661 = 0xFF9DF3DD **不同**，按字节码分别保留）。
  */
 private fun entryHaloColor(artwork: Int): Color = when (artwork) {
-    0 -> Color(0xFFFFE8F3) // 4294961395 —— HomeScreenKt.java:7122
-    1 -> Color(0xFF9DF3EE) // 4288541678 —— HomeScreenKt.java:7120
-    else -> Color(0xFFEAF989) // 4293589385 —— HomeScreenKt.java:7120
+    0 -> AppColors.entryPink3 // 4294961395 —— HomeScreenKt.java:7122
+    1 -> AppColors.entryCyan2 // 4288541678 —— HomeScreenKt.java:7120
+    else -> AppColors.entryLime2 // 4293589385 —— HomeScreenKt.java:7120
 }
 
 /**
@@ -374,10 +376,10 @@ private fun HomeDiscoveryEntryCard(
         Column(
             // HomeScreenKt.java:7167 —— hp1.o0(ij7.e(c05Var, 1.0f), 10.0f)
             //   ij7.e(m, 1.0f) = fillMaxSize(1f)（wk2(uy1.f, ...)，uy1.f = Both）
-            //   hp1.o0(m, 10.0f) = ko5(10f, 10f, 10f, 10f) = padding(all = 10.dp)（hp1.java:3935-3937）
+            //   hp1.o0(m, 10.0f) = ko5(10f, 10f, 10f, 10f) = padding(all = AppSpacing.md)（hp1.java:3935-3937）
             modifier = Modifier
                 .fillMaxSize(1f)
-                .padding(10.dp),
+                .padding(AppSpacing.md),
             // HomeScreenKt.java:7168 —— aa1.a(zh.d, il0.h0, ...)
             //   zh.d = new h10() → h10.c = 1 → toString "Arrangement#Top"（h10.java:6/48）
             //   il0.h0 = new vg0(-1.0f)（il0.java:63）= Alignment.Start

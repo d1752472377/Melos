@@ -62,6 +62,7 @@ import com.aesthetic.music.ui.theme.TextFaint
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /** 全部演唱：渐进渲染（每次渲染 50 条，滚到底自动追加 50 条），支持全量歌曲流畅播放与浏览。 */
 private const val PAGE_SIZE = 50
@@ -115,7 +116,7 @@ fun ArtistAllSongsScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = statusBarTop + 16.dp)
+                .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
             // ===== 1. 顶部大标题（与「我的收藏」一致，不再有返回按钮） =====
             Text(
@@ -125,10 +126,10 @@ fun ArtistAllSongsScreen(
                     fontWeight = FontWeight.Bold
                 ),
                 color = TextPrimary,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             // ===== 2. 歌手信息卡片（与歌手页同款） =====
             ArtistSummaryCard(
@@ -143,27 +144,27 @@ fun ArtistAllSongsScreen(
                     isSearchExpanded = !isSearchExpanded
                     if (!isSearchExpanded) searchQuery = ""
                 },
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
             // ===== 2.5 列表内搜索 =====
             if (isSearchExpanded) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 ListSearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
                     placeholder = "搜索该歌手的歌曲…",
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.page),
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = AppSpacing.page),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -182,7 +183,7 @@ fun ArtistAllSongsScreen(
                         color = TextSoft,
                     )
                     if (isLoadingMore) {
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AppSpacing.sm))
                         Text(
                             text = "(全量加载中…)",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
@@ -192,7 +193,7 @@ fun ArtistAllSongsScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             if (isLoading && songs.isEmpty()) {
                 LoadingBox(message = "正在探索全量音乐库…")
@@ -294,7 +295,7 @@ fun ArtistAllSongsScreen(
                         )
                         if (index != filtered.take(visibleCount).lastIndex) {
                             HorizontalDivider(
-                                modifier = Modifier.padding(start = 82.dp, end = 12.dp),
+                                modifier = Modifier.padding(start = 82.dp, end = AppSpacing.lg),
                                 thickness = 0.5.dp,
                                 color = Stone200.copy(alpha = 0.55f),
                             )
@@ -306,7 +307,7 @@ fun ArtistAllSongsScreen(
                             LaunchedEffect(visibleCount) {
                                 visibleCount = minOf(visibleCount + PAGE_SIZE, songs.size)
                             }
-                            Spacer(Modifier.padding(vertical = 8.dp))
+                            Spacer(Modifier.padding(vertical = AppSpacing.sm))
                         }
                     }
                 }

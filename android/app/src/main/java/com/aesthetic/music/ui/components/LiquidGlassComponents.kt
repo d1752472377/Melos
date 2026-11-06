@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.appIsDark
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * Melos 侧的液态玻璃控件封装。
@@ -91,7 +92,7 @@ fun LiquidGhostButton(
                         tint = contentColor,
                         modifier = Modifier.size(19.dp),
                     )
-                    if (text.isNotBlank()) Spacer(Modifier.width(6.dp))
+                    if (text.isNotBlank()) Spacer(Modifier.width(AppSpacing.xs))
                 }
                 if (text.isNotBlank()) {
                     Text(
@@ -182,7 +183,7 @@ fun LiquidCapsuleChip(
             .glassCard(shape, elevation = 0.dp)
             .background(bg, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {

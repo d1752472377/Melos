@@ -58,6 +58,8 @@ import com.aesthetic.music.ui.components.rememberCoverTone
 import com.aesthetic.music.ui.components.textHigh
 import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.components.textMedium
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 首页「新歌首发」版块：三个**地区新歌榜**（华语 / 欧美 / 日语 / 韩语 每日轮换出三个）。
@@ -87,9 +89,9 @@ fun NewSongRegionSection(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = AppSpacing.xxl)
             .glassCard(shape = RoundedCornerShape(20.dp))
-            .padding(14.dp),
+            .padding(AppSpacing.xl),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -99,7 +101,7 @@ fun NewSongRegionSection(
                 fontWeight = FontWeight.Bold,
                 lineHeight = 18.sp,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AppSpacing.sm))
             Text(
                 text = "NEW RELEASES",
                 color = textLow(),
@@ -110,11 +112,11 @@ fun NewSongRegionSection(
             // 这里**没有**「更多」：见类注释第 1 点
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AppSpacing.lg))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
         ) {
             groups.take(3).forEach { group ->
                 RegionCard(
@@ -153,7 +155,7 @@ private fun RegionCard(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
 
         Text(
             text = "${group.region.label}新歌",
@@ -260,7 +262,7 @@ private fun RegionSleeve(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(4.dp)
+                .padding(AppSpacing.xxs)
                 .size(22.dp)
                 .background(Color.Black.copy(alpha = 0.42f), CircleShape),
             contentAlignment = Alignment.Center,
@@ -337,7 +339,7 @@ private fun RegionVinyl(
 
         // 主轴孔（li.java:336-338）
         val holeRadius = radius * 0.055f
-        drawCircle(color = Color(0xFF18181E), radius = holeRadius)
+        drawCircle(color = AppColors.homeHole, radius = holeRadius)
         drawCircle(
             color = Color.White.copy(alpha = 0.5f),
             radius = holeRadius,

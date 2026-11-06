@@ -71,6 +71,8 @@ import dev.chrisbanes.haze.HazeDefaults
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import java.util.Locale
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 全功能播放器中控抽屉（Liquid Glass 玻璃液化质感）：
@@ -127,7 +129,7 @@ fun PlayerControlCenterSheet(
             Modifier.hazeEffect(
                 state = hazeState,
                 style = HazeDefaults.style(
-                    backgroundColor = Color(0xB512141C),
+                    backgroundColor = AppColors.controlBg,
                     blurRadius = 32.dp,
                     noiseFactor = 0.02f,
                 )
@@ -136,8 +138,8 @@ fun PlayerControlCenterSheet(
             Modifier.background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xE0181A24),
-                        Color(0xF010121A),
+                        AppColors.controlBgTop,
+                        AppColors.controlBgBottom,
                     )
                 )
             )
@@ -160,8 +162,8 @@ fun PlayerControlCenterSheet(
                 )
                 .then(hazeModifier)
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 24.dp)
+                .padding(horizontal = AppSpacing.page)
+                .padding(top = AppSpacing.lg, bottom = AppSpacing.section)
                 .verticalScroll(rememberScrollState()),
         ) {
             // 顶栏拖动把手 (Liquid Capsule)
@@ -173,7 +175,7 @@ fun PlayerControlCenterSheet(
                     .background(Color.White.copy(alpha = 0.35f))
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
 
             // 标题与歌曲信息栏
             Row(
@@ -190,7 +192,7 @@ fun PlayerControlCenterSheet(
                             .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
                         contentScale = ContentScale.Crop,
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AppSpacing.lg))
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,7 +204,7 @@ fun PlayerControlCenterSheet(
                             ),
                             color = Color.White,
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(AppSpacing.xs))
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
@@ -246,12 +248,12 @@ fun PlayerControlCenterSheet(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             // 第一板块：4 个快捷功能液化磁贴
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             ) {
                 // 1. 切换封面/歌词
                 LiquidTile(
@@ -279,11 +281,11 @@ fun PlayerControlCenterSheet(
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             ) {
                 // 3. 下载当前单曲
                 LiquidTile(
@@ -306,7 +308,7 @@ fun PlayerControlCenterSheet(
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.page))
 
             // 第二板块：音质（GZ 播放页也有音质可选）
             // 为什么放在中控台而不是设置页：音质是"这首/此刻"的诉求（耳机/外放/流量），
@@ -316,14 +318,14 @@ fun PlayerControlCenterSheet(
                 title = "播放音质",
                 trailingText = currentQuality.label,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             LiquidOptionSegmentedBar(
                 options = QualityLevel.entries.map { it to it.label },
                 selectedOption = currentQuality,
                 onSelect = onQualityChange,
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.page))
 
             // 第三板块：播放倍速分段控制器
             SectionHeader(
@@ -331,13 +333,13 @@ fun PlayerControlCenterSheet(
                 title = "播放倍速",
                 trailingText = if (currentSpeed % 1f == 0f) "${currentSpeed.toInt()}x" else "${currentSpeed}x",
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             LiquidSpeedSegmentedBar(
                 currentSpeed = currentSpeed,
                 onSpeedSelect = onSpeedChange,
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.page))
 
             // 第三板块：睡眠定时
             SectionHeader(
@@ -348,14 +350,14 @@ fun PlayerControlCenterSheet(
                 onTrailingClick = if (sleepRemainingMs > 0) onCancelSleepTimer else null,
                 trailingActionLabel = if (sleepRemainingMs > 0) "关闭" else null,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             LiquidSleepTimerBar(
                 sleepRemainingMs = sleepRemainingMs,
                 onSelectMinutes = onSleepTimer,
                 onCancel = onCancelSleepTimer,
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.page))
 
             // 第四板块：播放页主题切换
             SectionHeader(
@@ -363,13 +365,13 @@ fun PlayerControlCenterSheet(
                 title = "播放页主题",
                 trailingText = currentTheme.label,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             LiquidThemeCards(
                 currentTheme = currentTheme,
                 onThemeSelect = onThemeSelect,
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.page))
 
             // 第五板块：歌词与视觉个性化
             SectionHeader(
@@ -377,7 +379,7 @@ fun PlayerControlCenterSheet(
                 title = "歌词字体大小",
                 trailingText = currentLyricFontSize.label,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             LiquidOptionSegmentedBar(
                 options = listOf(
                     LyricFontSize.STANDARD to LyricFontSize.STANDARD.label,
@@ -388,14 +390,14 @@ fun PlayerControlCenterSheet(
                 onSelect = onLyricFontSizeChange,
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             SectionHeader(
                 icon = Icons.Filled.BlurOn,
                 title = "未聚焦歌词虚化",
                 trailingText = currentLyricBlurMode.label,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             LiquidOptionSegmentedBar(
                 options = listOf(
                     LyricBlurMode.OFF to LyricBlurMode.OFF.label,
@@ -406,14 +408,14 @@ fun PlayerControlCenterSheet(
                 onSelect = onLyricBlurModeChange,
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             SectionHeader(
                 icon = Icons.Filled.Wallpaper,
                 title = "背景画质模糊",
                 trailingText = currentBgBlurMode.label,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             LiquidOptionSegmentedBar(
                 options = listOf(
                     BackgroundBlurMode.LIGHT to BackgroundBlurMode.LIGHT.label,
@@ -457,7 +459,7 @@ private fun SectionHeader(
                 tint = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.size(16.dp),
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(AppSpacing.xs))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
@@ -472,13 +474,13 @@ private fun SectionHeader(
                 color = trailingColor,
             )
             if (trailingActionLabel != null && onTrailingClick != null) {
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppSpacing.sm))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(Rose.copy(alpha = 0.2f))
                         .clickable(onClick = onTrailingClick)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
                 ) {
                     Text(
                         text = trailingActionLabel,
@@ -546,7 +548,7 @@ private fun LiquidTile(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -563,7 +565,7 @@ private fun LiquidTile(
                 modifier = Modifier.size(20.dp),
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column {
             Text(
                 text = title,
@@ -598,8 +600,8 @@ private fun LiquidSpeedSegmentedBar(
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White.copy(alpha = 0.07f))
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(AppSpacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xxs),
     ) {
         speeds.forEach { speed ->
             val isSelected = currentSpeed == speed
@@ -653,7 +655,7 @@ private fun LiquidSleepTimerBar(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
     ) {
         options.forEach { minutes ->
             Box(
@@ -689,27 +691,27 @@ private fun LiquidThemeCards(
         Triple(
             PlayerTheme.CLASSIC,
             "经典深邃",
-            Brush.verticalGradient(listOf(Color(0xFF181A20), Color(0xFF0C0D10)))
+            Brush.verticalGradient(listOf(AppColors.controlGradient1, AppColors.controlGradient2))
         ),
         Triple(
             PlayerTheme.COVER,
             "黑胶唱机",
-            Brush.verticalGradient(listOf(Color(0xFF5E2B16), Color(0xFF281109)))
+            Brush.verticalGradient(listOf(AppColors.controlCoverTop, AppColors.controlCoverBottom))
         ),
         Triple(
             PlayerTheme.APPLE,
             "Apple 流光",
-            Brush.linearGradient(listOf(Color(0xFF3B1E82), Color(0xFF881958), Color(0xFF1E2675)))
+            Brush.linearGradient(listOf(AppColors.controlNeon1, AppColors.controlNeon2, AppColors.controlNeon3))
         ),
         Triple(
             PlayerTheme.RECORD_SHELF,
             "唱片封套",
-            Brush.linearGradient(listOf(Color(0xFF2D3748), Color(0xFF1A202C), Color(0xFF0F172A)))
+            Brush.linearGradient(listOf(AppColors.controlGray1, AppColors.controlGray2, AppColors.slate900))
         ),
         Triple(
             PlayerTheme.LUMINOUS_CD,
             "流光 CD",
-            Brush.linearGradient(listOf(Color(0xFF64748B), Color(0xFFCBD5E1), Color(0xFF475569)))
+            Brush.linearGradient(listOf(AppColors.slate500, AppColors.slate300, AppColors.slate600))
         ),
     )
 
@@ -717,7 +719,7 @@ private fun LiquidThemeCards(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
     ) {
         themes.forEach { (theme, name, brush) ->
             val isSelected = theme == currentTheme
@@ -752,7 +754,7 @@ private fun LiquidThemeCards(
                         )
                         .background(brush)
                         .clickable(onClick = { onThemeSelect(theme) })
-                        .padding(8.dp),
+                        .padding(AppSpacing.sm),
                 ) {
                     if (isSelected) {
                         Box(
@@ -795,7 +797,7 @@ private fun LiquidThemeCards(
                     }
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
 
                 Text(
                     text = name,
@@ -823,8 +825,8 @@ private fun <T> LiquidOptionSegmentedBar(
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White.copy(alpha = 0.07f))
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(AppSpacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xxs),
     ) {
         options.forEach { (option, label) ->
             val isSelected = option == selectedOption

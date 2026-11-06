@@ -67,6 +67,7 @@ import com.aesthetic.music.ui.theme.AmberLight
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.util.Locale
+import com.aesthetic.music.ui.theme.AppSpacing
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -107,7 +108,7 @@ fun MelosLyricsView(
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(22.dp),
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AppSpacing.lg))
                     Text(
                         text = "正在加载歌词…",
                         color = Color.White.copy(alpha = 0.55f),
@@ -122,7 +123,7 @@ fun MelosLyricsView(
                         fontSize = 16.sp
                     )
                     if (onRetryLyric != null) {
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                         Text(
                             text = "点一下重新加载",
                             color = AmberLight.copy(alpha = 0.85f),
@@ -193,7 +194,7 @@ fun MelosLyricsView(
             modifier = Modifier.fillMaxSize(),
             // 不对称 padding：顶部 30%，底部 70%，活跃歌词定位在屏幕偏上位置
             contentPadding = PaddingValues(top = topPaddingDp, bottom = bottomPaddingDp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.xl),
         ) {
             itemsIndexed(
                 items = lyrics,
@@ -247,7 +248,7 @@ fun MelosLyricsView(
                             },
                             onLongClick = onLineLongClick
                         )
-                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                        .padding(horizontal = AppSpacing.xl, vertical = 5.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
                     if (showRomanization && !line.romanization.isNullOrBlank() && line.romanization != line.text) {
@@ -322,14 +323,14 @@ fun MelosLyricsView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp),
+                    .padding(horizontal = AppSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.Black.copy(alpha = 0.68f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .padding(horizontal = AppSpacing.sm, vertical = 3.dp)
                 ) {
                     Text(
                         text = formatLyricTime(centerLine?.timeMs ?: 0L),
@@ -342,7 +343,7 @@ fun MelosLyricsView(
                     modifier = Modifier
                         .weight(1f)
                         .height(1.dp)
-                        .padding(horizontal = 8.dp)
+                        .padding(horizontal = AppSpacing.sm)
                         .background(Color.White.copy(alpha = 0.22f))
                 )
                 Box(
@@ -382,7 +383,7 @@ fun MelosLyricsView(
             exit = fadeOut(tween(220)),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 20.dp, end = 16.dp)
+                .padding(bottom = AppSpacing.page, end = AppSpacing.xxl)
         ) {
             Box(
                 modifier = Modifier
@@ -395,7 +396,7 @@ fun MelosLyricsView(
                             scrollCtl.forceScrollTo(activeIndex, offsetFor(activeIndex), animate = true)
                         }
                     )
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                    .padding(horizontal = AppSpacing.xl, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

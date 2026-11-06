@@ -58,6 +58,7 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 private val ThemeMode.label: String
     get() = when (this) {
@@ -97,7 +98,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .padding(bottom = BottomContentSpacer)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = AppSpacing.page)
     ) {
         Spacer(Modifier.height(statusBarTop + 16.dp))
         Row(
@@ -112,7 +113,7 @@ fun SettingsScreen(
                     .size(24.dp)
                     .clickable(onClick = onBack)
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.lg))
             Text(
                 text = "设置",
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -123,7 +124,7 @@ fun SettingsScreen(
             )
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
 
         // ===== 常用设置：各项已独立成子页面，这里只放入口 =====
         SectionCard(title = "常用设置") {
@@ -189,7 +190,7 @@ fun SettingsScreen(
             )
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(AppSpacing.xl))
 
         // ===== 关于 =====
         SectionCard(title = "关于软件") {
@@ -223,7 +224,7 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
-            .padding(vertical = 12.dp)
+            .padding(vertical = AppSpacing.lg)
     ) {
         Text(
             text = title,
@@ -233,9 +234,9 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
                 letterSpacing = 0.5.sp
             ),
             color = TextMuted,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.xxl, vertical = 2.dp),
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(AppSpacing.xs))
         content()
     }
 }
@@ -252,7 +253,7 @@ private fun SettingRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -264,7 +265,7 @@ private fun SettingRow(
         ) {
             Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(17.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
         Column(Modifier.weight(1f)) {
             Text(
                 text = label,

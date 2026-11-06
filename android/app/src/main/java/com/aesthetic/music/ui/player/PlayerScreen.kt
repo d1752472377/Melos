@@ -106,6 +106,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -190,15 +192,15 @@ fun PlayerScreen(
     val bgGradient: Brush = remember(currentPlayerTheme) {
         when (currentPlayerTheme) {
             PlayerTheme.CLASSIC -> Brush.verticalGradient(listOf(PlayerBg, PlayerBgDark))
-            PlayerTheme.COVER -> Brush.verticalGradient(listOf(Color(0xFF5C2612), Color(0xFF1F0D06)))
+            PlayerTheme.COVER -> Brush.verticalGradient(listOf(AppColors.coverBgTop, AppColors.coverBgBottom))
             PlayerTheme.APPLE -> Brush.verticalGradient(
-                listOf(Color(0xFF311B92), Color(0xFF880E4F), Color(0xFF1A237E))
+                listOf(AppColors.neonBg1, AppColors.neonBg2, AppColors.neonBg3)
             )
             PlayerTheme.RECORD_SHELF -> Brush.verticalGradient(
-                listOf(Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF020617))
+                listOf(AppColors.slate800, AppColors.slate900, AppColors.slate950)
             )
             PlayerTheme.LUMINOUS_CD -> Brush.verticalGradient(
-                listOf(Color(0xFF334155), Color(0xFF1E293B), Color(0xFF0F172A))
+                listOf(AppColors.slate700, AppColors.slate800, AppColors.slate900)
             )
         }
     }
@@ -238,7 +240,7 @@ fun PlayerScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = AppSpacing.section),
         ) {
             TopBar(
                 onClose = onClose,
@@ -248,7 +250,7 @@ fun PlayerScreen(
                 speed = state.speed,
                 sleepRemainingMs = state.sleepRemainingMs,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
 
             // 歌曲信息
             Row(
@@ -313,7 +315,7 @@ fun PlayerScreen(
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                     Box(
                         modifier = Modifier
                             .size(38.dp)
@@ -343,7 +345,7 @@ fun PlayerScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             // 主内容区域
             Box(
@@ -380,7 +382,7 @@ fun PlayerScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             BottomControls(
                 state = state,
@@ -564,12 +566,12 @@ private fun AnimatedCoverBox(
                             .background(
                                 Brush.radialGradient(
                                     colors = listOf(
-                                        Color(0xFF222226),
-                                        Color(0xFF141416),
-                                        Color(0xFF1F1F23),
-                                        Color(0xFF101012),
-                                        Color(0xFF26262B),
-                                        Color(0xFF0C0C0D)
+                                        AppColors.discAlt1,
+                                        AppColors.discAlt2,
+                                        AppColors.discAlt3,
+                                        AppColors.discAlt4,
+                                        AppColors.disc5,
+                                        AppColors.discAlt6
                                     )
                                 )
                             )
@@ -597,7 +599,7 @@ private fun AnimatedCoverBox(
                                 modifier = Modifier
                                     .size(175.dp)
                                     .clip(CircleShape)
-                                    .border(2.dp, Color(0xFF111113), CircleShape),
+                                    .border(2.dp, AppColors.discBorder, CircleShape),
                                 contentScale = ContentScale.Crop,
                             )
                         } else {
@@ -605,7 +607,7 @@ private fun AnimatedCoverBox(
                                 modifier = Modifier
                                     .size(175.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF2A1C16)),
+                                    .background(AppColors.vinylLabel),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text("Melos", color = AmberLight.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
@@ -618,7 +620,7 @@ private fun AnimatedCoverBox(
                                 .clip(CircleShape)
                                 .background(
                                     Brush.radialGradient(
-                                        listOf(Color(0xFFD4AF37), Color(0xFF8A6D1C), Color(0xFF261D09))
+                                        listOf(AppColors.goldDisc, AppColors.goldMid, AppColors.goldDark)
                                     )
                                 )
                                 .border(1.dp, AmberLight.copy(alpha = 0.4f), CircleShape),
@@ -628,7 +630,7 @@ private fun AnimatedCoverBox(
                                 modifier = Modifier
                                     .size(12.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF09090A))
+                                    .background(AppColors.deepest)
                             )
                         }
                     }
@@ -784,10 +786,10 @@ private fun BottomControls(
             )
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AppSpacing.lg))
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.sm),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -897,7 +899,7 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
                             .fillMaxSize()
                             .background(
                                 Brush.radialGradient(
-                                    colors = listOf(Color(0x953B187B), Color.Transparent),
+                                    colors = listOf(AppColors.coverGlow, Color.Transparent),
                                     center = Offset(120f, 320f),
                                     radius = 850f,
                                 )
@@ -908,7 +910,7 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
                             .fillMaxSize()
                             .background(
                                 Brush.radialGradient(
-                                    colors = listOf(Color(0x859D174D), Color.Transparent),
+                                    colors = listOf(AppColors.neonGlow, Color.Transparent),
                                     center = Offset(900f, 1300f),
                                     radius = 950f,
                                 )
@@ -928,9 +930,9 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
                             .background(
                                 Brush.radialGradient(
                                     colors = listOf(
-                                        Color(0x555C2612),
-                                        Color(0xD51F0D06),
-                                        Color(0xFA100603)
+                                        AppColors.coverScrim1,
+                                        AppColors.coverScrim2,
+                                        AppColors.coverScrim3
                                     ),
                                     radius = 1200f,
                                 )
@@ -950,8 +952,8 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(
-                                        Color(0x880F172A),
-                                        Color(0xEE020617)
+                                        AppColors.darkScrim1,
+                                        AppColors.darkScrim2
                                     )
                                 )
                             )
@@ -970,8 +972,8 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
                             .background(
                                 Brush.radialGradient(
                                     colors = listOf(
-                                        Color(0x66475569),
-                                        Color(0xEE0F172A)
+                                        AppColors.grayScrim1,
+                                        AppColors.grayScrim2
                                     ),
                                     radius = 1100f
                                 )
@@ -994,9 +996,9 @@ private fun BackgroundImage(artworkUrl: String?, theme: PlayerTheme, bgBlurDp: I
                             .background(
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color(0xEA0E1015),
-                                        Color(0xF508090C),
-                                        Color(0xFF000000)
+                                        AppColors.bottomScrim1,
+                                        AppColors.bottomScrim2,
+                                        Color.Black
                                     )
                                 )
                             )
@@ -1020,7 +1022,7 @@ private fun TopBar(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(top = 10.dp, bottom = 4.dp),
+            .padding(top = AppSpacing.md, bottom = AppSpacing.xxs),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1042,7 +1044,7 @@ private fun TopBar(
                     .background(Color.White.copy(alpha = 0.12f))
                     .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(20.dp))
                     .clickable(onClick = onOpenAudioDetail)
-                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                    .padding(horizontal = 9.dp, vertical = AppSpacing.xs),
                 contentAlignment = Alignment.Center,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1052,7 +1054,7 @@ private fun TopBar(
                         tint = AmberLight,
                         modifier = Modifier.size(13.dp),
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(AppSpacing.xxs))
                     Text(
                         text = displayTag,
                         style = MaterialTheme.typography.labelMedium.copy(
@@ -1063,7 +1065,7 @@ private fun TopBar(
                     )
                 }
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(AppSpacing.xs))
 
             if (speed != 1f) {
                 PlayerChip(
@@ -1072,7 +1074,7 @@ private fun TopBar(
                     active = true,
                     onClick = onOpenControlCenter,
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AppSpacing.xs))
             }
             if (sleepRemainingMs > 0) {
                 PlayerChip(
@@ -1081,7 +1083,7 @@ private fun TopBar(
                     active = true,
                     onClick = onOpenControlCenter,
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AppSpacing.xs))
             }
 
             Box(
@@ -1090,7 +1092,7 @@ private fun TopBar(
                     .background(Color.White.copy(alpha = 0.14f))
                     .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
                     .clickable(onClick = onOpenControlCenter)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
                 contentAlignment = Alignment.Center,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

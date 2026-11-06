@@ -77,6 +77,8 @@ import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.appIsDark
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 「猜你喜欢」页 —— 逐值还原 GZ Music 2.1.8
@@ -208,7 +210,7 @@ private fun GuessTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = topPadding + 6.dp, bottom = 8.dp),
+            .padding(start = AppSpacing.page, end = AppSpacing.page, top = topPadding + AppSpacing.xs, bottom = AppSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -218,10 +220,10 @@ private fun GuessTopBar(
             modifier = Modifier
                 .clip(CircleShape)
                 .pressClick(pressedScale = 0.9f, onClick = onBack)
-                .padding(4.dp)
+                .padding(AppSpacing.xxs)
                 .size(24.dp),
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "猜你喜欢", // :1566
@@ -311,7 +313,7 @@ private fun GuessContent(
             top = 10.dp,
             bottom = BottomContentSpacer,
         ),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
     ) {
         item(key = "hero") {
             GuessHero(
@@ -358,7 +360,7 @@ private fun GuessContent(
  * Hero 卡 —— GZ `GuessHero-Pd0R-II`（:611-851）。
  *
  * 表面（`:645`）：`glassToneCard(widthIn(max = 720.dp).fillMaxWidth(), RoundedCornerShape(20.dp),
- * tone = 封面主色, selected = true, gradient = false)` + `padding(20.dp)`；
+ * tone = 封面主色, selected = true, gradient = false)` + `padding(AppSpacing.page)`；
  * 内部 `Column(verticalArrangement = spacedBy(20.dp), horizontalAlignment = Start)`。
  */
 @Composable
@@ -382,8 +384,8 @@ private fun GuessHero(
                 selected = true, // :645 第 4 个实参 true
                 gradient = false, // :645 第 5 个实参 false
             )
-            .padding(20.dp), // :645 hp1.o0(..., 20.0f)
-        verticalArrangement = Arrangement.spacedBy(20.dp), // :646 j10(20.0f, ...)
+            .padding(AppSpacing.page), // :645 hp1.o0(..., 20.0f)
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.page), // :646 j10(20.0f, ...)
     ) {
         // ① 「为你精选」+「PRIVATE MIX」（:690 / :693）
         Row(
@@ -423,7 +425,7 @@ private fun GuessHero(
                         letterSpacing = (-0.8).sp, // :728 co7.i(-0.8d)
                         lineHeight = 33.sp, // :728 co7.j(33)
                     )
-                    Spacer(Modifier.height(12.dp)) // :729
+                    Spacer(Modifier.height(AppSpacing.lg)) // :729
                     Text(
                         text = "沿着你的听歌足迹\n遇见新的喜欢", // :730
                         color = textMedium(),
@@ -431,7 +433,7 @@ private fun GuessHero(
                         lineHeight = 19.sp, // :730 co7.j(19)
                     )
                 }
-                Spacer(Modifier.width(8.dp)) // :731 f30.t(..., 8.0f)
+                Spacer(Modifier.width(AppSpacing.sm)) // :731 f30.t(..., 8.0f)
                 GuessCoverDeck(
                     covers = songs.take(3).map { it.artwork },
                     tone = tone,
@@ -451,7 +453,7 @@ private fun GuessHero(
         // ④ 数量 + 线索（:735-784）
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(20.dp), // :735 j10(20.0f, ...)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.page), // :735 j10(20.0f, ...)
             verticalAlignment = Alignment.Top,
         ) {
             Column {
@@ -476,7 +478,7 @@ private fun GuessHero(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.W800,
                 )
-                Spacer(Modifier.height(4.dp)) // :782
+                Spacer(Modifier.height(AppSpacing.xxs)) // :782
                 Text(
                     // :783 —— 有线索时「来自收藏与最近播放的 N 条线索」，否则「越常听，越懂你」
                     text = if (seedCount > 0) {
@@ -494,7 +496,7 @@ private fun GuessHero(
         // ⑤ 播放全部 / 随机播放 / 保存为歌单（:786-835）
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), // :787 j10(10.0f, ...)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), // :787 j10(10.0f, ...)
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GuessPlayAllButton(
@@ -550,7 +552,7 @@ private fun GuessHero(
  * - 底：`Brush.linearGradient([tone, lerp(tone, White, 0.24f)])`（`:805` 的 `ob4` 两色渐变，
  *   `hp1.h0(j, 0.24f, g91.d)` = `lerp(tone, White, 0.24f)`）；
  * - 按压缩放 **0.98**（`:808` MotionKt.c(..., 0.98f, ...)）；
- * - 内部 `padding(12.dp)`、图标 **22.dp** 白色、文案「播放全部」**14.sp / W800 / 白**（`:823-825`）。
+ * - 内部 `padding(AppSpacing.lg)`、图标 **22.dp** 白色、文案「播放全部」**14.sp / W800 / 白**（`:823-825`）。
  */
 @Composable
 private fun GuessPlayAllButton(
@@ -571,7 +573,7 @@ private fun GuessPlayAllButton(
                 if (enabled) Modifier.pressClick(pressedScale = 0.98f, onClick = onClick)
                 else Modifier,
             )
-            .padding(12.dp),
+            .padding(AppSpacing.lg),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -739,7 +741,7 @@ private fun DeckCover(
 /**
  * 线索提示条 —— GZ `GuessTasteProfile-Iv8Zu3U`（:1455-1499）。
  *
- * `Row(fillMaxWidth().padding(4.dp), CenterVertically)`；图标 **16.dp** 取强调色（`:1487`），
+ * `Row(fillMaxWidth().padding(AppSpacing.xxs), CenterVertically)`；图标 **16.dp** 取强调色（`:1487`），
  * 间距 **8.dp**（`:1488`），文案 **12.sp / lineHeight 18.sp / textMedium**（`:1489`）。
  */
 @Composable
@@ -747,7 +749,7 @@ private fun GuessTasteProfile(seedCount: Int, accent: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(4.dp), // :1469 hp1.p0(..., 4.0f, 4.0f)
+            .padding(AppSpacing.xxs), // :1469 hp1.p0(..., 4.0f, 4.0f)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -756,7 +758,7 @@ private fun GuessTasteProfile(seedCount: Int, accent: Color) {
             tint = accent,
             modifier = Modifier.size(16.dp),
         )
-        Spacer(Modifier.width(8.dp)) // :1488
+        Spacer(Modifier.width(AppSpacing.sm)) // :1488
         Text(
             // :1489 —— 有线索「熟悉的偏爱，也有意外的新发现」，否则「多听几首，让推荐慢慢懂你」
             text = if (seedCount > 0) "熟悉的偏爱，也有意外的新发现" else "多听几首，让推荐慢慢懂你",
@@ -790,7 +792,7 @@ private fun GuessPersonalSectionHeader(count: Int, seedCount: Int, accent: Color
                 fontWeight = FontWeight.W800,
                 letterSpacing = (-0.4).sp,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             Text(
                 // :1042 —— 有种子时「综合收藏偏好与近期播放排序」
                 text = if (seedCount > 0) "综合收藏偏好与近期播放排序" else "继续听歌，推荐会越来越懂你",
@@ -819,7 +821,7 @@ private fun GuessPersonalSectionHeader(count: Int, seedCount: Int, accent: Color
  * 单曲行 —— GZ `GuessSongRow-TgFrcIs`（:1211-1452）。
  *
  * 结构：`Row(fillMaxWidth().height(72.dp).background(播放中 ? discoveryInset : 透明, RoundedCornerShape(14.dp))
- *   .bounceClick(0.98f).padding(horizontal = 8.dp), CenterVertically)`
+ *   .bounceClick(0.98f).padding(horizontal = AppSpacing.sm), CenterVertically)`
  * ```
  * ├─ 序号  宽 28.dp / 10.sp / 前 3 名 W800 其余 W700 / letterSpacing 0.4.sp   (:1312-1324)
  * ├─ Spacer 4.dp                                                            (:1325)
@@ -846,7 +848,7 @@ private fun GuessSongRow(
 ) {
     val context = LocalContext.current
     val dark = appIsDark()
-    val quietSurface = if (dark) Color(0xFF2A2A30) else Color(0xFFF0F0F4) // discoveryInset
+    val quietSurface = if (dark) AppColors.quietSurfaceDark else AppColors.quietSurfaceLight // discoveryInset
 
     Row(
         modifier = Modifier
@@ -856,7 +858,7 @@ private fun GuessSongRow(
             .clip(RoundedCornerShape(14.dp))
             .background(if (isCurrent) quietSurface else Color.Transparent)
             .pressClick(pressedScale = 0.98f, onClick = onPlay)
-            .padding(horizontal = 8.dp), // :1287 hp1.q0(..., 8.0f, 0.0f, 2)
+            .padding(horizontal = AppSpacing.sm), // :1287 hp1.q0(..., 8.0f, 0.0f, 2)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -868,7 +870,7 @@ private fun GuessSongRow(
             letterSpacing = 0.4.sp, // :1315 co7.i(0.4d)
             modifier = Modifier.width(28.dp), // :1324 ij7.r(c05Var, 28.0f)
         )
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xxs))
 
         Box(
             modifier = Modifier
@@ -900,7 +902,7 @@ private fun GuessSongRow(
                 )
             }
         }
-        Spacer(Modifier.width(12.dp)) // :1372
+        Spacer(Modifier.width(AppSpacing.lg)) // :1372
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -955,7 +957,7 @@ private fun GuessLoading() {
                 strokeWidth = 2.dp,
                 modifier = Modifier.size(26.dp),
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
             Text(
                 text = "正在根据你的收藏挑选…",
                 color = textMedium(),
@@ -971,7 +973,7 @@ private fun GuessEmpty(title: String, subtitle: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 48.dp),
+            .padding(horizontal = AppSpacing.section, vertical = 48.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -981,7 +983,7 @@ private fun GuessEmpty(title: String, subtitle: String) {
                 tint = textLow(),
                 modifier = Modifier.size(40.dp),
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
             Text(
                 text = title,
                 color = textHigh(),
@@ -989,7 +991,7 @@ private fun GuessEmpty(title: String, subtitle: String) {
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AppSpacing.xs))
             Text(
                 text = subtitle,
                 color = textLow(),
@@ -1006,7 +1008,7 @@ private fun GuessError(message: String, onRetry: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 40.dp),
+            .padding(horizontal = AppSpacing.section, vertical = 40.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1016,14 +1018,14 @@ private fun GuessError(message: String, onRetry: () -> Unit) {
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
             // GuessChipButton：圆角 20.dp、padding(14, 8)、按压缩放 0.96（:198-201）
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
                     .background(textMedium().copy(alpha = 0.12f), RoundedCornerShape(20.dp))
                     .pressClick(pressedScale = 0.96f, onClick = onRetry)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.sm),
             ) {
                 Text(
                     text = "重试",

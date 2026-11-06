@@ -42,6 +42,7 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 歌手信息卡片（歌手页 / 全部演唱页共用）：
@@ -63,7 +64,7 @@ fun ArtistSummaryCard(
         modifier = modifier
             .fillMaxWidth()
             .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
-            .padding(18.dp)
+            .padding(AppSpacing.xxxl)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -74,7 +75,7 @@ fun ArtistSummaryCard(
             ) {
                 SongCover(avatar, Modifier.fillMaxSize(), corner = 28.dp)
             }
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(AppSpacing.xl))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = name.ifBlank { "未知歌手" },
@@ -87,12 +88,12 @@ fun ArtistSummaryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!alias.isNullOrBlank()) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AppSpacing.xxs))
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .background(Stone100)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
                     ) {
                         Text(
                             text = alias,
@@ -103,7 +104,7 @@ fun ArtistSummaryCard(
                         )
                     }
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AppSpacing.xxs))
                 Text(
                     text = if (isLoading) "探索音乐库中…" else "单曲 $songCount 首",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -112,7 +113,7 @@ fun ArtistSummaryCard(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -134,7 +135,7 @@ fun ArtistSummaryCard(
                     tint = Color.White,
                     modifier = Modifier.size(16.dp)
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(AppSpacing.xxs))
                 Text(
                     "播放全部",
                     style = MaterialTheme.typography.labelLarge.copy(
@@ -144,7 +145,7 @@ fun ArtistSummaryCard(
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.lg))
 
             Box(
                 modifier = Modifier
@@ -162,7 +163,7 @@ fun ArtistSummaryCard(
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.lg))
 
             Box(
                 modifier = Modifier

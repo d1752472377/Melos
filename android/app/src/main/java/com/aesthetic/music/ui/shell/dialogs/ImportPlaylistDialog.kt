@@ -54,6 +54,7 @@ import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 导入歌单：三种入口
@@ -95,7 +96,7 @@ fun ImportPlaylistDialog(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = AppSpacing.section)
                 .padding(bottom = 28.dp),
         ) {
             Text(
@@ -106,22 +107,22 @@ fun ImportPlaylistDialog(
                 ),
                 color = TextPrimary,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             Text(
                 text = "导入后会自动收藏到「收藏歌单」，平台原歌单的名字、封面与歌曲一并抓取",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
                 color = TextMuted,
             )
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             // ===== 三种入口 =====
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 ModeChip("粘贴链接", Icons.Filled.Link, mode == 0) { mode = 0 }
                 ModeChip("识别文案", Icons.AutoMirrored.Filled.TextSnippet, mode == 1) { mode = 1 }
                 ModeChip("登录账号", Icons.Filled.AccountCircle, mode == 2) { mode = 2 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             when (mode) {
                 0 -> {
@@ -130,14 +131,14 @@ fun ImportPlaylistDialog(
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = TextSoft,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     InputArea(
                         value = linkInput,
                         onValueChange = { linkInput = it },
                         placeholder = "https://music.163.com/#/playlist?id=5202687076",
                         singleLine = true,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     PasteRow(onPaste = { pasteFromClipboard() })
                 }
 
@@ -147,14 +148,14 @@ fun ImportPlaylistDialog(
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = TextSoft,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     InputArea(
                         value = textInput,
                         onValueChange = { textInput = it },
                         placeholder = "分享@Melos的歌单《深夜emo》https://music.163.com/#/playlist?id=5202687076 来自网易云音乐",
                         singleLine = false,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     PasteRow(onPaste = { pasteFromClipboard() })
                 }
 
@@ -164,17 +165,17 @@ fun ImportPlaylistDialog(
             }
 
             if (mode != 2) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
                 StatusBlock(state)
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.page))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(if (canImport) PrimaryBrown else Stone200)
                         .clickable(enabled = canImport) { onImport(input) }
-                        .padding(vertical = 14.dp),
+                        .padding(vertical = AppSpacing.xl),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -204,7 +205,7 @@ private fun ModeChip(
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) PrimaryBrown else Stone100)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = AppSpacing.lg, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
@@ -244,7 +245,7 @@ private fun InputArea(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Stone100)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.lg),
         decorationBox = { inner ->
             Box(contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) {
@@ -268,9 +269,9 @@ private fun PasteRow(onPaste: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onPaste)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xxs),
     ) {
         Icon(
             imageVector = Icons.Filled.ContentPaste,
@@ -295,7 +296,7 @@ private fun LoginImportSection(onLoginImport: (String) -> Unit) {
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 17.sp),
             color = TextSoft,
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AppSpacing.lg))
 
         PlaylistLinkParser.supportedPlatforms.forEach { platform ->
             val name = PlaylistLinkParser.platformName(platform)
@@ -304,7 +305,7 @@ private fun LoginImportSection(onLoginImport: (String) -> Unit) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(Stone100)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
@@ -313,7 +314,7 @@ private fun LoginImportSection(onLoginImport: (String) -> Unit) {
                     tint = TextMuted,
                     modifier = Modifier.size(20.dp),
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(AppSpacing.md))
                 Text(
                     text = name,
                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -328,7 +329,7 @@ private fun LoginImportSection(onLoginImport: (String) -> Unit) {
                         .clip(RoundedCornerShape(10.dp))
                         .background(Stone200)
                         .clickable { onLoginImport(name) }
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                        .padding(horizontal = AppSpacing.lg, vertical = 7.dp),
                 ) {
                     Text(
                         text = "登录导入",
@@ -340,7 +341,7 @@ private fun LoginImportSection(onLoginImport: (String) -> Unit) {
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
         }
 
         Text(
@@ -363,7 +364,7 @@ private fun StatusBlock(state: PlaylistResolveState) {
                 strokeWidth = 2.dp,
                 color = PrimaryBrown,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AppSpacing.sm))
             Text(
                 text = "正在解析歌单信息…",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -382,7 +383,7 @@ private fun StatusBlock(state: PlaylistResolveState) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(Stone100)
-                .padding(10.dp),
+                .padding(AppSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SongCover(
@@ -392,7 +393,7 @@ private fun StatusBlock(state: PlaylistResolveState) {
                     .clip(RoundedCornerShape(8.dp)),
                 corner = 8.dp,
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(AppSpacing.md))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "已导入《${state.name}》",

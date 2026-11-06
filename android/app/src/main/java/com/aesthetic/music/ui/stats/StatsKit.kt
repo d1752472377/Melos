@@ -49,6 +49,7 @@ import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 听歌统计页的视觉组件。
@@ -97,7 +98,7 @@ fun StatsPill(
         modifier = modifier
             .clip(CircleShape)
             .background(containerColor)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
     ) {
         Text(
             text = text,
@@ -166,9 +167,9 @@ fun StatsBigDuration(
                 text = unit,
                 style = MaterialTheme.typography.labelMedium.copy(fontSize = unitSize.sp),
                 color = unitColor,
-                modifier = Modifier.padding(bottom = 6.dp),
+                modifier = Modifier.padding(bottom = AppSpacing.xs),
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AppSpacing.sm))
         }
     }
 }
@@ -229,7 +230,7 @@ fun StatsBarChart(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
         // 坐标轴：只标首、末与两三个中间点，30 个日期全标会糊成一片
         Row(modifier = Modifier.fillMaxWidth()) {
             val ticks = axisTicks(points)
@@ -286,7 +287,7 @@ fun StatsProgressRow(
                 color = TextPrimary,
             )
             if (!trailingText.isNullOrBlank()) {
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AppSpacing.sm))
                 Text(
                     text = trailingText,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
@@ -344,7 +345,7 @@ fun StatsRankRow(
                 color = rankColor(rank),
             )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -360,7 +361,7 @@ fun StatsRankRow(
                 maxLines = 1,
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = trailingTop,

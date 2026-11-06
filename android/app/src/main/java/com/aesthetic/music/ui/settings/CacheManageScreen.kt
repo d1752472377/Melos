@@ -47,6 +47,8 @@ import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 缓存管理页：展示缓存总占用，点击打开抽屉看三类明细并可分别/一键清理。
@@ -90,7 +92,7 @@ fun CacheManageScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onOpenDetail)
-                    .padding(18.dp),
+                    .padding(AppSpacing.xxxl),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -107,7 +109,7 @@ fun CacheManageScreen(
                             modifier = Modifier.size(20.dp),
                         )
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AppSpacing.lg))
                     Column(Modifier.weight(1f)) {
                         Text(
                             text = "缓存占用",
@@ -135,13 +137,13 @@ fun CacheManageScreen(
                 }
 
                 if (breakdown != null) {
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AppSpacing.xl))
                     CacheRatioBar(breakdown)
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Spacer(Modifier.height(AppSpacing.md))
+                    Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.xl)) {
                         RatioLegend("下载音乐", breakdown.music, PrimaryBrown)
-                        RatioLegend("图片缓存", breakdown.images, Color(0xFF3E7CB1))
-                        RatioLegend("临时文件", breakdown.temp, Color(0xFF8A8F98))
+                        RatioLegend("图片缓存", breakdown.images, AppColors.cacheImage)
+                        RatioLegend("临时文件", breakdown.temp, AppColors.cacheTemp)
                     }
                 }
             }
@@ -151,14 +153,14 @@ fun CacheManageScreen(
 
         // ===== 缓存上限（超过自动按最旧淘汰） =====
         SettingsSection(title = "缓存上限") {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Column(Modifier.padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg)) {
                 Text(
                     text = "缓存总量超过上限时，从最旧的开始自动清理（正在播放的不受影响）",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                     color = TextSoft,
                 )
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(AppSpacing.md))
+                Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                     limitPresets.forEach { (label, bytes) ->
                         val selected = bytes == cacheLimit
                         Box(
@@ -170,7 +172,7 @@ fun CacheManageScreen(
                                     cacheLimit = bytes
                                     onCacheLimitChange(bytes)
                                 }
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = AppSpacing.sm),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -202,7 +204,7 @@ fun CacheManageScreen(
                 icon = Icons.Filled.CleaningServices,
                 title = "清理全部缓存",
                 subtitle = "清空下载音乐、图片缓存与临时文件",
-                iconTint = Color(0xFFC0392B),
+                iconTint = AppColors.cacheDanger,
                 onClick = onClearAll,
             )
             SettingsDivider()
@@ -246,8 +248,8 @@ private fun CacheRatioBar(breakdown: CacheCenter.Breakdown) {
     ) {
         listOf(
             breakdown.music to PrimaryBrown,
-            breakdown.images to Color(0xFF3E7CB1),
-            breakdown.temp to Color(0xFF8A8F98),
+            breakdown.images to AppColors.cacheImage,
+            breakdown.temp to AppColors.cacheTemp,
         ).forEach { (size, color) ->
             val fraction = size.toFloat() / total.toFloat()
             if (fraction > 0f) {
@@ -289,7 +291,7 @@ private fun CacheDetailSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = AppSpacing.section)
                 .padding(bottom = 28.dp),
         ) {
             Text(
@@ -297,14 +299,14 @@ private fun CacheDetailSheet(
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 color = TextPrimary,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             Text(
                 text = "合计 ${breakdown?.let { CacheCenter.formatSize(it.total) } ?: "--"}" +
                     if (isScanning) "（统计中…）" else "",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                 color = TextMuted,
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             CacheDetailRow(
                 icon = Icons.Filled.MusicNote,
@@ -313,7 +315,7 @@ private fun CacheDetailSheet(
                 size = breakdown?.music ?: 0L,
                 onClear = onClearMusic,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             CacheDetailRow(
                 icon = Icons.Filled.Image,
                 title = "图片缓存",
@@ -321,7 +323,7 @@ private fun CacheDetailSheet(
                 size = breakdown?.images ?: 0L,
                 onClear = onClearImages,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             CacheDetailRow(
                 icon = Icons.Filled.Warehouse,
                 title = "临时文件离线缓存",
@@ -346,11 +348,11 @@ private fun CacheDetailRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Stone100)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = PrimaryBrown, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,

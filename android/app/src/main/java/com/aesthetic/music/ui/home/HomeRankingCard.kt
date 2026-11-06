@@ -55,6 +55,8 @@ import com.aesthetic.music.ui.components.textHigh
 import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.theme.appIsDark
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 首页「排行榜」卡片（手机版）—— 逐值还原 `HomeRankingCardKt.java` 的 `HomeRankingCard`
@@ -115,16 +117,16 @@ enum class RankingTab(
     val tone: Color,
 ) {
     /** na3.RISING("rising","飙升榜",19723756) + HomeScreenKt.java:309 `hp1.e(4284073892L)` */
-    RISING("rising", "飙升榜", "正在快速上升的歌曲", Color(0xFF59C7A4)),
+    RISING("rising", "飙升榜", "正在快速上升的歌曲", AppColors.rankingRising),
 
     /** na3.NEW("new","新歌榜",3779629) + HomeScreenKt.java:309 `hp1.e(4284193749L)` */
-    NEW("new", "新歌榜", "发现正在被听见的新声音", Color(0xFF5B9BD5)),
+    NEW("new", "新歌榜", "发现正在被听见的新声音", AppColors.rankingNew),
 
     /** na3.ORIGINAL("original","原创榜",2884035) + HomeScreenKt.java:309 `hp1.e(4288314324L)` */
-    ORIGINAL("original", "原创榜", "华语原创好声音", Color(0xFF9A7BD4)),
+    ORIGINAL("original", "原创榜", "华语原创好声音", AppColors.rankingOriginal),
 
     /** na3.HOT("hot","热歌榜",3778678) + HomeScreenKt.java:309 `hp1.e(4293954141L)` */
-    HOT("hot", "热歌榜", "听听大家反复循环的歌", Color(0xFFF08A5D)),
+    HOT("hot", "热歌榜", "听听大家反复循环的歌", AppColors.rankingHot),
 }
 
 /**
@@ -198,9 +200,9 @@ fun HomeRankingCard(
     Column(
         modifier = modifier
             .fillMaxWidth() // :272 ij7.g(c05Var, 1.0f)
-            .padding(horizontal = 16.dp) // :272 hp1.q0(…, 16.0f, 0.0f)
+            .padding(horizontal = AppSpacing.xxl) // :272 hp1.q0(…, 16.0f, 0.0f)
             .glassCard(RoundedCornerShape(20.dp)) // :272 by6.a(20.0f)；elevation 掩码位 2 ⇒ 走默认 8dp
-            .padding(14.dp), // :272 hp1.p0(…, 14.0f, 14.0f)
+            .padding(AppSpacing.xl), // :272 hp1.p0(…, 14.0f, 14.0f)
         verticalArrangement = Arrangement.Top, // :274 zh.d = Arrangement#Top
         horizontalAlignment = Alignment.Start, // :274 il0.h0 = Alignment.Start
     ) {
@@ -242,7 +244,7 @@ fun HomeRankingCard(
                 )
             }
         }
-        Spacer(Modifier.height(12.dp)) // :402 ij1.k(…, 12.0f) → height(12.dp)
+        Spacer(Modifier.height(AppSpacing.lg)) // :402 ij1.k(…, 12.0f) → height(12.dp)
 
         // ── 中部：封面层叠 + Top3 ─────────────────────────────── HomeRankingCardKt.java:404-697
         Row(
@@ -259,7 +261,7 @@ fun HomeRankingCard(
                     tabSongs.firstOrNull()?.let { onPlaySong(it, tabSongs) }
                 },
             )
-            Spacer(Modifier.width(12.dp)) // :432 ij7.r(c05Var, 12.0f)
+            Spacer(Modifier.width(AppSpacing.lg)) // :432 ij7.r(c05Var, 12.0f)
 
             Column(
                 modifier = Modifier
@@ -279,7 +281,7 @@ fun HomeRankingCard(
                             color = DefaultCoverTone, // :475 CoverToneKt.b = 0xFFFA243C
                             strokeWidth = 1.7.dp, // :475 1.7f
                         )
-                        Spacer(Modifier.width(8.dp)) // :476 ij1.B(c05Var, 8.0f, …) 内联的 Spacer(width 8dp)
+                        Spacer(Modifier.width(AppSpacing.sm)) // :476 ij1.B(c05Var, 8.0f, …) 内联的 Spacer(width 8dp)
                         Text(
                             text = "正在加载榜单", // :476
                             color = textMedium(), // :476 GlassTokens.textMedium
@@ -368,12 +370,12 @@ fun HomeRankingCard(
                 }
             }
         }
-        Spacer(Modifier.height(12.dp)) // :700 ij1.k(…, 12.0f)
+        Spacer(Modifier.height(AppSpacing.lg)) // :700 ij1.k(…, 12.0f)
 
         // ── 底部：四联 Tab ────────────────────────────────────── HomeRankingCardKt.java:702-785
         Row(
             modifier = Modifier.fillMaxWidth(), // :701 f05VarG4 = fillMaxWidth
-            horizontalArrangement = Arrangement.spacedBy(8.dp), // :702 new j10(8.0f, true, …) = spacedBy(8dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm), // :702 new j10(8.0f, true, …) = spacedBy(8dp)
             verticalAlignment = Alignment.Top, // :702 il0.e0 = Alignment.Top
         ) {
             RankingTab.entries.forEach { entry ->
@@ -391,7 +393,7 @@ fun HomeRankingCard(
                 ) {
                     Text(
                         text = entry.label, // :668 na3Var3.d
-                        modifier = Modifier.padding(vertical = 6.dp), // :669 hp1.q0(c05Var, 0.0f, 6.0f, 1)
+                        modifier = Modifier.padding(vertical = AppSpacing.xs), // :669 hp1.q0(c05Var, 0.0f, 6.0f, 1)
                         color = if (isSelected) {
                             textHigh() // :679 rt0.e = composer 内联的 GlassTokens.textHigh
                         } else {
@@ -445,7 +447,7 @@ private fun RankingCoverStack(
     onPlayFirst: () -> Unit,
 ) {
     // :1209 hp1.e(appIsDark ? 4281348151L : 4293454061L) = 0xFF303037 / 0xFFE8E8ED
-    val placeholder = if (appIsDark()) Color(0xFF303037) else Color(0xFFE8E8ED)
+    val placeholder = if (appIsDark()) AppColors.rankingPlaceholderDark else AppColors.rankingPlaceholderLight
     val iconTint = textLow()
 
     Box(

@@ -27,6 +27,8 @@ import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.TextMuted
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /** 类型筛选行：单曲 / 歌手 / 歌单 / 专辑 / 歌词 */
 @Composable
@@ -57,7 +59,7 @@ fun SearchFilterTabs(
 @Composable
 private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
     val isDark = Palette.isDark
-    val activeColor = if (isDark) Color(0xFF38BDF8) else PrimaryBrown
+    val activeColor = if (isDark) AppColors.sky else PrimaryBrown
     val inactiveColor = textLow()
 
     Column(
@@ -67,7 +69,7 @@ private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
                 indication = null,
                 onClick = onClick,
             )
-            .padding(vertical = 4.dp),
+            .padding(vertical = AppSpacing.xxs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -76,7 +78,7 @@ private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
             color = if (selected) activeColor else inactiveColor,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AppSpacing.xxs))
         Box(
             modifier = Modifier
                 .width(18.dp)

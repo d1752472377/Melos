@@ -69,6 +69,7 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 歌手页：参考「我的收藏」的版式。
@@ -127,7 +128,7 @@ fun ArtistScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = statusBarTop + 16.dp)
+                .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
             // ===== 1. 顶部大标题（与「我的收藏」一致，不再有返回按钮） =====
             Text(
@@ -137,10 +138,10 @@ fun ArtistScreen(
                     fontWeight = FontWeight.Bold
                 ),
                 color = TextPrimary,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             // ===== 2. 歌手信息卡片：名字/别名 + 单曲数 + 播放全部/随机播放/搜索 =====
             ArtistSummaryCard(
@@ -155,28 +156,28 @@ fun ArtistScreen(
                     isSearchExpanded = !isSearchExpanded
                     if (!isSearchExpanded) searchQuery = ""
                 },
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
             // ===== 2.5 列表内搜索（点卡片的「搜索」展开） =====
             if (isSearchExpanded) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 ListSearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
                     placeholder = "搜索该歌手的歌曲…",
                     focusRequester = searchFocus,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.page),
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = AppSpacing.page),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -197,7 +198,7 @@ fun ArtistScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
 
             // 热门歌曲列表
@@ -214,7 +215,7 @@ fun ArtistScreen(
                     Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = AppSpacing.xxl)
                         .iosGlassCard(shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), elevation = 4.dp)
                 ) {
                     LazyColumn(
@@ -252,7 +253,7 @@ fun ArtistScreen(
                             )
                             if (index != visibleSongs.lastIndex) {
                                 HorizontalDivider(
-                                    modifier = Modifier.padding(start = 70.dp, end = 12.dp),
+                                    modifier = Modifier.padding(start = 70.dp, end = AppSpacing.lg),
                                     thickness = 0.5.dp,
                                     color = Stone200.copy(alpha = 0.55f),
                                 )
@@ -264,7 +265,7 @@ fun ArtistScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable(onClick = onOpenAllSongs)
-                                    .padding(vertical = 14.dp),
+                                    .padding(vertical = AppSpacing.xl),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {

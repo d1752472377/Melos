@@ -47,14 +47,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.theme.AppColors
 
 /** 封面占位渐变（文件级缓存）：避免每次组合新封面时重复分配 Brush 与颜色列表 */
 private val CoverPlaceholderBrushLight =
-    Brush.linearGradient(listOf(Color(0xFFEDE9FE), Color(0xFFE0E7FF)))
+    Brush.linearGradient(listOf(AppColors.coverPlaceholderLight1, AppColors.coverPlaceholderLight2))
 private val CoverPlaceholderBrushDark =
-    Brush.linearGradient(listOf(Color(0xFF26262E), Color(0xFF1B1B22)))
-private val CoverIconTintLight = Color(0xFF818CF8).copy(alpha = 0.65f)
-private val CoverIconTintDark = Color(0xFF64748B)
+    Brush.linearGradient(listOf(AppColors.coverPlaceholderDark1, AppColors.coverPlaceholderDark2))
+private val CoverIconTintLight = AppColors.indigoLight.copy(alpha = 0.65f)
+private val CoverIconTintDark = AppColors.slate500
 
 /** 歌曲封面：带精致渐变占位 + 圆角 + 平滑渐入 */
 @Composable
@@ -324,11 +325,11 @@ fun platformLabel(p: String?): String = when (p) {
 
 /** 平台品牌色，供标签与文字着色共用 */
 fun platformColor(p: String?): Color = when (p) {
-    "netease", "chksz" -> Color(0xFFC20C0C)
-    "kugou" -> Color(0xFF2CA6E0)
-    "qq" -> Color(0xFF31C27C)
-    "kuwo" -> Color(0xFFE08A00)
-    else -> Color(0xFF8893A7)
+    "netease", "chksz" -> AppColors.brandNeteaseDeep
+    "kugou" -> AppColors.brandKugouAlt
+    "qq" -> AppColors.brandQQ
+    "kuwo" -> AppColors.brandKuwoAlt
+    else -> AppColors.brandUnknownAlt
 }
 
 /**

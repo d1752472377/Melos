@@ -58,6 +58,8 @@ import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.theme.Palette
 import kotlin.math.roundToInt
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 播放队列抽屉 —— 按用户提供的瓜子截图重做。
@@ -102,13 +104,13 @@ fun PlayerQueueSheet(
     onAddToPlaylist: (Song) -> Unit,
 ) {
     val dark = Palette.isDark
-    val container = if (dark) Color(0xFF16171D) else Color(0xFFF7F7FA)
-    val titleColor = if (dark) Color(0xFFF2F2F7) else Color(0xFF1C1C1E)
-    val subColor = if (dark) Color(0xFF8E8E93) else Color(0xFF9A9AA0)
-    val iconColor = if (dark) Color.White.copy(alpha = 0.62f) else Color(0xFF6E6E78)
-    val chipBg = if (dark) Color.White.copy(alpha = 0.10f) else Color(0xFFE9E9EF)
-    val accent = Color(0xFFFF3B30) // 截图里的「清空」与当前项红
-    val rowActiveBg = if (dark) Color.White.copy(alpha = 0.06f) else Color(0x0D000000)
+    val container = if (dark) AppColors.queueContainerDark else AppColors.queueContainerLight
+    val titleColor = if (dark) AppColors.queueTitleDark else AppColors.ink
+    val subColor = if (dark) AppColors.gray else AppColors.graySoft
+    val iconColor = if (dark) Color.White.copy(alpha = 0.62f) else AppColors.queueIconLight
+    val chipBg = if (dark) Color.White.copy(alpha = 0.10f) else AppColors.queueChipLight
+    val accent = AppColors.queueAccent // 截图里的「清空」与当前项红
+    val rowActiveBg = if (dark) Color.White.copy(alpha = 0.06f) else AppColors.queueActiveLight
 
     val listState = rememberLazyListState()
 
@@ -121,7 +123,7 @@ fun PlayerQueueSheet(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 14.dp, top = 14.dp, bottom = 4.dp),
+                .padding(start = AppSpacing.lg, end = AppSpacing.xl, top = AppSpacing.xl, bottom = AppSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -134,7 +136,7 @@ fun PlayerQueueSheet(
                     .clickable(onClick = onDismiss)
                     .padding(2.dp),
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(AppSpacing.xs))
             Text(
                 text = "播放列表",
                 color = titleColor,
@@ -147,7 +149,7 @@ fun PlayerQueueSheet(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(chipBg)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
             ) {
                 Text(
                     text = "${queue.size}",
@@ -156,7 +158,7 @@ fun PlayerQueueSheet(
                     fontWeight = FontWeight.Medium,
                 )
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(AppSpacing.md))
             // 清空
             Text(
                 text = "清空",
@@ -166,9 +168,9 @@ fun PlayerQueueSheet(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(enabled = queue.isNotEmpty(), onClick = onClear)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AppSpacing.xxs))
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "关闭",
@@ -186,7 +188,7 @@ fun PlayerQueueSheet(
             text = "长按拖动调整顺序",
             color = subColor,
             fontSize = 12.sp,
-            modifier = Modifier.padding(start = 20.dp, bottom = 6.dp),
+            modifier = Modifier.padding(start = AppSpacing.page, bottom = AppSpacing.xs),
         )
 
         // ===== 队列列表 =====
@@ -232,7 +234,7 @@ fun PlayerQueueSheet(
                 )
             }
             item(key = "queue_bottom_spacer") {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
             }
         }
     }
@@ -276,7 +278,7 @@ private fun QueueRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(QueueRowHeight)
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = AppSpacing.sm)
             .clip(RoundedCornerShape(12.dp))
             .background(if (isCurrent) activeBg else Color.Transparent)
             .graphicsLayer {
@@ -319,7 +321,7 @@ private fun QueueRow(
                 )
             }
             .clickable(onClick = onPlay)
-            .padding(horizontal = 6.dp),
+            .padding(horizontal = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 序号（两位数，当前项红色）
@@ -354,7 +356,7 @@ private fun QueueRow(
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
 
         // 歌名 + 歌手
         Column(modifier = Modifier.weight(1f)) {

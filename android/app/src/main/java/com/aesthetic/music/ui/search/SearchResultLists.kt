@@ -53,6 +53,7 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 // ==================== 统一卡片容器 ====================
 
@@ -100,14 +101,14 @@ private fun ResultCard(
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = AppSpacing.page)
         ) {
             Box(
                 modifier = Modifier
@@ -124,7 +125,7 @@ private fun ResultCard(
 @Composable
 private fun ResultDivider(startIndent: Int) {
     HorizontalDivider(
-        modifier = Modifier.padding(start = startIndent.dp, end = 12.dp),
+        modifier = Modifier.padding(start = startIndent.dp, end = AppSpacing.lg),
         thickness = 0.5.dp,
         color = Stone200.copy(alpha = 0.55f),
     )
@@ -218,7 +219,7 @@ fun ArtistResultList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpen(artist) }
-                        .padding(10.dp),
+                        .padding(AppSpacing.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (!artist.avatar.isNullOrBlank()) {
@@ -247,7 +248,7 @@ fun ArtistResultList(
                             )
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AppSpacing.lg))
                     Column(Modifier.weight(1f)) {
                         Text(
                             artist.name,
@@ -318,11 +319,11 @@ fun PlaylistResultList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpen(p) }
-                        .padding(10.dp),
+                        .padding(AppSpacing.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SongCover(p.coverUrl, Modifier.size(52.dp), corner = 8.dp)
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AppSpacing.lg))
                     Column(Modifier.weight(1f)) {
                         Text(
                             p.name,
@@ -388,11 +389,11 @@ fun AlbumResultList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpen(album) }
-                        .padding(10.dp),
+                        .padding(AppSpacing.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SongCover(album.coverUrl, Modifier.size(52.dp), corner = 8.dp)
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AppSpacing.lg))
                     Column(Modifier.weight(1f)) {
                         Text(
                             album.name,

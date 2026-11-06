@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.aesthetic.music.ui.theme.AmberLight
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 唱片架黑胶封套抽拉视图（移植自瓜子音乐 RecordShelfPlayer 核心动效）
@@ -67,12 +68,12 @@ fun RecordShelfCover(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFF232327),
-                            Color(0xFF141417),
-                            Color(0xFF1E1E22),
-                            Color(0xFF0F0F11),
-                            Color(0xFF26262B),
-                            Color(0xFF0B0B0C)
+                            AppColors.disc1,
+                            AppColors.disc2,
+                            AppColors.disc3,
+                            AppColors.disc4,
+                            AppColors.disc5,
+                            AppColors.disc6
                         )
                     )
                 )
@@ -102,7 +103,7 @@ fun RecordShelfCover(
                     modifier = Modifier
                         .size(105.dp)
                         .clip(CircleShape)
-                        .border(1.5.dp, Color(0xFF111113), CircleShape),
+                        .border(1.5.dp, AppColors.discBorder, CircleShape),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -110,7 +111,7 @@ fun RecordShelfCover(
                     modifier = Modifier
                         .size(105.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF2A1C16)),
+                        .background(AppColors.vinylLabel),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("Melos", color = AmberLight.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
@@ -124,7 +125,7 @@ fun RecordShelfCover(
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
-                            listOf(Color(0xFFE5C158), Color(0xFF8A6D1C), Color(0xFF261D09))
+                            listOf(AppColors.goldLight, AppColors.goldMid, AppColors.goldDark)
                         )
                     )
                     .border(1.dp, AmberLight.copy(alpha = 0.5f), CircleShape),
@@ -134,7 +135,7 @@ fun RecordShelfCover(
                     modifier = Modifier
                         .size(9.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF09090A))
+                        .background(AppColors.deepest)
                 )
             }
         }
@@ -153,7 +154,7 @@ fun RecordShelfCover(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 )
-                .background(Color(0xFF1E1E24))
+                .background(AppColors.playerPanel)
         ) {
             if (!artworkUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -209,12 +210,12 @@ fun LuminousCdCover(
             .background(
                 Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFFF1F5F9),
-                        Color(0xFFCBD5E1),
-                        Color(0xFF94A3B8),
-                        Color(0xFF64748B),
-                        Color(0xFF334155),
-                        Color(0xFF1E293B)
+                        AppColors.slate100,
+                        AppColors.slate300,
+                        AppColors.slate400,
+                        AppColors.slate500,
+                        AppColors.slate700,
+                        AppColors.slate800
                     )
                 )
             )
@@ -229,13 +230,13 @@ fun LuminousCdCover(
             // 镭射反光条
             val holoBrush = Brush.sweepGradient(
                 colors = listOf(
-                    Color(0x33F472B6), // 粉
-                    Color(0x44A78BFA), // 紫
-                    Color(0x4438BDF8), // 蓝
-                    Color(0x4434D399), // 绿
-                    Color(0x44FACC15), // 黄
-                    Color(0x44FB923C), // 橙
-                    Color(0x33F472B6)  // 粉环闭合
+                    AppColors.neonPinkSoft, // 粉
+                    AppColors.neonVioletSoft, // 紫
+                    AppColors.neonBlueSoft, // 蓝
+                    AppColors.neonGreenSoft, // 绿
+                    AppColors.neonYellowSoft, // 黄
+                    AppColors.neonOrangeSoft, // 橙
+                    AppColors.neonPinkSoft  // 粉环闭合
                 ),
                 center = centerOffset
             )
@@ -269,7 +270,7 @@ fun LuminousCdCover(
                 modifier = Modifier
                     .size(118.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF334155)),
+                    .background(AppColors.slate700),
                 contentAlignment = Alignment.Center
             ) {
                 Text("CD Audio", color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.SemiBold)
@@ -289,7 +290,7 @@ fun LuminousCdCover(
                 modifier = Modifier
                     .size(18.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF09090C))
+                    .background(AppColors.deepestAlt)
                     .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
             )
         }

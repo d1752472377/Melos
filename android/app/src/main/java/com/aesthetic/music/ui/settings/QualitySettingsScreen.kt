@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.data.settings.QualityLevel
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /** 音质设置页：当前仅音质等级可选，更多音质选项留待后续补充 */
 @Composable
@@ -31,7 +32,7 @@ fun QualitySettingsScreen(
         SettingsGap()
 
         SettingsSection(title = "后续补充") {
-            Column(Modifier.padding(16.dp)) {
+            Column(Modifier.padding(AppSpacing.xxl)) {
                 SettingsValueRow(
                     title = "均衡器 / 音效",
                     value = "敬请期待",

@@ -289,7 +289,7 @@ fun SettingsSegmentRow(
                 .clip(RoundedCornerShape(AppRadius.sm))
                 .background(Stone100)
                 .padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.xxs),
         ) {
             options.forEachIndexed { index, option ->
                 val selected = index == selectedIndex
@@ -344,7 +344,7 @@ fun SettingsOptionList(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = AppSpacing.sm)) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),

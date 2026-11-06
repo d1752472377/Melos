@@ -33,6 +33,8 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 通用单曲行：搜索页 / 歌手页 / 全部演唱页共用。
@@ -60,24 +62,24 @@ fun SongRow(
     ).joinToString(" · ")
 
     val rowBg = when {
-        isPlaying -> if (isDark) Color(0x2838BDF8) else PrimaryBrown.copy(alpha = 0.08f)
+        isPlaying -> if (isDark) AppColors.activeRowBgDark else PrimaryBrown.copy(alpha = 0.08f)
         else -> Color.Transparent
     }
-    val activeTitleColor = if (isDark) Color(0xFF38BDF8) else PrimaryBrown
-    val titleColor = if (isPlaying) activeTitleColor else if (isDark) Color(0xFFF1F5F9) else TextPrimary
-    val subtitleColor = if (isDark) Color(0xFF94A3B8) else TextSoft
+    val activeTitleColor = if (isDark) AppColors.sky else PrimaryBrown
+    val titleColor = if (isPlaying) activeTitleColor else if (isDark) AppColors.slate100 else TextPrimary
+    val subtitleColor = if (isDark) AppColors.slate400 else TextSoft
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(rowBg)
             .clickable(onClick = onPlay)
-            .padding(10.dp),
+            .padding(AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.invoke()
         SongCover(song.artwork, Modifier.size(48.dp), corner = 10.dp)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
         Column(Modifier.weight(1f)) {
             Text(
                 text = song.title,
@@ -93,7 +95,7 @@ fun SongRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showPlatformTag && !song.platform.isNullOrBlank()) {
                     PlatformTag(song.platform)
-                    if (subtitle.isNotBlank()) Spacer(Modifier.width(6.dp))
+                    if (subtitle.isNotBlank()) Spacer(Modifier.width(AppSpacing.xs))
                 }
                 if (subtitle.isNotBlank()) {
                     Text(
@@ -112,10 +114,10 @@ fun SongRow(
             PlayingBars(
                 isPlaying = true,
                 color = activeTitleColor,
-                modifier = Modifier.height(13.dp).padding(horizontal = 6.dp),
+                modifier = Modifier.height(13.dp).padding(horizontal = AppSpacing.xs),
             )
         }
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xxs))
         if (actions != null) {
             actions()
         } else {

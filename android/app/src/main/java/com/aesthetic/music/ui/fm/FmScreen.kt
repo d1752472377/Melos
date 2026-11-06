@@ -148,6 +148,8 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 心动 FM 电台：全屏沉浸式拟物黑胶唱机播放页面。
@@ -405,7 +407,7 @@ private fun FmTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.page, vertical = AppSpacing.lg),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -416,21 +418,21 @@ private fun FmTopBar(
                 .background(FmCardBg)
                 .border(0.8.dp, FmCardBorder, RoundedCornerShape(999.dp))
                 .clickable(onClick = onOpenChannel)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = currentChannel.icon, fontSize = 15.sp)
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(AppSpacing.xs))
             Text(
                 text = currentChannel.name,
                 color = fmOn(),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(AppSpacing.xs))
             if (isPlaying) {
                 WaveBars(color = AccentRose, barWidth = 2.dp, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(AppSpacing.xxs))
             }
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowDown,
@@ -448,7 +450,7 @@ private fun FmTopBar(
                     .background(AccentRose.copy(alpha = 0.25f))
                     .border(0.8.dp, AccentRose.copy(alpha = 0.5f), RoundedCornerShape(999.dp))
                     .clickable(onClick = onOpenTreasure)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -523,7 +525,7 @@ private fun FmTurntable(
                 .rotate(discRotation.value)
                 .shadow(elevation = 18.dp, shape = CircleShape, spotColor = Color.Black)
                 .clip(CircleShape)
-                .background(Color(0xFF101014))
+                .background(AppColors.fmDeep)
                 .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
@@ -577,7 +579,7 @@ private fun FmTurntable(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0xFF26262E)),
+                            .background(AppColors.coverPlaceholderDark1),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -594,8 +596,8 @@ private fun FmTurntable(
                     modifier = Modifier
                         .size(14.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF0F0F12))
-                        .border(1.2.dp, Color(0xFFD4AF37).copy(alpha = 0.75f), CircleShape)
+                        .background(AppColors.fmBlack)
+                        .border(1.2.dp, AppColors.goldDisc.copy(alpha = 0.75f), CircleShape)
                 )
             }
         }
@@ -624,7 +626,7 @@ private fun FmInfoPanel(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = AppSpacing.section),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // 歌名
@@ -639,7 +641,7 @@ private fun FmInfoPanel(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AppSpacing.xxs))
 
         // 歌手名
         Text(
@@ -652,7 +654,7 @@ private fun FmInfoPanel(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(AppSpacing.xl))
 
         // 细线进度条（点击定位）
         Box(
@@ -687,7 +689,7 @@ private fun FmInfoPanel(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         // 播放控制：上一首（小） / 播放暂停（大） / 下一首（小）
         Row(
@@ -730,12 +732,12 @@ private fun FmInfoPanel(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
 
         // 两张大圆角动作卡：不合口味 / 收藏这首
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)
         ) {
             FmActionCard(
                 text = "不合口味",
@@ -789,7 +791,7 @@ private fun FmActionCard(
             .background(FmCardBg)
             .border(0.8.dp, FmCardBorder, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp, horizontal = 12.dp),
+            .padding(vertical = AppSpacing.xl, horizontal = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
@@ -799,7 +801,7 @@ private fun FmActionCard(
             tint = tint,
             modifier = Modifier.size(20.dp)
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AppSpacing.sm))
         Text(
             text = text,
             color = tint,
@@ -849,7 +851,7 @@ private fun FmFullLyricsView(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = AppSpacing.section)
     ) {
         if (lyrics.isNotEmpty()) {
             MelosLyricsView(
@@ -890,7 +892,7 @@ private fun FmFullLyricsView(
                 .clip(RoundedCornerShape(999.dp))
                 .background(fmGlass(0.2f))
                 .clickable(onClick = onCloseLyrics)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -899,7 +901,7 @@ private fun FmFullLyricsView(
                 tint = fmOn(),
                 modifier = Modifier.size(14.dp)
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AppSpacing.xxs))
             Text(
                 text = "唱片模式",
                 color = fmOn(),
@@ -932,7 +934,7 @@ private fun FmChannelSheet(
                 .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.72f).dp)
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(20.dp)
+                .padding(AppSpacing.page)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -969,14 +971,14 @@ private fun FmChannelSheet(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             // 两列卡片（用普通 Column 排，不再嵌套 Lazy 网格：
             // 嵌套滚动会让抽屉底部内容被裁掉且必须上滑才能看到）
             channels.chunked(2).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                 ) {
                     row.forEach { ch ->
                         FmChannelCard(
@@ -989,7 +991,7 @@ private fun FmChannelSheet(
                     // 奇数个时补一个占位，保证最后一个卡片不会独占整行
                     if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
             }
         }
     }
@@ -1014,11 +1016,11 @@ private fun FmChannelCard(
                 shape = RoundedCornerShape(14.dp)
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = channel.icon, fontSize = 24.sp)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column(Modifier.weight(1f)) {
             Text(
                 text = channel.name,
@@ -1066,7 +1068,7 @@ private fun FmTreasureSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xl),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1118,7 +1120,7 @@ private fun FmTreasureSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.sm),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             SongCover(
@@ -1127,7 +1129,7 @@ private fun FmTreasureSheet(
                                     .size(44.dp)
                                     .clip(RoundedCornerShape(8.dp))
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(AppSpacing.lg))
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     text = song.title,
@@ -1149,7 +1151,7 @@ private fun FmTreasureSheet(
                         }
                         if (index != songs.lastIndex) {
                             HorizontalDivider(
-                                modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                                modifier = Modifier.padding(start = 72.dp, end = AppSpacing.xxl),
                                 thickness = 0.5.dp,
                                 color = Stone200.copy(alpha = 0.55f)
                             )
@@ -1162,7 +1164,7 @@ private fun FmTreasureSheet(
                     onClick = onExportToPlaylist,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentRose)
                 ) {
@@ -1171,7 +1173,7 @@ private fun FmTreasureSheet(
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(AppSpacing.sm))
                     Text(text = "一键导出到歌单", fontWeight = FontWeight.Bold)
                 }
             }
@@ -1185,7 +1187,7 @@ private fun FmLoadingState(channel: FmChannel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(AppSpacing.section),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -1221,7 +1223,7 @@ private fun FmLoadingState(channel: FmChannel) {
             textAlign = TextAlign.Center
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
 
         Text(
             text = "私人算法实时调频中，马上就来",
@@ -1248,7 +1250,7 @@ private fun FmEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = channel.icon, fontSize = 54.sp)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
         Text(
             text = "电台调频遇到了一点小波折",
             color = fmOn(),
@@ -1256,7 +1258,7 @@ private fun FmEmptyState(
             fontWeight = FontWeight.Bold
         )
         if (!error.isNullOrBlank()) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
             Text(
                 text = error,
                 color = fmOn(0.5f),
@@ -1264,13 +1266,13 @@ private fun FmEmptyState(
                 textAlign = TextAlign.Center
             )
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AppSpacing.section))
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
                 .background(AccentRose)
                 .clickable(onClick = onRetry)
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+                .padding(horizontal = AppSpacing.section, vertical = AppSpacing.lg),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -1279,7 +1281,7 @@ private fun FmEmptyState(
                 tint = Color.White,
                 modifier = Modifier.size(18.dp)
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AppSpacing.sm))
             Text(
                 text = "重新调频 / 换换口味",
                 color = Color.White,

@@ -44,6 +44,8 @@ import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 音乐库 / 媒体库 Apple Bento 拟态区域（复刻 GZ Music 2.1.8 LibraryBentoSectionKt 规范）
@@ -73,7 +75,7 @@ fun LibraryBentoSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = AppSpacing.xxs),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -83,7 +85,7 @@ fun LibraryBentoSection(
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.6.sp,
-                    color = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                    color = if (isDark) AppColors.slate400 else AppColors.slate500
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -99,14 +101,14 @@ fun LibraryBentoSection(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(if (isDark) Color(0x33FFFFFF) else Color(0x15000000))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .background(if (isDark) AppColors.bentoOverlayWhite20 else AppColors.bentoOverlayBlack8)
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.LibraryMusic,
                     contentDescription = null,
-                    tint = Color(0xFF3B82F6),
+                    tint = AppColors.blue,
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(Modifier.width(5.dp))
@@ -119,12 +121,12 @@ fun LibraryBentoSection(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         // ===== 2. Bento 2x2 格子架构 =====
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)
         ) {
             // 左侧大 Bento 卡：四宫格封面 + 媒体库概览
             LiquidBentoCard(
@@ -140,7 +142,7 @@ fun LibraryBentoSection(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    Color(0xFF3B82F6).copy(alpha = if (isDark) 0.18f else 0.12f),
+                                    AppColors.blue.copy(alpha = if (isDark) 0.18f else 0.12f),
                                     Color.Transparent
                                 )
                             )
@@ -150,7 +152,7 @@ fun LibraryBentoSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
+                        .padding(AppSpacing.xl),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     QuadCover(
@@ -158,7 +160,7 @@ fun LibraryBentoSection(
                         modifier = Modifier.size(80.dp)
                     )
 
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(AppSpacing.xl))
 
                     Column(
                         modifier = Modifier.weight(1f)
@@ -169,19 +171,19 @@ fun LibraryBentoSection(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AppSpacing.xxs))
                         Text(
                             text = "$songCount 首音轨",
                             fontSize = 12.sp,
                             color = TextSoft
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF3B82F6))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .background(AppColors.blue)
+                                .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
@@ -206,7 +208,7 @@ fun LibraryBentoSection(
                 modifier = Modifier
                     .weight(0.85f)
                     .height(156.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
             ) {
                 // 小方块 1: 新建歌单
                 LiquidBentoCard(
@@ -218,24 +220,24 @@ fun LibraryBentoSection(
                     Row(
                         modifier = Modifier
                             .matchParentSize()
-                            .padding(horizontal = 12.dp),
+                            .padding(horizontal = AppSpacing.lg),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFF59E0B).copy(alpha = 0.2f)),
+                                .background(AppColors.amber.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
-                                tint = Color(0xFFF59E0B),
+                                tint = AppColors.amber,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(AppSpacing.md))
                         Column {
                             Text(
                                 text = "新建歌单",
@@ -262,24 +264,24 @@ fun LibraryBentoSection(
                     Row(
                         modifier = Modifier
                             .matchParentSize()
-                            .padding(horizontal = 12.dp),
+                            .padding(horizontal = AppSpacing.lg),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF10B981).copy(alpha = 0.2f)),
+                                .background(AppColors.emerald.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Sync,
                                 contentDescription = null,
-                                tint = Color(0xFF10B981),
+                                tint = AppColors.emerald,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(AppSpacing.md))
                         Column {
                             Text(
                                 text = "导入歌单",
@@ -298,7 +300,7 @@ fun LibraryBentoSection(
             }
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(AppSpacing.xl))
 
         // ===== 3. 操作条（播放全部 / 随机 / 搜索）=====
         // 「播放全部」必须是**实心主色胶囊**：此前用的是 LiquidGlassButton 的 Primary 样式，
@@ -306,7 +308,7 @@ fun LibraryBentoSection(
         // （用户反馈"播放按钮看不见、字太白"）。实心主色 + 白字在任何背景上都有足够对比度。
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
@@ -316,7 +318,7 @@ fun LibraryBentoSection(
                     .clip(RoundedCornerShape(23.dp))
                     .background(PrimaryBrown)
                     .clickable(onClick = onPlayAll)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = AppSpacing.xxl),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
@@ -326,7 +328,7 @@ fun LibraryBentoSection(
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AppSpacing.xs))
                 Text(
                     text = "播放全部",
                     color = Color.White,
@@ -340,9 +342,9 @@ fun LibraryBentoSection(
                     .weight(0.9f)
                     .height(46.dp)
                     .clip(RoundedCornerShape(23.dp))
-                    .background(if (isDark) Color(0x1FFFFFFF) else Color(0x14000000))
+                    .background(if (isDark) AppColors.bentoOverlayWhite12 else AppColors.bentoOverlayBlack8Alt)
                     .clickable(onClick = onShufflePlay)
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = AppSpacing.lg),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
@@ -365,7 +367,7 @@ fun LibraryBentoSection(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(if (isDark) Color(0x1FFFFFFF) else Color(0x14000000))
+                    .background(if (isDark) AppColors.bentoOverlayWhite12 else AppColors.bentoOverlayBlack8Alt)
                     .clickable(onClick = onToggleSearch),
                 contentAlignment = Alignment.Center
             ) {
@@ -378,7 +380,7 @@ fun LibraryBentoSection(
             }
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(AppSpacing.xl))
 
         // ===== 4. 分类胶囊栏：全部 / 自建 / 收藏 =====
         // 之前这里按「平台」分（全部 / 自建 / 网易云 / 酷狗…），把两个维度混在一排：
@@ -386,7 +388,7 @@ fun LibraryBentoSection(
         // 用户根本判断不出该点哪个。现在统一成「归属」这一个维度。
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
         ) {
             item {
                 LiquidCapsuleChip(

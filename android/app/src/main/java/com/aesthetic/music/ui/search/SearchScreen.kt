@@ -39,6 +39,7 @@ import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.TextMuted
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 全局搜索页：
@@ -91,10 +92,10 @@ fun SearchScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = statusBarTop + 16.dp),
+                .padding(top = statusBarTop + AppSpacing.xxl),
         ) {
             // ===== 顶部：搜索框（内嵌平台选择），自身保留左右 20dp =====
-            Box(Modifier.padding(horizontal = 20.dp)) {
+            Box(Modifier.padding(horizontal = AppSpacing.page)) {
                 SearchInputBar(
                     query = query,
                     onQueryChange = search::onQueryChanged,
@@ -113,10 +114,10 @@ fun SearchScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             // ===== 1. 类型 Tab 优先置顶：单曲 歌手 歌单 专辑 歌词，自身保留左右 20dp =====
-            Box(Modifier.padding(horizontal = 20.dp)) {
+            Box(Modifier.padding(horizontal = AppSpacing.page)) {
                 SearchFilterTabs(
                     selected = searchType,
                     onSelect = search::setType,
@@ -125,16 +126,16 @@ fun SearchScreen(
 
             // 非单曲类型不涉及平台切换（平台选择器在搜索框内，仅影响单曲）
             if (searchType != SearchType.SONG && query.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
                 Text(
                     "该类型结果来自公共平台官方接口",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = TextMuted,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.page),
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
 
             // ===== 内容区 =====
             if (query.isBlank()) {
@@ -143,7 +144,7 @@ fun SearchScreen(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 20.dp)
+                        .padding(horizontal = AppSpacing.page)
                         .padding(bottom = BottomContentSpacer)
                         .verticalScroll(rememberScrollState()),
                 ) {

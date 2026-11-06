@@ -45,6 +45,8 @@ import com.aesthetic.music.player.LyricMetaSpec
 import dev.chrisbanes.haze.HazeDefaults
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 歌曲来源、实时音频技术规格与歌词元数据详情面板（BottomSheet）。
@@ -75,7 +77,7 @@ fun SongAudioDetailSheet(
             Modifier.hazeEffect(
                 state = hazeState,
                 style = HazeDefaults.style(
-                    backgroundColor = Color(0xB81A1614),
+                    backgroundColor = AppColors.audioSheetBg,
                     blurRadius = 36.dp,
                     noiseFactor = 0.02f,
                 )
@@ -84,8 +86,8 @@ fun SongAudioDetailSheet(
             Modifier.background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xF0201B17),
-                        Color(0xF514110E),
+                        AppColors.audioSheetTop,
+                        AppColors.audioSheetBottom,
                     )
                 )
             )
@@ -108,10 +110,10 @@ fun SongAudioDetailSheet(
                 )
                 .then(hazeModifier)
                 .navigationBarsPadding()
-                .padding(horizontal = 18.dp)
-                .padding(top = 16.dp, bottom = 28.dp)
+                .padding(horizontal = AppSpacing.xxxl)
+                .padding(top = AppSpacing.xxl, bottom = 28.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.xl)
         ) {
             // 顶部手柄指示线
             Box(
@@ -152,7 +154,7 @@ fun SongAudioDetailSheet(
                         }
                     }
 
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(AppSpacing.xl))
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -163,7 +165,7 @@ fun SongAudioDetailSheet(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AppSpacing.xxs))
                         val subtitle = buildString {
                             append(song?.artist?.ifBlank { "未知歌手" } ?: "未知歌手")
                             if (!song?.album.isNullOrBlank()) {
@@ -189,7 +191,7 @@ fun SongAudioDetailSheet(
                     color = Color.White.copy(alpha = 0.55f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = AppSpacing.lg)
                 )
 
                 val platformName = when (song?.platform) {
@@ -204,7 +206,7 @@ fun SongAudioDetailSheet(
                 }
 
                 InfoRow(label = "平台", value = platformName)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 InfoRow(
                     label = "歌曲 ID",
                     value = song?.id ?: "—",
@@ -216,11 +218,11 @@ fun SongAudioDetailSheet(
                         }
                     }
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 InfoRow(label = "音质请求", value = audioSpec.qualityRequested)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 InfoRow(label = "取链渠道", value = audioSpec.sourceChannel)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 InfoRow(label = "来源插件", value = audioSpec.sourcePlugin)
             }
 
@@ -231,42 +233,42 @@ fun SongAudioDetailSheet(
                     color = Color.White.copy(alpha = 0.55f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 14.dp)
+                    modifier = Modifier.padding(bottom = AppSpacing.xl)
                 )
 
                 // 2 列 3 行网格
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                 ) {
                     SpecGridItem(label = "格式", value = audioSpec.format, modifier = Modifier.weight(1f))
                     SpecGridItem(label = "采样率", value = audioSpec.sampleRateFormatted, modifier = Modifier.weight(1f))
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                 ) {
                     SpecGridItem(label = "位深", value = audioSpec.bitDepthFormatted, modifier = Modifier.weight(1f))
                     SpecGridItem(label = "比特率", value = audioSpec.bitrateFormatted, modifier = Modifier.weight(1f))
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                 ) {
                     SpecGridItem(label = "声道", value = audioSpec.channelCountFormatted, modifier = Modifier.weight(1f))
                     SpecGridItem(label = "时长", value = audioSpec.durationFormatted, modifier = Modifier.weight(1f))
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
 
                 InfoRow(label = "解码方式", value = audioSpec.decodeMode)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 InfoRow(label = "解码器", value = audioSpec.decoderName)
             }
 
@@ -277,20 +279,20 @@ fun SongAudioDetailSheet(
                     color = Color.White.copy(alpha = 0.55f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = AppSpacing.lg)
                 )
 
                 // 模式标签 Chips
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                    modifier = Modifier.padding(bottom = AppSpacing.xl)
                 ) {
                     // 逐字 / 逐行 胶囊 Chip
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (lyricSpec.isKaraoke) Color(0xFF9E2A2B) else Color(0xFF7A2526))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .background(if (lyricSpec.isKaraoke) AppColors.karaokeActive else AppColors.karaokeIdle)
+                            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
                     ) {
                         Text(
                             text = if (lyricSpec.isKaraoke) "逐字" else "逐行",
@@ -305,7 +307,7 @@ fun SongAudioDetailSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color.White.copy(alpha = 0.14f))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
                     ) {
                         Text(
                             text = lyricSpec.formatType,
@@ -317,9 +319,9 @@ fun SongAudioDetailSheet(
                 }
 
                 InfoRow(label = "加载通道", value = lyricSpec.loadChannel)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 InfoRow(label = "匹配来源", value = lyricSpec.matchSource)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 InfoRow(label = "总行数", value = "${lyricSpec.totalLines} 行")
             }
         }
@@ -342,7 +344,7 @@ private fun DetailCardContainer(
                 color = Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(18.dp)
             )
-            .padding(16.dp)
+            .padding(AppSpacing.xxl)
     ) {
         content()
     }
@@ -397,7 +399,7 @@ private fun SpecGridItem(
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.06f))
             .border(0.5.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.lg),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
@@ -405,7 +407,7 @@ private fun SpecGridItem(
             color = Color.White.copy(alpha = 0.5f),
             fontSize = 12.sp
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AppSpacing.xxs))
         Text(
             text = value,
             color = Color.White,

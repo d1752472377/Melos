@@ -57,6 +57,8 @@ import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import java.util.concurrent.TimeUnit
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 排行榜页（按用户提供的参考图重做）。
@@ -131,7 +133,7 @@ fun RankPage(
                         modifier = Modifier
                             .clip(CircleShape)
                             .clickable(enabled = !isLoading, onClick = onRetry)
-                            .padding(6.dp)
+                            .padding(AppSpacing.xs)
                             .size(22.dp),
                     )
                 },
@@ -140,10 +142,10 @@ fun RankPage(
             PlatformTabCard(
                 current = current,
                 onSelectPlatform = onSelectPlatform,
-                modifier = Modifier.padding(horizontal = 20.dp),
+                modifier = Modifier.padding(horizontal = AppSpacing.page),
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
 
             when {
                 isLoading && ranks.isEmpty() -> LoadingBox(
@@ -170,7 +172,7 @@ fun RankPage(
                         top = 2.dp,
                         bottom = BottomContentSpacer,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.lg),
                 ) {
                     if (spotlight != null) {
                         item(key = "spotlight:${spotlight.platform}:${spotlight.id}") {
@@ -191,7 +193,7 @@ fun RankPage(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 8.dp, bottom = 2.dp),
+                                .padding(top = AppSpacing.sm, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -223,7 +225,7 @@ fun RankPage(
                                 text = "这个平台只有一个榜单",
                                 fontSize = 13.sp,
                                 color = TextSoft,
-                                modifier = Modifier.padding(vertical = 12.dp),
+                                modifier = Modifier.padding(vertical = AppSpacing.lg),
                             )
                         }
                     }
@@ -279,7 +281,7 @@ private fun PlatformTabCard(
                         modifier = Modifier.size(11.dp),
                     )
                 }
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AppSpacing.xs))
                 Text(
                     text = item.label.replace("音乐", ""),
                     fontSize = 14.sp,
@@ -294,11 +296,11 @@ private fun PlatformTabCard(
 
 /** 平台品牌色（用于页签圆点）：与各平台官方主色一致 */
 internal fun platformBrandColor(platformId: String): Color = when (platformId) {
-    RankCatalog.NETEASE -> Color(0xFFE23B34)
-    RankCatalog.QQ -> Color(0xFF31C27C)
-    RankCatalog.KUGOU -> Color(0xFF2C8BF0)
-    RankCatalog.KUWO -> Color(0xFFFF7A18)
-    else -> Color(0xFF94A3B8)
+    RankCatalog.NETEASE -> AppColors.brandNeteaseRank
+    RankCatalog.QQ -> AppColors.brandQQ
+    RankCatalog.KUGOU -> AppColors.brandKugouRank
+    RankCatalog.KUWO -> AppColors.brandKuwoRank
+    else -> AppColors.slate400
 }
 
 // ============================================================
@@ -334,7 +336,7 @@ private fun SpotlightCard(
                 shape = RoundedCornerShape(24.dp),
             )
             .clickable(onClick = onClick)
-            .padding(20.dp),
+            .padding(AppSpacing.page),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -361,7 +363,7 @@ private fun SpotlightCard(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             RankCover(
@@ -372,7 +374,7 @@ private fun SpotlightCard(
                 corner = 20.dp,
                 showName = true,
             )
-            Spacer(Modifier.width(18.dp))
+            Spacer(Modifier.width(AppSpacing.xxxl))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = rank.name,
@@ -383,13 +385,13 @@ private fun SpotlightCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
                 Text(
                     text = rankUpdatedLabel(loadedAt, now),
                     fontSize = 13.sp,
                     color = TextSoft,
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "探索榜单",
@@ -407,14 +409,14 @@ private fun SpotlightCard(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
                 .background(accent.copy(alpha = 0.16f)),
         )
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(AppSpacing.xl))
         Text(
             text = rankDescription(rank),
             fontSize = 12.sp,
@@ -452,7 +454,7 @@ private fun RankChartCard(
                 shape = RoundedCornerShape(22.dp),
             )
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(AppSpacing.xl),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RankCover(
@@ -463,7 +465,7 @@ private fun RankChartCard(
             corner = 18.dp,
             showName = true,
         )
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(AppSpacing.xl))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -483,7 +485,7 @@ private fun RankChartCard(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AppSpacing.xs))
             Text(
                 text = rankDescription(rank),
                 fontSize = 12.sp,
@@ -492,12 +494,12 @@ private fun RankChartCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 UpdatedChip(text = rankUpdatedLabel(loadedAt, now), accent = accent)
                 val count = rank.trackCount?.takeIf { it > 0 }
                 if (count != null) {
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(AppSpacing.md))
                     Text(
                         text = "$count 首",
                         fontSize = 12.sp,
@@ -506,7 +508,7 @@ private fun RankChartCard(
                 }
                 val played = formatPlayCountText(rank.playCount?.takeIf { it > 0 })
                 if (played.isNotEmpty()) {
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(AppSpacing.md))
                     Icon(
                         imageVector = Icons.Rounded.Headphones,
                         contentDescription = null,
@@ -567,7 +569,7 @@ private fun RankCover(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 6.dp),
+                modifier = Modifier.padding(horizontal = AppSpacing.xs),
             )
         }
         // 封面上一道极淡的白色描边，避免深色封面色块糊在卡片上
@@ -606,11 +608,11 @@ private fun UpdatedChip(text: String, accent: Color) {
  * 与参考图一致：飙升=紫、新歌=绿、原创=青、热歌=玫红、其它=灰蓝。
  */
 internal fun rankAccentColors(kind: String?): Pair<Color, Color> = when (kind) {
-    "rising" -> Color(0xFF7C5CFF) to Color(0xFFA78BFA)
-    "new" -> Color(0xFF22B573) to Color(0xFF6EE7B7)
-    "original" -> Color(0xFF2BA6E8) to Color(0xFF7DD3FC)
-    "hot" -> Color(0xFFE85D75) to Color(0xFFFDA4AF)
-    else -> Color(0xFF64748B) to Color(0xFFCBD5E1)
+    "rising" -> AppColors.rankRisingStart to AppColors.rankRisingEnd
+    "new" -> AppColors.rankNewStart to AppColors.rankNewEnd
+    "original" -> AppColors.rankOriginalStart to AppColors.skySoft
+    "hot" -> AppColors.rankHotStart to AppColors.rankHotEnd
+    else -> AppColors.slate500 to AppColors.slate300
 }
 
 /**

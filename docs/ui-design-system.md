@@ -20,7 +20,7 @@ Screens（组合业务组件，展示 UI State，发出事件）
 
 | 文件 | 职责 |
 |---|---|
-| `ui/theme/Color.kt` | 背景、表面、文字、强调色、FM/统计/榜单色 |
+| `ui/theme/Color.kt` | 全局语义色、平台品牌色、播放器/统计/首页等页面级静态色（`AppColors`） |
 | `ui/theme/GzColorScheme.kt` | Material3 `lightColorScheme` / `darkColorScheme` |
 | `ui/theme/GzTheme.kt` | `LocalAppIsDark`、`appIsDark()`、主题模式常量 |
 | `ui/theme/Theme.kt` | 唯一主题入口 `AestheticMusicTheme`、全局 `ScaleIndication`；Typography / Shapes 使用 M3 默认值 |
@@ -29,9 +29,9 @@ Screens（组合业务组件，展示 UI State，发出事件）
 
 ### 2.2 规则
 
-1. 新代码必须优先使用上述 token，不在页面里新建 `Color(0x...)` 调色板。
+1. 新代码必须优先使用上述 token，不在页面里新建 `Color(0x...)` 调色板。所有非动态颜色统一登记在 `Color.kt` 的 `AppColors`（按语义/品牌/页面分组）；页面里直接写颜色字面量视为遗漏。
 2. 允许的例外：封面取色、均衡器频谱、播放器主题等**由内容动态生成**的颜色；这类颜色应集中在对应 feature 文件，并注明来源。
-3. 圆角/间距统一使用 `AppRadius` / `AppSpacing`（`ui/theme/AppDimens.kt`）。当前已在 `SongCollection`、`States`、`Overlays`、`SettingsKit`、`ListSearchBar`、`SecondaryPageTopBar`、`SelectionBottomSheet` 等共享 primitives 中采用；页面级特殊视觉仍可保留字面量，**不要一次性全量替换**，避免视觉回归。
+3. 圆角/间距统一使用 `AppRadius` / `AppSpacing`（`ui/theme/AppDimens.kt`）。页面里的 `padding`、`Spacer`、`Arrangement.spacedBy` 已统一替换为 token；只有 token 没有覆盖的特殊值（如 1–3dp 描边内缩、图标尺寸）才保留字面量。
 4. 全局字体使用 Material3 默认 Typography（与 GZ 一致），不保留未启用的 `AppTypography` 副本；需要定制时直接在 `AestheticMusicTheme` 传入 `typography`，不要新增平行的全局字体表。
 
 ## 3. 第二层：UI Primitives
@@ -41,6 +41,7 @@ Screens（组合业务组件，展示 UI State，发出事件）
 | 文件 | 内容 |
 |---|---|
 | `ui/settings/SettingsKit.kt` | 设置页骨架、分组、导航行、开关行、分段行、选项列表、说明、值行、分隔线 |
+| `ui/components/Buttons.kt` | `AppSolidButton`：主色/危险/禁用三态的实心按钮，可选前置图标 |
 | `ui/components/States.kt` | `LoadingBox` / `ErrorBox` / `EmptyBox` / `DangerTextButton` / `DangerCapsuleButton` |
 | `ui/components/Overlays.kt` | `AppDialog` / `AppConfirmDialog` / `AppBottomSheet` |
 | `ui/components/LiquidGlassButton.kt` | `LiquidGlassButton`、玻璃背景 Modifier |
@@ -59,7 +60,7 @@ Screens（组合业务组件，展示 UI State，发出事件）
 
 ### 3.3 当前不做的统一
 
-- 不创建万能 `AppButton`。
+- 不创建万能 `AppButton`：`AppSolidButton` 只覆盖“主色实心 / 危险 / 禁用”这一种形态，圆形播放按钮、FM 实心圆、渐变胶囊等仍保留各自实现。
 - 不把所有按钮/开关改成同一种视觉。
 - 不强制业务组件包裹某个通用 Card/Button。
 - 不把 `SettingsKit` 提升为全局表单系统。

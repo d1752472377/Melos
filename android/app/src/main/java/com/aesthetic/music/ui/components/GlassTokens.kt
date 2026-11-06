@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.aesthetic.music.ui.theme.AppColors
 import com.aesthetic.music.ui.theme.appIsDark
 import kotlin.math.min
 
@@ -54,15 +55,15 @@ import kotlin.math.min
 
 /** GlassTokensKt.java:1642-1644 —— 一级文字色 */
 @Composable
-fun textHigh(): Color = if (appIsDark()) Color(0xFFF2F2F7) else Color(0xFF1C1C1E)
+fun textHigh(): Color = if (appIsDark()) AppColors.glassTextHighDark else AppColors.glassTextHighLight
 
 /** GlassTokensKt.java:1650-1652 —— 二级文字色 */
 @Composable
-fun textMedium(): Color = if (appIsDark()) Color(0xFFA8A8AE) else Color(0xFF8E8E93)
+fun textMedium(): Color = if (appIsDark()) AppColors.glassTextMediumDark else AppColors.glassTextMediumLight
 
 /** GlassTokensKt.java:1646-1648 —— 三级/辅助文字色 */
 @Composable
-fun textLow(): Color = if (appIsDark()) Color(0xFF8E8E93) else Color(0xFF9A9AA0)
+fun textLow(): Color = if (appIsDark()) AppColors.glassTextLowDark else AppColors.glassTextLowLight
 
 /** GlassTokensKt.java:1186-1197 —— 封面描边细线 */
 @Composable
@@ -76,7 +77,7 @@ fun coverPlaceholder(): Color = textMedium().copy(alpha = 0.12f)
 /** GlassTokensKt.java:1239-1241 —— 玻璃卡片底色 */
 @Composable
 fun glassBg(): Color =
-    if (appIsDark()) Color(0xFF1C1C1E) else Color.White.copy(alpha = 0.55f)
+    if (appIsDark()) AppColors.glassBgDark else Color.White.copy(alpha = 0.55f)
 
 /**
  * GlassTokensKt.java:1243-1245 —— 玻璃卡片描边色。
@@ -98,7 +99,7 @@ fun glassSubtleSurface(): Color = if (appIsDark()) Color.White.copy(alpha = 0.08
  * GlassTokensKt.java:1306 / CoverToneKt.java:29 —— 默认封面主色调。
  * 反编译真值 `hp1.e(4294583356L)` = `0xFFFA243C`。
  */
-val DefaultCoverTone = Color(0xFFFA243C)
+val DefaultCoverTone = AppColors.defaultCoverTone
 
 /**
  * GlassTokensKt.java:1314-1322（以及 1441-1449）—— 卡片「色调」推导：

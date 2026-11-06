@@ -68,6 +68,7 @@ import com.aesthetic.music.ui.theme.TextSoft
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 账号与云端同步页（云端优先现代重构）。
@@ -151,7 +152,7 @@ fun CloudManageScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = AppSpacing.page)
                     .padding(bottom = BottomContentSpacer)
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -175,7 +176,7 @@ fun CloudManageScreen(
                             modifier = Modifier.size(28.dp),
                         )
                     }
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(AppSpacing.xl))
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -186,13 +187,13 @@ fun CloudManageScreen(
                                 ),
                                 color = TextPrimary,
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AppSpacing.sm))
                             // 云端连接健康徽章
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(AccentMint.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    .padding(horizontal = AppSpacing.xs, vertical = 2.dp),
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
@@ -201,7 +202,7 @@ fun CloudManageScreen(
                                             .clip(CircleShape)
                                             .background(AccentMint),
                                     )
-                                    Spacer(Modifier.width(4.dp))
+                                    Spacer(Modifier.width(AppSpacing.xxs))
                                     Text(
                                         text = "云端已连接",
                                         style = MaterialTheme.typography.labelSmall.copy(
@@ -230,7 +231,7 @@ fun CloudManageScreen(
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
 
                 // 同步状态信息
                 Column(
@@ -238,8 +239,8 @@ fun CloudManageScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
                         .background(Stone100)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                        .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.xs),
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -276,9 +277,9 @@ fun CloudManageScreen(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -295,7 +296,7 @@ fun CloudManageScreen(
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp),
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AppSpacing.xs))
                             Text(
                                 text = if (isSyncing) "同步中…" else "立即同步",
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
@@ -324,7 +325,7 @@ fun CloudManageScreen(
                                 tint = TextPrimary,
                                 modifier = Modifier.size(16.dp),
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AppSpacing.xs))
                             Text(
                                 text = if (showSessions) "收起设备" else "登录设备 (${if (sessions.isNotEmpty()) sessions.size.toString() else "多端"})",
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
@@ -337,7 +338,7 @@ fun CloudManageScreen(
 
             // ===== 2. 活跃多端设备列表 =====
             if (showSessions) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
                 SectionCard {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -364,18 +365,18 @@ fun CloudManageScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
 
                     if (isLoadingSessions) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = AppSpacing.lg),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), color = PrimaryBrown, strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AppSpacing.sm))
                             Text("正在获取多端会话…", style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = TextSoft)
                         }
                     } else if (sessions.isEmpty()) {
@@ -383,7 +384,7 @@ fun CloudManageScreen(
                             text = "暂无其他在线设备",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                             color = TextSoft,
-                            modifier = Modifier.padding(vertical = 8.dp),
+                            modifier = Modifier.padding(vertical = AppSpacing.sm),
                         )
                     } else {
                         sessions.forEach { s ->
@@ -392,7 +393,7 @@ fun CloudManageScreen(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (s.isCurrent) Stone100 else Surface)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
@@ -401,7 +402,7 @@ fun CloudManageScreen(
                                     tint = if (s.isCurrent) PrimaryBrown else TextMuted,
                                     modifier = Modifier.size(20.dp),
                                 )
-                                Spacer(Modifier.width(10.dp))
+                                Spacer(Modifier.width(AppSpacing.md))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
@@ -413,12 +414,12 @@ fun CloudManageScreen(
                                             color = TextPrimary,
                                         )
                                         if (s.isCurrent) {
-                                            Spacer(Modifier.width(6.dp))
+                                            Spacer(Modifier.width(AppSpacing.xs))
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(4.dp))
                                                     .background(AccentMint.copy(alpha = 0.15f))
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    .padding(horizontal = AppSpacing.xs, vertical = 2.dp),
                                             ) {
                                                 Text(
                                                     text = "本机",
@@ -444,14 +445,14 @@ fun CloudManageScreen(
                                     }
                                 }
                             }
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                         }
                     }
                 }
             }
 
             // ===== 3. 云端漫游数据清单 =====
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
             SectionCard {
                 Column {
                     Text(
@@ -467,7 +468,7 @@ fun CloudManageScreen(
                     )
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
 
                 CloudSyncScopeItem(
                     icon = Icons.Filled.MusicNote,
@@ -495,13 +496,13 @@ fun CloudManageScreen(
                     subtitle = "已导入的音源插件与配置状态",
                 )
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .background(Stone100)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
                 ) {
                     Text(
                         text = "提示：所有数据均与您的账号安全绑定，登录任意设备即可完整同步，无需手动备份或迁移。",
@@ -512,7 +513,7 @@ fun CloudManageScreen(
             }
 
             // ===== 4. 退出登录卡片 =====
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
             SectionCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -538,7 +539,7 @@ fun CloudManageScreen(
                             .border(1.dp, Stone200, RoundedCornerShape(10.dp))
                             .background(Surface)
                             .clickable { showLogoutDialog = true }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.sm),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -553,7 +554,7 @@ fun CloudManageScreen(
                 }
             }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(AppSpacing.section))
             }
         }
     }
@@ -571,7 +572,7 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
             .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Surface)
-            .padding(16.dp),
+            .padding(AppSpacing.xxl),
         content = content,
     )
 }
@@ -585,7 +586,7 @@ private fun CloudSyncScopeItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -602,7 +603,7 @@ private fun CloudSyncScopeItem(
                 modifier = Modifier.size(16.dp),
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,

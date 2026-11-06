@@ -37,6 +37,7 @@ import com.aesthetic.music.ui.components.ListSearchBar
 import com.aesthetic.music.ui.components.SelectionItem
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /** 收藏歌曲排序方式 */
 enum class FavoriteSortOrder(val title: String, val subtitle: String) {
@@ -113,11 +114,11 @@ fun FavoritesScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(top = statusBarTop + 12.dp)
+                .padding(top = statusBarTop + AppSpacing.lg)
         ) {
             SongCollectionTopBar(onBack = onBack)
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
 
             SongCollectionHeaderCard(
                 title = "我喜欢的音乐",
@@ -133,10 +134,10 @@ fun FavoritesScreen(
                 albumCount = albumCount,
                 onPlayAll = { if (filtered.isNotEmpty()) onPlayAll(filtered) },
                 onShuffle = { if (filtered.isNotEmpty()) onPlayAll(filtered.shuffled()) },
-                modifier = Modifier.padding(horizontal = 20.dp),
+                modifier = Modifier.padding(horizontal = AppSpacing.page),
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
 
             if (isSearchExpanded) {
                 ListSearchBar(
@@ -144,9 +145,9 @@ fun FavoritesScreen(
                     onQueryChange = { searchQuery = it },
                     placeholder = "搜索我喜欢的音乐、歌手、专辑…",
                     focusRequester = searchFocus,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.page),
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
             }
 
             Row(
@@ -174,7 +175,7 @@ fun FavoritesScreen(
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
 
             if (songs.isEmpty()) {
                 EmptyBox("还没有收藏的歌曲\n在歌曲列表点击 ♡ 即可收藏")
@@ -190,7 +191,7 @@ fun FavoritesScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 20.dp),
+                        .padding(horizontal = AppSpacing.page),
                 )
             }
         }

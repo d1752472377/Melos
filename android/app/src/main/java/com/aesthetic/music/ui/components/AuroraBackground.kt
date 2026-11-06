@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.aesthetic.music.ui.theme.appIsDark
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * GZ Music「极光流光」背景 —— 逐值精确还原。
@@ -33,17 +34,17 @@ import com.aesthetic.music.ui.theme.appIsDark
  */
 
 /** AuroraBackgroundKt.java:29 —— `a = hp1.e(4294638332L)`，浅色底色（同时用作浅色分支的纯色填充） */
-val AuroraLightBase = Color(0xFFFAFAFC)
+val AuroraLightBase = AppColors.auroraLightBase
 
 /** AuroraBackgroundKt.java:30 —— `b = hp1.e(4279110930L)`，深色底色（同时用作深色竖向渐变的中间色） */
-val AuroraDarkBase = Color(0xFF0E0D12)
+val AuroraDarkBase = AppColors.auroraDarkBase
 
 /** p70.java:52 —— 几何缩放参考宽度，`width / 390.0f` */
 private const val AURORA_SCALE_REFERENCE = 390f
 
 /** p70.java:43 —— 深色分支底色竖向渐变的两个端点色 */
-private val AuroraDarkTop = Color(0xFF15131A)
-private val AuroraDarkBottom = Color(0xFF0A090D)
+private val AuroraDarkTop = AppColors.auroraDarkTop
+private val AuroraDarkBottom = AppColors.auroraDarkBottom
 
 /**
  * AuroraBackgroundKt.java:39 —— 浅色分支的 4 个 blob：
@@ -58,10 +59,10 @@ private class AuroraBlob(
 )
 
 private val AuroraLightBlobs = listOf(
-    AuroraBlob(Color(0xFFFFE8D8), -0.85f, -0.55f, 360f),
-    AuroraBlob(Color(0xFFE0D9FF), 0.85f, -0.35f, 340f),
-    AuroraBlob(Color(0xFFD4F8F0), -0.55f, 0.75f, 320f),
-    AuroraBlob(Color(0xFFFFE8D8), 0.60f, 0.85f, 300f),
+    AuroraBlob(AppColors.auroraPeach, -0.85f, -0.55f, 360f),
+    AuroraBlob(AppColors.auroraLavender, 0.85f, -0.35f, 340f),
+    AuroraBlob(AppColors.auroraMint, -0.55f, 0.75f, 320f),
+    AuroraBlob(AppColors.auroraPeach, 0.60f, 0.85f, 300f),
 )
 
 /**
@@ -127,7 +128,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
                             x = (180f - 0.3f) * scale,
                             y = (220f - 0.4f) * scale,
                             radius = 320f * scale,
-                            color = Color(0xFF3A2A4A),
+                            color = AppColors.auroraDarkPurple,
                             alpha0 = 0.085f,
                             alpha55 = 0.025f,
                         )
@@ -136,7 +137,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
                             x = width - 60f * scale,
                             y = height - 120f * scale,
                             radius = 280f * scale,
-                            color = Color(0xFF1A2E36),
+                            color = AppColors.auroraDarkTeal,
                             alpha0 = 0.075f,
                             alpha55 = 0.022f,
                         )
@@ -164,7 +165,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
                             x = (-80f * scale) + (380f * scale / 2f),
                             y = (-120f * scale) + (380f * scale / 2f),
                             radius = 380f * scale / 2f,
-                            color = Color(0xFFFF9A76),
+                            color = AppColors.auroraOrange,
                             alpha0 = 0.094f,
                             alpha55 = 0.031f,
                         )
@@ -173,7 +174,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
                             x = (80f * scale) + (300f * scale / 2f),
                             y = (-100f * scale) + (300f * scale / 2f),
                             radius = 300f * scale / 2f,
-                            color = Color(0xFFFFD175),
+                            color = AppColors.auroraYellow,
                             alpha0 = 0.078f,
                             alpha55 = 0.024f,
                         )
@@ -182,7 +183,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
                             x = (width - 20f * scale - 240f * scale) + (240f * scale / 2f),
                             y = (-80f * scale) + (240f * scale / 2f),
                             radius = 240f * scale / 2f,
-                            color = Color(0xFFF8C0D0),
+                            color = AppColors.auroraPink,
                             alpha0 = 0.063f,
                             alpha55 = 0.016f,
                         )

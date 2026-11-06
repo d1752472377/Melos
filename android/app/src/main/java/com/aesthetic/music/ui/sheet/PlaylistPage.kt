@@ -56,6 +56,7 @@ import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 歌单广场（图 2 + 图 3 规范）：
@@ -89,7 +90,7 @@ fun PlaylistPage(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 16.dp, top = statusBarTop + 14.dp, bottom = 10.dp),
+                .padding(start = AppSpacing.page, end = AppSpacing.xxl, top = statusBarTop + AppSpacing.xl, bottom = AppSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {
@@ -100,10 +101,10 @@ fun PlaylistPage(
                     modifier = Modifier
                         .clip(CircleShape)
                         .clickable(onClick = onBack)
-                        .padding(4.dp)
+                        .padding(AppSpacing.xxs)
                         .size(24.dp)
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(AppSpacing.md))
             }
             Text(
                 text = "歌单广场",
@@ -122,7 +123,7 @@ fun PlaylistPage(
                 modifier = Modifier
                     .clip(CircleShape)
                     .clickable(onClick = onRetry)
-                    .padding(6.dp)
+                    .padding(AppSpacing.xs)
                     .size(22.dp)
             )
         }
@@ -131,7 +132,7 @@ fun PlaylistPage(
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
         ) {
             items(sheetTags, key = { it }) { tag ->
                 val selected = tag == sheetCat
@@ -143,12 +144,12 @@ fun PlaylistPage(
             }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AppSpacing.md))
 
         // ===== 排序切换（最热 / 最新，精致紧凑胶囊） =====
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.page),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
         ) {
             OrderChip(label = "最热", selected = sheetOrder == "hot") {
                 onSelectOrder("hot")
@@ -158,7 +159,7 @@ fun PlaylistPage(
             }
         }
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(AppSpacing.xs))
 
         // ===== 歌单卡片列表（单列 iOS 玻璃拟态卡片流，见图 3） =====
         when {
@@ -180,7 +181,7 @@ fun PlaylistPage(
                         top = 8.dp,
                         bottom = BottomContentSpacer,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.lg),
                 ) {
                     items(playlists, key = { "${it.platform}:${it.id}" }) { playlist ->
                         PlaylistGlassCard(
@@ -220,7 +221,7 @@ private fun CategoryPill(
         modifier = Modifier
             .then(bgModifier)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.sm),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -240,7 +241,7 @@ private fun OrderChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) PrimaryBrown else SurfaceSoft.copy(alpha = 0.75f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs),
     ) {
         Text(
             text = label,
@@ -268,7 +269,7 @@ private fun PlaylistGlassCard(
             .fillMaxWidth()
             .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(AppSpacing.xl),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -283,7 +284,7 @@ private fun PlaylistGlassCard(
                 corner = 14.dp,
             )
 
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(AppSpacing.xl))
 
             // 右侧信息流
             Column(
@@ -307,7 +308,7 @@ private fun PlaylistGlassCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(AppSpacing.xxs))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
@@ -316,7 +317,7 @@ private fun PlaylistGlassCard(
                     )
                 }
 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AppSpacing.xxs))
 
                 // 第二行：描述文案（两行截断）
                 val descText = playlist.description?.takeIf { it.isNotBlank() }
@@ -332,7 +333,7 @@ private fun PlaylistGlassCard(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
 
                 // 第三行：播放量胶囊 + 曲目数
                 Row(
@@ -364,7 +365,7 @@ private fun PlaylistGlassCard(
                     // 歌曲总数
                     val trackCount = playlist.trackCount?.takeIf { it > 0 }
                     if (trackCount != null) {
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(AppSpacing.md))
                         Text(
                             text = "$trackCount 首",
                             fontSize = 11.sp,

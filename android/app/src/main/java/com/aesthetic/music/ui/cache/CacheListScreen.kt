@@ -52,6 +52,8 @@ import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextFaint
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 缓存列表页：列出已缓存歌曲（名字/大小），支持单个删除与一键清空。
@@ -75,8 +77,8 @@ fun CacheListScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
-                .padding(top = 24.dp)
+                .padding(horizontal = AppSpacing.page)
+                .padding(top = AppSpacing.section)
         ) {
             // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
             Row(
@@ -98,20 +100,20 @@ fun CacheListScreen(
                     DangerCapsuleButton(text = "清空全部", onClick = { showClearConfirm = true })
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AppSpacing.xs))
             Text(
                 text = "已缓存 ${songs.size} 首歌曲",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = TextSoft
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
 
             if (songs.isEmpty()) {
                 EmptyBox("暂无缓存歌曲\n播放过的歌曲会自动缓存，下次秒开")
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                     contentPadding = BottomContentPadding
                 ) {
                     items(uniqueSongs, key = { s -> s.filePath }) { song ->
@@ -121,14 +123,14 @@ fun CacheListScreen(
                                 .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Surface)
-                                .padding(8.dp),
+                                .padding(AppSpacing.sm),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (Palette.isDark) Color(0xFF142E25) else Color(0xFFEBFBF5)),
+                                    .background(if (Palette.isDark) AppColors.successSurfaceDark else AppColors.successSurfaceLight),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
@@ -138,7 +140,7 @@ fun CacheListScreen(
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(AppSpacing.lg))
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     text = song.title,

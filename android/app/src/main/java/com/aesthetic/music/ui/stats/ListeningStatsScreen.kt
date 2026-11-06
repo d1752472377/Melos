@@ -63,6 +63,7 @@ import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 听歌统计页（重写版）。
@@ -112,7 +113,7 @@ fun ListeningStatsScreen(
                 .fillMaxSize()
                 .padding(bottom = BottomContentSpacer)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = AppSpacing.page)
         ) {
             StatsHeader(onBack = onBack)
 
@@ -126,7 +127,7 @@ fun ListeningStatsScreen(
                 monthSum = monthSum,
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             // ===== 30 天趋势 =====
             StatsGlassCard {
@@ -141,7 +142,7 @@ fun ListeningStatsScreen(
                         )
                     },
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
                 if (stats.isEmpty) {
                     StatsEmptyHint("还没有听歌记录，播放一首歌就会开始统计")
                 } else {
@@ -149,7 +150,7 @@ fun ListeningStatsScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             // ===== 近三月对比 =====
             StatsGlassCard {
@@ -158,7 +159,7 @@ fun ListeningStatsScreen(
                     title = "月度对比",
                     subtitle = "最近 ${ListeningInsights.MONTH_COUNT} 个月",
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 if (maxMonth <= 0) {
                     StatsEmptyHint("还没有可对比的月度数据")
                 } else {
@@ -177,7 +178,7 @@ fun ListeningStatsScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             // ===== 歌曲排行 =====
             StatsGlassCard {
@@ -197,7 +198,7 @@ fun ListeningStatsScreen(
                         null
                     },
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AppSpacing.xs))
                 if (ranking.isEmpty()) {
                     StatsEmptyHint("还没有排行数据")
                 } else {
@@ -213,7 +214,7 @@ fun ListeningStatsScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
 
             // ===== 时段分布 =====
             StatsGlassCard {
@@ -221,7 +222,7 @@ fun ListeningStatsScreen(
                     title = "时段分布",
                     subtitle = "近 ${StatsStore.HOUR_WINDOW_DAYS} 天的收听时间分布",
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 val hasSlot = slots.any { it.durationMs > 0 }
                 if (!hasSlot) {
                     StatsEmptyHint("还没有足够的时段数据")
@@ -236,7 +237,7 @@ fun ListeningStatsScreen(
                         )
                     }
                     if (dominant != null) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AppSpacing.sm))
                         Text(
                             text = slotPersona(dominant.label, (dominant.percent * 100).toInt()),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 17.sp),
@@ -246,7 +247,7 @@ fun ListeningStatsScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AppSpacing.section))
         }
 
         sheetDay?.let { day ->
@@ -274,7 +275,7 @@ private fun StatsHeader(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = statusBarTop + 14.dp, bottom = 16.dp),
+            .padding(top = statusBarTop + AppSpacing.xl, bottom = AppSpacing.xxl),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -292,7 +293,7 @@ private fun StatsHeader(onBack: () -> Unit) {
             )
         }
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xxs))
 
         Text(
             text = "听歌统计",
@@ -313,7 +314,7 @@ private fun StatRecordingBadge(recording: Boolean) {
         modifier = Modifier
             .clip(CircleShape)
             .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = AppSpacing.md, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -322,7 +323,7 @@ private fun StatRecordingBadge(recording: Boolean) {
                 .clip(CircleShape)
                 .background(color)
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(AppSpacing.xs))
         Text(
             text = if (recording) "记录中" else "已暂停",
             style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
@@ -359,7 +360,7 @@ private fun StatsHeroCard(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(AppSpacing.md))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "累计聆听",
@@ -379,12 +380,12 @@ private fun StatsHeroCard(
             StatRecordingBadge(recording = recording)
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         // 大数字
         StatsBigDuration(ms = stats.totalListenMs)
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
 
         // 一行汇总
         Text(
@@ -397,12 +398,12 @@ private fun StatsHeroCard(
             color = TextSoft,
         )
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
 
         // 今日 / 本周 / 本月
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
         ) {
             QuickSliceCard(
                 label = "今日",
@@ -445,21 +446,21 @@ private fun QuickSliceCard(
             .clip(shape)
             .background(if (highlight) AccentAmber.copy(alpha = 0.10f) else GlassSurfaceSoft)
             .border(1.dp, GlassBorder, shape)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.lg),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
             color = if (highlight) AccentAmber else TextSoft,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
         Text(
             text = ListeningInsights.formatDurationCompact(durationMs),
             style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.ExtraBold),
             color = TextPrimary,
             maxLines = 1,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AppSpacing.xxs))
         Text(
             text = if (plays > 0) "播放 ${plays} 次" else "暂无记录",
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
@@ -476,8 +477,8 @@ private fun SongRankingSheet(songs: List<SongStat>, onDismiss: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
+                .padding(horizontal = AppSpacing.page)
+                .padding(bottom = AppSpacing.section),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -497,7 +498,7 @@ private fun SongRankingSheet(songs: List<SongStat>, onDismiss: () -> Unit) {
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -526,8 +527,8 @@ private fun DayDetailSheet(day: String, stat: DayStat?, onDismiss: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
+                .padding(horizontal = AppSpacing.page)
+                .padding(bottom = AppSpacing.section),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -554,7 +555,7 @@ private fun DayDetailSheet(day: String, stat: DayStat?, onDismiss: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             val listenMs = stat?.listenMs ?: 0L
             val plays = stat?.plays ?: 0
@@ -563,7 +564,7 @@ private fun DayDetailSheet(day: String, stat: DayStat?, onDismiss: () -> Unit) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
                     .background(Stone100)
-                    .padding(vertical = 14.dp),
+                    .padding(vertical = AppSpacing.xl),
             ) {
                 DayMetricCell("收听时长", ListeningInsights.formatDurationCompact(listenMs), Modifier.weight(1f))
                 DayMetricCell("播放次数", if (plays > 0) "$plays 次" else "0 次", Modifier.weight(1f))
@@ -575,7 +576,7 @@ private fun DayDetailSheet(day: String, stat: DayStat?, onDismiss: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.page))
 
             val songs = stat?.songs?.take(8).orEmpty()
             if (songs.isEmpty()) {
@@ -588,7 +589,7 @@ private fun DayDetailSheet(day: String, stat: DayStat?, onDismiss: () -> Unit) {
                 )
             } else {
                 StatsSectionTitle(title = "当天最常听", subtitle = "按播放次数排序")
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AppSpacing.xxs))
                 songs.forEachIndexed { index, song ->
                     DaySongRow(rank = index + 1, song = song)
                 }
@@ -617,7 +618,7 @@ private fun DayMetricCell(
                 modifier = Modifier
                     .clip(CircleShape)
                     .background(AccentAmber.copy(alpha = 0.16f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                    .padding(horizontal = AppSpacing.sm, vertical = 2.dp),
             ) {
                 Text(
                     text = label,
@@ -640,7 +641,7 @@ private fun DaySongRow(rank: Int, song: SongStat) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = AppSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -656,7 +657,7 @@ private fun DaySongRow(rank: Int, song: SongStat) {
                 color = TextMuted,
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column(Modifier.weight(1f)) {
             Text(
                 text = song.displayTitle,
@@ -672,7 +673,7 @@ private fun DaySongRow(rank: Int, song: SongStat) {
                 maxLines = 1,
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = if (song.plays > 0) "听 ${song.plays} 次" else ListeningInsights.formatDuration(song.listenMs),

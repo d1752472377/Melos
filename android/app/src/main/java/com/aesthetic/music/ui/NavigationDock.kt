@@ -59,6 +59,7 @@ import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.max
 import kotlin.math.min
+import com.aesthetic.music.ui.theme.AppColors
 
 // ============================================================================================
 // GZ 真值常量 —— 全部取自 scratch/gz_extract/nav_spec.md（括号里是 spec 的行号）
@@ -104,7 +105,7 @@ private val DiscOutlineWidth = 1.dp
 // TODO(未确定): 进度环线宽 GZ 未抠出 → 沿用本组件既有值
 private val DiscRingStroke = 2.5.dp
 /** Java:10562 `hp1.e(4280032286L)` —— 内圈/中心盘底色 */
-private val DiscCenterPlateColor = Color(0xFF1C1C1E)
+private val DiscCenterPlateColor = AppColors.ink
 /** spec:53 `g91.c(0.75f, g91.d)` —— 中心轴孔 White@75% */
 private val DiscSpindleColor = Color.White.copy(alpha = 0.75f)
 
@@ -166,7 +167,7 @@ fun NavigationDock(
     // 玻璃态 alpha = 0.72（深）/ 0.75（浅）（s:2837576 一带）。深色 tint 基色用 GZ 的深色玻璃底 token
     // 0xFF1C1C1E；浅色用白色（GZ 的浅色玻璃底就是 White）。
     val barBackground = if (onDark) {
-        Color(0xFF1C1C1E).copy(alpha = BarGlassAlphaDark) // 0xFF1C1C1E = GZ 深色玻璃底（glassBg 的深色值）
+        AppColors.ink.copy(alpha = BarGlassAlphaDark) // 0xFF1C1C1E = GZ 深色玻璃底（glassBg 的深色值）
     } else {
         Color.White.copy(alpha = BarGlassAlphaLight)
     }

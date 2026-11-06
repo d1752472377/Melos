@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.PlaylistCoverPick
 import com.aesthetic.music.ui.components.AppBottomSheet
+import com.aesthetic.music.ui.components.AppSolidButton
 import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.AccentCoral
@@ -58,6 +60,7 @@ import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /** 歌单编辑表单的提交结果 */
 data class PlaylistEditorResult(
@@ -155,7 +158,7 @@ fun PlaylistEditorSheet(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .imePadding()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = AppSpacing.section)
                 .padding(bottom = 28.dp),
         ) {
             Text(
@@ -166,7 +169,7 @@ fun PlaylistEditorSheet(
                 ),
                 color = TextPrimary,
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.page))
 
             // ===== 封面 + 名称 =====
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -201,7 +204,7 @@ fun PlaylistEditorSheet(
                     }
                 }
 
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(AppSpacing.xxl))
 
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -212,7 +215,7 @@ fun PlaylistEditorSheet(
                         ),
                         color = TextSoft,
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AppSpacing.xs))
                     InputBox(
                         value = name,
                         onValueChange = {
@@ -224,7 +227,7 @@ fun PlaylistEditorSheet(
                         placeholder = "给歌单起个名字",
                         singleLine = true,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = when {
@@ -237,7 +240,7 @@ fun PlaylistEditorSheet(
                         )
                         // 已设置过封面时给一个撤销入口，避免"选错图只能删歌单"
                         if (localCover == null && initialCover.isNotBlank()) {
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AppSpacing.sm))
                             Text(
                                 text = "清除封面",
                                 style = MaterialTheme.typography.bodySmall.copy(
@@ -248,7 +251,7 @@ fun PlaylistEditorSheet(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable { localCover = "" }
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    .padding(horizontal = AppSpacing.xxs, vertical = 2.dp),
                             )
                         }
                     }
@@ -268,7 +271,7 @@ fun PlaylistEditorSheet(
                         ),
                         color = TextPrimary,
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(AppSpacing.xs))
                     Text(
                         text = "可选",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
@@ -276,16 +279,16 @@ fun PlaylistEditorSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(Stone100)
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                            .padding(horizontal = AppSpacing.xs, vertical = 2.dp),
                     )
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AppSpacing.xxs))
                 Text(
                     text = "粘贴网易云 / QQ音乐 / 酷狗 / 酷我 的歌单链接或分享文案，自动带出歌单名、封面与歌曲",
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
                     color = TextMuted,
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) {
@@ -297,15 +300,19 @@ fun PlaylistEditorSheet(
                             maxLines = 3,
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
-                    PillButton(
+                    Spacer(Modifier.width(AppSpacing.md))
+                    AppSolidButton(
                         text = "解析",
                         enabled = importText.isNotBlank() && !importLoading,
+                        icon = Icons.Filled.Search,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
                         onClick = { onResolveImport(importText) },
                     )
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 ImportStatusBlock(
                     state = importState,
                     onClear = {
@@ -315,7 +322,7 @@ fun PlaylistEditorSheet(
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AppSpacing.section))
 
             // ===== 主按钮 =====
             Box(
@@ -341,7 +348,7 @@ fun PlaylistEditorSheet(
                             )
                         )
                     }
-                    .padding(vertical = 14.dp),
+                    .padding(vertical = AppSpacing.xl),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -372,7 +379,7 @@ private fun ImportStatusBlock(
                 strokeWidth = 2.dp,
                 color = PrimaryBrown,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AppSpacing.sm))
             Text(
                 text = "正在解析歌单…",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -391,7 +398,7 @@ private fun ImportStatusBlock(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(Stone100)
-                .padding(10.dp),
+                .padding(AppSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PlaylistCoverImage(
@@ -401,7 +408,7 @@ private fun ImportStatusBlock(
                     .clip(RoundedCornerShape(8.dp)),
                 corner = 8.dp,
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(AppSpacing.md))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = state.name,
@@ -424,7 +431,7 @@ private fun ImportStatusBlock(
                 modifier = Modifier
                     .clip(CircleShape)
                     .clickable(onClick = onClear)
-                    .padding(6.dp),
+                    .padding(AppSpacing.xs),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Close,
@@ -456,7 +463,7 @@ private fun InputBox(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Stone100)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.lg),
         decorationBox = { inner ->
             Box(contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) {
@@ -472,35 +479,3 @@ private fun InputBox(
     )
 }
 
-/** 小尺寸主色按钮 */
-@Composable
-private fun PillButton(
-    text: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) PrimaryBrown else Stone200)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Search,
-            contentDescription = null,
-            tint = if (enabled) Color.White else TextMuted,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = if (enabled) Color.White else TextMuted,
-        )
-    }
-}

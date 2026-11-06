@@ -53,6 +53,8 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.R
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.AppColors
 // --- 1. 更新数据模型：加入图标资源字段 ---
 data class PlatformItem(
     val name: String,
@@ -64,12 +66,12 @@ data class PlatformItem(
 // --- 2. 配置平台数据源 ---
 // TODO: 把 iconRes 换成你项目里真实的图片资源，例如 R.drawable.ic_qq_music
 private val PlatformFilters = listOf(
-    PlatformItem("全部平台", null, Color(0xFF9E9E9E), R.drawable.ic_music),
+    PlatformItem("全部平台", null, AppColors.brandUnknown, R.drawable.ic_music),
 
-    PlatformItem("网易云", "netease", Color(0xFFE53935), R.drawable.ic_netease_music),
-    PlatformItem("QQ", "qq", Color(0xFFFDD835), R.drawable.ic_qq_music),
-    PlatformItem("酷狗", "kugou", Color(0xFF1E88E5), R.drawable.ic_kugou_music),
-    PlatformItem("酷我", "kuwo", Color(0xFFFFB300), R.drawable.ic_kuwo_music)
+    PlatformItem("网易云", "netease", AppColors.brandNetease, R.drawable.ic_netease_music),
+    PlatformItem("QQ", "qq", AppColors.brandQQSearch, R.drawable.ic_qq_music),
+    PlatformItem("酷狗", "kugou", AppColors.brandKugou, R.drawable.ic_kugou_music),
+    PlatformItem("酷我", "kuwo", AppColors.brandKuwo, R.drawable.ic_kuwo_music)
 )
 @Composable
 fun SearchInputBar(
@@ -92,7 +94,7 @@ fun SearchInputBar(
                 focusRequester.requestFocus()
                 keyboard?.show()
             }
-            .padding(start = 6.dp, end = 14.dp),
+            .padding(start = AppSpacing.xs, end = AppSpacing.xl),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PlatformSelector(
@@ -100,7 +102,7 @@ fun SearchInputBar(
             onSelect = onPlatformSelect,
         )
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AppSpacing.sm))
 
         Box(Modifier.weight(1f)) {
             BasicTextField(
@@ -182,7 +184,7 @@ private fun PlatformSelector(
                     scaleX = scale
                     scaleY = scale
                 }
-                .padding(4.dp),
+                .padding(AppSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // --- 核心修改点：动态显示当前平台图标 ---
@@ -217,7 +219,7 @@ private fun PlatformSelector(
                         .clip(RoundedCornerShape(16.dp))
                         .background(Surface)
                         .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = AppSpacing.xs)
                 ) {
                     PlatformFilters.forEach { item ->
                         PlatformMenuItem(
@@ -280,13 +282,13 @@ private fun PlatformMenuItem(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 使用统一的图标组件
         PlatformIcon(item = item, size = 22.dp)
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
 
         Text(
             text = item.name,
@@ -299,7 +301,7 @@ private fun PlatformMenuItem(
             Icon(
                 Icons.Filled.Check,
                 contentDescription = "已选中",
-                tint = Color(0xFFE53935),
+                tint = AppColors.brandNetease,
                 modifier = Modifier.size(16.dp)
             )
         }

@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aesthetic.music.data.settings.StatusBarMode
 import com.aesthetic.music.data.settings.ThemeMode
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 主题与外观设置页：主题模式 / 系统状态栏。
@@ -24,7 +25,7 @@ fun AppearanceSettingsScreen(
 ) {
     SettingsPageScaffold(title = "主题与外观", subtitle = "主题模式、状态栏与桌面显示", onBack = onBack) {
         SettingsSection(title = "主题设置") {
-            Column(Modifier.padding(top = 4.dp)) {
+            Column(Modifier.padding(top = AppSpacing.xxs)) {
                 SettingsSegmentRow(
                     title = "主题模式",
                     subtitle = "深浅色外观的跟随方式",
@@ -42,7 +43,7 @@ fun AppearanceSettingsScreen(
         SettingsGap()
 
         SettingsSection(title = "系统状态栏") {
-            Column(Modifier.padding(top = 4.dp)) {
+            Column(Modifier.padding(top = AppSpacing.xxs)) {
                 SettingsSegmentRow(
                     title = "状态栏显示",
                     subtitle = "控制页面顶部系统状态栏的显示方式",

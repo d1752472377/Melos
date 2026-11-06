@@ -28,6 +28,7 @@ import com.aesthetic.music.service.UpdateService
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.launch
+import com.aesthetic.music.ui.theme.AppSpacing
 
 /**
  * 全 App 唯一的版本更新弹窗。
@@ -89,7 +90,7 @@ fun AppUpdateDialog(
             if (updateProgressText != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AppSpacing.lg))
                     Text(updateProgressText ?: "正在处理…", style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
@@ -97,7 +98,7 @@ fun AppUpdateDialog(
                     text = if (info.updateLog.isNotBlank()) info.updateLog else "修复已知问题，提升使用体验。",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
