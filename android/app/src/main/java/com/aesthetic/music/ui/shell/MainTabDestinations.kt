@@ -20,7 +20,6 @@ import com.aesthetic.music.ui.library.PlaylistImportController
 import com.aesthetic.music.ui.navigation.ScreenRoute
 import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.playlist.PlaylistScreen
-import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.profile.ProfileScreen
 import com.aesthetic.music.ui.source.SourceController
 import com.aesthetic.music.ui.theme.FmBackground
@@ -152,7 +151,6 @@ fun PlaylistTabDestination(
 /** 我的 / 个人中心 Tab */
 @Composable
 fun ProfileTabDestination(
-    profile: ProfileController,
     library: LibraryController,
     sources: SourceController,
     auth: AuthController,
@@ -168,19 +166,18 @@ fun ProfileTabDestination(
     val favorites by library.favorites.collectAsState()
     val myPlaylists by library.myPlaylists.collectAsState()
     val sourcePlugins by sources.plugins.collectAsState()
-    val profileNickname by profile.profileNickname.collectAsState()
-    val profileAvatar by profile.profileAvatar.collectAsState()
-    val profileBackground by profile.profileBackground.collectAsState()
-    val isProfileBgBlur by profile.isProfileBgBlur.collectAsState()
-    val profileUserId by profile.profileUserId.collectAsState()
-    val profileUsername by profile.username.collectAsState()
-    val profileCreatedAt by profile.createdAt.collectAsState()
+    val authUser by auth.user.collectAsState()
+    val profileNickname by auth.profileNickname.collectAsState()
+    val profileAvatar by auth.profileAvatar.collectAsState()
+    val profileBackground by auth.profileBackground.collectAsState()
+    val isProfileBgBlur by auth.isProfileBgBlur.collectAsState()
+    val profileUserId by auth.profileUserId.collectAsState()
 
     ProfileScreen(
         nickname = profileNickname,
         userId = profileUserId,
-        username = profileUsername,
-        createdAt = profileCreatedAt,
+        username = authUser?.username.orEmpty(),
+        createdAt = authUser?.createdAt ?: 0L,
         avatarPath = profileAvatar,
         backgroundPath = profileBackground,
         isBackgroundBlur = isProfileBgBlur,
@@ -211,10 +208,10 @@ fun ProfileTabDestination(
         onOpenEqualizer = { nav.navigate(ScreenRoute.Equalizer.route) },
         onOpenSettings = { nav.navigate(ScreenRoute.Settings.route) },
         onOpenPluginManage = { nav.navigate(ScreenRoute.PluginManage.route) },
-        onPickAvatar = { uri -> profile.saveAvatarFromUri(context, uri) },
-        onPickBackground = { uri -> profile.saveBackgroundFromUri(context, uri) },
-        onToggleBgBlur = { profile.toggleProfileBgBlur() },
-        onRestoreDefaults = { profile.restoreProfileDefaults(context) },
+        onPickAvatar = { uri -> auth.saveAvatarFromUri(context, uri) },
+        onPickBackground = { uri -> auth.saveBackgroundFromUri(context, uri) },
+        onToggleBgBlur = { auth.toggleProfileBgBlur() },
+        onRestoreDefaults = { auth.restoreProfileDefaults(context) },
         onLogout = { auth.logout() },
         onCheckUpdate = onCheckUpdate,
         isCheckingUpdate = isCheckingUpdate,

@@ -73,7 +73,7 @@
 - `ui/theme/Type.kt` 的 `AppTypography`（第八批复审时已删除：无实际引用，Theme 继续使用 M3 默认字体）。
 - `GzTheme` 的 schedule 主题常量/函数（移植自 GZ，尚未接设置）。
 - ~~`Color.kt` 的未使用色 token、`GlassTokens`/`StatsKit` 的未使用设计组件、`CoverTone` 的未使用导出、`Lyric.mergeRomanization`~~（第九、十一批复审核对引用后已清理，见架构复审文档第 2.3、2.7 节）。
-- `AuthController.refreshProfile` 与 `logoutAndClearLocalData`（产品 API，暂无 UI 入口）。
+- `AuthController.logoutAndClearLocalData`（产品 API，暂无 UI 入口；第十二批合并后仍保留）。
 - `DeviceSyncAdapter`、`JsEngine` 接口（暂不作为本阶段清理目标）。
 
 ## 后续阶段
@@ -106,14 +106,14 @@
 #### 阶段 2 执行记录（2026-11-05）
 
 - `MainViewModel` 从 855 行收敛到约 330 行：**没有任何 `get()` 只读委托或单行转发函数**，只保留 Controller 组装、壳层状态（Tab/播放器浮层/页面背景/全局提示/更新/统计）和跨域编排（切 Tab、主动下载、检查更新等）。
-- 各 Destination 改为直接接收自己需要的 Controller，例如 Home → `ContentController` + `PlaylistDetailController`；Fm → `FmController` + `LibraryController`；Profile → `ProfileController` + `LibraryController` + `SourceController` + `AuthController`。UI 层没有出现新的“万能上下文”。
+- 各 Destination 改为直接接收自己需要的 Controller，例如 Home → `ContentController` + `PlaylistDetailController`；Fm → `FmController` + `LibraryController`；Profile → `AuthController` + `LibraryController` + `SourceController`（个人资料已并入 `AuthController`）。UI 层没有出现新的“万能上下文”。
 - `SearchScreen` / `AuthScreen` 不再接收 `MainViewModel`，分别依赖 `SearchController` / `AuthController`。
 - 主题与音质状态从 `MainViewModel` 收回 `SettingsController`（原先同一设置有两套入口）。
 - `SongActionsHost` 不再依赖 `MainViewModel`，改用 `LibraryController` + `ShellActions`；`ShellActions` 增加 `downloadSong`。
 - `PlaylistDetailController` 新增 `showLocalPlaylist(MyPlaylist)`，把本地歌单转换从 MainViewModel 收回控制器。
 - 目前只有 `MainActivity` 与 `AppShell` 持有 `MainViewModel`；所有 Destination/Screen 都不再直接依赖它。
 
-验证：`compileDebugKotlin` 与 `testDebugUnitTest`（35 个测试）通过。未做真机手动冒烟。专辑/歌单详情 Controller 的合并仍未执行，留待后续单独确认数据语义。
+验证：`compileDebugKotlin` 与 `testDebugUnitTest`（35 个测试）通过。未做真机手动冒烟。专辑/歌单详情 Controller 的合并已在第四批完成。
 
 ### 阶段 3：状态与设计控件
 

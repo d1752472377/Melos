@@ -25,7 +25,6 @@ import com.aesthetic.music.ui.home.ContentController
 import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.library.PlaylistImportController
 import com.aesthetic.music.ui.playlist.PlaylistDetailController
-import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.rank.RankController
 import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.settings.SettingsController
@@ -99,19 +98,9 @@ class MainViewModel : ViewModel() {
     val playlistDetail = PlaylistDetailController(repository, viewModelScope)
     val rank = RankController(repository, viewModelScope)
 
-    val profile = ProfileController(
-        repository = repository,
-        scope = viewModelScope,
-        onToast = { _appToast.value = it },
-        onLoggedOut = {
-            library.refreshSyncState()
-            auth.refresh()
-        },
-    )
-
     /**
-     * 账号控制器放在 library/profile 之后创建：登录成功要刷新可同步状态、
-     * 刷新个人资料，并触发一次云端同步。
+     * 账号与个人资料控制器：登录成功要刷新可同步状态并触发一次云端同步；
+     * 401 失效时清空依赖登录的本地状态。
      */
     val auth: AuthController = AuthController(
         repository = repository,
@@ -119,8 +108,10 @@ class MainViewModel : ViewModel() {
         onToast = { _appToast.value = it },
         onAuthChanged = {
             library.refreshSyncState()
-            profile.syncFromStore()
             if (UserStore.isLoggedIn()) library.performCloudSync()
+        },
+        onLoggedOut = {
+            library.refreshSyncState()
         },
     )
 
@@ -180,7 +171,7 @@ class MainViewModel : ViewModel() {
         // 冷启动异步回填历史/收藏/歌单（与窗口期内已发生的变更合并）
         library.hydrate()
         // 登录态失效（401）处理
-        profile.installAuthFailedHook()
+        auth.installAuthFailedHook()
         // 最近搜索异步回填
         search.hydrate()
         // 已登录 + 已配置服务器时，启动后自动做一次增量同步

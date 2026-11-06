@@ -368,7 +368,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // 我的/个人中心 Tab
                 composable(ScreenRoute.Profile.route) {
-                    ProfileTabDestination(viewModel.profile, viewModel.library, viewModel.sources, viewModel.auth, localStats, isCheckingUpdate, { viewModel.checkForUpdate(manual = true) }, nav, actions, cacheState)
+                    ProfileTabDestination(viewModel.library, viewModel.sources, viewModel.auth, localStats, isCheckingUpdate, { viewModel.checkForUpdate(manual = true) }, nav, actions, cacheState)
                 }
 
                 // 全局搜索�?
@@ -449,7 +449,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
                 // 编辑个人资料�?
                 composable(ScreenRoute.ProfileEdit.route) {
-                    ProfileEditDestination(viewModel.profile, nav, actions)
+                    ProfileEditDestination(viewModel.auth, nav, actions)
                 }
 
                 // 本地下载�?

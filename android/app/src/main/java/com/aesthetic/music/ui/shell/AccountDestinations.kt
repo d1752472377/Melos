@@ -7,46 +7,43 @@ import androidx.compose.ui.platform.LocalContext
 import com.aesthetic.music.ui.account.AuthController
 import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.profile.CloudManageScreen
-import com.aesthetic.music.ui.profile.ProfileController
 import com.aesthetic.music.ui.profile.ProfileEditScreen
 
 /** 个人资料页（注册日期 / 登录用户名 / 邮箱绑定 / 昵称签名） */
 @Composable
 fun ProfileEditDestination(
-    profile: ProfileController,
+    auth: AuthController,
     nav: ShellNav,
     actions: ShellActions,
 ) {
     val context = LocalContext.current
-    val profileNickname by profile.profileNickname.collectAsState()
-    val profileBio by profile.profileBio.collectAsState()
-    val profileAvatar by profile.profileAvatar.collectAsState()
-    val profileUserId by profile.profileUserId.collectAsState()
-    val profileUsername by profile.username.collectAsState()
-    val profileEmail by profile.email.collectAsState()
-    val profileCreatedAt by profile.createdAt.collectAsState()
+    val authUser by auth.user.collectAsState()
+    val profileNickname by auth.profileNickname.collectAsState()
+    val profileBio by auth.profileBio.collectAsState()
+    val profileAvatar by auth.profileAvatar.collectAsState()
+    val profileUserId by auth.profileUserId.collectAsState()
     ProfileEditScreen(
         initialNickname = profileNickname,
         initialBio = profileBio,
         initialAvatarPath = profileAvatar,
-        username = profileUsername,
+        username = authUser?.username.orEmpty(),
         userId = profileUserId,
-        email = profileEmail,
-        createdAt = profileCreatedAt,
+        email = authUser?.email,
+        createdAt = authUser?.createdAt ?: 0L,
         onBack = nav.popBack,
-        onSave = { nick, bio, avatar -> profile.saveProfileInfo(nick, bio, avatar) },
-        onPickAvatar = { uri -> profile.saveAvatarFromUri(context, uri) },
+        onSave = { nick, bio, avatar -> auth.saveProfileInfo(nick, bio, avatar) },
+        onPickAvatar = { uri -> auth.saveAvatarFromUri(context, uri) },
         onSendEmailCode = { email, scene, onSent ->
-            profile.sendEmailCode(email, scene, onSent)
+            auth.sendEmailCode(email, scene, onSent)
         },
         onBindEmail = { email, code, onSuccess ->
-            profile.bindEmail(email, code, onSuccess)
+            auth.bindEmail(email, code, onSuccess)
         },
         onUnbindEmail = { code, onSuccess ->
-            profile.unbindEmail(code, onSuccess)
+            auth.unbindEmail(code, onSuccess)
         },
         onChangePassword = { oldPwd, newPwd, onSuccess ->
-            profile.changePassword(oldPwd, newPwd, onSuccess)
+            auth.changePassword(oldPwd, newPwd, onSuccess)
         },
         onShowToast = actions.toast,
     )

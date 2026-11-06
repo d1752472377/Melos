@@ -73,6 +73,18 @@
 - `player/Lyric.kt` 的 `mergeRomanization`：无人调用，罗马音合并没有接入渲染链路。
 - `rankMetaText` / `rankKindLabel` 仍被 `RankPageHelpersTest` 引用，保留。
 
+### 2.8 已合并：账号与个人资料控制器（第十二批）
+
+`ProfileController` 整体并入 `AuthController`：
+
+- 资料状态（头像、背景、模糊开关、昵称、签名、用户 ID）与账号状态放在同一处，`refresh()` 同时刷新登录态与资料展示；登录、退出、401 失效都只走一个刷新入口。
+- 用户名 / 邮箱 / 注册时间不再各自维护 StateFlow，Destination 直接读取 `auth.user`。
+- 头像/背景落盘、云端恢复、邮箱绑定、修改密码、保存资料等原有方法原样迁入，签名与行为不变。
+- `MainViewModel` 不再创建 `profile`，`onAuthChanged` 里删掉 `profile.syncFromStore()`；401 回调改由 `auth.installAuthFailedHook()` 安装。
+- `ProfileTabDestination` / `ProfileEditDestination` 改为只接收 `AuthController`。
+
+`CacheState` 与 `CacheManageState` 经核对仍是两种数据源（缓存歌曲列表 vs 空间占用统计），**不合并**。
+
 ### 2.4 已合并/移动
 
 - `ProfileFormat.kt` + `ProfileUtils.kt` → `ui/profile/ProfileUtils.kt`（两个 object 同域）。
@@ -85,8 +97,8 @@
 | 候选 | 理由 | 风险/决定 |
 |---|---|---|
 | `AlbumController` 并入 `PlaylistDetailController` | 两者都是“详情请求令牌 + songs + loading/error”，且专辑最终复用 `PlaylistDetailScreen` | **已完成（第四批）**：`openAlbum(AlbumItem)` + `retry()` 并入 `PlaylistDetailController`，删除 `AlbumController`；专辑/歌单共享同一 detail 状态与请求令牌 |
-| `AuthController` + `ProfileController` | 都读写 `UserStore`，都存在用户资料状态 | **部分处理（第五批）**：删除 `ProfileController` 里无消费者的重复 `_user`，用户状态只保留 `AuthController.user`；完整合并因回调交错仍暂缓 |
-| `data/settings` 7 个 Store | 模板重复 | 你已要求先评估简单公共函数；**暂缓** |
+| `AuthController` + `ProfileController` | 都读写 `UserStore`，都存在用户资料状态 | **已完成（第十二批）**：个人资料状态与操作并入 `AuthController`，`refresh()` 同时刷新登录态与资料；用户名/邮箱/注册时间直接由 `auth.user` 派生，删除 `ProfileController` |
+| `data/settings` 7 个 Store | 模板重复 | **已完成（第二批）**：`PrefsJson.kt` 提供 prefs/load/save/clear/runAsync 顶层函数，各 Store 保留自己的键与语义 |
 | `SearchType.kt` 并入 `SearchController` | 5 行枚举，单一使用域 | **已完成（第八批）**：枚举移入 `SearchController.kt`，删除独立文件 |
 
 ## 4. UI 与业务逻辑边界

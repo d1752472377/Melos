@@ -1,13 +1,20 @@
 package com.aesthetic.music.ui.account
 
+import android.content.Context
+import android.net.Uri
+import com.aesthetic.music.MelosApplication
 import com.aesthetic.music.data.MusicRepository
+import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.api.AuthData
 import com.aesthetic.music.data.api.SessionDto
 import com.aesthetic.music.data.api.UserInfo
-import com.aesthetic.music.data.settings.SyncServerStore
 import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.sync.SyncStateStore
+import com.aesthetic.music.ui.profile.ProfileFormat
+import com.aesthetic.music.ui.profile.ProfileUtils
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +23,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * 账号控制器：注册 / 登录 / 退出 / 登录设备管理。
+ * 账号与个人资料控制器：注册 / 登录 / 退出 / 登录设备管理，以及头像、背景、昵称、签名。
+ *
+ * 原先账号状态在 `AuthController`、个人资料状态在 `ProfileController`，两者都读写
+ * [UserStore]，登录后还要互相刷新。合并后只有一个事实来源：登录态与资料展示状态都在这里，
+ * `refresh()` 同时更新两者，宿主不再需要“登录后手动同步另一个控制器”。
  *
  * ## 后端只保存数据，鉴权交给账号
  * 旧的"私有云密钥"模式（一个手填的共享密钥）已经不存在了：
@@ -37,6 +48,8 @@ class AuthController(
     private val onToast: (String) -> Unit,
     /** 登录态发生变化后的回调（刷新同步状态、触发一次同步、刷新设置页文案） */
     private val onAuthChanged: () -> Unit = {},
+    /** 登录态失效时清空依赖登录的本地状态（由宿主转调 LibraryController） */
+    private val onLoggedOut: () -> Unit = {},
 ) {
 
     private val _user = MutableStateFlow(UserStore.user())
@@ -69,10 +82,61 @@ class AuthController(
 
     private var countdownJob: Job? = null
 
+    // ===== 个人资料与个性化状态 =====
+
+    private val _profileAvatar = MutableStateFlow(UserStore.getAvatarPath())
+    val profileAvatar = _profileAvatar.asStateFlow()
+    private val _profileBackground = MutableStateFlow(UserStore.getBackgroundPath())
+    val profileBackground = _profileBackground.asStateFlow()
+    private val _isProfileBgBlur = MutableStateFlow(UserStore.isBackgroundBlur())
+    val isProfileBgBlur = _isProfileBgBlur.asStateFlow()
+    private val _profileNickname = MutableStateFlow(UserStore.getNickname())
+    val profileNickname = _profileNickname.asStateFlow()
+    private val _profileBio = MutableStateFlow(UserStore.getBio())
+    val profileBio = _profileBio.asStateFlow()
+    private val _profileUserId = MutableStateFlow(UserStore.getUserId())
+    val profileUserId = _profileUserId.asStateFlow()
+
+    init {
+        UserStore.user()?.let { restoreCloudImages(it) }
+    }
+
+    /**
+     * 登录态失效（401）：清登录态并提示。此前 token 过期/被吊销后界面仍显示"已登录"，
+     * 收藏/历史/歌单云同步全部静默失败，用户只看到"同步没生效"。
+     */
+    fun installAuthFailedHook() {
+        ApiClient.setOnAuthFailed {
+            if (UserStore.isLoggedIn()) {
+                UserStore.logout()
+                refresh()
+                onLoggedOut()
+                onToast("登录已过期，请重新登录")
+            }
+        }
+    }
+
     /** 从 [UserStore] 重新读取登录态（`isLoggedIn` 要求 token 与用户信息同时存在） */
     fun refresh() {
         _user.value = UserStore.user()
         _isLoggedIn.value = UserStore.isLoggedIn()
+        refreshProfileState()
+    }
+
+    /**
+     * 把个人中心展示的状态同步成 [UserStore] 的真实值。
+     *
+     * 登录、退出、会话失效后都要走这里：登出后还留着上一个账号的头像/昵称会泄露隐私，
+     * 登录后不刷新又会出现"登录了但页面没变"。
+     */
+    private fun refreshProfileState() {
+        _profileAvatar.value = UserStore.getAvatarPath()
+        _profileBackground.value = UserStore.getBackgroundPath()
+        _isProfileBgBlur.value = UserStore.isBackgroundBlur()
+        _profileNickname.value = UserStore.getNickname()
+        _profileBio.value = UserStore.getBio()
+        _profileUserId.value = UserStore.getUserId()
+        UserStore.user()?.let { restoreCloudImages(it) }
     }
 
     fun clearError() {
@@ -304,6 +368,255 @@ class AuthController(
                     onToast("已退出该设备")
                 }
                 .onFailure { onToast("操作失败：${it.message ?: "网络错误"}") }
+        }
+    }
+
+    /**
+     * 服务端返回的用户信息是唯一事实来源：本地展示项与 [UserStore] 缓存一起更新，
+     * 避免出现"页面刷新后昵称/邮箱又变回去了"（UserStore 里还是旧的）。
+     */
+    private fun applyUser(updated: UserInfo) {
+        UserStore.updateUser(updated)
+        _user.value = updated
+        _profileNickname.value = updated.nickname.ifBlank { updated.username }
+        _profileBio.value = UserStore.getBio()
+        _profileUserId.value = UserStore.getUserId()
+        restoreCloudImages(updated)
+    }
+
+    private fun restoreCloudImages(user: UserInfo) {
+        val context = MelosApplication.instance
+        scope.launch(Dispatchers.IO) {
+            // 头像：若本地无有效文件则从云端恢复
+            if (user.avatar.isNotBlank()) {
+                val curLocal = UserStore.getAvatarPath()
+                if (curLocal.isNullOrBlank() || !File(curLocal).exists()) {
+                    val saved = ProfileUtils.saveBase64ImageToInternal(context, user.avatar, "avatar")
+                    if (saved != null) {
+                        UserStore.setAvatarPath(saved)
+                        _profileAvatar.value = saved
+                    }
+                } else {
+                    _profileAvatar.value = curLocal
+                }
+            } else if (_profileAvatar.value == null) {
+                _profileAvatar.value = UserStore.getAvatarPath()
+            }
+
+            // 背景：若本地无有效文件则从云端恢复
+            if (user.background.isNotBlank()) {
+                val curLocal = UserStore.getBackgroundPath()
+                if (curLocal.isNullOrBlank() || !File(curLocal).exists()) {
+                    val saved = ProfileUtils.saveBase64ImageToInternal(context, user.background, "background")
+                    if (saved != null) {
+                        UserStore.setBackgroundPath(saved)
+                        _profileBackground.value = saved
+                    }
+                } else {
+                    _profileBackground.value = curLocal
+                }
+            } else if (_profileBackground.value == null) {
+                _profileBackground.value = UserStore.getBackgroundPath()
+            }
+        }
+    }
+
+    // ===== 个人资料与个性化管理 =====
+
+    /** 绑定 / 解绑邮箱流程的验证码发送。[email] 传空串会被拒绝。 */
+    fun sendEmailCode(email: String, scene: String, onSent: () -> Unit = {}) {
+        val target = email.trim().lowercase()
+        if (target.isBlank() || !ProfileFormat.isValidEmail(target)) {
+            onToast("请输入有效的邮箱地址")
+            return
+        }
+        scope.launch {
+            repository.sendCode(target, scene = scene).onSuccess {
+                onToast("验证码已发送至 $target，请查收")
+                onSent()
+            }.onFailure { e ->
+                onToast("验证码发送失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
+    /** 安全绑定/更换邮箱（核对新邮箱验证码） */
+    fun bindEmail(email: String, code: String, onSuccess: () -> Unit = {}) {
+        if (!UserStore.isLoggedIn()) {
+            onToast("请先登录后再绑定邮箱")
+            return
+        }
+        val target = email.trim().lowercase()
+        val c = code.trim()
+        if (target.isBlank() || !ProfileFormat.isValidEmail(target)) {
+            onToast("邮箱格式不正确")
+            return
+        }
+        if (c.length != 6 || !c.all { it.isDigit() }) {
+            onToast("请输入 6 位数字验证码")
+            return
+        }
+        scope.launch {
+            repository.bindEmail(email = target, code = c).onSuccess { updated ->
+                applyUser(updated)
+                onToast("邮箱绑定成功")
+                onSuccess()
+            }.onFailure { e ->
+                onToast("绑定失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
+    /** 安全解绑邮箱（核对原邮箱验证码） */
+    fun unbindEmail(code: String, onSuccess: () -> Unit = {}) {
+        if (!UserStore.isLoggedIn()) {
+            onToast("请先登录")
+            return
+        }
+        val c = code.trim()
+        if (c.length != 6 || !c.all { it.isDigit() }) {
+            onToast("请输入 6 位数字验证码")
+            return
+        }
+        scope.launch {
+            repository.unbindEmail(code = c).onSuccess { updated ->
+                applyUser(updated)
+                onToast("邮箱已成功解绑")
+                onSuccess()
+            }.onFailure { e ->
+                onToast("解绑失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
+    /** 修改登录密码 */
+    fun changePassword(oldPwd: String, newPwd: String, onSuccess: () -> Unit = {}) {
+        if (!UserStore.isLoggedIn()) {
+            onToast("请先登录")
+            return
+        }
+        if (oldPwd.isBlank() || newPwd.isBlank()) {
+            onToast("密码不能为空")
+            return
+        }
+        if (newPwd.length < 5 || newPwd.length > 64) {
+            onToast("新密码需 5-64 位")
+            return
+        }
+        scope.launch {
+            repository.updatePassword(oldPwd, newPwd).onSuccess {
+                onToast("密码修改成功")
+                onSuccess()
+            }.onFailure { e ->
+                onToast("修改密码失败: ${e.message ?: "网络异常"}")
+            }
+        }
+    }
+
+    /** 从系统选择器拿到的头像 URI：拷贝进私有目录并更新头像。返回落盘路径或 null */
+    fun saveAvatarFromUri(context: Context, uri: Uri): String? {
+        val path = ProfileUtils.saveImageToInternal(context, uri, "avatar") ?: return null
+        setProfileAvatar(path)
+        return path
+    }
+
+    /** 从系统选择器拿到的背景 URI：拷贝进私有目录并更新背景。返回落盘路径或 null */
+    fun saveBackgroundFromUri(context: Context, uri: Uri): String? {
+        val path = ProfileUtils.saveImageToInternal(context, uri, "background") ?: return null
+        setProfileBackground(path)
+        return path
+    }
+
+    fun setProfileAvatar(path: String?) {
+        UserStore.setAvatarPath(path)
+        _profileAvatar.value = path
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                if (path == null) {
+                    repository.updateProfile(avatar = "").onSuccess { applyUser(it) }
+                } else {
+                    val base64 = ProfileUtils.compressImageToBase64(path, 256, 75)
+                    if (!base64.isNullOrBlank()) {
+                        repository.updateProfile(avatar = base64).onSuccess { applyUser(it) }
+                    }
+                }
+            }
+        }
+    }
+
+    fun setProfileBackground(path: String?) {
+        UserStore.setBackgroundPath(path)
+        _profileBackground.value = path
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                if (path == null) {
+                    repository.updateProfile(background = "").onSuccess { applyUser(it) }
+                } else {
+                    val base64 = ProfileUtils.compressImageToBase64(path, 720, 70)
+                    if (!base64.isNullOrBlank()) {
+                        repository.updateProfile(background = base64).onSuccess { applyUser(it) }
+                    }
+                }
+            }
+        }
+    }
+
+    fun toggleProfileBgBlur() {
+        val next = !isProfileBgBlur.value
+        UserStore.setBackgroundBlur(next)
+        _isProfileBgBlur.value = next
+    }
+
+    fun restoreProfileDefaults(context: Context) {
+        UserStore.restoreProfileDefaults(context)
+        // 头像不在恢复范围内（UserStore 里也只删背景文件）：这里保持原值，不回写 null
+        _profileAvatar.value = UserStore.getAvatarPath()
+        _profileBackground.value = null
+        _isProfileBgBlur.value = false
+        _profileNickname.value = UserStore.getNickname()
+        _profileBio.value = ""
+        _profileUserId.value = UserStore.getUserId()
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                repository.updateProfile(background = "").onSuccess { applyUser(it) }
+            }
+        }
+        onToast("已恢复默认（头像已保留）")
+    }
+
+    /** 保存可编辑资料（昵称/签名/头像）。用户名、注册日期、邮箱是账号属性，不在这里改 */
+    fun saveProfileInfo(
+        nickname: String,
+        bio: String,
+        avatarPath: String? = null,
+    ) {
+        if (nickname.isNotBlank()) {
+            UserStore.setNickname(nickname)
+            _profileNickname.value = nickname
+        }
+        UserStore.setBio(bio)
+        _profileBio.value = bio
+        if (avatarPath != null) {
+            UserStore.setAvatarPath(avatarPath)
+            _profileAvatar.value = avatarPath
+        }
+        if (UserStore.isLoggedIn()) {
+            scope.launch(Dispatchers.IO) {
+                val avatarBase64 = if (avatarPath != null) {
+                    ProfileUtils.compressImageToBase64(avatarPath, 256, 75)
+                } else null
+                repository.updateProfile(
+                    nickname = nickname.ifBlank { null },
+                    avatar = avatarBase64
+                ).onSuccess { updated ->
+                    applyUser(updated)
+                    onToast("个人信息已保存")
+                }.onFailure { e ->
+                    onToast("保存失败: ${e.message ?: "网络异常"}")
+                }
+            }
+        } else {
+            onToast("个人信息已保存")
         }
     }
 
