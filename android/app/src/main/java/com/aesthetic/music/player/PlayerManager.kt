@@ -51,6 +51,9 @@ enum class PlayMode { SEQUENCE, REPEAT, SHUFFLE }
 /** 淡入淡出每步时长（10 步 ≈ 300ms，短到不影响手感，长到听不出突跳） */
 private const val FADE_STEP_MS = 30L
 
+/** 播放中检查媒体服务/卡片是否还活着的间隔（服务被系统回收或卡片被清掉后自动补回） */
+private const val SERVICE_HEALTH_CHECK_MS = 15_000L
+
 /**
  * 高频播放进度：每 500ms 更新一次。
  * 与低频 [PlayerState] 分离——只有底部 Dock 进度环 / 播放页底部控件订阅它，
@@ -621,12 +624,21 @@ class PlayerManager private constructor(private val appContext: Context) {
         } catch (_: Throwable) {}
 
         player.addListener(object : Player.Listener {
+            /**
+             * AudioSessionId 可能在播放器准备音频输出时才真正分配/变化。
+             * 在这里重新绑定效果器，避免在 onIsPlayingChanged（已经开始出声）时
+             * 创建/替换 Equalizer 造成起播瞬间的爆音。
+             */
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                try {
+                    MelosEqualizer.attachAudioSession(audioSessionId)
+                } catch (_: Throwable) {
+                }
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
                 if (isPlaying) {
-                    try {
-                        MelosEqualizer.attachAudioSession(player.audioSessionId)
-                    } catch (_: Throwable) {}
                     // 淡入：从静音升到正常音量，避免每次起播"啪"一声
                     fadeIn()
                     val s = _state.value
@@ -719,6 +731,11 @@ class PlayerManager private constructor(private val appContext: Context) {
 
     private fun notifyState() {
         val s = _state.value
+        // 服务被系统回收后，播放器仍可能在出声。只要还在播放/加载就把它重新拉起来，
+        // 否则 MediaSession 与媒体卡片会永久消失（通知/锁屏/蓝牙都不再更新）。
+        if (s.isPlaying || s.isLoading) {
+            ensurePlaybackService()
+        }
         onStateChanged?.invoke(s)
     }
 
@@ -734,6 +751,11 @@ class PlayerManager private constructor(private val appContext: Context) {
             }
         } catch (_: Exception) {
         }
+    }
+
+    /** 服务还活着就不重复拉起；被回收后由播放状态自动补回 */
+    private fun ensurePlaybackService() {
+        if (!com.aesthetic.music.service.PlaybackService.isRunning()) startPlaybackService()
     }
 
     /** UI 消费完错误后调用，防止重复弹提示 */
@@ -1364,6 +1386,8 @@ class PlayerManager private constructor(private val appContext: Context) {
             // 淡出后暂停（关闭「淡入淡出」时直接 pause）
             fadeOutThenPause()
         } else {
+            // 从暂停/失败恢复也可能发生在服务已被回收之后：先确保 MediaSession 存在。
+            ensurePlaybackService()
             when (player.playbackState) {
                 // 从未起播：正常走取链播放
                 Player.STATE_IDLE -> if (player.mediaItemCount == 0) {
@@ -1477,6 +1501,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         if (progressJob?.isActive == true) return
         progressJob = scope.launch {
             var lastTick = SystemClock.elapsedRealtime()
+            var lastServiceCheckAt = 0L
             while (isActive) {
                 val s = _state.value
                 if (!s.isPlaying) {
@@ -1487,6 +1512,13 @@ class PlayerManager private constructor(private val appContext: Context) {
                 val now = SystemClock.elapsedRealtime()
                 val delta = now - lastTick
                 lastTick = now
+                // 服务可能被系统在后台回收：播放还在继续时定期补拉，避免媒体卡片永久消失。
+                if (now - lastServiceCheckAt > SERVICE_HEALTH_CHECK_MS) {
+                    lastServiceCheckAt = now
+                    ensurePlaybackService()
+                    // 服务还在但卡片被系统清掉时，重新发一次同 id 的通知（原地恢复）。
+                    com.aesthetic.music.service.PlaybackService.refreshCard(appContext)
+                }
                 val pos = player.currentPosition.coerceAtLeast(0)
                 val dur = (player.duration.takeIf { it > 0 } ?: _progress.value.durationMs).coerceAtLeast(0)
                 _progress.value = PlaybackProgress(

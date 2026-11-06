@@ -165,9 +165,11 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // App 被划掉时：如果没在播放则停掉服务
+        // App 被划掉时：只有"没有任何媒体条目"才停掉服务。
+        // 有歌但暂停时保留会话/卡片，否则从通知、蓝牙或车机恢复播放时
+        // 已经没有 MediaSession，媒体卡片再也回不来。
         val player = mediaSession?.player
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
+        if (player == null || player.mediaItemCount == 0) {
             stopSelf()
         }
     }
@@ -246,6 +248,10 @@ class PlaybackService : MediaSessionService() {
         /** 当前服务实例（未运行时为 null：此时没有通知需要刷新） */
         @Volatile
         private var instance: PlaybackService? = null
+
+        /** 播放服务是否还活着（服务被系统回收后，PlayerManager 需要据此重新拉起） */
+        @JvmStatic
+        fun isRunning(): Boolean = instance != null
 
         /**
          * media3 传给 Provider 的 ActionFactory（**库自己实现**，没有公开类可直接 new）。

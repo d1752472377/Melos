@@ -99,9 +99,12 @@ object MelosEqualizer {
         try {
             hardwareEqualizer?.release()
             val eq = Equalizer(0, sessionId)
-            eq.enabled = _state.value.isEnabled
+            // 先以关闭状态建好并写入各频段，再启用：
+            // 部分设备在效果器启用后再 setBandLevel 会产生一次明显的爆音/瞬态。
+            eq.enabled = false
             hardwareEqualizer = eq
             applyHardwareBands()
+            eq.enabled = _state.value.isEnabled
             Log.d(TAG, "Attached to audioSessionId: $sessionId (hardware bands=${eq.numberOfBands})")
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to initialize hardware Equalizer: ${e.message}")
