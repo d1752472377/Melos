@@ -169,7 +169,6 @@ fun SettingsScreen(
                 icon = Icons.Filled.Storage,
                 iconTint = PrimaryBrown,
                 label = "缓存管理",
-                subtitle = "查看缓存占用、按类型清理",
                 onClick = { onOpenPage(SettingsPage.CACHE) }
             )
         }
@@ -229,7 +228,7 @@ private fun SettingRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconTint: Color,
     label: String,
-    subtitle: String,
+    subtitle: String? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -258,13 +257,15 @@ private fun SettingRow(
                 ),
                 color = TextPrimary
             )
-            Spacer(Modifier.height(1.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = TextSoft,
-                maxLines = 1
-            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = TextSoft,
+                    maxLines = 1
+                )
+            }
         }
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
     }

@@ -77,7 +77,7 @@ fun CacheManageScreen(
     )
     var cacheLimit by remember(cacheLimitBytes) { mutableLongStateOf(cacheLimitBytes) }
 
-    SettingsPageScaffold(title = "缓存管理", subtitle = "查看占用并清理本地缓存", onBack = onBack) {
+    SettingsPageScaffold(title = "缓存管理", onBack = onBack) {
         SettingsSection {
             Column(
                 modifier = Modifier
@@ -110,12 +110,6 @@ fun CacheManageScreen(
                             ),
                             color = TextPrimary,
                         )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = if (isScanning) "正在统计…" else "点击查看明细与清理",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextSoft,
-                        )
                     }
                     Text(
                         text = breakdown?.let { CacheCenter.formatSize(it.total) } ?: "--",
@@ -144,12 +138,6 @@ fun CacheManageScreen(
 
         SettingsSection(title = "缓存上限") {
             Column(Modifier.padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg)) {
-                Text(
-                    text = "缓存总量超过上限时，从最旧的开始自动清理（正在播放的不受影响）",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = TextSoft,
-                )
-                Spacer(Modifier.height(AppSpacing.md))
                 Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                     limitPresets.forEach { (label, bytes) ->
                         val selected = bytes == cacheLimit
@@ -193,7 +181,6 @@ fun CacheManageScreen(
             SettingsNavRow(
                 icon = Icons.Filled.CleaningServices,
                 title = "清理全部缓存",
-                subtitle = "清空下载音乐、图片缓存与临时文件",
                 iconTint = AppColors.cacheDanger,
                 onClick = onClearAll,
             )
@@ -201,7 +188,6 @@ fun CacheManageScreen(
             SettingsNavRow(
                 icon = Icons.Filled.DeleteSweep,
                 title = "重新统计",
-                subtitle = "缓存大小会随下载/播放实时变化",
                 onClick = onRefresh,
             )
         }

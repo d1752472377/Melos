@@ -16,12 +16,11 @@ fun PlaybackSettingsScreen(
     onResumeAfterInterruptChange: (Boolean) -> Unit,
     onMixWithOthersChange: (Boolean) -> Unit,
 ) {
-    SettingsPageScaffold(title = "播放设置", subtitle = "播放行为与系统音频交互", onBack = onBack) {
+    SettingsPageScaffold(title = "播放设置", onBack = onBack) {
         SettingsSection(title = "播放行为") {
             SettingsSwitchRow(
                 icon = Icons.Filled.Bolt,
                 title = "预加载下一首",
-                subtitle = "提前缓存下一首歌曲，切歌更快、弱网更稳（会多用一点流量）",
                 checked = prefs.preloadNext,
                 onCheckedChange = onPreloadNextChange,
             )
@@ -29,7 +28,6 @@ fun PlaybackSettingsScreen(
             SettingsSwitchRow(
                 icon = Icons.Filled.GraphicEq,
                 title = "淡入淡出",
-                subtitle = "播放开始淡入、暂停切歌淡出，避免音量突跳",
                 checked = prefs.crossFade,
                 onCheckedChange = onCrossFadeChange,
             )
@@ -41,7 +39,6 @@ fun PlaybackSettingsScreen(
             SettingsSwitchRow(
                 icon = Icons.Filled.PlayCircleOutline,
                 title = "打断自动恢复",
-                subtitle = "被来电 / 其他 App 打断暂停后，打断结束自动继续播放",
                 checked = prefs.resumeAfterInterrupt,
                 onCheckedChange = onResumeAfterInterruptChange,
             )
@@ -49,7 +46,6 @@ fun PlaybackSettingsScreen(
             SettingsSwitchRow(
                 icon = Icons.AutoMirrored.Filled.VolumeUp,
                 title = "混合播放",
-                subtitle = "与其他应用混音、互不打扰；麦克风被占用时自动暂停",
                 checked = prefs.mixWithOthers,
                 onCheckedChange = onMixWithOthersChange,
             )

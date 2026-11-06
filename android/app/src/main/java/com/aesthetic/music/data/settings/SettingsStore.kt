@@ -27,30 +27,30 @@ enum class QualityLevel(val value: String, val label: String) {
     }
 }
 
-enum class StatusBarMode(val value: String, val label: String, val desc: String) {
-    ALWAYS("always", "显示", "始终显示系统状态栏"),
-    PLAYER_ONLY("player", "仅播放页", "播放页沉浸时隐藏，其余页面保持显示"),
-    HIDDEN("hidden", "全局隐藏", "所有页面都隐藏系统状态栏");
+enum class StatusBarMode(val value: String, val label: String) {
+    ALWAYS("always", "显示"),
+    PLAYER_ONLY("player", "仅播放页"),
+    HIDDEN("hidden", "全局隐藏");
 
     companion object {
         fun fromValue(v: String?): StatusBarMode = entries.firstOrNull { it.value == v } ?: ALWAYS
     }
 }
 
-enum class DownloadNaming(val value: String, val label: String, val example: String) {
-    TITLE_ARTIST("title_artist", "歌名 - 歌手", "夜曲 - 周杰伦.mp3"),
-    TITLE("title", "仅歌名", "夜曲.mp3"),
-    ARTIST_TITLE("artist_title", "歌手 - 歌名", "周杰伦 - 夜曲.mp3");
+enum class DownloadNaming(val value: String, val label: String) {
+    TITLE_ARTIST("title_artist", "歌名 - 歌手"),
+    TITLE("title", "仅歌名"),
+    ARTIST_TITLE("artist_title", "歌手 - 歌名");
 
     companion object {
         fun fromValue(v: String?): DownloadNaming = entries.firstOrNull { it.value == v } ?: TITLE_ARTIST
     }
 }
 
-enum class DownloadFailurePolicy(val value: String, val label: String, val desc: String) {
-    RETRY("retry", "自动重试", "失败后自动重试 2 次"),
-    SKIP("skip", "直接跳过", "失败即跳过，不再重试也不提示"),
-    NOTIFY("notify", "提示我", "失败时提示，由我决定是否重试");
+enum class DownloadFailurePolicy(val value: String, val label: String) {
+    RETRY("retry", "自动重试"),
+    SKIP("skip", "直接跳过"),
+    NOTIFY("notify", "提示我");
 
     companion object {
         fun fromValue(v: String?): DownloadFailurePolicy =

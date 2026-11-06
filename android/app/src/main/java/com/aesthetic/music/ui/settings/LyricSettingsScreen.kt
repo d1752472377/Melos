@@ -17,12 +17,11 @@ fun LyricSettingsScreen(
     onOnlineChange: (Boolean) -> Unit,
     onLocalChange: (Boolean) -> Unit,
 ) {
-    SettingsPageScaffold(title = "歌词显示", subtitle = "歌词内容与来源", onBack = onBack) {
+    SettingsPageScaffold(title = "歌词显示", onBack = onBack) {
         SettingsSection(title = "歌词内容") {
             SettingsSwitchRow(
                 icon = Icons.Filled.Translate,
                 title = "翻译歌词",
-                subtitle = "歌词有官方/第三方翻译时，显示原文与译文两行",
                 checked = prefs.lyricTranslation,
                 onCheckedChange = onTranslationChange,
             )
@@ -30,7 +29,6 @@ fun LyricSettingsScreen(
             SettingsSwitchRow(
                 icon = Icons.Filled.TextFields,
                 title = "音译歌词",
-                subtitle = "外文歌词显示罗马音（需歌词源提供音译行，暂多数歌源未提供）",
                 checked = prefs.lyricRomanization,
                 onCheckedChange = onRomanizationChange,
             )
@@ -42,7 +40,6 @@ fun LyricSettingsScreen(
             SettingsSwitchRow(
                 icon = Icons.Filled.CloudDownload,
                 title = "在线歌词",
-                subtitle = "从音乐平台在线获取歌词",
                 checked = prefs.lyricOnline,
                 onCheckedChange = onOnlineChange,
             )
@@ -50,7 +47,6 @@ fun LyricSettingsScreen(
             SettingsSwitchRow(
                 icon = Icons.Filled.FolderOpen,
                 title = "本地歌词",
-                subtitle = "优先读取已下载歌词文件（缓存音频同名 .lrc）",
                 checked = prefs.lyricLocal,
                 onCheckedChange = onLocalChange,
             )

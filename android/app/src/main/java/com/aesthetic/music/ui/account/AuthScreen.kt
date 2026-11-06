@@ -60,7 +60,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.R
@@ -202,15 +201,7 @@ fun AuthScreen(auth: AuthController) {
                 color = TextPrimary,
             )
 
-            Spacer(Modifier.height(AppSpacing.xs))
-
-            Text(
-                text = "探索声音与灵感的纯粹栖所",
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                color = TextMuted,
-            )
-
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(28.dp))
 
             Box(
                 modifier = Modifier
@@ -306,12 +297,6 @@ fun AuthScreen(auth: AuthController) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     if (activeTab == AuthTab.LOGIN) {
                         if (loginMode == LoginMode.PASSWORD) {
-                            Text(
-                                text = "账号或邮箱",
-                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                                color = TextSoft,
-                            )
-                            Spacer(Modifier.height(AppSpacing.xs))
                             AuthField(
                                 value = loginAccount,
                                 onValueChange = {
@@ -319,18 +304,12 @@ fun AuthScreen(auth: AuthController) {
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = "输入用户名或绑定的邮箱",
+                                placeholder = "用户名或邮箱",
                                 leadingIcon = Icons.Filled.Person,
                             )
 
                             Spacer(Modifier.height(AppSpacing.xxl))
 
-                            Text(
-                                text = "密码",
-                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                                color = TextSoft,
-                            )
-                            Spacer(Modifier.height(AppSpacing.xs))
                             AuthField(
                                 value = loginPassword,
                                 onValueChange = {
@@ -338,7 +317,7 @@ fun AuthScreen(auth: AuthController) {
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = "输入登录密码",
+                                placeholder = "密码",
                                 leadingIcon = Icons.Filled.Lock,
                                 trailingIcon = {
                                     IconButton(onClick = { showLoginPassword = !showLoginPassword }) {
@@ -374,12 +353,6 @@ fun AuthScreen(auth: AuthController) {
                                 )
                             }
                         } else {
-                            Text(
-                                text = "邮箱地址",
-                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                                color = TextSoft,
-                            )
-                            Spacer(Modifier.height(AppSpacing.xs))
                             AuthField(
                                 value = loginEmail,
                                 onValueChange = {
@@ -387,19 +360,13 @@ fun AuthScreen(auth: AuthController) {
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = "输入注册/绑定的邮箱",
+                                placeholder = "邮箱",
                                 leadingIcon = Icons.Filled.Email,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                             )
 
                             Spacer(Modifier.height(AppSpacing.xxl))
 
-                            Text(
-                                text = "验证码",
-                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                                color = TextSoft,
-                            )
-                            Spacer(Modifier.height(AppSpacing.xs))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -412,7 +379,7 @@ fun AuthScreen(auth: AuthController) {
                                         if (authError != null) auth.clearError()
                                     },
                                     modifier = Modifier.weight(1f),
-                                placeholder = "6 位数字",
+                                placeholder = "6 位验证码",
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 )
 
@@ -504,19 +471,13 @@ fun AuthScreen(auth: AuthController) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AppColors.onAccent)
                             } else {
                                 Text(
-                                    text = "登录并进入 Melos",
+                                    text = "登录",
                                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
                                     color = AppColors.onAccent,
                                 )
                             }
                         }
                     } else {
-                        Text(
-                            text = "注册邮箱",
-                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                            color = TextSoft,
-                        )
-                        Spacer(Modifier.height(AppSpacing.xs))
                         AuthField(
                             value = regEmail,
                             onValueChange = {
@@ -524,19 +485,13 @@ fun AuthScreen(auth: AuthController) {
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                                placeholder = "输入您的真实邮箱地址",
+                                placeholder = "邮箱",
                             leadingIcon = Icons.Filled.Email,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         )
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        Text(
-                            text = "邮箱验证码",
-                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                            color = TextSoft,
-                        )
-                        Spacer(Modifier.height(AppSpacing.xs))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -549,7 +504,7 @@ fun AuthScreen(auth: AuthController) {
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.weight(1f),
-                                placeholder = "6 位数字验证码",
+                                placeholder = "6 位验证码",
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             )
 
@@ -579,12 +534,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        Text(
-                            text = "用户名",
-                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                            color = TextSoft,
-                        )
-                        Spacer(Modifier.height(AppSpacing.xs))
                         AuthField(
                             value = regUsername,
                             onValueChange = {
@@ -592,18 +541,12 @@ fun AuthScreen(auth: AuthController) {
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                                placeholder = "2-20 位（字母/数字/中文/下划线）",
+                                placeholder = "用户名",
                             leadingIcon = Icons.Filled.Person,
                         )
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        Text(
-                            text = "设置密码",
-                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                            color = TextSoft,
-                        )
-                        Spacer(Modifier.height(AppSpacing.xs))
                         AuthField(
                             value = regPassword,
                             onValueChange = {
@@ -611,7 +554,7 @@ fun AuthScreen(auth: AuthController) {
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                                placeholder = "5-64 位密码",
+                                placeholder = "密码",
                             leadingIcon = Icons.Filled.Lock,
                             trailingIcon = {
                                 IconButton(onClick = { showRegPassword = !showRegPassword }) {
@@ -629,12 +572,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        Text(
-                            text = "音乐昵称 (选填)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-                            color = TextSoft,
-                        )
-                        Spacer(Modifier.height(AppSpacing.xs))
                         AuthField(
                             value = regNickname,
                             onValueChange = {
@@ -642,7 +579,7 @@ fun AuthScreen(auth: AuthController) {
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                                placeholder = "展示在个人主页的昵称",
+                                placeholder = "昵称（选填）",
                         )
 
                         Spacer(Modifier.height(AppSpacing.xxl))
@@ -718,7 +655,7 @@ fun AuthScreen(auth: AuthController) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AppColors.onAccent)
                             } else {
                                 Text(
-                                    text = "注册并开启音乐之旅",
+                                    text = "注册",
                                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
                                     color = AppColors.onAccent,
                                 )
@@ -727,15 +664,6 @@ fun AuthScreen(auth: AuthController) {
                     }
                 }
             }
-
-            Spacer(Modifier.height(28.dp))
-
-            Text(
-                text = "Melos Music · 云端账号与漫游曲库就绪",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = TextSoft,
-                textAlign = TextAlign.Center,
-            )
         }
     }
 }

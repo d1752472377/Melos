@@ -17,16 +17,15 @@ fun AppearanceSettingsScreen(
     onThemeModeChange: (ThemeMode) -> Unit,
     onStatusBarModeChange: (StatusBarMode) -> Unit,
 ) {
-    SettingsPageScaffold(title = "主题与外观", subtitle = "主题模式、状态栏与桌面显示", onBack = onBack) {
+    SettingsPageScaffold(title = "主题与外观", onBack = onBack) {
         SettingsSection(title = "主题设置") {
             Column(Modifier.padding(top = AppSpacing.xxs)) {
                 SettingsSegmentRow(
                     title = "主题模式",
-                    subtitle = "深浅色外观的跟随方式",
                     options = listOf(
-                        SettingOption("自动", "跟随系统深浅自动切换"),
-                        SettingOption("浅色", "始终保持浅色"),
-                        SettingOption("深色", "始终保持深色"),
+                        SettingOption("自动"),
+                        SettingOption("浅色"),
+                        SettingOption("深色"),
                     ),
                     selectedIndex = ThemeMode.entries.indexOf(themeMode).coerceAtLeast(0),
                     onSelect = { idx -> onThemeModeChange(ThemeMode.entries[idx]) },
@@ -40,11 +39,10 @@ fun AppearanceSettingsScreen(
             Column(Modifier.padding(top = AppSpacing.xxs)) {
                 SettingsSegmentRow(
                     title = "状态栏显示",
-                    subtitle = "控制页面顶部系统状态栏的显示方式",
                     options = listOf(
-                        SettingOption(StatusBarMode.ALWAYS.label, StatusBarMode.ALWAYS.desc),
-                        SettingOption(StatusBarMode.PLAYER_ONLY.label, StatusBarMode.PLAYER_ONLY.desc),
-                        SettingOption(StatusBarMode.HIDDEN.label, StatusBarMode.HIDDEN.desc),
+                        SettingOption(StatusBarMode.ALWAYS.label),
+                        SettingOption(StatusBarMode.PLAYER_ONLY.label),
+                        SettingOption(StatusBarMode.HIDDEN.label),
                     ),
                     selectedIndex = StatusBarMode.entries.indexOf(statusBarMode).coerceAtLeast(0),
                     onSelect = { idx -> onStatusBarModeChange(StatusBarMode.entries[idx]) },

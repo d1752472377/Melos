@@ -57,13 +57,12 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.components.BottomContentSpacer
 
-data class SettingOption(val label: String, val desc: String? = null)
+data class SettingOption(val label: String)
 
 @Composable
 fun SettingsPageScaffold(
     title: String,
     onBack: () -> Unit,
-    subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -96,16 +95,6 @@ fun SettingsPageScaffold(
                 color = TextPrimary,
             )
         }
-        if (!subtitle.isNullOrBlank()) {
-            Spacer(Modifier.height(AppSpacing.xs))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = TextSoft,
-                modifier = Modifier.padding(start = 36.dp),
-            )
-        }
-
         Spacer(Modifier.height(AppSpacing.xxxl))
         content()
         Spacer(Modifier.height(BottomContentSpacer))
@@ -197,7 +186,6 @@ fun SettingsNavRow(
 fun SettingsSwitchRow(
     icon: ImageVector,
     title: String,
-    subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     iconTint: Color = PrimaryBrown,
@@ -216,14 +204,6 @@ fun SettingsSwitchRow(
                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
                 color = TextPrimary,
             )
-            if (!subtitle.isNullOrBlank()) {
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
-                    color = TextSoft,
-                )
-            }
         }
         Spacer(Modifier.width(AppSpacing.md))
         Switch(
@@ -244,7 +224,6 @@ fun SettingsSwitchRow(
 @Composable
 fun SettingsSegmentRow(
     title: String,
-    subtitle: String? = null,
     options: List<SettingOption>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
@@ -255,14 +234,6 @@ fun SettingsSegmentRow(
             style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
             color = TextPrimary,
         )
-        if (!subtitle.isNullOrBlank()) {
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
-                color = TextSoft,
-            )
-        }
         Spacer(Modifier.height(AppSpacing.md))
         Row(
             modifier = Modifier
@@ -305,14 +276,6 @@ fun SettingsSegmentRow(
                 }
             }
         }
-        options.getOrNull(selectedIndex)?.desc?.let { desc ->
-            Spacer(Modifier.height(AppSpacing.sm))
-            Text(
-                text = desc,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = TextMuted,
-            )
-        }
     }
 }
 
@@ -351,14 +314,6 @@ fun SettingsOptionList(
                         ),
                         color = if (selected) PrimaryBrown else TextPrimary,
                     )
-                    if (!option.desc.isNullOrBlank()) {
-                        Spacer(Modifier.height(1.dp))
-                        Text(
-                            text = option.desc,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = TextSoft,
-                        )
-                    }
                 }
                 if (selected) {
                     Icon(
@@ -370,44 +325,6 @@ fun SettingsOptionList(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun SettingsValueRow(
-    title: String,
-    value: String,
-    subtitle: String? = null,
-    valueColor: Color = PrimaryBrown,
-    minHeight: Int = 0,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = minHeight.dp)
-            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                color = TextPrimary,
-            )
-            if (!subtitle.isNullOrBlank()) {
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                    color = TextSoft,
-                )
-            }
-        }
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
-            color = valueColor,
-        )
     }
 }
 
