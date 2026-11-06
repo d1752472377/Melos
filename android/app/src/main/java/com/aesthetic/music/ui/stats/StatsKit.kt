@@ -19,10 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -174,24 +170,6 @@ fun StatsBigDuration(
             )
             Spacer(Modifier.width(8.dp))
         }
-    }
-}
-
-/** 键值小统计（累计卡片下排：播放次数 / 跨越天数） */
-@Composable
-fun StatsMiniMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
-            color = TextPrimary,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-            color = TextSoft,
-        )
     }
 }
 
@@ -405,61 +383,6 @@ fun rankColor(rank: Int): Color = when (rank) {
     2 -> RankSilver
     3 -> RankBronze
     else -> TextMuted
-}
-
-/** 设置开关行（统计设置） */
-@Composable
-fun StatsToggleRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    activeColor: Color,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(activeColor.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, tint = activeColor, modifier = Modifier.size(17.dp))
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                color = TextPrimary,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
-                color = TextSoft,
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = activeColor,
-                checkedBorderColor = Color.Transparent,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Stone100.copy(alpha = 0.9f),
-                uncheckedBorderColor = Color.Transparent,
-            ),
-        )
-    }
 }
 
 /** 空数据占位（统计页首次打开、或用户关掉了记录） */

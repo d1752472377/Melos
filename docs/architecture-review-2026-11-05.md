@@ -51,6 +51,17 @@
 - `data/AppJson.kt`（19）、`BestEffort.kt`（29）、`UserNotice.kt`（24）：单一职责的小工具，保留。
 - `ui/theme/Type.kt`：**已删除（第八批）**。`AppTypography` 只有注释引用、没有实际调用，`AppShapes` 本就不存在；Theme 继续使用 M3 默认 Typography，并更新了回退说明。
 
+### 2.5 已处理：零引用导出（第九批）
+
+删除前逐个做了全仓引用、ProGuard keep 规则与反射调用检查，以下符号确认没有任何调用方：
+
+- `ui/theme/Color.kt`：`Amber`、`AmberDark`、`PrimaryBrownDark`、`SurfaceElevated`、`TagBg`、`TagText`、`TextStrong`（`AmberLight` 仍有 22 处使用，保留）。
+- `ui/components/GlassTokens.kt`：`divider`、`glassHeroSurface`、`groupedRowBorder`、`gzToneVariant`、`songAlphabetSurface`、`songListFloatingButtonBorder`；`glassSubtleSurface` 因被 `liquidGlassCardSurface` 的降级路径使用而保留。
+- `ui/stats/StatsKit.kt`：`StatsMiniMetric`、`StatsToggleRow`，以及随之无用的 `Icon`/`ImageVector`/`Switch` 导入。
+- `ui/components/CoverTone.kt`：`extractCoverTone`、`isCoverBright`、`rememberCoverIsBright` 及仅服务于它们的 `coverBrightCache`/`cachedCoverBright`/`loadCoverBright` 与亮度常量；`rememberCoverTone` 保持原行为。
+
+`AuthController.logoutAndClearLocalData` 同样没有 UI 入口，但语义完整且属于产品级“退出并清空本机数据”能力，**保留并在此记录**，不按死代码处理。
+
 ### 2.4 已合并/移动
 
 - `ProfileFormat.kt` + `ProfileUtils.kt` → `ui/profile/ProfileUtils.kt`（两个 object 同域）。

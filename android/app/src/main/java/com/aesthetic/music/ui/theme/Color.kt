@@ -28,11 +28,9 @@ private fun light(c: Color, d: Color) = if (Palette.isDark) d else c
 val Background get() = Color.Transparent      // 默认通透，透出全局底层 iOS 拟态环境光
 val Surface get() = light(Color(0xFFFFFFFF), Color(0xFF1B1C22))         // 卡片纯白 / 质感深灰
 val SurfaceSoft get() = light(Color(0xFFEFF2F6), Color(0xFF24262E))     // 浅层容器背景
-val SurfaceElevated get() = light(Color(0xFFFFFFFF), Color(0xFF22242C)) // 悬浮层表面
 
 // ===== 活力主色与光感强调色 =====
 val PrimaryBrown get() = light(Color(0xFF5352ED), Color(0xFF7052FF))    // 活力电光蓝紫（主强调色）
-val PrimaryBrownDark get() = light(Color(0xFF3742FA), Color(0xFF5352ED))
 val PrimaryGradientStart get() = light(Color(0xFF6C5CE7), Color(0xFF8B78FF))
 val PrimaryGradientEnd get() = light(Color(0xFF5352ED), Color(0xFF5D38E5))
 
@@ -46,17 +44,11 @@ val AccentRose = Color(0xFFFF6B81)        // 暮云玫瑰粉（摇滚/爱心）
 val PlayerBg get() = light(Color(0xFF1E1F29), Color(0xFF14151B))        // 播放页雅致黑紫
 val PlayerBgDark get() = light(Color(0xFF13141A), Color(0xFF0C0D11))
 
-val TagBg get() = light(Color(0xFFEEF2FF), Color(0xFF27293D))           // 标签背景
-val TagText get() = light(Color(0xFF4F46E5), Color(0xFFA5B4FC))         // 标签文字
-
-val Amber = AccentAmber
 val AmberLight = Color(0xFFFFEAA7)
-val AmberDark = Color(0xFFD35400)
 val Rose = AccentCoral
 
 // ===== 精致灰阶体系 =====
 val TextPrimary get() = light(Color(0xFF12141A), Color(0xFFF7F9FC))     // 一级主标题（极黑/高光白）
-val TextStrong get() = light(Color(0xFF2C313E), Color(0xFFDCE2EC))      // 加强正文
 val TextMuted get() = light(Color(0xFF5E6778), Color(0xFF9AA4B5))       // 次级说明
 val TextSoft get() = light(Color(0xFF8893A7), Color(0xFF6F798B))        // 辅助文字/副标题
 val TextFaint get() = light(Color(0xFFCCD4E0), Color(0xFF404654))       // 极淡图标/占位/微弱边框

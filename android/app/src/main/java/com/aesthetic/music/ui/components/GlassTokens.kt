@@ -73,11 +73,6 @@ fun coverHairline(): Color =
 @Composable
 fun coverPlaceholder(): Color = textMedium().copy(alpha = 0.12f)
 
-/** GlassTokensKt.java:1226-1237 —— 分隔线 */
-@Composable
-fun divider(): Color =
-    if (appIsDark()) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.06f)
-
 /** GlassTokensKt.java:1239-1241 —— 玻璃卡片底色 */
 @Composable
 fun glassBg(): Color =
@@ -91,17 +86,9 @@ fun glassBg(): Color =
 fun glassBorder(): Color =
     if (appIsDark()) Color.Unspecified else Color.White.copy(alpha = 0.8f)
 
-/** GlassTokensKt.java:1268-1280 —— 沉浸式 Hero 表面 */
-@Composable
-fun glassHeroSurface(): Color = if (appIsDark()) Color.White.copy(alpha = 0.15f) else glassBg()
-
 /** GlassTokensKt.java:1282-1294 —— 次级玻璃表面 */
 @Composable
 fun glassSubtleSurface(): Color = if (appIsDark()) Color.White.copy(alpha = 0.08f) else glassBg()
-
-/** GlassTokensKt.java:1351-1353 —— 分组行描边（直接复用 glassBorder） */
-@Composable
-fun groupedRowBorder(): Color = glassBorder()
 
 // ============================================================
 // 色调推导
@@ -112,16 +99,6 @@ fun groupedRowBorder(): Color = glassBorder()
  * 反编译真值 `hp1.e(4294583356L)` = `0xFFFA243C`。
  */
 val DefaultCoverTone = Color(0xFFFA243C)
-
-/**
- * GlassTokensKt.java:1174-1184 —— `a(value, base)`：
- * 取 base 的 HSV 色相，饱和度**上限 0.6**，用给定的明度 `value` 重建颜色。
- */
-fun gzToneVariant(base: Color, value: Float): Color {
-    val hsv = FloatArray(3)
-    AndroidColor.colorToHSV(base.toArgb(), hsv)
-    return Color.hsv(hsv[0], min(hsv[1], 0.6f), value)
-}
 
 /**
  * GlassTokensKt.java:1314-1322（以及 1441-1449）—— 卡片「色调」推导：
@@ -387,24 +364,3 @@ fun Modifier.discoveryGradientCard(
         .glassCard(shape)
         .background(brush, shape)
 }
-
-/**
- * GlassTokensKt.java:1607-1621 —— `Modifier.songAlphabetSurface(selected)`
- *
- * 选中时是纯黑 18% 的底 + 裁切；否则是普通玻璃卡（elevation 用默认值）。
- */
-@Composable
-fun Modifier.songAlphabetSurface(selected: Boolean, shape: Shape): Modifier =
-    if (selected) {
-        this.background(Color.Black.copy(alpha = 0.18f), shape).clip(shape)
-    } else {
-        this.glassCard(shape)
-    }
-
-/**
- * GlassTokensKt.java:1623-1640 —— `Modifier.songListFloatingButtonBorder(shape, dark)`
- * 深色下不画描边（Color.Unspecified），浅色下用 glassBorder()。
- */
-@Composable
-fun Modifier.songListFloatingButtonBorder(shape: Shape, dark: Boolean): Modifier =
-    this.border(1.dp, if (dark) Color.Unspecified else glassBorder(), shape)

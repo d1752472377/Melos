@@ -72,7 +72,7 @@
 
 - `ui/theme/Type.kt` 的 `AppTypography`（第八批复审时已删除：无实际引用，Theme 继续使用 M3 默认字体）。
 - `GzTheme` 的 schedule 主题常量/函数（移植自 GZ，尚未接设置）。
-- `Color.kt` 的未使用色 token、`GlassTokens`/`StatsKit` 的未使用设计组件、`CoverTone` 的未使用导出、`Lyric.mergeRomanization`。
+- ~~`Color.kt` 的未使用色 token、`GlassTokens`/`StatsKit` 的未使用设计组件、`CoverTone` 的未使用导出、`Lyric.mergeRomanization`~~（第九批复审再次核对引用后已清理，见架构复审文档第 2.3 节；`Lyric.mergeRomanization` 仍保留）。
 - `AuthController.refreshProfile` 与 `logoutAndClearLocalData`（产品 API，暂无 UI 入口）。
 - `DeviceSyncAdapter`、`JsEngine` 接口（暂不作为本阶段清理目标）。
 

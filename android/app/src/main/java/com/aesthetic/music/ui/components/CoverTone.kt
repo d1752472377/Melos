@@ -47,7 +47,7 @@ import java.util.PriorityQueue
  * 见文末 TODO(未实现) 的逐字段说明。
  *
  * `CoverAmbientKt.e(Bitmap)` / `f(Bitmap)` 的返回值是 `jq5`（Swatch），不是布尔；
- * 「是否亮色封面」由 `ok1`（`CoverAmbientKt.j` 的协程体）独立计算，见 [isCoverBright]。
+ * 「是否亮色封面」由 `ok1`（`CoverAmbientKt.j` 的协程体）独立计算，Melos 未使用该能力。
  *
  * ## 本文件与 GZ 的已知差异
  * - GZ 用一把 `Mutex`（`CoverAmbientKt.b`，`o87`）串行化解码，见 `ok1.smali`/`kk1.java:68`；
@@ -85,19 +85,6 @@ private const val QUANTIZE_MAX_PIXEL_AREA = 12544 // iq5.java:27
 /** 5bit/通道直方图大小：`new int[32768]`（`iq5.java:101`）= `1 shl (5*3)`。 */
 private const val HISTOGRAM_SIZE = 32768 // iq5.java:101
 
-/** 亮度判定的采样边长：`const/16 v1, 0x8` → `createScaledBitmap(bmp, 8, 8, true)`（`ok1.smali` line 165-170）。 */
-private const val BRIGHT_SAMPLE_SIZE = 8 // ok1.smali:165-170
-
-/**
- * 亮度判定的分母：`const-wide v0, 0x40cfe00000000000L # 16320.0`（`ok1.smali`:235）= `255.0 * 8 * 8`。
- */
-private const val BRIGHT_LUMA_DIVISOR = 16320.0 // ok1.smali:235
-
-/** 亮色阈值：`const-wide v0, 0x3fdccccccccccccdL # 0.45`，`cmpl-double` + `if-lez` → `> 0.45`（`ok1.smali`:241-248）。 */
-private const val BRIGHT_THRESHOLD = 0.45 // ok1.smali:241-248
-
-// 亮度权重：`0.299 / 0.587 / 0.114`（`ok1.smali`:191/202/215，BT.601 luma）。
-
 // ---------------------------------------------------------------------------------------------
 // 纯函数 1：主色提取
 // ---------------------------------------------------------------------------------------------
@@ -114,15 +101,6 @@ fun extractCoverToneOrNull(bitmap: Bitmap): Color? {
     // kk1.java:104 / :161 —— hp1.d(swatch.d) 是 Color(Int)，再走 d(long) 后处理
     return adjustCoverTone(Color(swatch.rgb))
 }
-
-/**
- * 提取封面主色，取不到时返回 [fallback]（默认 = `CoverToneKt.a` = `0xFF8E8E93`）。
- *
- * 等价于 GZ：`j2 = (i2 & 2) != 0 ? a : j; ... if (g91Var != null) j2 = g91Var.a;`
- * （`CoverToneKt.java:71`、`:101-104`）。
- */
-fun extractCoverTone(bitmap: Bitmap, fallback: Color = CoverToneFallback): Color =
-    extractCoverToneOrNull(bitmap) ?: fallback // CoverToneKt.java:71 / :101-104
 
 /**
  * HSV 后处理 —— 忠实还原 `CoverAmbientKt.d(long)`（`CoverAmbientKt.java:5833-5840`）。
@@ -151,37 +129,6 @@ fun adjustCoverTone(color: Color): Color {
 /** `ka7.v(f, min, max)`（`ka7.java:1090-1098`）。 */
 private fun coerceIn(value: Float, min: Float, max: Float): Float =
     if (value < min) min else if (value > max) max else value
-
-// ---------------------------------------------------------------------------------------------
-// 纯函数 2：是否亮色封面
-// ---------------------------------------------------------------------------------------------
-
-/**
- * 是否亮色封面 —— 忠实还原 `ok1.invokeSuspend`（`CoverAmbientKt.j(Context, String)` 的协程体，
- * `ok1.smali` invokeSuspend:162-254；`CoverAmbientKt.java:6139-6187` 只负责 LruCache c 缓存）。
- *
- * ```
- * scaled = Bitmap.createScaledBitmap(bitmap, 8, 8, true)      // ok1.smali:165-170（filter = true）
- * sum = Σ_{y<8} Σ_{x<8} (R*0.299 + G*0.587 + B*0.114)         // ok1.smali:174-229
- * if (scaled != bitmap) scaled.recycle()                       // ok1.smali:230-232
- * return sum / 16320.0 > 0.45                                  // ok1.smali:235-248
- * ```
- * 注意：GZ 的亮度判定**不走** `CoverAmbientKt.f(Bitmap)` 调色板，而是 8x8 缩放后取 BT.601 平均亮度。
- */
-fun isCoverBright(bitmap: Bitmap): Boolean {
-    val scaled = Bitmap.createScaledBitmap(bitmap, BRIGHT_SAMPLE_SIZE, BRIGHT_SAMPLE_SIZE, true) // ok1.smali:165-170
-    var lumaSum = 0.0 // ok1.smali:174（const-wide/16 v7, 0x0）
-    for (y in 0 until BRIGHT_SAMPLE_SIZE) { // ok1.smali:176-229
-        for (x in 0 until BRIGHT_SAMPLE_SIZE) {
-            val pixel = scaled.getPixel(x, y) // ok1.smali:182
-            lumaSum += android.graphics.Color.red(pixel) * 0.299 + // ok1.smali:186-191
-                android.graphics.Color.green(pixel) * 0.587 + // ok1.smali:197-202
-                android.graphics.Color.blue(pixel) * 0.114 // ok1.smali:210-215
-        }
-    }
-    if (scaled !== bitmap) scaled.recycle() // ok1.smali:230-232
-    return lumaSum / BRIGHT_LUMA_DIVISOR > BRIGHT_THRESHOLD // ok1.smali:235-248
-}
 
 // ---------------------------------------------------------------------------------------------
 // 调色板量化（iq5 + jq5 + i91 的逐值移植）
@@ -582,12 +529,6 @@ private fun maxByScore(candidates: List<Swatch>): Swatch? {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * GZ `CoverAmbientKt.c`（`LruCache(256)`，`CoverAmbientKt.java:123`）：URL → 是否亮色。
- * GZ 在 `CoverAmbientKt.j(...)`（`:6183-6185`）与 `rememberCoverIsBright`（`CoverToneKt.java:46`）读写它。
- */
-private val coverBrightCache = LruCache<String, Boolean>(256) // CoverAmbientKt.java:123
-
-/**
  * GZ `CoverAmbientKt.d`（`LruCache(256)`，`CoverAmbientKt.java:124`）：URL → 主色（`g91`）。
  * GZ 在 `CoverAmbientKt.h(...)`（`:6081-6083`）与 `CoverAmbientKt.m(String)`（`:6197-6203`）读写它。
  */
@@ -596,10 +537,6 @@ private val coverToneCache = LruCache<String, Color>(256) // CoverAmbientKt.java
 /** 缓存命中查询：GZ `CoverAmbientKt.m(String)`（`CoverAmbientKt.java:6197-6203`，空串返回 null）。 */
 private fun cachedCoverTone(url: String?): Color? =
     if (url.isNullOrBlank()) null else coverToneCache.get(url) // CoverAmbientKt.java:6199-6202
-
-/** 缓存命中查询：GZ `CoverToneKt.java:46` / `CoverAmbientKt.j(...)` 的 `lruCache.get(str)`。 */
-private fun cachedCoverBright(url: String?): Boolean? =
-    if (url.isNullOrBlank()) null else coverBrightCache.get(url) // CoverToneKt.java:46
 
 // ---------------------------------------------------------------------------------------------
 // 解码
@@ -647,17 +584,6 @@ private suspend fun loadCoverTone(context: Context, url: String): Color? {
         val color = bitmap?.let { extractCoverToneOrNull(it) } // CoverAmbientKt.java:6220-6404（o + d）
         if (color != null) coverToneCache.put(url, color) // CoverAmbientKt.java:6081-6083
         color
-    }
-}
-
-/** GZ `CoverAmbientKt.j(Context, String)`（`:6139-6187`）：查缓存 → 解码 → [isCoverBright] → 回填缓存。 */
-private suspend fun loadCoverBright(context: Context, url: String): Boolean? {
-    coverBrightCache.get(url)?.let { return it } // CoverAmbientKt.java:6160-6163
-    return withContext(Dispatchers.IO) {
-        val bitmap = decodeCoverBitmap(context, url) // ok1.smali:148（CoverAmbientKt.c）
-        val bright = bitmap?.let { isCoverBright(it) } // ok1.smali:162-254
-        if (bright != null) coverBrightCache.put(url, bright) // CoverAmbientKt.java:6183-6185
-        bright
     }
 }
 
@@ -709,33 +635,6 @@ fun rememberCoverTone(url: String?, fallback: Color = CoverToneFallback): Color 
         animationSpec = tween(durationMillis = 500), // qk5.java:1654-1663 + e92.java:6（默认 easing）
         label = "coverTone", // CoverToneKt.java:105（label 字面量）
     ).value
-}
-
-/**
- * `CoverToneKt.rememberCoverIsBright(url, default)`（`CoverToneKt.java:32-66`）。
- *
- * 还原要点：
- * - 初始值 = 亮色缓存（`:45-48`，空串 → `null`）。
- * - `LaunchedEffect(url)`（`:62`；单 key，`zf8.h` 见 `zf8.java:2423-2432`）。
- * - 协程体（`gk1.invokeSuspend` 的 packed-switch case 1，`gk1.smali` `:pswitch_9f`）：
- *   已有值 → 返回；`url == null` → 返回；`url.isBlank()` → 返回；`delay(80)`；`state = CoverAmbientKt.j(context, url)`。
- *   （该 case **没有** `LocalCoverToneDisabled` 守卫；`gk1.smali` 里那两条 `sget CoverToneKt.c` 是死代码。）
- * - 返回 `state ?: default`（`:63-64`），**没有**动画。
- */
-@Composable
-fun rememberCoverIsBright(url: String?, default: Boolean): Boolean {
-    val context = LocalContext.current // CoverToneKt.java:36
-    var bright by remember(url) { // CoverToneKt.java:39-48（remember 的 key 只有 url）
-        mutableStateOf(cachedCoverBright(url))
-    }
-    LaunchedEffect(url) { // CoverToneKt.java:62（LaunchedEffect(url)）
-        if (bright != null) return@LaunchedEffect // gk1.smali:192（if-nez → 非空即返回）
-        if (url == null) return@LaunchedEffect // gk1.smali:196
-        if (url.isBlank()) return@LaunchedEffect // gk1.smali:198-204
-        delay(80) // gk1.smali:206-208（zf8.C(0x50, ...)）
-        bright = loadCoverBright(context, url) // gk1.smali:217-218（CoverAmbientKt.j）
-    }
-    return bright ?: default // CoverToneKt.java:63-64
 }
 
 // ---------------------------------------------------------------------------------------------
