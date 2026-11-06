@@ -26,9 +26,8 @@ import com.aesthetic.music.ui.components.ScaleIndication
  * `shapes` 走的是默认参数（掩码位标记为未传）。也就是说 **GZ 用的就是 Material3 自带的
  * 默认 Typography 与 Shapes，自己并没有定制**。
  * 因此这里也去掉 Melos 原有的 `AppTypography` 与 `AppShapes`，改用 M3 默认值，与 GZ 一致。
- *
- * 需要回退时：在下面的 `MaterialTheme(...)` 上加回
- * `typography = AppTypography`（仍保留在 Type.kt 里）与 `shapes = AppShapes` 即可。
+ * 不再保留未启用的 Typography 文件，避免两套字体规格并存；确实需要定制时，直接在下面
+ * `MaterialTheme(...)` 传入 `typography`，不要再新增一份平行的全局字体表。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

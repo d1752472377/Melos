@@ -70,7 +70,7 @@
 
 确认后保留（有意图，不按死代码删除）：
 
-- `ui/theme/Type.kt` 的 `AppTypography`（Theme.kt 明确标注为回退用）。
+- `ui/theme/Type.kt` 的 `AppTypography`（第八批复审时已删除：无实际引用，Theme 继续使用 M3 默认字体）。
 - `GzTheme` 的 schedule 主题常量/函数（移植自 GZ，尚未接设置）。
 - `Color.kt` 的未使用色 token、`GlassTokens`/`StatsKit` 的未使用设计组件、`CoverTone` 的未使用导出、`Lyric.mergeRomanization`。
 - `AuthController.refreshProfile` 与 `logoutAndClearLocalData`（产品 API，暂无 UI 入口）。

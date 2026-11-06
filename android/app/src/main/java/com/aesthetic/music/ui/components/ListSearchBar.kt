@@ -25,6 +25,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.theme.AppRadius
+import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.TextMuted
@@ -48,9 +50,9 @@ fun ListSearchBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(AppRadius.lg))
             .background(Stone100)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -59,7 +61,7 @@ fun ListSearchBar(
             tint = TextSoft,
             modifier = Modifier.size(17.dp),
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         BasicTextField(
             value = query,
             onValueChange = onQueryChange,
@@ -77,7 +79,7 @@ fun ListSearchBar(
             },
         )
         if (query.isNotEmpty()) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AppSpacing.sm))
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "清空",

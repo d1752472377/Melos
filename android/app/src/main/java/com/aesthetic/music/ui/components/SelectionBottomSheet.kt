@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -28,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.AccentCoral
+import com.aesthetic.music.ui.theme.AppRadius
+import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.SurfaceSoft
@@ -73,14 +76,14 @@ fun <T> SelectionBottomSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                    .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xxxl),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 左侧浅底圆角图标
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(AppRadius.md))
                         .background(SurfaceSoft),
                     contentAlignment = Alignment.Center
                 ) {
@@ -92,7 +95,7 @@ fun <T> SelectionBottomSheet(
                     )
                 }
 
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(AppSpacing.xl))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -115,7 +118,7 @@ fun <T> SelectionBottomSheet(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(CircleShape)
                         .clickable(onClick = onDismissRequest),
                     contentAlignment = Alignment.Center
                 ) {
@@ -131,10 +134,10 @@ fun <T> SelectionBottomSheet(
             HorizontalDivider(
                 color = Stone200.copy(alpha = 0.5f),
                 thickness = 0.8.dp,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
 
             // ===== 选项列表 =====
             items.forEach { item ->
@@ -146,7 +149,7 @@ fun <T> SelectionBottomSheet(
                             onSelect(item.id)
                             onDismissRequest()
                         }
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                        .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xl),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (item.icon != null) {
@@ -156,7 +159,7 @@ fun <T> SelectionBottomSheet(
                             tint = if (isSelected) TextPrimary else TextMuted,
                             modifier = Modifier.size(22.dp)
                         )
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(AppSpacing.xxl))
                     }
 
                     Column(modifier = Modifier.weight(1f)) {

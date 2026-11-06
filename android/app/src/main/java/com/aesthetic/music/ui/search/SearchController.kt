@@ -16,6 +16,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** 搜索页结果类型（已去掉歌词搜索） */
+enum class SearchType(val label: String) {
+    SONG("单曲"), ARTIST("歌手"), PLAYLIST("歌单"), ALBUM("专辑")
+}
+
 /**
  * 全局搜索控制器：查询 / 类型 / 平台 + 四类结果 + 最近搜索。
  * 已移除：歌词搜索、热门搜索。

@@ -47,9 +47,9 @@
 
 - `ui/settings/QualitySettingsScreen.kt`（57）、`PlaybackSettingsScreen`（65）、`LyricSettingsScreen`（68）、`DownloadSettingsScreen`（79）、`AppearanceSettingsScreen`（65）：每页是独立导航目标，且内容/文案不同，不建议合并。
 - `ui/shell/ShellNav.kt`（18）、`ShellActions.kt`（20）：公共参数 holder，减少每个 destination 的回调数量，保留。
-- `ui/search/SearchType.kt`（5）：只是一个枚举；可并入 `SearchController.kt`，但没有维护成本，暂不动。
+- `ui/search/SearchType.kt`（5）：只是一个枚举；**已并入（第八批）** `SearchController.kt`，不再单独占文件，包级引用不变。
 - `data/AppJson.kt`（19）、`BestEffort.kt`（29）、`UserNotice.kt`（24）：单一职责的小工具，保留。
-- `ui/theme/Type.kt`（68）：当前未被 `AestheticMusicTheme` 使用，Theme.kt 明确标注为“回退用”。记录为“可选删除”，不贸然处理。
+- `ui/theme/Type.kt`：**已删除（第八批）**。`AppTypography` 只有注释引用、没有实际调用，`AppShapes` 本就不存在；Theme 继续使用 M3 默认 Typography，并更新了回退说明。
 
 ### 2.4 已合并/移动
 
@@ -65,7 +65,7 @@
 | `AlbumController` 并入 `PlaylistDetailController` | 两者都是“详情请求令牌 + songs + loading/error”，且专辑最终复用 `PlaylistDetailScreen` | **已完成（第四批）**：`openAlbum(AlbumItem)` + `retry()` 并入 `PlaylistDetailController`，删除 `AlbumController`；专辑/歌单共享同一 detail 状态与请求令牌 |
 | `AuthController` + `ProfileController` | 都读写 `UserStore`，都存在用户资料状态 | **部分处理（第五批）**：删除 `ProfileController` 里无消费者的重复 `_user`，用户状态只保留 `AuthController.user`；完整合并因回调交错仍暂缓 |
 | `data/settings` 7 个 Store | 模板重复 | 你已要求先评估简单公共函数；**暂缓** |
-| `SearchType.kt` 并入 `SearchController` | 5 行枚举，单一使用域 | 收益很小，**暂不动** |
+| `SearchType.kt` 并入 `SearchController` | 5 行枚举，单一使用域 | **已完成（第八批）**：枚举移入 `SearchController.kt`，删除独立文件 |
 
 ## 4. UI 与业务逻辑边界
 
@@ -100,12 +100,11 @@
 | `ui/theme/Color.kt` | 背景/表面/文字/强调色/FM/统计/榜单色 | 全局颜色唯一来源；不要再在页面新建平行调色板 |
 | `ui/theme/GzColorScheme.kt` | Material3 light/dark ColorScheme | `MaterialTheme.colorScheme` 的来源 |
 | `ui/theme/GzTheme.kt` | `LocalAppIsDark` / `appIsDark()` / schedule 常量 | 深浅色判断统一入口 |
-| `ui/theme/Theme.kt` | `AestheticMusicTheme`、`ScaleIndication`、无 ripple | 唯一主题入口 |
-| `ui/theme/Type.kt` | `AppTypography` | 当前未使用；保留为回退项 |
-| `ui/theme/AppDimens.kt` | `AppRadius` / `AppSpacing` | 共享圆角/间距 token；已在 `SongCollection`、`States`、`Overlays`、`SettingsKit` 采用 |
+| `ui/theme/Theme.kt` | `AestheticMusicTheme`、`ScaleIndication`、无 ripple | 唯一主题入口；Typography / Shapes 使用 M3 默认值 |
+| `ui/theme/AppDimens.kt` | `AppRadius` / `AppSpacing` | 共享圆角/间距 token；已在 `SongCollection`、`States`、`Overlays`、`SettingsKit`、`ListSearchBar`、`SecondaryPageTopBar`、`SelectionBottomSheet` 采用 |
 | `ui/components/GlassTokens.kt` | 玻璃背景/描边/文字色、`glassCard` 等 Modifier | GZ 风格卡片/玻璃控件来源 |
 
-圆角/间距高频值：`14.dp` 44 处、`12.dp` 39 处、`20.dp` 38 处、`10.dp` 38 处、`8.dp` 31 处、`16.dp` 29 处。已新增 `AppRadius`/`AppSpacing` 并在共享 primitives 中使用；**没有一次性全量替换**页面级字面量，避免视觉回归。
+圆角/间距高频值：`14.dp` 44 处、`12.dp` 39 处、`20.dp` 38 处、`10.dp` 38 处、`8.dp` 31 处、`16.dp` 29 处。已新增 `AppRadius`/`AppSpacing` 并在共享 primitives 中使用；**没有一次性全量替换**页面级字面量，避免视觉回归。`ui/theme/Type.kt` 已删除，全局字体沿用 M3 默认值。
 
 硬编码颜色集中在 `PlayerScreen`（26）、`ProfileScreen`（21）、`PlayerThemeViews`（26）、`EqualizerScreen`（24）、`LibraryBentoSection`（11）、`RankPage`（10）等；多数是封面/主题/可视化专用色，不应机械替换为全局 token。
 

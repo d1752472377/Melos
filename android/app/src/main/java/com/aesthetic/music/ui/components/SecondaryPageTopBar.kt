@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.TextPrimary
 
 /**
@@ -53,7 +54,12 @@ fun SecondaryPageTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 16.dp, top = statusBarTop + 14.dp, bottom = 10.dp),
+            .padding(
+                start = AppSpacing.page,
+                end = AppSpacing.xxl,
+                top = statusBarTop + AppSpacing.xl,
+                bottom = AppSpacing.md,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -63,10 +69,10 @@ fun SecondaryPageTopBar(
             modifier = Modifier
                 .clip(CircleShape)
                 .clickable(onClick = onBack)
-                .padding(4.dp)
+                .padding(AppSpacing.xxs)
                 .size(24.dp),
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Text(
             text = title,
             style = MaterialTheme.typography.headlineSmall.copy(
@@ -79,7 +85,7 @@ fun SecondaryPageTopBar(
             modifier = Modifier.weight(1f, fill = false),
         )
         if (trailing != null) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AppSpacing.sm))
             trailing()
         }
     }
