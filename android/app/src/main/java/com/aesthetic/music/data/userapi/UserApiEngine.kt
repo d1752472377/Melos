@@ -16,17 +16,6 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicLong
 import com.aesthetic.music.service.LogReporter
 
-/**
- * Android 本地音源脚本执行引擎。
- *
- * 现在它不再自带一套 preload.js + 原生桥接，而是加载服务器端同款的
- * `assets/script/lx-core.js`：同一份 JS、同一套 `__host` 契约，宿主实现见
- * [LxRuntime] / [HarlonQuickJsEngine]。这样服务器上验证过的脚本行为和 APK 一致。
- *
- * 对外 API（SourceManager / SourceController 使用）保持不变：
- * [loadScript]、[unloadScript]、[resolveMusicUrl]、[resolveLyric]、
- * [isAvailable] 以及 [declaredSources]、[isEngineReady]、[engineError]、[loadedPluginId]。
- */
 object UserApiEngine {
 
     private const val TAG = "UserApiEngine"
@@ -55,7 +44,6 @@ object UserApiEngine {
     private val _declaredSources = MutableStateFlow<List<String>>(emptyList())
     val declaredSources: StateFlow<List<String>> = _declaredSources.asStateFlow()
 
-    /** 脚本声明的音质（key 为 LX 源标识 wy/tx/kg/kw/mg），检测面板按它逐档测 */
     private val _declaredQualities = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val declaredQualities: StateFlow<Map<String, List<String>>> = _declaredQualities.asStateFlow()
 
@@ -73,11 +61,6 @@ object UserApiEngine {
 
     fun getScriptName(): String = _activeMetadata.value?.name ?: "自定义音源"
 
-    /**
-     * 重新加载或安装新脚本，挂起等待 QuickJS 编译与 init 结果。
-     *
-     * 同一个对象只持有一个 [LxRuntime]；旧的会在新脚本成功加载后关闭。
-     */
     suspend fun loadScript(
         scriptContent: String,
         meta: ScriptMetadata? = null,
@@ -113,7 +96,6 @@ object UserApiEngine {
 
             val init = rt.load(scriptContent, info.toString(), INIT_TIMEOUT_MS)
 
-            // unloadScript() / 新的 loadScript() 可能在这 8 秒里发生。
             if (gen != generation.get()) {
                 rt.close()
                 return@withLock Result.failure(Exception("加载已取消"))
@@ -148,9 +130,6 @@ object UserApiEngine {
         }
     }
 
-    /**
-     * 卸载当前运行的脚本环境（不删除已安装的插件记录）。
-     */
     fun unloadScript() {
         generation.incrementAndGet()
         closeRuntime()
@@ -179,7 +158,6 @@ object UserApiEngine {
         }.also { coreCache = it }
     }
 
-    /** 只列出真正声明了 musicUrl 的源（core 已经按上游规则过滤过 type/actions）。 */
     private fun declaredSourcesFrom(sources: JSONObject?): List<String> {
         if (sources == null) return emptyList()
         val result = mutableListOf<String>()
@@ -201,7 +179,6 @@ object UserApiEngine {
         return result
     }
 
-    /** key 是脚本的 LX 源标识（wy/tx/kg/kw/mg），value 是已过滤的音质列表。 */
     private fun declaredQualitiesFrom(sources: JSONObject?): Map<String, List<String>> {
         if (sources == null) return emptyMap()
         val result = linkedMapOf<String, List<String>>()
@@ -221,9 +198,6 @@ object UserApiEngine {
         return result
     }
 
-    /**
-     * 解析歌曲音频播放直链。
-     */
     suspend fun resolveMusicUrl(platform: String, song: Song, quality: String): Result<String> {
         val rt = runtime
         if (!ready || rt == null) {
@@ -251,9 +225,6 @@ object UserApiEngine {
         }
     }
 
-    /**
-     * 解析歌词（在线源通常没有歌词动作，失败后 SourceManager 会回退到内置接口）。
-     */
     suspend fun resolveLyric(platform: String, song: Song): Result<String> {
         val rt = runtime
         if (!ready || rt == null) {
@@ -279,10 +250,6 @@ object UserApiEngine {
         }
     }
 
-    /**
-     * 脚本收到的是 Q-music 的旧格式（songmid/hash/songId/copyrightId 平铺在顶层）。
-     * 本 App 的 Song 只有 id，所以哪些字段脚本会读，就把 id 填到哪些字段里。
-     */
     private fun buildMusicInfo(song: Song, source: String): JSONObject {
         val id = song.id
         val types = JSONArray().apply {

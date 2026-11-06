@@ -57,21 +57,8 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.components.BottomContentSpacer
 
-/**
- * 设置子页面共用组件。
- *
- * 抽出来的原因：设置项从 1 页扩到 8 页后，若每页各写一套卡片/开关/单选，
- * 很快就会出现"同一形态三种圆角、三种文字色"的老问题（见 [com.aesthetic.music.ui.components.AppDialog]
- * 的历史注释）。这里只保留一套外观决策。
- */
-
-/** 选项：主文案 + 可选说明 */
 data class SettingOption(val label: String, val desc: String? = null)
 
-/**
- * 设置子页面骨架：大标题 + 可滚动内容区（iOS 玻璃拟态风格）。
- * 顶部带有返回按钮，沉浸式状态栏自适应，背景透明融入全局环境光晕。
- */
 @Composable
 fun SettingsPageScaffold(
     title: String,
@@ -125,7 +112,6 @@ fun SettingsPageScaffold(
     }
 }
 
-/** 分组卡片（iOS 玻璃拟态风格） */
 @Composable
 fun SettingsSection(
     title: String? = null,
@@ -152,13 +138,11 @@ fun SettingsSection(
     }
 }
 
-/** 分组之间的间距 */
 @Composable
 fun SettingsGap(height: Int = 14) {
     Spacer(Modifier.height(height.dp))
 }
 
-/** 图标底座：统一 32dp 圆角方块 + 主题色底 */
 @Composable
 private fun RowIcon(icon: ImageVector, tint: Color) {
     Box(
@@ -172,7 +156,6 @@ private fun RowIcon(icon: ImageVector, tint: Color) {
     }
 }
 
-/** 可点击跳转行 */
 @Composable
 fun SettingsNavRow(
     icon: ImageVector,
@@ -210,7 +193,6 @@ fun SettingsNavRow(
     }
 }
 
-/** 开关行 */
 @Composable
 fun SettingsSwitchRow(
     icon: ImageVector,
@@ -259,7 +241,6 @@ fun SettingsSwitchRow(
     }
 }
 
-/** 分段选择行（2-3 个短选项，横向铺满） */
 @Composable
 fun SettingsSegmentRow(
     title: String,
@@ -324,7 +305,6 @@ fun SettingsSegmentRow(
                 }
             }
         }
-        // 选中项的说明放在控件下方，比塞进窄胶囊里可读
         options.getOrNull(selectedIndex)?.desc?.let { desc ->
             Spacer(Modifier.height(AppSpacing.sm))
             Text(
@@ -336,7 +316,6 @@ fun SettingsSegmentRow(
     }
 }
 
-/** 竖向单选列表行（选项多于 3 个或需要示例文案时用） */
 @Composable
 fun SettingsOptionList(
     title: String,
@@ -394,7 +373,6 @@ fun SettingsOptionList(
     }
 }
 
-/** 键值展示行（不可点击，用于"占用 128MB"这类只读信息） */
 @Composable
 fun SettingsValueRow(
     title: String,
@@ -433,7 +411,6 @@ fun SettingsValueRow(
     }
 }
 
-/** 分组内的分隔线（卡片内连续多行之间用） */
 @Composable
 fun SettingsDivider() {
     Box(

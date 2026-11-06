@@ -11,21 +11,6 @@ import com.google.gson.JsonParser
 import java.io.File
 import java.util.UUID
 
-/**
- * 音源插件注册表（多插件）。
- *
- * 与旧的 `UserApiStore`（只保存"当前唯一脚本"）的区别：这里能**同时保留多个插件**，
- * 每个插件的 JS 源码各存一份文件（`filesDir/sources/<id>.js`），
- * 记录表（名称/平台/启用状态/声明源）存 SharedPreferences，启动即可列出。
- *
- * 为什么需要多插件：只有能并存多个音源，"失败换源 / 智能切换 / 自动最快"才有意义——
- * 单一脚本只能"有或没有"，谈不上挑选。
- *
- * 兼容：升级上来时若注册表为空而旧的单一脚本存在，会自动把它登记为第一个插件（[migrateLegacy]）。
- *
- * JSON 手写而非 Gson 反射：Gson 反序列化会绕过 Kotlin 构造器，缺字段会留下 null（旧 `ScriptCatalogStore`
- * 就有这个隐患），手写读取可以逐字段回落默认值，脏数据只丢一条记录。
- */
 object SourceRegistryStore {
 
     private const val TAG = "SourceRegistryStore"
@@ -37,16 +22,8 @@ object SourceRegistryStore {
     private var prefs: SharedPreferences? = null
     private var dir: File? = null
 
-    /**
-     * 内存缓存。
-     *
-     * 两个作用：一是解析一次共享给所有调用方（插件列表在每次播放解析时都会被读到，
-     * 每次都反序列化一遍 JSON 是纯浪费）；二是 JVM 单测里没有 SharedPreferences 时，
-     * 写入仍然可见，store 的行为可以被真实测到，而不是"没落盘就全丢"。
-     */
     private var cache: List<SourcePlugin>? = null
 
-    /** 当前指定插件 id 的内存镜像（理由同上） */
     private var activeCache: String? = null
 
     fun init(context: Context) {
@@ -57,8 +34,6 @@ object SourceRegistryStore {
         activeCache = null
         migrateLegacy()
     }
-
-    // ==================== 读取 ====================
 
     fun list(): List<SourcePlugin> {
         cache?.let { return it }
@@ -81,7 +56,6 @@ object SourceRegistryStore {
 
     fun find(id: String): SourcePlugin? = list().firstOrNull { it.id == id }
 
-    /** 当前指定的插件 id（手动选择的"当前音源"；策略开启时会被自动挑选覆盖） */
     fun activeId(): String? = activeCache ?: prefs?.getString(KEY_ACTIVE, null)?.takeIf { it.isNotBlank() }
 
     fun setActiveId(id: String?) {
@@ -105,9 +79,6 @@ object SourceRegistryStore {
         }
     }
 
-    // ==================== 写入 ====================
-
-    /** 新增或覆盖一个插件（返回最终记录；id 为空时自动生成） */
     fun upsert(plugin: SourcePlugin, content: String? = null): SourcePlugin {
         val id = plugin.id.ifBlank { UUID.randomUUID().toString() }
         val existing = find(id)
@@ -124,9 +95,6 @@ object SourceRegistryStore {
     }
 
     fun saveAll(plugins: List<SourcePlugin>) {
-        // 归一化放在唯一的落库出口：指定平台只认识内置平台 code，
-        // 脏值（比如手改出来的 "bilibili"）在这里统一降级为"全平台通用"，
-        // 避免后面按平台过滤时出现"这个插件永远不适用"的幽灵记录。
         val normalized = plugins.map { p ->
             p.copy(targetPlatform = SourcePlatform.of(p.targetPlatform)?.code ?: "")
         }
@@ -140,7 +108,6 @@ object SourceRegistryStore {
         }
     }
 
-    /** 只更新记录字段（不改源码），用于启用/平台/声明源/最近使用等变更 */
     fun update(id: String, transform: (SourcePlugin) -> SourcePlugin): SourcePlugin? {
         val all = list()
         val target = all.firstOrNull { it.id == id } ?: return null
@@ -156,8 +123,6 @@ object SourceRegistryStore {
         } catch (_: Exception) {
         }
         if (activeId() == id) setActiveId(null)
-        // 插件删除是"用户显式动作"：记成云同步墓碑，否则卸载脚本在别的设备上永远留着。
-        // 放在数据层而不是各个界面里，是为了不漏掉任何一个删除入口（详情页/列表页/批量清理）。
         com.aesthetic.music.data.sync.SyncStateStore.recordDeleteForCurrentUser(
             com.aesthetic.music.data.sync.SyncCollections.SCRIPTS,
             com.aesthetic.music.data.sync.SyncKey.script(id),
@@ -184,13 +149,6 @@ object SourceRegistryStore {
         }
     }
 
-    // ==================== 迁移 ====================
-
-    /**
-     * 把旧版本"唯一脚本"登记为第一个插件。
-     *
-     * 迁移只做一次：注册表非空就跳过，避免用户删掉旧插件后又被重新塞回来。
-     */
     private fun migrateLegacy() {
         if (list().isNotEmpty()) return
         val content = UserApiStore.getScriptContent()
@@ -203,7 +161,6 @@ object SourceRegistryStore {
             author = meta.author,
             description = meta.description,
             homepage = meta.homepage,
-            // 旧版本没有"指定平台"的概念，一律按通用处理
             targetPlatform = "",
             declaredSources = DEFAULT_DECLARED,
             enable = true,
@@ -214,7 +171,6 @@ object SourceRegistryStore {
         Log.i(TAG, "已把旧版音源脚本迁移为插件: [${legacy.name}]")
     }
 
-    /** 由脚本元数据构造插件记录（导入时的初始值；声明源在沙箱加载后补全） */
     fun pluginFromMeta(
         meta: ScriptMetadata,
         targetPlatform: String,
@@ -235,8 +191,6 @@ object SourceRegistryStore {
     fun markUsed(id: String) {
         update(id) { it.copy(lastUsedAt = System.currentTimeMillis()) }
     }
-
-    // ==================== JSON ====================
 
     private fun pluginJson(p: SourcePlugin): JsonObject = JsonObject().apply {
         addProperty("id", p.id)
@@ -294,7 +248,6 @@ object SourceRegistryStore {
         }
     }
 
-    /** 旧脚本的默认声明源（与脚本规范内置的五源一致；加载沙箱后会被真实声明覆盖） */
     private val DEFAULT_DECLARED = listOf("wy", "tx", "kg", "kw", "mg")
 
     private const val LEGACY_ID = "legacy-active"

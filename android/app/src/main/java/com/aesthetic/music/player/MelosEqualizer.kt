@@ -9,40 +9,23 @@ import kotlin.math.exp
 import kotlin.math.log10
 import kotlin.math.pow
 
-/**
- * 均衡器预设模型
- */
 data class EqualizerPreset(
     val id: String,
     val name: String,
-    val gains: List<Float>, // 10 频段增益（单位 dB，-12f ~ +12f）
+    val gains: List<Float>,
 )
 
-/**
- * 均衡器状态模型
- */
 data class EqualizerState(
     val isEnabled: Boolean = true,
     val currentPresetId: String = "flat",
-    val preampGain: Float = 0f, // 预衰减 (-12f ~ +12f dB)
-    val bandGains: List<Float> = List(10) { 0f }, // 10 个频段的增益 (-12f ~ +12f dB)
+    val preampGain: Float = 0f,
+    val bandGains: List<Float> = List(10) { 0f },
 )
 
-/**
- * 全局均衡器管理器。
- *
- * 音频处理已从 `android.media.audiofx.Equalizer` 迁移到 PCM 层的
- * [MelosEqAudioProcessor]（Media3 AudioProcessor）：
- * 硬件效果器在部分设备上首次/切歌挂载会产生无法消除的起播爆音，软件均衡器不受影响。
- *
- * 这个 object 仍然只负责状态、预设、持久化，以及把参数推送给处理器；
- * UI（EqualizerScreen）和原有调用方接口保持不变。
- */
 object MelosEqualizer {
 
     private const val PREFS_NAME = "melos_equalizer_prefs"
 
-    // 10 个标准倍频程中心频率
     val FREQUENCIES = listOf(31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
 
     val FREQUENCY_LABELS = listOf("31Hz", "62Hz", "125Hz", "250Hz", "500Hz", "1kHz", "2kHz", "4kHz", "8kHz", "16kHz")
@@ -61,7 +44,6 @@ object MelosEqualizer {
     private val _state = MutableStateFlow(EqualizerState())
     val state: StateFlow<EqualizerState> = _state.asStateFlow()
 
-    /** 交给 ExoPlayer 的 AudioProcessor，由 PlayerManager 在构建 AudioSink 时接入 */
     val processor = MelosEqAudioProcessor()
 
     private var prefs: SharedPreferences? = null
@@ -89,25 +71,16 @@ object MelosEqualizer {
         pushToProcessor()
     }
 
-    /**
-     * 已弃用：软件均衡器不再需要绑定硬件 AudioSession。
-     * 保留空实现只为不打断现有调用方。
-     */
     @Deprecated("Software EQ no longer needs an AudioSession")
     fun attachAudioSession(sessionId: Int) {
-        // no-op
     }
 
-    /** 已弃用：软件均衡器不需要在暂停/切歌时延迟挂载。 */
     @Deprecated("Software EQ does not need deferred attachment")
     fun onPlaybackActive(active: Boolean) {
-        // no-op
     }
 
-    /** 已弃用：处理器生命周期跟随 AudioSink，不需要手动 release 硬件效果器。 */
     @Deprecated("Software EQ is released with the player's AudioSink")
     fun release() {
-        // no-op
     }
 
     fun setEnabled(enabled: Boolean) {
@@ -140,7 +113,6 @@ object MelosEqualizer {
         val currentGains = _state.value.bandGains.toMutableList()
         currentGains[bandIndex] = clamped
 
-        // 检查是否匹配已有预设
         var matchedPreset = "custom"
         for (preset in PRESETS) {
             if (preset.gains.zip(currentGains).all { (a, b) -> kotlin.math.abs(a - b) < 0.1f }) {
@@ -180,11 +152,6 @@ object MelosEqualizer {
         )
     }
 
-    /**
-     * 计算平滑连续频响响应曲线：
-     * 输入对数频率 f (20Hz ~ 20000Hz)，计算由 10 个频段与预衰减合成的输出增益 (dB)。
-     * 用于在 UI Canvas 上绘制专业发光频响曲线。
-     */
     fun calculateFrequencyGain(frequencyHz: Float, gains: List<Float>, preamp: Float): Float {
         var totalGain = preamp
         val logF = log10(frequencyHz.coerceIn(20f, 20000f))
@@ -193,7 +160,6 @@ object MelosEqualizer {
             val centerF = FREQUENCIES[i].toFloat()
             val logCenter = log10(centerF)
             val gain = gains[i]
-            // 高斯钟形滤波频响权重衰减 (Q ≈ 1.4)
             val diff = logF - logCenter
             val weight = exp(-0.5 * (diff / 0.35).pow(2)).toFloat()
             totalGain += gain * weight

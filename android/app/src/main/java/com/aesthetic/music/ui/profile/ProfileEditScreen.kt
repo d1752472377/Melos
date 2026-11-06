@@ -75,16 +75,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.delay
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 个人资料页（最终版）。
- *
- * 布局：
- * 1. 顶部：无边框返回按钮 + 大标题
- * 2. 卡片一：头像（点击更换）+ 昵称 + @用户名 + 分隔线 + ID/加入天数
- * 3. 卡片二：修改昵称 / 修改邮箱 / 修改登录密码（点击弹窗修改）
- *
- * 弹窗输入框：BasicTextField + 自绘下划线（线与文字天然左对齐，浅灰细线）。
- */
 @Composable
 fun ProfileEditScreen(
     initialNickname: String,
@@ -144,7 +134,6 @@ fun ProfileEditScreen(
                 .padding(bottom = BottomContentSpacer)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // ===== 顶部导航栏 =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -176,7 +165,6 @@ fun ProfileEditScreen(
 
             Spacer(Modifier.height(AppSpacing.section))
 
-            // ===== 卡片一：头像与基本信息 =====
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -225,16 +213,16 @@ fun ProfileEditScreen(
                         Text(
                             text = ProfileFormat.displayName(nickname, username),
                             style = MaterialTheme.typography.titleMedium.copy(
-                                fontSize = 25.sp,        // 昵称：更大更突出
+                                fontSize = 25.sp,
                                 fontWeight = FontWeight.Bold,
                             ),
                             color = TextPrimary,
                         )
-                        Spacer(Modifier.height(AppSpacing.xs))    // 间距从 4 拉到 6
+                        Spacer(Modifier.height(AppSpacing.xs))
                         Text(
                             text = "@${ProfileFormat.usernameDisplay(username)}",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = 13.sp,        // 用户名：小一号，作为次级信息
+                                fontSize = 13.sp,
                             ),
                             color = TextMuted,
                         )
@@ -305,7 +293,6 @@ fun ProfileEditScreen(
 
             Spacer(Modifier.height(AppSpacing.xxl))
 
-            // ===== 卡片二：账号设置 =====
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -335,7 +322,6 @@ fun ProfileEditScreen(
             }
         }
 
-        // ===== 弹窗 =====
         if (showEditNicknameDialog) {
             EditNicknameDialog(
                 currentNickname = nickname,
@@ -380,7 +366,6 @@ fun ProfileEditScreen(
     }
 }
 
-/** 设置项：图标 + 标题 + 当前值 + 右箭头 */
 @Composable
 private fun SettingItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -425,10 +410,6 @@ private fun SettingItem(
     }
 }
 
-/**
- * 统一下划线输入框：BasicTextField + 自绘下划线。
- * 支持密码明暗文切换与占位提示，线与文字天然左对齐。
- */
 @Composable
 private fun UnderlineInput(
     value: String,
@@ -498,7 +479,6 @@ private fun UnderlineInput(
     }
 }
 
-/** 修改昵称弹窗 */
 @Composable
 private fun EditNicknameDialog(
     currentNickname: String,
@@ -547,7 +527,6 @@ private fun EditNicknameDialog(
     )
 }
 
-/** 修改密码弹窗 */
 @Composable
 private fun ChangePasswordDialog(
     onDismiss: () -> Unit,
@@ -635,7 +614,6 @@ private fun ChangePasswordDialog(
     )
 }
 
-/** 更换/绑定邮箱弹窗 */
 @Composable
 private fun BindEmailDialog(
     isChange: Boolean,
@@ -775,7 +753,6 @@ private fun BindEmailDialog(
     )
 }
 
-/** 解绑邮箱弹窗 */
 @Composable
 private fun UnbindEmailDialog(
     currentEmail: String,

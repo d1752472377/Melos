@@ -51,15 +51,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 听歌统计页的视觉组件。
- *
- * 设计基线（与其它页面刻意区分）：统计页是"数据展示"场景，采用毛玻璃卡片 + 柔和渐变背景，
- * 与设置页/列表页的"纯白卡片 + 精致描边"不是同一套语言，因此组件单独收在这里，
- * 不去改动全局组件库（避免把玻璃质感扩散到列表页）。
- */
-
-/** 页面背景：透明融入全局环境光晕背景 */
 @Composable
 fun StatsGradientBackground(content: @Composable () -> Unit) {
     Box(
@@ -69,7 +60,6 @@ fun StatsGradientBackground(content: @Composable () -> Unit) {
     }
 }
 
-/** iOS 玻璃拟态卡片 */
 @Composable
 fun StatsGlassCard(
     modifier: Modifier = Modifier,
@@ -86,7 +76,6 @@ fun StatsGlassCard(
     )
 }
 
-/** 小标签胶囊（"记录中""本月""活跃 3 天"） */
 @Composable
 fun StatsPill(
     text: String,
@@ -108,7 +97,6 @@ fun StatsPill(
     }
 }
 
-/** 分区标题（可选右侧附加信息） */
 @Composable
 fun StatsSectionTitle(
     title: String,
@@ -138,12 +126,6 @@ fun StatsSectionTitle(
     }
 }
 
-/**
- * 超大号时长：数字大、单位小。
- *
- * "1小时8分" 这类中文时长整体放大后会又长又挤，拆成 [("1","小时"),("8","分")] 后
- * 数字视觉重量突出、单位退居其次，正是参考设计里"核心数据极具冲击力"的做法。
- */
 @Composable
 fun StatsBigDuration(
     ms: Long,
@@ -174,13 +156,6 @@ fun StatsBigDuration(
     }
 }
 
-/**
- * 30 天趋势柱状图。
- *
- * - 柱子高度按窗口内最大值归一（不按固定比例，否则数据少时全是矮柱看不清起伏）；
- * - 有数据但很少时保证最小 3dp 高度，避免"明明听了歌却看不到柱子"；
- * - 点柱子回调该天日期，由页面弹单日抽屉（宏观趋势 → 单日细节的下钻）。
- */
 @Composable
 fun StatsBarChart(
     points: List<DayPoint>,
@@ -219,7 +194,6 @@ fun StatsBarChart(
                             .background(
                                 when {
                                     fraction <= 0f -> Brush.verticalGradient(listOf(Stone100, Stone100))
-                                    // 今日用暖色，一眼就能在 30 根柱子里定位"今天"
                                     isToday -> Brush.verticalGradient(
                                         listOf(AccentAmber, AccentAmber.copy(alpha = 0.55f))
                                     )
@@ -231,7 +205,6 @@ fun StatsBarChart(
             }
         }
         Spacer(Modifier.height(AppSpacing.sm))
-        // 坐标轴：只标首、末与两三个中间点，30 个日期全标会糊成一片
         Row(modifier = Modifier.fillMaxWidth()) {
             val ticks = axisTicks(points)
             points.forEachIndexed { index, point ->
@@ -250,18 +223,12 @@ fun StatsBarChart(
     }
 }
 
-/** 坐标轴刻度下标：首、末 + 均匀分布的若干点 */
 private fun axisTicks(points: List<DayPoint>): Set<Int> {
     if (points.size <= 7) return points.indices.toSet()
     val step = (points.size - 1) / 3
     return setOf(0, step, step * 2, points.lastIndex)
 }
 
-/**
- * 横向占比进度条（月度对比、时段分布共用）。
- *
- * @param gradient 进度条渐变：月度对比用青蓝、时段分布用蓝紫（视觉上区分两类数据）
- */
 @Composable
 fun StatsProgressRow(
     label: String,
@@ -316,7 +283,6 @@ fun StatsProgressRow(
     }
 }
 
-/** 排行行：名次（金银铜）+ 歌名歌手 + 次数/时长 */
 @Composable
 fun StatsRankRow(
     rank: Int,
@@ -378,7 +344,6 @@ fun StatsRankRow(
     }
 }
 
-/** 前三名金银铜，其余用中性色 */
 fun rankColor(rank: Int): Color = when (rank) {
     1 -> RankGold
     2 -> RankSilver
@@ -386,7 +351,6 @@ fun rankColor(rank: Int): Color = when (rank) {
     else -> TextMuted
 }
 
-/** 空数据占位（统计页首次打开、或用户关掉了记录） */
 @Composable
 fun StatsEmptyHint(text: String, modifier: Modifier = Modifier) {
     Box(

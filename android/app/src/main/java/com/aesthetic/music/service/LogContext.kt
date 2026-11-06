@@ -20,21 +20,6 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
-/**
- * 客户端日志的**环境快照**：每条日志/每批日志随附的"当时机器长什么样"。
- *
- * 为什么需要这么多字段：线上问题里最难复现的那一类，答案往往不在堆栈里，而在
- * 「他是 Android 12 + 华为 + 省电模式 + 4G」这种组合上。堆栈能告诉你崩在哪，
- * 环境才能告诉你为什么只有他那台机器崩。
- *
- * 分两类采集：
- * - **静态**（设备/系统/屏幕/ABI）：进程内算一次，之后复用；
- * - **动态**（内存/存储/电池/网络/前台/线程数）：每次快照现取——这些正是"当时"的关键。
- *
- * 另外提供三个可选钩子（[playerState] / [currentPage] / [activeSource]），
- * 由 AppShell 之类持有播放器与页面状态的层挂接，日志里就能看到
- * 「崩的时候在放哪首歌、停在第几秒、停在哪个页面、用的哪个音源脚本」。
- */
 object LogContext {
 
     private const val TAG = "LogContext"
@@ -42,22 +27,16 @@ object LogContext {
     @Volatile
     private var appContext: Context? = null
 
-    /** 进程启动时刻（elapsedRealtime），用于计算"这次运行了多久" */
     private var processStartElapsed = 0L
 
-    /** 静态字段缓存 */
     private var staticCache: Map<String, String>? = null
 
-    // ===== 可选钩子：由持有对应状态的层挂接 =====
-    /** 播放状态：{ "song": "标题 - 歌手", "positionMs": "...", "isPlaying": "...", "quality": "..." } */
     @Volatile
     var playerState: (() -> Map<String, String>)? = null
 
-    /** 当前页面/路由名 */
     @Volatile
     var currentPage: (() -> String)? = null
 
-    /** 当前音源（脚本名或"官方直连"） */
     @Volatile
     var activeSource: (() -> String)? = null
 
@@ -66,13 +45,9 @@ object LogContext {
         processStartElapsed = SystemClock.elapsedRealtime()
     }
 
-    /**
-     * 采集一份完整快照。任何单项失败都不影响其它项（全部独立 try）。
-     */
     fun snapshot(): Map<String, String> {
         val out = LinkedHashMap<String, String>()
         out.putAll(staticPart())
-        // ---- 动态部分 ----
         safe("mem") {
             val rt = Runtime.getRuntime()
             val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1024 / 1024
@@ -165,14 +140,12 @@ object LogContext {
             }
             SyncServerStore.getServerUrl().takeIf { it.isNotBlank() }?.let { out["server"] = it }
         }
-        // ---- 业务状态钩子 ----
         safe("player") { playerState?.invoke()?.let { out.putAll(it) } }
         safe("page") { currentPage?.invoke()?.takeIf { it.isNotBlank() }?.let { out["page"] = it } }
         safe("source") { activeSource?.invoke()?.takeIf { it.isNotBlank() }?.let { out["source"] = it } }
         return out
     }
 
-    /** 设备/系统等进程内不变的字段，只算一次 */
     private fun staticPart(): Map<String, String> {
         staticCache?.let { return it }
         val m = LinkedHashMap<String, String>()
@@ -217,14 +190,11 @@ object LogContext {
         return m
     }
 
-    /** 快照里给服务端存的紧凑文本（管理端按 key: value 展示） */
     fun snapshotOrEmpty(): Map<String, String> = try {
         snapshot()
     } catch (_: Exception) {
         emptyMap()
     }
-
-    // ==================== 内部工具 ====================
 
     private inline fun safe(name: String, block: () -> Unit) {
         try {
@@ -258,7 +228,6 @@ object LogContext {
         false
     }
 
-    /** 粗判 root（只做路径与 tags 检查，不执行任何命令） */
     private fun isProbablyRooted(): Boolean = try {
         val paths = arrayOf(
             "/system/app/Superuser.apk", "/sbin/su", "/system/bin/su", "/system/xbin/su",

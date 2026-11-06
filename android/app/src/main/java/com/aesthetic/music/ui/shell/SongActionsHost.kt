@@ -13,11 +13,6 @@ import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.playlist.AddToPlaylistSheet
 import com.aesthetic.music.ui.playlist.SongActionSheet
 
-/**
- * 单曲操作抽屉的共享状态：当前打开的操作菜单 / 当前加入歌单的歌曲。
- *
- * 只负责“哪首歌、开哪个抽屉”，不持有业务逻辑。
- */
 @Stable
 class SongActionsState {
     var actionSong by mutableStateOf<Song?>(null)
@@ -46,16 +41,6 @@ class SongActionsState {
 @Composable
 fun rememberSongActionsState(): SongActionsState = remember { SongActionsState() }
 
-/**
- * 全 App 共用的单曲操作抽屉宿主。
- *
- * 这里统一了此前散落在收藏 / 历史 / 歌手 / 歌单详情 / 搜索 / 播放器浮层的重复接线：
- * - 下一首、加入队列的提示文案；
- * - 下载入口（此前歌手页是空实现）；
- * - “添加到歌单”的级联与成功提示。
- *
- * 页面只需要决定“查看卡片 / 从当前列表移除”这两个上下文动作。
- */
 @Composable
 fun SongActionsHost(
     state: SongActionsState,

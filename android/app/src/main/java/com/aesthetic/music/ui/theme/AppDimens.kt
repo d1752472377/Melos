@@ -2,12 +2,6 @@ package com.aesthetic.music.ui.theme
 
 import androidx.compose.ui.unit.dp
 
-/**
- * 共享圆角与间距 token。
- *
- * 只用于共享 primitives / 新代码；页面级特殊视觉仍可使用字面量，
- * 不要求把现有硬编码一次性全量替换（避免为了统一造成视觉回归）。
- */
 object AppRadius {
     val xs = 8.dp
     val sm = 10.dp

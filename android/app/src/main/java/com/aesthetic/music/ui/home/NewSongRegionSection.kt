@@ -61,23 +61,6 @@ import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 首页「新歌首发」版块：三个**地区新歌榜**（华语 / 欧美 / 日语 / 韩语 每日轮换出三个）。
- *
- * ## 与旧版（`NewAlbumSection`）的两处区别
- * 1. **去掉了「更多」入口**。旧版的 `MoreText` 本来就不是新碟版块的东西
- *    （只是为接调用方的 `onOpenMore` 才照搬的 `HomeScreenKt.MoreText`），
- *    点进去是歌单广场，跟「新碟」毫无关系。
- * 2. **不再拿歌单冒充专辑**：旧版把 `dailyPlaylists + hotPlaylists` 映射成专辑卡，
- *    名字叫「新碟」显示的却是歌单。现在每张卡是一个语种/地区的新歌榜。
- *
- * ## 卡片版式保持「唱片 + 封套」
- * 用户明确要求保留唱片：封面是封套（左侧），黑胶从右侧探出小半张，封套压住唱片左半。
- * 几何与配色沿用 GZ `NewAlbumSectionKt.AlbumRecord`（`sleeveSize = maxWidth / 1.216`、
- * 唱片 `0.9 × sleeveSize`、`shadow(3.dp, CircleShape)`、封套 `shadow(4.dp) + 1dp 描边`），
- * 唱片本身是 Canvas 画的（`li.java:302-339` 的 7 段 sweepGradient + 24 道音轨 + 标签 + 主轴孔）。
- * 唯一的改动是：封套右下角多了一枚小播放钮，让「点卡片=听这个地区的新歌」有可见预期。
- */
 @Composable
 fun NewSongRegionSection(
     groups: List<RegionNewSongs>,
@@ -109,7 +92,6 @@ fun NewSongRegionSection(
                 letterSpacing = 1.sp,
                 lineHeight = 12.sp,
             )
-            // 这里**没有**「更多」：见类注释第 1 点
         }
 
         Spacer(Modifier.height(AppSpacing.lg))
@@ -129,11 +111,6 @@ fun NewSongRegionSection(
     }
 }
 
-/**
- * 单张地区卡：唱片 + 封套 + 地区名 + 「N 首新歌」。
- *
- * 封面比例与旧版一致（`maxWidth / 1.216f`），保证换成新内容后版块高度不跳。
- */
 @Composable
 private fun RegionCard(
     group: RegionNewSongs,
@@ -191,18 +168,12 @@ private fun RegionCard(
     }
 }
 
-/**
- * 唱片 + 封套组合 —— 结构完全沿用 GZ `NewAlbumSectionKt.AlbumRecord`（:83-148）：
- * `BoxWithConstraints` 里 `sleeveSize = maxWidth / 1.216f`，唱片 `0.9 × sleeveSize` 靠右，
- * 封套 `sleeveSize` 后绘制、盖住唱片左侧，只露出一小截黑胶。
- */
 @Composable
 private fun RegionRecord(
     coverUrl: String?,
     label: String,
     modifier: Modifier = Modifier,
 ) {
-    // 封套主色 → 唱片标签与音轨的配色（GZ 走 CoverToneKt，本项目用 rememberCoverTone）
     val tone = rememberCoverTone(coverUrl, DefaultCoverTone)
 
     BoxWithConstraints(modifier = modifier) {
@@ -231,7 +202,6 @@ private fun RegionRecord(
     }
 }
 
-/** 封套：`shadow(4.dp) → background(coverPlaceholder) → clip → 封面 → 1dp 描边` */
 @Composable
 private fun RegionSleeve(
     coverUrl: String?,
@@ -246,7 +216,6 @@ private fun RegionSleeve(
             .clip(shape),
     ) {
         if (!coverUrl.isNullOrBlank()) {
-            // 用统一的封面视图：内联封面（data:image/…）也能画（见 PlaylistCoverImage）
             PlaylistCoverImage(
                 model = coverUrl,
                 modifier = Modifier.matchParentSize(),
@@ -258,7 +227,6 @@ private fun RegionSleeve(
                 .matchParentSize()
                 .border(width = 1.dp, color = coverHairline(), shape = shape),
         )
-        // 播放入口：右下角半透明圆钮（本版新增，让「点卡片=听歌」有可见预期）
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -277,12 +245,6 @@ private fun RegionSleeve(
     }
 }
 
-/**
- * 黑胶唱片绘制 —— 逐值还原 `li.java:302-339`（GZ `NewAlbumSectionKt.AlbumVinyl` 的绘制体）。
- *
- * 绘制顺序：sweepGradient 底 → 24 道同心音轨 → 外圈边线 → 标签底色 → 标签描边 → 主轴孔 → 主轴孔细环。
- * R = `size.minDimension / 2`。
- */
 @Composable
 private fun RegionVinyl(
     tone: Color,
@@ -295,7 +257,6 @@ private fun RegionVinyl(
         val toneBlack40 = lerp(tone, Color.Black, 0.40f)
         val toneWhite38 = lerp(tone, Color.White, 0.38f)
 
-        // 7 个色标的角向渐变（li.java:311-320）
         drawRect(
             brush = Brush.sweepGradient(
                 0.00f to toneBlack22,
@@ -308,7 +269,6 @@ private fun RegionVinyl(
             ),
         )
 
-        // 24 道音轨（li.java:322-328）：半径 (i*0.027+0.34)R，每 3 道亮一档
         for (i in 0 until 24) {
             drawCircle(
                 color = Color.White.copy(alpha = if (i % 3 == 0) 0.15f else 0.07f),
@@ -317,27 +277,23 @@ private fun RegionVinyl(
             )
         }
 
-        // 外圈边线（li.java:331-332）
         drawCircle(
             color = toneWhite38,
             radius = radius * 0.985f,
             style = Stroke(width = radius * 0.01f),
         )
 
-        // 标签底色（li.java:334）
         drawCircle(
             color = lerp(tone, Color.White, 0.28f),
             radius = radius * 0.29f,
         )
 
-        // 标签描边（li.java:335）
         drawCircle(
             color = tone,
             radius = radius * 0.23f,
             style = Stroke(width = radius * 0.014f),
         )
 
-        // 主轴孔（li.java:336-338）
         val holeRadius = radius * 0.055f
         drawCircle(color = AppColors.homeHole, radius = holeRadius)
         drawCircle(
@@ -348,7 +304,6 @@ private fun RegionVinyl(
     }
 }
 
-/** GZ `MotionKt.bounceClick` 等价实现（150ms / `CubicBezierEasing(0.2, 0, 0, 1)` / 无涟漪） */
 @Composable
 private fun Modifier.bouncePress(pressedScale: Float, onClick: () -> Unit): Modifier {
     val interaction = remember { MutableInteractionSource() }

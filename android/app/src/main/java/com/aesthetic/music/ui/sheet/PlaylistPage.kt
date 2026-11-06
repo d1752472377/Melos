@@ -58,13 +58,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 歌单广场（图 2 + 图 3 规范）：
- * - 顶部：返回键 + 歌单广场标题 + 右侧刷新按钮；
- * - 分类：移除原先的侧边抽屉，改为横向滚动的标签胶囊栏（图 2）；
- * - 排序：最热 / 最新 精致胶囊切换；
- * - 列表：单列垂直 iOS 玻璃拟态卡片流（图 3），透出全局底层环境光背景与状态栏毛玻璃折射。
- */
 @Composable
 fun PlaylistPage(
     sheetTags: List<String>,
@@ -86,7 +79,6 @@ fun PlaylistPage(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-        // ===== 顶部导航栏（返回键 + 大标题 + 刷新按钮，见图 2） =====
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -115,7 +107,6 @@ fun PlaylistPage(
                 color = TextPrimary,
             )
             Spacer(Modifier.weight(1f))
-            // 右侧刷新按钮（图 2）
             Icon(
                 imageVector = Icons.Outlined.Refresh,
                 contentDescription = "刷新歌单",
@@ -128,7 +119,6 @@ fun PlaylistPage(
             )
         }
 
-        // ===== 分类标签胶囊栏（横向滚动，彻底替代抽屉，见图 2） =====
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 20.dp),
@@ -146,7 +136,6 @@ fun PlaylistPage(
 
         Spacer(Modifier.height(AppSpacing.md))
 
-        // ===== 排序切换（最热 / 最新，精致紧凑胶囊） =====
         Row(
             modifier = Modifier.padding(horizontal = AppSpacing.page),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
@@ -161,7 +150,6 @@ fun PlaylistPage(
 
         Spacer(Modifier.height(AppSpacing.xs))
 
-        // ===== 歌单卡片列表（单列 iOS 玻璃拟态卡片流，见图 3） =====
         when {
             isLoading && playlists.isEmpty() -> {
                 LoadingBox(message = "正在加载歌单…", modifier = Modifier.weight(1f).fillMaxWidth())
@@ -196,12 +184,6 @@ fun PlaylistPage(
 }
 }
 
-
-/**
- * 分类标签胶囊（图 2 样式）：
- * 选中态：微高光浮起卡片质感，字体加粗加黑
- * 未选中态：半透明平滑融入背景
- */
 @Composable
 private fun CategoryPill(
     label: String,
@@ -233,7 +215,6 @@ private fun CategoryPill(
     }
 }
 
-/** 最热/最新胶囊 */
 @Composable
 private fun OrderChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
@@ -252,13 +233,6 @@ private fun OrderChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/**
- * 单条 iOS 玻璃拟态歌单卡片（图 3 规范）：
- * - 左侧：大圆角歌单封面；
- * - 右侧上方：歌单标题 + 展开箭头；
- * - 右侧中间：歌单描述/文案，最多两行省略；
- * - 右侧下方：耳机播放量软胶囊 + 歌曲总数。
- */
 @Composable
 private fun PlaylistGlassCard(
     playlist: PlaylistItem,
@@ -275,7 +249,6 @@ private fun PlaylistGlassCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 左侧大圆角封面
             SongCover(
                 url = playlist.coverUrl,
                 modifier = Modifier
@@ -286,13 +259,11 @@ private fun PlaylistGlassCard(
 
             Spacer(Modifier.width(AppSpacing.xl))
 
-            // 右侧信息流
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                // 第一行：标题 + 右侧箭头
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -319,7 +290,6 @@ private fun PlaylistGlassCard(
 
                 Spacer(Modifier.height(AppSpacing.xxs))
 
-                // 第二行：描述文案（两行截断）
                 val descText = playlist.description?.takeIf { it.isNotBlank() }
                     ?: "${playlist.name} · 精选合辑，畅享好音乐"
                 Text(
@@ -335,11 +305,9 @@ private fun PlaylistGlassCard(
 
                 Spacer(Modifier.height(AppSpacing.sm))
 
-                // 第三行：播放量胶囊 + 曲目数
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 耳机播放量胶囊
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -362,7 +330,6 @@ private fun PlaylistGlassCard(
                         )
                     }
 
-                    // 歌曲总数
                     val trackCount = playlist.trackCount?.takeIf { it > 0 }
                     if (trackCount != null) {
                         Spacer(Modifier.width(AppSpacing.md))

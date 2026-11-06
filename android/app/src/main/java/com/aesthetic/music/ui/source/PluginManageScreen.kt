@@ -181,7 +181,6 @@ fun PluginManageScreen(
             .verticalScroll(rememberScrollState())
             .statusBarsPadding(),
     ) {
-        // 顶栏
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -243,7 +242,6 @@ fun PluginManageScreen(
             }
         }
 
-        // 标题 + 添加插件
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -281,7 +279,6 @@ fun PluginManageScreen(
             }
         }
 
-        // 运行状态 / 播放设置
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -343,7 +340,6 @@ fun PluginManageScreen(
             }
         }
 
-        // 已安装
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -423,7 +419,6 @@ fun PluginManageScreen(
         Spacer(Modifier.height(28.dp))
     }
 
-    // ==================== 添加插件 ====================
     if (showAddSheet) {
         AppBottomSheet(onDismissRequest = { showAddSheet = false }) {
             Column(Modifier.padding(horizontal = AppSpacing.page)) {
@@ -496,7 +491,6 @@ fun PluginManageScreen(
         }
     }
 
-    // ==================== 运行状态 ====================
     if (showStatusSheet) {
         AppBottomSheet(onDismissRequest = { showStatusSheet = false }) {
             Column(Modifier.padding(horizontal = AppSpacing.page)) {
@@ -564,7 +558,6 @@ fun PluginManageScreen(
         }
     }
 
-    // ==================== 播放设置 ====================
     if (showPlaybackSheet) {
         var policyExpanded by remember { mutableStateOf(false) }
         val mode = when {
@@ -653,7 +646,6 @@ fun PluginManageScreen(
         }
     }
 
-    // ==================== 检测方式 ====================
     detectChoicePlugin?.let { plugin ->
         AppBottomSheet(onDismissRequest = { detectChoicePlugin = null }) {
             Column(Modifier.padding(horizontal = AppSpacing.page)) {
@@ -689,7 +681,6 @@ fun PluginManageScreen(
         }
     }
 
-    // ==================== 检测结果 ====================
     pluginDetect?.let { state ->
         AppBottomSheet(onDismissRequest = { actions.clearPluginDetect() }) {
             Column(Modifier.padding(horizontal = AppSpacing.page)) {
@@ -771,7 +762,6 @@ fun PluginManageScreen(
         }
     }
 
-    // ==================== 指定平台 ====================
     platformSheetPlugin?.let { plugin ->
         AppBottomSheet(onDismissRequest = { platformSheetPlugin = null }) {
             Column(Modifier.padding(horizontal = AppSpacing.page)) {
@@ -819,8 +809,6 @@ fun PluginManageScreen(
         )
     }
 }
-
-// ==================== 插件卡片 ====================
 
 @Composable
 private fun PluginCard(
@@ -997,8 +985,6 @@ private fun PluginCard(
     }
 }
 
-// ==================== 平台 ====================
-
 @Composable
 private fun PlatformBadge(platform: SourcePlatform, status: ProbeStatus) {
     val warning = status == ProbeStatus.FAIL || status == ProbeStatus.UNTESTABLE
@@ -1068,8 +1054,6 @@ private fun platformShortLabel(platform: SourcePlatform): String = when (platfor
     SourcePlatform.KUWO -> "酷我"
     SourcePlatform.MIGU -> "咪咕"
 }
-
-// ==================== 检测结果卡片 ====================
 
 @Composable
 private fun QualityGroupCard(group: PlatformQualityGroup) {
@@ -1164,8 +1148,6 @@ private fun QualityStatusPill(status: ProbeStatus) {
         Text(label, fontSize = 10.5.sp, color = color, fontWeight = FontWeight.Medium)
     }
 }
-
-// ==================== 通用小组件 ====================
 
 @Composable
 private fun SheetHeader(title: String, subtitle: String? = null, onClose: () -> Unit) {

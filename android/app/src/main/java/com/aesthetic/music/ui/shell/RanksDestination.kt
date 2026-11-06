@@ -9,7 +9,6 @@ import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.rank.RankController
 import com.aesthetic.music.ui.rank.RankPage
 
-/** 排行榜列表页（顶部平台 tag：网易云 / QQ / 酷狗 / 酷我） */
 @Composable
 fun RanksDestination(
     rank: RankController,
@@ -22,7 +21,6 @@ fun RanksDestination(
     val error by rank.error.collectAsState()
     val loadedAt by rank.loadedAt.collectAsState()
 
-    // 首次进入才联网；返回再进入时用控制器里的缓存，不再闪一次 loading
     LaunchedEffect(Unit) { rank.ensureLoaded() }
 
     RankPage(

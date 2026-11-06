@@ -36,16 +36,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 通用单曲行：搜索页 / 歌手页 / 全部演唱页共用。
- *
- * - [showPlatformTag] 控制标题下方是否显示平台彩色小标签（搜索页 true，歌手页 false）；
- * - [leading] 左侧插槽（如序号），默认不显示；
- * - [actions] 右侧按钮组插槽，默认一个「...」；传入后完全替换默认内容；
- * - 播放中整行浅色高光 + 标题主题色（[isPlaying]）。
- *
- * 注意：行本身使用半透融合底色，与毛玻璃卡片容器完美融合。
- */
 @Composable
 fun SongRow(
     song: Song,
@@ -110,7 +100,6 @@ fun SongRow(
             }
         }
         if (isPlaying) {
-            // [GZ 真值] PlayingBarsKt.java:122 固定条高 16.dp，GZ 调用点自行用 modifier 限制高度
             PlayingBars(
                 isPlaying = true,
                 color = activeTitleColor,

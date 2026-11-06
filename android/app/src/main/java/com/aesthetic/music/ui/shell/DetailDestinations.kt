@@ -16,7 +16,6 @@ import com.aesthetic.music.ui.shell.ShellActions
 import com.aesthetic.music.ui.shell.SongActionsHost
 import com.aesthetic.music.ui.shell.rememberSongActionsState
 
-/** 歌单详情页（含本地歌单 / 榜单） */
 @Composable
 fun PlaylistDetailDestination(
     playlistDetail: PlaylistDetailController,
@@ -65,8 +64,6 @@ fun PlaylistDetailDestination(
     )
 }
 
-
-/** 专辑详情页（搜索页专辑 Tab 点击进入，复用歌单详情界面） */
 @Composable
 fun AlbumDetailDestination(
     playlistDetail: PlaylistDetailController,
@@ -115,8 +112,6 @@ fun AlbumDetailDestination(
     )
 }
 
-
-/** 歌手页 */
 @Composable
 fun ArtistDetailDestination(
     artist: ArtistController,
@@ -131,7 +126,6 @@ fun ArtistDetailDestination(
     val artistError by artist.error.collectAsState()
     val myPlaylists by library.myPlaylists.collectAsState()
 
-    // 当前播放歌：PlayerManager 通过 state: StateFlow<PlayerState> 暴露，currentSong 是 PlayerState 的计算属性
     val playerState by playerManager.state.collectAsState()
     val currentSong = playerState.currentSong
     val songActions = rememberSongActionsState()
@@ -152,7 +146,6 @@ fun ArtistDetailDestination(
         currentSong = currentSong,
         onPlaySong = { actions.playSong(it, if (allSongs.isNotEmpty()) allSongs else artistSongs) },
         onPlayAll = { actions.playAll(if (allSongs.isNotEmpty()) allSongs else artistSongs) },
-        // 随机播放：打乱顺序后整队播放（不改全局播放模式）
         onShuffle = {
             val list = if (allSongs.isNotEmpty()) allSongs else artistSongs
             if (list.isNotEmpty()) actions.playAll(list.shuffled())
@@ -170,8 +163,6 @@ fun ArtistDetailDestination(
     )
 }
 
-
-/** 全部演唱页 */
 @Composable
 fun ArtistAllSongsDestination(
     artist: ArtistController,
@@ -211,7 +202,6 @@ fun ArtistAllSongsDestination(
         currentSong = currentSong,
         onPlaySong = { actions.playSong(it, songs) },
         onPlayAll = { actions.playAll(songs) },
-        // 随机播放：打乱顺序后整队播放（不改全局播放模式）
         onShuffle = { if (songs.isNotEmpty()) actions.playAll(songs.shuffled()) },
         onToggleFavorite = { library.toggleFavorite(it) },
         onPlayNext = { playerManager.playNext(it) },

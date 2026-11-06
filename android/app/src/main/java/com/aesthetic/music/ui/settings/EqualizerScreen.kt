@@ -74,10 +74,6 @@ import kotlin.math.pow
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 专业调音台 / 10段图形均衡器页面：
- * 深度复刻 GZ Music 现代专业调音台设计。
- */
 @Composable
 fun EqualizerScreen(
     onBack: () -> Unit,
@@ -91,13 +87,11 @@ fun EqualizerScreen(
             .fillMaxSize()
             .background(if (isDark) AppColors.slate900 else AppColors.slate50)
     ) {
-        // 背景极光氛围
         HomeAmbientGlowBackground()
 
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // ===== 顶栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -128,7 +122,6 @@ fun EqualizerScreen(
                     )
                 }
 
-                // 重置按钮
                 IconButton(
                     onClick = { MelosEqualizer.resetToFlat() },
                     modifier = Modifier.size(36.dp)
@@ -143,7 +136,6 @@ fun EqualizerScreen(
 
                 Spacer(Modifier.width(AppSpacing.xs))
 
-                // 总开关
                 Switch(
                     checked = eqState.isEnabled,
                     onCheckedChange = { MelosEqualizer.setEnabled(it) },
@@ -155,7 +147,6 @@ fun EqualizerScreen(
                 )
             }
 
-            // ===== 主体可滚动区域 =====
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -163,7 +154,6 @@ fun EqualizerScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.xxl)
             ) {
-                // 1. 实时频响曲线 Canvas 卡片
                 item(key = "response_curve_card") {
                     Box(
                         modifier = Modifier
@@ -213,7 +203,6 @@ fun EqualizerScreen(
                     }
                 }
 
-                // 2. 预衰减控制 (Preamp)
                 item(key = "preamp_card") {
                     val hasBoost = remember(eqState.bandGains) { eqState.bandGains.any { it > 1.5f } }
 
@@ -245,7 +234,7 @@ fun EqualizerScreen(
                                 value = eqState.preampGain,
                                 onValueChange = { MelosEqualizer.setPreampGain(it) },
                                 valueRange = -12f..12f,
-                                steps = 47, // 0.5dB 步进
+                                steps = 47,
                                 colors = SliderDefaults.colors(
                                     thumbColor = if (isDark) AppColors.sky else PrimaryBrown,
                                     activeTrackColor = if (isDark) AppColors.sky else PrimaryBrown,
@@ -265,7 +254,6 @@ fun EqualizerScreen(
                     }
                 }
 
-                // 3. 预设大师音效胶囊 (Presets)
                 item(key = "presets_card") {
                     Column {
                         Text(
@@ -302,7 +290,6 @@ fun EqualizerScreen(
                                         )
                                         .border(
                                             width = 1.dp,
-                                            // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
                                             color = if (selected) DefaultCoverTone else glassBorder(),
                                             shape = RoundedCornerShape(14.dp)
                                         )
@@ -324,7 +311,6 @@ fun EqualizerScreen(
                     }
                 }
 
-                // 4. 10 频段精细推子卡片 (10 Bands Sliders)
                 item(key = "bands_sliders_card") {
                     Box(
                         modifier = Modifier
@@ -352,7 +338,6 @@ fun EqualizerScreen(
 
                             Spacer(Modifier.height(AppSpacing.xxl))
 
-                            // 10 频段横向排列
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -380,9 +365,6 @@ fun EqualizerScreen(
     }
 }
 
-/**
- * 频响响应曲线 Canvas 绘制
- */
 @Composable
 private fun FrequencyResponseCanvas(
     gains: List<Float>,
@@ -396,7 +378,6 @@ private fun FrequencyResponseCanvas(
         val height = size.height
         val midY = height / 2f
 
-        // 1. 绘制网格基准线 (-12dB, -6dB, 0dB, +6dB, +12dB)
         val gridLines = listOf(-12f, -6f, 0f, 6f, 12f)
         for (dB in gridLines) {
             val y = midY - (dB / 15f) * (midY * 0.85f)
@@ -413,7 +394,6 @@ private fun FrequencyResponseCanvas(
             )
         }
 
-        // 2. 计算曲线控制点（对数刻度 20Hz ~ 20kHz 映射到 0 ~ width）
         val sampleCount = 80
         val points = mutableListOf<Offset>()
         val minLog = log10(20f)
@@ -429,7 +409,6 @@ private fun FrequencyResponseCanvas(
             points.add(Offset(x, y.coerceIn(4f, height - 4f)))
         }
 
-        // 3. 构建平滑贝塞尔曲线路径
         val curvePath = Path()
         val fillPath = Path()
 
@@ -451,7 +430,6 @@ private fun FrequencyResponseCanvas(
             fillPath.lineTo(0f, height)
             fillPath.close()
 
-            // 渐变填充阴影
             val fillBrush = Brush.verticalGradient(
                 colors = listOf(
                     (if (isDark) AppColors.eqSkyGlow else PrimaryBrown.copy(alpha = 0.25f)),
@@ -462,7 +440,6 @@ private fun FrequencyResponseCanvas(
             )
             drawPath(fillPath, fillBrush)
 
-            // 绘制主发光曲线
             val curveBrush = Brush.horizontalGradient(
                 colors = if (isEnabled) {
                     listOf(
@@ -481,7 +458,6 @@ private fun FrequencyResponseCanvas(
                 style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
             )
 
-            // 在 10 频段中心点绘制小圆点
             for (freq in MelosEqualizer.FREQUENCIES) {
                 val ratio = (log10(freq.toFloat()) - minLog) / (maxLog - minLog)
                 val x = ratio * width
@@ -503,9 +479,6 @@ private fun FrequencyResponseCanvas(
     }
 }
 
-/**
- * 垂直推子单列组件
- */
 @Composable
 private fun BandVerticalFader(
     freqLabel: String,
@@ -519,7 +492,6 @@ private fun BandVerticalFader(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(30.dp)
     ) {
-        // 增益数值
         Text(
             text = "${if (gain > 0) "+" else ""}${"%.0f".format(gain)}",
             style = MaterialTheme.typography.labelSmall.copy(
@@ -536,7 +508,6 @@ private fun BandVerticalFader(
 
         Spacer(Modifier.height(AppSpacing.xxs))
 
-        // 垂直滑动条（高度 110dp）
         Box(
             modifier = Modifier
                 .height(110.dp)
@@ -555,7 +526,6 @@ private fun BandVerticalFader(
                 },
             contentAlignment = Alignment.Center
         ) {
-            // 中心 0dB 刻度线
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -563,9 +533,7 @@ private fun BandVerticalFader(
                     .background((if (isDark) Color.White else Color.Black).copy(alpha = 0.18f))
             )
 
-            // 动态滑块 thumb (位置基于 gain 从 -12 到 +12)
             val normalizedRatio = ((gain + 12f) / 24f).coerceIn(0f, 1f)
-            // 垂直向上为正，y = (1 - ratio) * (110 - thumbSize)
             val thumbOffsetY = (1f - normalizedRatio) * (110f - 20f)
 
             Box(
@@ -597,7 +565,6 @@ private fun BandVerticalFader(
 
         Spacer(Modifier.height(AppSpacing.xs))
 
-        // 频率标签
         Text(
             text = freqLabel.replace("Hz", "").replace("kHz", "k"),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),

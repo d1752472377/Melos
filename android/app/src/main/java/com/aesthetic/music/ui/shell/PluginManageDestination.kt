@@ -10,7 +10,6 @@ import com.aesthetic.music.ui.source.PluginManageScreen
 import com.aesthetic.music.ui.source.SourceActions
 import com.aesthetic.music.ui.source.SourceController
 
-/** 插件管理页（音源导入 / 检测 / 切换策略） */
 @Composable
 fun PluginManageDestination(
     sources: SourceController,
@@ -28,7 +27,6 @@ fun PluginManageDestination(
     val pluginDetect by sources.pluginDetect.collectAsState()
     val userPrefs by settings.prefs.collectAsState()
 
-    // 进入页面时重读注册表：启动迁移、其它入口的导入都会让内存里的列表过期
     LaunchedEffect(Unit) { sources.refresh() }
 
     val actions = remember(sources, settings) {

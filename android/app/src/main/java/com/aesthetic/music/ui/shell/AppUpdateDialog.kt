@@ -30,12 +30,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.launch
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 全 App 唯一的版本更新弹窗。
- *
- * 状态由 [com.aesthetic.music.ui.MainViewModel.appUpdateInfo] 持有；
- * 启动检查、个人页检查、设置页检查都只负责触发检查，弹窗在这里统一渲染。
- */
 @Composable
 fun AppUpdateDialog(
     info: UpdateInfo,

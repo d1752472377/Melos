@@ -30,7 +30,6 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/** 类型筛选行：单曲 / 歌手 / 歌单 / 专辑 / 歌词 */
 @Composable
 fun SearchFilterTabs(
     selected: SearchType,
@@ -51,11 +50,6 @@ fun SearchFilterTabs(
     }
 }
 
-/**
- * 类型筛选 tag（纯文字 + 底部短横线）：
- * - 选中态：主色加粗文字 + 下方主色短横线；
- * - 未选中：灰色普通文字，无横线，但保留同高透明占位，避免选中切换时整行跳动。
- */
 @Composable
 private fun TypeTag(label: String, selected: Boolean, onClick: () -> Unit) {
     val isDark = Palette.isDark

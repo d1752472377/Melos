@@ -55,15 +55,6 @@ import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextPrimary
 
-/**
- * 顶部悬浮灵动胶囊通知（Top Floating Capsule Toast）。
- *
- * 替代原生底部粗重、容易被底部播放胶囊与导航 Dock 遮挡的 Snackbar：
- * 1. 位于顶部状态栏下方（自动避让 statusBars）；
- * 2. 具有柔和毛玻璃与轻微阴影的圆角胶囊；
- * 3. 智能识别提示类型并展示对应精致图标（成功/错误/信息/播放）；
- * 4. 2.6 秒自动平滑淡出，支持上滑/点击立即关闭。
- */
 @Composable
 fun MelosToastHost(
     message: String?,

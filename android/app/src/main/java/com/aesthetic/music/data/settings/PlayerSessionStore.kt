@@ -6,10 +6,6 @@ import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.model.Song
 import com.google.gson.reflect.TypeToken
 
-/**
- * 播放断点记忆：保存队列 / 当前曲目 / 进度 / 倍速。
- * App 下次启动时恢复，点“继续播放”即可从上次位置接着听。
- */
 data class PlayerSession(
     val queue: List<Song> = emptyList(),
     val currentIndex: Int = -1,

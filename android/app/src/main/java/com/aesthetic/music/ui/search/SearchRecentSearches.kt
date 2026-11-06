@@ -30,7 +30,6 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/** 最近搜索：本地持久化的词条流式排列 + 带二次确认的清空入口 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchRecentSearches(
@@ -72,7 +71,6 @@ fun SearchRecentSearches(
     }
 }
 
-/** 最近搜索词条：高质感毛玻璃胶囊，圆角 99dp，文字清晰弱化 */
 @Composable
 private fun WordChip(word: String, onClick: () -> Unit) {
     Box(

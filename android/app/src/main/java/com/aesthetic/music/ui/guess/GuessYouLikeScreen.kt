@@ -80,51 +80,6 @@ import com.aesthetic.music.ui.theme.appIsDark
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 「猜你喜欢」页 —— 逐值还原 GZ Music 2.1.8
- * `com/gzmusic/app/feature/guess/GuessYouLikeScreenKt.java`（2696 行反编译源）。
- *
- * ## 页面结构（与截图一致，行号指 `GuessYouLikeScreenKt.java`）
- * ```
- * Box
- *  ├─ HomeAmbientGlowBackground()                     // 全 App 同款极光背景
- *  ├─ GuessTopBar                                     // :1501  返回 + 大标题 + 副标题 + 换一批
- *  └─ 内容（按状态四选一）
- *      ├─ Loading                                     // :1664 前的 loading 分支
- *      ├─ GuessEmpty                                  // :512
- *      ├─ GuessError                                  // :562   文案 + 重试胶囊
- *      └─ LazyColumn（spacedBy 10dp / 横 16dp）
- *           ├─ item "hero"          GuessHero          // :611
- *           ├─ item "taste_profile" GuessTasteProfile  // :1455
- *           ├─ item "personal_section" GuessPersonalSectionHeader // :968
- *           └─ items(songs)         GuessSongRow       // :1211
- * ```
- *
- * ## 三个必须照抄的「语义」细节
- * 1. **Hero 的配色不是主题色，是封面主色**（`j` 参数）：
- *    由 `rememberCoverTone(第一首封面)` 得到，再经 `DiscoveryStyleKt.discoveryAccent`
- *    （`DiscoveryStyleKt.java:12-19`：深色 `lerp(tone, White, 0.48f)`、浅色 `lerp(tone, Black, 0.28f)`）
- *    变成文字强调色。所以换一批歌，整张卡的主色会跟着换——这是「每日私人推荐」的视觉语言。
- * 2. **「18 首精选歌曲」的 18 是真实结果条数**，不是常量：GZ 传的是 `list.size`（`:763`）。
- * 3. **「来自收藏与最近播放的 N 条线索」的 N 是种子数**（`:783` 的 `i2`），
- *    为 0 时换成「越常听，越懂你」。同理 `personal_section` 的副标题在无种子时换成
- *    「继续听歌，推荐会越来越懂你」（`:1042`）。
- *
- * ## 与 GZ 的三处刻意差异（都不影响观感，但避免「点了没反应」）
- * 1. GZ 的 `GuessRefreshButton`（`:1068`）在刷新中把图标换成
- *    `CircularProgressIndicator(strokeWidth = 2.2.dp)`；这里保留同款，但额外把按钮禁用，
- *    避免连点导致两批结果互相覆盖。
- * 2. GZ 的「保存为歌单」成功后没有任何反馈；这里走全 App 统一的 toast 提示。
- * 3. GZ 的 `GuessLoadingArtwork`（`GuessLoadingArtworkKt.java`，一段 22KB 的加载动画）
- *    没有复刻：本项目所有页面统一用 `CircularProgressIndicator` 加载态，
- *    为这一个页面单独搬一套动画只会让「加载中」在不同页面长得不一样。
- *
- * @param state         页面状态（Loading / Empty / Error / Ready），见 [GuessController.State]
- * @param refreshing    是否正在换一批（刷新按钮转圈）
- * @param isPlaying     全局播放中
- * @param currentSongId 当前播放歌曲的 `platform:id`，用于行内高亮与音波
- * @param favoriteKeys  已收藏的 `platform:id` 集合
- */
 @Composable
 fun GuessYouLikeScreen(
     state: GuessController.State,
@@ -184,22 +139,6 @@ fun GuessYouLikeScreen(
     }
 }
 
-// ============================================================
-// 顶栏（GZ GuessTopBar，:1501-1663）
-// ============================================================
-
-/**
- * GZ 的大标题形态（`:1523-1571`）：
- *  - 容器 `fillMaxWidth().height(60.dp)` + `padding(start = 24, top = 4, end = 24, bottom = 12)`
- *    （`:1527` 的 `hp1.r0(ij7.j(ij7.g(...), 60.0f, 0.0f, 2), 24.0f, 4.0f, 24.0f, 12.0f)`）；
- *  - 标题「猜你喜欢」**32.sp / W800 / letterSpacing -0.8.sp / textHigh**（`:1566`）；
- *  - 副标题「你的每日私人推荐」**11.sp / W500 / letterSpacing 0.2.sp / textLow**（`:1567`）；
- *  - 右侧 `GuessRefreshButton`（`:1068`）：**40.dp 圆**、按压缩放 **0.9**、图标 **22.dp**、
- *    `contentDescription = "换一批"`（`:1138`），刷新中换成 **20.dp 圆环 + 2.2.dp 描边**（`:1132`）。
- *
- * 反编译的两种顶栏里，`z2 = false` 那一支走 `PhoneTopBar`（带返回箭头）。真机截图上是
- * 「← 猜你喜欢」，因此这里把返回箭头显式画在大标题左侧，其余数值沿用大标题形态。
- */
 @Composable
 private fun GuessTopBar(
     refreshing: Boolean,
@@ -226,7 +165,7 @@ private fun GuessTopBar(
         Spacer(Modifier.width(AppSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "猜你喜欢", // :1566
+                text = "猜你喜欢",
                 color = textHigh(),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.W800,
@@ -234,7 +173,7 @@ private fun GuessTopBar(
                 lineHeight = 34.sp,
             )
             Text(
-                text = "你的每日私人推荐", // :1567
+                text = "你的每日私人推荐",
                 color = textLow(),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.W500,
@@ -245,16 +184,15 @@ private fun GuessTopBar(
     }
 }
 
-/** GZ `GuessRefreshButton`（:1068-1207）：40.dp 圆 + 22.dp 图标；刷新中 20.dp 圆环（2.2.dp） */
 @Composable
 private fun GuessRefreshButton(refreshing: Boolean, onRefresh: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(40.dp) // :1110 ij7.n(f05Var3, 40.0f)
+            .size(40.dp)
             .clip(CircleShape)
             .then(
                 if (refreshing) {
-                    Modifier // :1110 MotionKt.c(..., enabled = !z, ...) → 刷新中不可点
+                    Modifier
                 } else {
                     Modifier.pressClick(pressedScale = 0.9f, onClick = onRefresh)
                 },
@@ -262,7 +200,6 @@ private fun GuessRefreshButton(refreshing: Boolean, onRefresh: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         if (refreshing) {
-            // :1132 sh6.a(size 20.dp, color textMedium, strokeWidth 2.2f)
             CircularProgressIndicator(
                 color = textMedium(),
                 strokeWidth = 2.2.dp,
@@ -270,18 +207,14 @@ private fun GuessRefreshButton(refreshing: Boolean, onRefresh: () -> Unit) {
             )
         } else {
             Icon(
-                imageVector = Icons.Rounded.Refresh, // bd2.C()
-                contentDescription = "换一批", // :1138
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = "换一批",
                 tint = textMedium(),
                 modifier = Modifier.size(22.dp),
             )
         }
     }
 }
-
-// ============================================================
-// 内容（Hero + 线索条 + 本次精选 + 歌曲行）
-// ============================================================
 
 @Composable
 private fun GuessContent(
@@ -300,7 +233,6 @@ private fun GuessContent(
     val songs = state.songs
     val listState = rememberLazyListState()
 
-    // GZ 传给 Hero / 歌曲行的是同一个「封面主色」（:1664 的 j），这里同样只算一次
     val tone = rememberCoverTone(songs.firstOrNull()?.artwork, DefaultCoverTone)
     val accent = discoveryAccent(tone)
 
@@ -308,7 +240,7 @@ private fun GuessContent(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp, // :2445 po5(16, 10, 16, bottomOverlay)
+            start = 16.dp,
             end = 16.dp,
             top = 10.dp,
             bottom = BottomContentSpacer,
@@ -356,13 +288,6 @@ private fun GuessContent(
     }
 }
 
-/**
- * Hero 卡 —— GZ `GuessHero-Pd0R-II`（:611-851）。
- *
- * 表面（`:645`）：`glassToneCard(widthIn(max = 720.dp).fillMaxWidth(), RoundedCornerShape(20.dp),
- * tone = 封面主色, selected = true, gradient = false)` + `padding(AppSpacing.page)`；
- * 内部 `Column(verticalArrangement = spacedBy(20.dp), horizontalAlignment = Start)`。
- */
 @Composable
 private fun GuessHero(
     songs: List<Song>,
@@ -376,40 +301,36 @@ private fun GuessHero(
 ) {
     Column(
         modifier = Modifier
-            .widthIn(max = 720.dp) // :645 ij7.t(c05, 0.0f, 720.0f, 1)
+            .widthIn(max = 720.dp)
             .fillMaxWidth()
             .glassToneCard(
-                shape = RoundedCornerShape(20.dp), // by6.a(20.0f)
+                shape = RoundedCornerShape(20.dp),
                 tone = tone,
-                selected = true, // :645 第 4 个实参 true
-                gradient = false, // :645 第 5 个实参 false
+                selected = true,
+                gradient = false,
             )
-            .padding(AppSpacing.page), // :645 hp1.o0(..., 20.0f)
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.page), // :646 j10(20.0f, ...)
+            .padding(AppSpacing.page),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.page),
     ) {
-        // ① 「为你精选」+「PRIVATE MIX」（:690 / :693）
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "为你精选",
-                color = accent, // :690 DiscoveryStyleKt.discoveryAccent
+                color = accent,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold, // :689 sq2.p
+                fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.weight(1f)) // :692 ky6.b(1.0f, ...)
+            Spacer(Modifier.weight(1f))
             Text(
                 text = "PRIVATE MIX",
                 color = textMedium(),
                 fontSize = 10.sp,
-                letterSpacing = 2.sp, // :693 co7.j(2)
+                letterSpacing = 2.sp,
             )
         }
 
-        // ② 大标题 + 副文案 + 封面叠层（:725-732）
-        // 窄屏（< 320.dp 可用宽度）把封面叠层等比缩到 0.82：
-        // 「也许就心动。」6 个字在 26.sp 下约 156.dp，叠层占满 132.dp 时窄屏会被挤成三行。
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val deckScale = if (maxWidth < 320.dp) 0.82f else 1f
             Row(
@@ -418,22 +339,22 @@ private fun GuessHero(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "下一首，\n也许就心动。", // :728
+                        text = "下一首，\n也许就心动。",
                         color = textHigh(),
                         fontSize = 26.sp,
-                        fontWeight = FontWeight.W800, // sq2.X
-                        letterSpacing = (-0.8).sp, // :728 co7.i(-0.8d)
-                        lineHeight = 33.sp, // :728 co7.j(33)
+                        fontWeight = FontWeight.W800,
+                        letterSpacing = (-0.8).sp,
+                        lineHeight = 33.sp,
                     )
-                    Spacer(Modifier.height(AppSpacing.lg)) // :729
+                    Spacer(Modifier.height(AppSpacing.lg))
                     Text(
-                        text = "沿着你的听歌足迹\n遇见新的喜欢", // :730
+                        text = "沿着你的听歌足迹\n遇见新的喜欢",
                         color = textMedium(),
                         fontSize = 12.sp,
-                        lineHeight = 19.sp, // :730 co7.j(19)
+                        lineHeight = 19.sp,
                     )
                 }
-                Spacer(Modifier.width(AppSpacing.sm)) // :731 f30.t(..., 8.0f)
+                Spacer(Modifier.width(AppSpacing.sm))
                 GuessCoverDeck(
                     covers = songs.take(3).map { it.artwork },
                     tone = tone,
@@ -442,7 +363,6 @@ private fun GuessHero(
             }
         }
 
-        // ③ 分隔线（:734 zh.c(0.0f, textMedium().copy(alpha = 0.08f), ...)）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -450,37 +370,34 @@ private fun GuessHero(
                 .background(textMedium().copy(alpha = 0.08f)),
         )
 
-        // ④ 数量 + 线索（:735-784）
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.page), // :735 j10(20.0f, ...)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.page),
             verticalAlignment = Alignment.Top,
         ) {
             Column {
                 Text(
-                    // :763 dw7.Y(2, String.valueOf(i)) = 两位左补零
                     text = songs.size.toString().padStart(2, '0'),
                     color = textHigh(),
                     fontSize = 28.sp,
                     fontWeight = FontWeight.W800,
-                    letterSpacing = (-1).sp, // :763 co7.j(-1)
+                    letterSpacing = (-1).sp,
                 )
                 Text(
-                    text = "首精选歌曲", // :764
+                    text = "首精选歌曲",
                     color = textMedium(),
                     fontSize = 11.sp,
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "由你的热爱出发", // :781
+                    text = "由你的热爱出发",
                     color = textHigh(),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.W800,
                 )
-                Spacer(Modifier.height(AppSpacing.xxs)) // :782
+                Spacer(Modifier.height(AppSpacing.xxs))
                 Text(
-                    // :783 —— 有线索时「来自收藏与最近播放的 N 条线索」，否则「越常听，越懂你」
                     text = if (seedCount > 0) {
                         "来自收藏与最近播放的 $seedCount 条线索"
                     } else {
@@ -493,10 +410,9 @@ private fun GuessHero(
             }
         }
 
-        // ⑤ 播放全部 / 随机播放 / 保存为歌单（:786-835）
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), // :787 j10(10.0f, ...)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GuessPlayAllButton(
@@ -509,7 +425,7 @@ private fun GuessHero(
                 icon = { tint ->
                     Icon(
                         imageVector = Icons.Rounded.Shuffle,
-                        contentDescription = "随机播放", // :827
+                        contentDescription = "随机播放",
                         tint = tint,
                         modifier = Modifier.size(22.dp),
                     )
@@ -525,11 +441,11 @@ private fun GuessHero(
                         CircularProgressIndicator(
                             color = tint,
                             strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp), // :954 sh6.a(18.dp, ...)
+                            modifier = Modifier.size(18.dp),
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd, // :958 xe2.v()
+                            imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
                             contentDescription = "保存为歌单",
                             tint = tint,
                             modifier = Modifier.size(22.dp),
@@ -545,15 +461,6 @@ private fun GuessHero(
     }
 }
 
-/**
- * 「播放全部」胶囊 —— GZ `:808-826`。
- *
- * - `height(48.dp)` + `RoundedCornerShape(14.dp)`（`:808` 的 `ky6.b(1.0f, ...)` + `by6.a(14.0f)`）；
- * - 底：`Brush.linearGradient([tone, lerp(tone, White, 0.24f)])`（`:805` 的 `ob4` 两色渐变，
- *   `hp1.h0(j, 0.24f, g91.d)` = `lerp(tone, White, 0.24f)`）；
- * - 按压缩放 **0.98**（`:808` MotionKt.c(..., 0.98f, ...)）；
- * - 内部 `padding(AppSpacing.lg)`、图标 **22.dp** 白色、文案「播放全部」**14.sp / W800 / 白**（`:823-825`）。
- */
 @Composable
 private fun GuessPlayAllButton(
     tone: Color,
@@ -578,13 +485,13 @@ private fun GuessPlayAllButton(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Rounded.PlayArrow, // :823 fd2.q()
+            imageVector = Icons.Rounded.PlayArrow,
             contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(22.dp),
         )
         Text(
-            text = "播放全部", // :825
+            text = "播放全部",
             color = Color.White,
             fontSize = 14.sp,
             fontWeight = FontWeight.W800,
@@ -592,13 +499,6 @@ private fun GuessPlayAllButton(
     }
 }
 
-/**
- * Hero 里的圆形次按钮 —— GZ `GuessHeroRoundButton-ww6aTOc`（:854-934）。
- *
- * `48.dp` 圆（`:877`）、底色 `tone.copy(alpha = 0.1f)`（`:806` 的 `g91.c(0.1f, j)`）、
- * 图标色 `lerp(tone, White, 0.8f)`（`:807` 的 `g91.c(0.8f, discoveryAccent)`）、
- * 按压缩放 **0.9**（`:887` MotionKt.c(..., 0.9f, ...)）；禁用时底色 alpha 0.5、内容 alpha 0.45（`:885/911`）。
- */
 @Composable
 private fun GuessHeroRoundButton(
     icon: @Composable (Color) -> Unit,
@@ -626,18 +526,6 @@ private fun GuessHeroRoundButton(
     }
 }
 
-/**
- * 封面叠层 —— GZ `GuessCoverDeck-RPmYEkk`（:234-330）。
- *
- * 容器 `width(132.dp) x height(126.dp)`、`contentAlignment = Center`（`:255-256`）；
- * 三张封面：后排两张 **92.dp**（`:294/301`），前排 **104.dp**（`:302`），圆角 **16.dp**（`:386`）、
- * 阴影 **9.dp**（黑 10% / 18%，`:389`）、描边 1.dp `coverHairline`（`:389`）、
- * 底叠 `[tone, lerp(tone, White, 0.24f)]` 渐变（`:392`，所以没有封面时叠层仍是卡片主色）。
- * 右下角一枚 **28.dp** 圆徽（`:303`）：阴影 5.dp 黑 22%、底色 tone、图标 14.dp 白色（`:305/320`）。
- *
- * TODO(未确定)：后排两张的旋转角在反编译里是 `fw2(9)` / `fw2(10)` 两个 `graphicsLayer` lambda，
- *   常量被内联进 lambda 体（JADX 未展开），此处取视觉等价的手感值 ±8°（截图量角约 8°~10°）。
- */
 @Composable
 private fun GuessCoverDeck(covers: List<String?>, tone: Color, scale: Float = 1f) {
     val front = covers.getOrNull(0)
@@ -673,7 +561,6 @@ private fun GuessCoverDeck(covers: List<String?>, tone: Color, scale: Float = 1f
             modifier = Modifier.align(Alignment.Center),
         )
 
-        // 右下角徽标（:303-320）
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -685,7 +572,7 @@ private fun GuessCoverDeck(covers: List<String?>, tone: Color, scale: Float = 1f
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Rounded.AutoAwesome, // uy8.y()
+                imageVector = Icons.Rounded.AutoAwesome,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(14.dp * scale),
@@ -702,7 +589,7 @@ private fun DeckCover(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val shape = RoundedCornerShape(16.dp) // :386 by6.a(16.0f)
+    val shape = RoundedCornerShape(16.dp)
     val brush = remember(tone) {
         Brush.linearGradient(listOf(tone, lerp(tone, Color.White, 0.24f)))
     }
@@ -710,7 +597,7 @@ private fun DeckCover(
         modifier = modifier
             .size(size)
             .shadow(
-                elevation = 9.dp, // :389 mg2.I(..., 9.0f, ...)
+                elevation = 9.dp,
                 shape = shape,
                 ambientColor = Color.Black.copy(alpha = 0.1f),
                 spotColor = Color.Black.copy(alpha = 0.18f),
@@ -729,7 +616,7 @@ private fun DeckCover(
             )
         } else {
             Icon(
-                imageVector = Icons.Rounded.MusicNote, // mf2.o()
+                imageVector = Icons.Rounded.MusicNote,
                 contentDescription = null,
                 tint = Color.White.copy(alpha = 0.9f),
                 modifier = Modifier.size(size * 0.34f),
@@ -738,29 +625,22 @@ private fun DeckCover(
     }
 }
 
-/**
- * 线索提示条 —— GZ `GuessTasteProfile-Iv8Zu3U`（:1455-1499）。
- *
- * `Row(fillMaxWidth().padding(AppSpacing.xxs), CenterVertically)`；图标 **16.dp** 取强调色（`:1487`），
- * 间距 **8.dp**（`:1488`），文案 **12.sp / lineHeight 18.sp / textMedium**（`:1489`）。
- */
 @Composable
 private fun GuessTasteProfile(seedCount: Int, accent: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(AppSpacing.xxs), // :1469 hp1.p0(..., 4.0f, 4.0f)
+            .padding(AppSpacing.xxs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Rounded.AutoAwesome, // :1487 uy8.y()
+            imageVector = Icons.Rounded.AutoAwesome,
             contentDescription = null,
             tint = accent,
             modifier = Modifier.size(16.dp),
         )
-        Spacer(Modifier.width(AppSpacing.sm)) // :1488
+        Spacer(Modifier.width(AppSpacing.sm))
         Text(
-            // :1489 —— 有线索「熟悉的偏爱，也有意外的新发现」，否则「多听几首，让推荐慢慢懂你」
             text = if (seedCount > 0) "熟悉的偏爱，也有意外的新发现" else "多听几首，让推荐慢慢懂你",
             color = textMedium(),
             fontSize = 12.sp,
@@ -769,13 +649,6 @@ private fun GuessTasteProfile(seedCount: Int, accent: Color) {
     }
 }
 
-/**
- * 「本次精选」标题行 —— GZ `GuessPersonalSectionHeader-3J-VO9M`（:968-1054）。
- *
- * - 左列：标题「本次精选」**20.sp / W800 / -0.4.sp**（`:1040`）；副标题 **11.sp / W500 / textLow**（`:1042`）；
- * - 右侧胶囊：`"${count} 首"`、底 `accent.copy(alpha = 0.14f)`、圆角 **8.dp**、
- *   padding `(9.dp, 5.dp)`、文案 **10.sp / W700 / accent**（`:1044`）。
- */
 @Composable
 private fun GuessPersonalSectionHeader(count: Int, seedCount: Int, accent: Color) {
     Row(
@@ -794,7 +667,6 @@ private fun GuessPersonalSectionHeader(count: Int, seedCount: Int, accent: Color
             )
             Spacer(Modifier.height(AppSpacing.xxs))
             Text(
-                // :1042 —— 有种子时「综合收藏偏好与近期播放排序」
                 text = if (seedCount > 0) "综合收藏偏好与近期播放排序" else "继续听歌，推荐会越来越懂你",
                 color = textLow(),
                 fontSize = 11.sp,
@@ -808,7 +680,7 @@ private fun GuessPersonalSectionHeader(count: Int, seedCount: Int, accent: Color
                 .padding(horizontal = 9.dp, vertical = 5.dp),
         ) {
             Text(
-                text = "$count 首", // :1044
+                text = "$count 首",
                 color = accent,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
@@ -817,24 +689,6 @@ private fun GuessPersonalSectionHeader(count: Int, seedCount: Int, accent: Color
     }
 }
 
-/**
- * 单曲行 —— GZ `GuessSongRow-TgFrcIs`（:1211-1452）。
- *
- * 结构：`Row(fillMaxWidth().height(72.dp).background(播放中 ? discoveryInset : 透明, RoundedCornerShape(14.dp))
- *   .bounceClick(0.98f).padding(horizontal = AppSpacing.sm), CenterVertically)`
- * ```
- * ├─ 序号  宽 28.dp / 10.sp / 前 3 名 W800 其余 W700 / letterSpacing 0.4.sp   (:1312-1324)
- * ├─ Spacer 4.dp                                                            (:1325)
- * ├─ 封面  46.dp / 圆角 12.dp / 底 coverPlaceholder + 1.dp coverHairline 描边  (:1326-1329)
- * │   播放中额外压 40% 黑幕 + PlayingBars（:1362-1363）
- * ├─ Spacer 12.dp                                                           (:1372)
- * ├─ Column(weight 1f)
- * │   ├─ 歌名 14.sp / W500 / textHigh（播放中取强调色）/ 单行 Ellipsis    (:1388-1398)
- * │   └─ 「歌手 · 专辑」 11.sp / textLow / 单行，歌手空回退「未知歌手」     (:1400-1409)
- * └─ 收藏钮 44.dp / 图标 20.dp / 按压缩放 0.85（:1411-1434）
- * ```
- * 序号与歌名在「当前正在播放」时取 `discoveryAccent`（`:1318` / `:1393`）。
- */
 @Composable
 private fun GuessSongRow(
     song: Song,
@@ -848,33 +702,32 @@ private fun GuessSongRow(
 ) {
     val context = LocalContext.current
     val dark = appIsDark()
-    val quietSurface = if (dark) AppColors.quietSurfaceDark else AppColors.quietSurfaceLight // discoveryInset
+    val quietSurface = if (dark) AppColors.quietSurfaceDark else AppColors.quietSurfaceLight
 
     Row(
         modifier = Modifier
             .widthIn(max = 720.dp)
             .fillMaxWidth()
-            .height(72.dp) // :1287 ij7.i(..., 72.0f)
+            .height(72.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(if (isCurrent) quietSurface else Color.Transparent)
             .pressClick(pressedScale = 0.98f, onClick = onPlay)
-            .padding(horizontal = AppSpacing.sm), // :1287 hp1.q0(..., 8.0f, 0.0f, 2)
+            .padding(horizontal = AppSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            // :1312 dw7.Y(2, String.valueOf(i + 1))
             text = (index + 1).toString().padStart(2, '0'),
             color = if (isCurrent) accent else textLow(),
             fontSize = 10.sp,
-            fontWeight = if (index < 3) FontWeight.W800 else FontWeight.W700, // :1314
-            letterSpacing = 0.4.sp, // :1315 co7.i(0.4d)
-            modifier = Modifier.width(28.dp), // :1324 ij7.r(c05Var, 28.0f)
+            fontWeight = if (index < 3) FontWeight.W800 else FontWeight.W700,
+            letterSpacing = 0.4.sp,
+            modifier = Modifier.width(28.dp),
         )
         Spacer(Modifier.width(AppSpacing.xxs))
 
         Box(
             modifier = Modifier
-                .size(46.dp) // :1326
+                .size(46.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(coverPlaceholder(), RoundedCornerShape(12.dp))
                 .border(1.dp, coverHairline(), RoundedCornerShape(12.dp)),
@@ -889,7 +742,6 @@ private fun GuessSongRow(
                 )
             }
             if (isCurrent) {
-                // :1362 —— 播放中压一层 40% 黑幕，再叠音波
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -902,20 +754,19 @@ private fun GuessSongRow(
                 )
             }
         }
-        Spacer(Modifier.width(AppSpacing.lg)) // :1372
+        Spacer(Modifier.width(AppSpacing.lg))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = song.title.ifBlank { "未知歌曲" }, // :1388
+                text = song.title.ifBlank { "未知歌曲" },
                 color = if (isCurrent) accent else textHigh(),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.W500,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(3.dp)) // :1399
+            Spacer(Modifier.height(3.dp))
             Text(
-                // :1400-1409 —— 歌手空回退「未知歌手」，有专辑时用「 · 」连接
                 text = buildString {
                     append(song.artist.ifBlank { "未知歌手" })
                     if (song.album.isNotBlank()) append(" · ").append(song.album)
@@ -929,24 +780,20 @@ private fun GuessSongRow(
 
         Box(
             modifier = Modifier
-                .size(44.dp) // :1411
+                .size(44.dp)
                 .clip(CircleShape)
                 .pressClick(pressedScale = 0.85f, onClick = onToggleFavorite),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                contentDescription = if (isFavorite) "取消收藏" else "收藏", // :1427
+                contentDescription = if (isFavorite) "取消收藏" else "收藏",
                 tint = if (isFavorite) accent else textLow(),
                 modifier = Modifier.size(20.dp),
             )
         }
     }
 }
-
-// ============================================================
-// 加载 / 空 / 错误（GZ :512 GuessEmpty、:562 GuessError）
-// ============================================================
 
 @Composable
 private fun GuessLoading() {
@@ -967,7 +814,6 @@ private fun GuessLoading() {
     }
 }
 
-/** GZ `GuessEmpty`（:512-560）：图标 40.dp textLow + 标题 14.sp W700 textHigh + 副文案 13.sp textLow */
 @Composable
 private fun GuessEmpty(title: String, subtitle: String) {
     Box(
@@ -978,7 +824,7 @@ private fun GuessEmpty(title: String, subtitle: String) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                imageVector = Icons.Rounded.MusicNote, // mf2.o()
+                imageVector = Icons.Rounded.MusicNote,
                 contentDescription = null,
                 tint = textLow(),
                 modifier = Modifier.size(40.dp),
@@ -1002,7 +848,6 @@ private fun GuessEmpty(title: String, subtitle: String) {
     }
 }
 
-/** GZ `GuessError`（:562-608）：文案 + 「重试」胶囊（`GuessChipButton`，:177） */
 @Composable
 private fun GuessError(message: String, onRetry: () -> Unit) {
     Box(
@@ -1013,13 +858,12 @@ private fun GuessError(message: String, onRetry: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = message.ifBlank { "推荐获取失败" }, // :595
+                text = message.ifBlank { "推荐获取失败" },
                 color = textMedium(),
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(AppSpacing.xl))
-            // GuessChipButton：圆角 20.dp、padding(14, 8)、按压缩放 0.96（:198-201）
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -1038,14 +882,6 @@ private fun GuessError(message: String, onRetry: () -> Unit) {
     }
 }
 
-// ============================================================
-// 交互与配色小工具
-// ============================================================
-
-/**
- * GZ `MotionKt.c`（按压缩放、无涟漪）的等价实现：
- * 150ms + `CubicBezierEasing(0.2f, 0f, 0f, 1f)`（`ct.java:8` / `bs4.java:6`）。
- */
 @Composable
 private fun Modifier.pressClick(pressedScale: Float, onClick: () -> Unit): Modifier {
     val interaction = remember { MutableInteractionSource() }
@@ -1066,10 +902,6 @@ private fun Modifier.pressClick(pressedScale: Float, onClick: () -> Unit): Modif
         .clickable(interactionSource = interaction, indication = null, onClick = onClick)
 }
 
-/**
- * GZ `DiscoveryStyleKt.discoveryAccent`（`DiscoveryStyleKt.java:12-19`）：
- * 深色下把主色往白色提 48%，浅色下往黑色压 28%——保证同一主色在两种主题下都能当文字色用。
- */
 @Composable
 private fun discoveryAccent(tone: Color): Color =
     if (appIsDark()) lerp(tone, Color.White, 0.48f) else lerp(tone, Color.Black, 0.28f)

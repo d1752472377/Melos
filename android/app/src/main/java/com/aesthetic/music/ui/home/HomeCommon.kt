@@ -30,8 +30,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-// ==================== 公共头部组件 ====================
-
 @Composable
 fun SectionHeader(
     title: String,
@@ -78,20 +76,11 @@ fun SectionHeader(
     }
 }
 
-// ==================== 页面级状态（加载 / 失败） ====================
-
-/**
- * 首次加载态：全部数据区块为空时显示。
- * 放在 LazyColumn 的 item 内用固定高度适配，而非 fillMaxSize。
- */
 @Composable
 fun HomeLoadingState() {
     LoadingBox(message = "正在为你准备内容…", modifier = Modifier.height(300.dp))
 }
 
-/**
- * 内容加载失败横幅：全部区块为空时给出原因与重试入口（此前失败即各区块静默消失）。
- */
 @Composable
 fun HomeErrorBanner(
     message: String,

@@ -55,18 +55,13 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 缓存列表页：列出已缓存歌曲（名字/大小），支持单个删除与一键清空。
- */
 @Composable
 fun CacheListScreen(
     songs: List<AudioCacheService.CachedSong>,
     onRemoveOne: (String) -> Unit,
     onClearAll: () -> Unit,
 ) {
-    // 清空全部缓存需二次确认：误触一次即删除所有已缓存音频
     var showClearConfirm by remember { mutableStateOf(false) }
-    // 同一首歌可能存在多条缓存记录：按文件路径去重，避免 LazyColumn key 冲突闪退
     val uniqueSongs = remember(songs) { songs.distinctBy { it.filePath } }
     val totalSizeText = AudioCacheService.formatSize(uniqueSongs.sumOf { it.size })
     Box(
@@ -80,7 +75,6 @@ fun CacheListScreen(
                 .padding(horizontal = AppSpacing.page)
                 .padding(top = AppSpacing.section)
         ) {
-            // 顶部大标题（与「我的收藏」一致，不再有返回按钮，回退交给系统手势 / 返回键）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -96,7 +90,6 @@ fun CacheListScreen(
                     maxLines = 1,
                 )
                 if (songs.isNotEmpty()) {
-                    // Level 2 危险操作描边胶囊：统一走 components.DangerCapsuleButton（error 色收敛）
                     DangerCapsuleButton(text = "清空全部", onClick = { showClearConfirm = true })
                 }
             }
@@ -182,7 +175,6 @@ fun CacheListScreen(
          }
      }
 
-    // 清空确认对话框：注明将释放的空间大小
     if (showClearConfirm) {
         AppConfirmDialog(
             onDismissRequest = { showClearConfirm = false },

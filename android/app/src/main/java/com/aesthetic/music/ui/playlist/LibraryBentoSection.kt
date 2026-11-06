@@ -47,9 +47,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 音乐库 / 媒体库 Apple Bento 拟态区域（复刻 GZ Music 2.1.8 LibraryBentoSectionKt 规范）
- */
 @Composable
 fun LibraryBentoSection(
     playlistCount: Int,
@@ -71,7 +68,6 @@ fun LibraryBentoSection(
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
-        // ===== 1. 顶部 COLLECTION 标签与大标题 =====
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -97,7 +93,6 @@ fun LibraryBentoSection(
                 )
             }
 
-            // 快捷统计胶囊
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -123,19 +118,16 @@ fun LibraryBentoSection(
 
         Spacer(Modifier.height(AppSpacing.xxl))
 
-        // ===== 2. Bento 2x2 格子架构 =====
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)
         ) {
-            // 左侧大 Bento 卡：四宫格封面 + 媒体库概览
             LiquidBentoCard(
                 modifier = Modifier
                     .weight(1.15f)
                     .height(156.dp),
                 onClick = onPlayAll
             ) {
-                // 渐变底纹
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -203,14 +195,12 @@ fun LibraryBentoSection(
                 }
             }
 
-            // 右侧两列小 Bento 方块 (新建 & 导入)
             Column(
                 modifier = Modifier
                     .weight(0.85f)
                     .height(156.dp),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
             ) {
-                // 小方块 1: 新建歌单
                 LiquidBentoCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -254,7 +244,6 @@ fun LibraryBentoSection(
                     }
                 }
 
-                // 小方块 2: 导入歌单
                 LiquidBentoCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -302,10 +291,7 @@ fun LibraryBentoSection(
 
         Spacer(Modifier.height(AppSpacing.xl))
 
-        // ===== 3. 操作条（播放全部 / 随机 / 搜索）=====
         // 「播放全部」必须是**实心主色胶囊**：此前用的是 LiquidGlassButton 的 Primary 样式，
-        // 那是一个白色 24% 透明度的液态玻璃面 + 白色文字，铺在浅色极光背景上几乎看不见
-        // （用户反馈"播放按钮看不见、字太白"）。实心主色 + 白字在任何背景上都有足够对比度。
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
@@ -382,10 +368,6 @@ fun LibraryBentoSection(
 
         Spacer(Modifier.height(AppSpacing.xl))
 
-        // ===== 4. 分类胶囊栏：全部 / 自建 / 收藏 =====
-        // 之前这里按「平台」分（全部 / 自建 / 网易云 / 酷狗…），把两个维度混在一排：
-        // "自建"是来源归属，"网易云"是平台归属，同一个歌单可能既是自建又是网易云导入，
-        // 用户根本判断不出该点哪个。现在统一成「归属」这一个维度。
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)

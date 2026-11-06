@@ -60,46 +60,6 @@ import java.util.concurrent.TimeUnit
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 排行榜页（按用户提供的参考图重做）。
- *
- * ## 版式
- * ```
- * ← 排行榜                                        ⟳
- * ┌──────────────────────────────────────────────┐
- * │  ● 网易云   ● QQ音乐   ● 酷狗   ● 酷我        │  ← 一张玻璃卡里的四等分平台页签
- * └──────────────────────────────────────────────┘
- * ┌──────────────────────────────────────────────┐
- * │ ▍此刻焦点                        CHART SPOTLIGHT │
- * │  ▢▢▢▢   飙升榜                                 │
- * │  ▢封面▢  刚刚更新                              │
- * │  ▢▢▢▢   探索榜单 ›                            │
- * │ ────────────────────────────────────────────── │
- * │ 云音乐中每天热度上升最快的 100 首单曲，每日更新。  │
- * └──────────────────────────────────────────────┘
- * 发现更多榜单                              63 个榜单
- * ┌──────────────────────────────────────────────┐
- * │ ▢封面▢  新歌榜                              ›  │
- * │        云音乐新歌榜：一周内发行…（两行）          │
- * │        [刚刚更新] 100 首 🎧 32.2亿              │
- * └──────────────────────────────────────────────┘
- * ```
- *
- * ## 与旧版的区别
- * 旧版是「平台胶囊栏 + 一条条只带封面/名字/曲目数的玻璃行」，信息密度低、也没有
- * 「此刻焦点」这种一眼就能点的入口。新版：
- * 1. 平台页签做成一张卡里的四等分（选中项白底加粗），品牌色圆点区分平台；
- * 2. 顶部「此刻焦点」大卡：封面 + 榜名 + 更新时间 + 「探索榜单」+ 一句话说明；
- * 3. 列表卡片按榜单语义上色（飙升=紫、新歌=绿、原创=青、热歌=玫红），
- *    与参考图里三张卡各自的底色一致；
- * 4. 每张卡都有「刚刚更新 / N 小时前更新」胶囊与播放量，扫一眼就知道值不值得点。
- *
- * ## 两个「本地生成」的字段（不是平台真值，但也不编造数据）
- * - **更新时间**：平台接口不返回榜单更新时间，这里用**本地拉到这份榜单的时间**
- *   （`RankController` 记录），文案按「刚刚 / N 小时前 / N 天前」换算；
- * - **一句话说明**：平台的榜单列表接口没有简介字段（只有 QQ 的排行榜页有），
- *   这里按榜单语义给一句固定说明（见 [rankDescription]），不伪造具体数字。
- */
 @Composable
 fun RankPage(
     platform: String,
@@ -110,9 +70,7 @@ fun RankPage(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onOpenRank: (PlaylistItem) -> Unit,
-    /** 本次榜单数据的拉取时间（毫秒）；0 表示未知，不显示更新时间 */
     loadedAt: Long = 0L,
-    /** 当前时间（便于测试注入） */
     now: Long = System.currentTimeMillis(),
 ) {
     val current = RankCatalog.normalize(platform)
@@ -185,7 +143,6 @@ fun RankPage(
                         }
                     }
 
-                    // 「发现更多榜单」：排除掉已经在焦点卡里出现过的那一个
                     val rest = ranks.filterNot {
                         spotlight != null && it.id == spotlight.id && it.platform == spotlight.platform
                     }
@@ -235,11 +192,6 @@ fun RankPage(
     }
 }
 
-// ============================================================
-// 平台页签
-// ============================================================
-
-/** 一张玻璃卡里的四等分平台页签（选中项白底 + 加粗，左侧品牌色圆点） */
 @Composable
 private fun PlatformTabCard(
     current: String,
@@ -294,7 +246,6 @@ private fun PlatformTabCard(
     }
 }
 
-/** 平台品牌色（用于页签圆点）：与各平台官方主色一致 */
 internal fun platformBrandColor(platformId: String): Color = when (platformId) {
     RankCatalog.NETEASE -> AppColors.brandNeteaseRank
     RankCatalog.QQ -> AppColors.brandQQ
@@ -303,11 +254,6 @@ internal fun platformBrandColor(platformId: String): Color = when (platformId) {
     else -> AppColors.slate400
 }
 
-// ============================================================
-// 此刻焦点
-// ============================================================
-
-/** 焦点榜单：优先「飙升榜」（参考图里就是它），没有就取第一个 */
 internal fun rankSpotlight(ranks: List<PlaylistItem>): PlaylistItem? =
     ranks.firstOrNull { (it.kind ?: RankCatalog.kindOf(it.name)) == "rising" }
         ?: ranks.firstOrNull()
@@ -426,10 +372,6 @@ private fun SpotlightCard(
     }
 }
 
-// ============================================================
-// 榜单卡片
-// ============================================================
-
 @Composable
 private fun RankChartCard(
     rank: PlaylistItem,
@@ -527,10 +469,6 @@ private fun RankChartCard(
     }
 }
 
-/**
- * 榜单封面：有真实封面就画封面，没有就用「语义色渐变 + 榜名」兜底
- * （参考图里那些带字的色块封面就是这种形态）。
- */
 @Composable
 private fun RankCover(
     rank: PlaylistItem,
@@ -572,7 +510,6 @@ private fun RankCover(
                 modifier = Modifier.padding(horizontal = AppSpacing.xs),
             )
         }
-        // 封面上一道极淡的白色描边，避免深色封面色块糊在卡片上
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -581,7 +518,6 @@ private fun RankCover(
     }
 }
 
-/** 「刚刚更新 / N 小时前更新」小胶囊 */
 @Composable
 private fun UpdatedChip(text: String, accent: Color) {
     Box(
@@ -599,14 +535,6 @@ private fun UpdatedChip(text: String, accent: Color) {
     }
 }
 
-// ============================================================
-// 纯函数（可单测）
-// ============================================================
-
-/**
- * 榜单语义 → 配色（主色, 浅色）。
- * 与参考图一致：飙升=紫、新歌=绿、原创=青、热歌=玫红、其它=灰蓝。
- */
 internal fun rankAccentColors(kind: String?): Pair<Color, Color> = when (kind) {
     "rising" -> AppColors.rankRisingStart to AppColors.rankRisingEnd
     "new" -> AppColors.rankNewStart to AppColors.rankNewEnd
@@ -615,13 +543,6 @@ internal fun rankAccentColors(kind: String?): Pair<Color, Color> = when (kind) {
     else -> AppColors.slate500 to AppColors.slate300
 }
 
-/**
- * 榜单的一句话说明。
- *
- * 平台的「榜单列表」接口没有简介字段（只有 QQ 的榜单详情页有），所以这里按语义给固定文案：
- * **不含任何具体数字**，避免把编造的数据当接口真值展示。
- * 接口确实给了 `description` 时优先用接口的。
- */
 internal fun rankDescription(rank: PlaylistItem): String {
     val fromApi = rank.description?.trim()
     if (!fromApi.isNullOrEmpty()) return fromApi
@@ -634,13 +555,6 @@ internal fun rankDescription(rank: PlaylistItem): String {
     }
 }
 
-/**
- * 更新时间文案。
- *
- * 平台接口不返回「榜单更新时间」，这里用**本地拉到这份数据的时间**（[loadedAt]），
- * 所以文案是「刚刚更新 / N 小时前更新 / N 天前更新」，而不是假装成平台的更新时间。
- * [loadedAt] 为 0（未知）时返回空串，调用方据此决定是否显示胶囊。
- */
 internal fun rankUpdatedLabel(loadedAt: Long, now: Long): String {
     if (loadedAt <= 0L) return "刚刚更新"
     val delta = (now - loadedAt).coerceAtLeast(0L)
@@ -655,18 +569,12 @@ internal fun rankUpdatedLabel(loadedAt: Long, now: Long): String {
     }
 }
 
-// ============================================================
-// 旧版保留的展示辅助（单测在用）
-// ============================================================
-
-/** 次要信息：曲目数 · 播放量（两者都为空时返回空串，界面不渲染空行） */
 internal fun rankMetaText(rank: PlaylistItem): String {
     val count = rank.trackCount?.takeIf { it > 0 }?.let { "$it 首" }
     val played = formatPlayCountText(rank.playCount?.takeIf { it > 0 }).takeIf { it.isNotEmpty() }
     return listOfNotNull(count, played).joinToString(" · ")
 }
 
-/** 榜单语义徽标文案 */
 internal fun rankKindLabel(kind: String?): String = when (kind) {
     "hot" -> "热歌"
     "new" -> "新歌"

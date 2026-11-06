@@ -39,7 +39,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/** 收藏歌曲排序方式 */
 enum class FavoriteSortOrder(val title: String, val subtitle: String) {
     RECENT("最近收藏", "最近收藏的排在前面"),
     EARLIEST("最早收藏", "最早收藏的排在前面"),
@@ -47,14 +46,6 @@ enum class FavoriteSortOrder(val title: String, val subtitle: String) {
     ARTIST("歌手名称", "按歌手名称升序排列"),
 }
 
-/**
- * 我的收藏列表页：
- * 1. 顶部大卡片：2x2 四宫格封面 + 标题 + 排序下拉胶囊 + 搜索图标 + 3 列统计 + 播放全部/随机播放；
- * 2. 排序 BottomSheet 弹窗；
- * 3. 歌曲列表白底圆角容器 + 播放中波形动画高亮 + 更多操作弹窗。
- *
- * 公共骨架见 [com.aesthetic.music.ui.components.SongCollection]；本页只保留标题、排序项与空态文案。
- */
 @Composable
 fun FavoritesScreen(
     songs: List<Song>,
@@ -73,7 +64,6 @@ fun FavoritesScreen(
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    // 搜索展开自动聚焦
     LaunchedEffect(isSearchExpanded) {
         if (isSearchExpanded) searchFocus.requestFocus()
     }

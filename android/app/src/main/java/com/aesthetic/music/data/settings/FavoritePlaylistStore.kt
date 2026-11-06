@@ -4,10 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.aesthetic.music.data.api.PlaylistItem
 
-/**
- * 收藏歌单持久化：用户收藏的网络歌单，存入 SharedPreferences，重启不丢失。
- * 键按账号命名空间隔离（见 [LibraryNamespace]）。
- */
 object FavoritePlaylistStore {
 
     private const val PREFS = "aesthetic_music_fav_playlists"

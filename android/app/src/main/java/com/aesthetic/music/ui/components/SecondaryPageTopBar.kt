@@ -27,22 +27,6 @@ import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.TextPrimary
 
-/**
- * 二级页面统一顶栏（返回箭头 + 24sp 大标题 + 右侧可选操作）。
- *
- * ## 为什么要有这个组件
- * 此前每个二级页各写一套顶栏，同一个「返回」在不同页面长三种样子：
- *  - 排行榜/歌单广场：裸箭头 24dp + 24sp 粗标题，`top = 状态栏 + 14dp`；
- *  - 账号与云端同步：36dp 描边圆角方框 + 18dp 箭头 + 18sp 标题，且**没有**状态栏内边距，
- *    于是整条顶栏顶在状态栏下面，看起来又高又小、箭头也和别处不一样。
- *
- * 现在收敛成一个组件：所有二级页调用它，样式只有一处定义。
- * 数值沿用工程里出现最多的那一版（RankPage / SheetSquare / Favorites 都是这套）。
- *
- * @param title 页面标题
- * @param onBack 返回回调
- * @param trailing 右侧操作区（可为空）
- */
 @Composable
 fun SecondaryPageTopBar(
     title: String,

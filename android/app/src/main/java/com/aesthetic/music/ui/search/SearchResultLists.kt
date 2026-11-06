@@ -55,12 +55,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-// ==================== 统一卡片容器 ====================
-
-/**
- * 结果列表统一外层圆角白卡：
- * 包含“搜索结果 XX 首”标题栏，以及四周圆角（20dp）白底卡片容器，与收藏/歌单/历史页面设计统一。
- */
 @Composable
 private fun ResultCard(
     bottomContentPadding: Dp,
@@ -121,7 +115,6 @@ private fun ResultCard(
     }
 }
 
-/** 结果行之间的浅色分隔线，左侧缩进由参数决定，右侧统一缩进 12dp。 */
 @Composable
 private fun ResultDivider(startIndent: Int) {
     HorizontalDivider(
@@ -130,8 +123,6 @@ private fun ResultDivider(startIndent: Int) {
         color = Stone200.copy(alpha = 0.55f),
     )
 }
-
-// ==================== 结果列表 ====================
 
 @Composable
 fun SongResultList(
@@ -423,8 +414,6 @@ fun AlbumResultList(
         }
     }
 }
-
-// ==================== 杂项 ====================
 
 @Composable
 private fun EmptyHint(text: String) {

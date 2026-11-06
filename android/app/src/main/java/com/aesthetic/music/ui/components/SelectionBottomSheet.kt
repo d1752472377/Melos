@@ -38,9 +38,6 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
-/**
- * 筛选/排序选项模型
- */
 data class SelectionItem<T>(
     val id: T,
     val title: String,
@@ -48,10 +45,6 @@ data class SelectionItem<T>(
     val icon: ImageVector? = null,
 )
 
-/**
- * 规范化选择抽屉（对应参考设计图 4 & 图 5）：
- * 顶部带有图标小方块、主副标题、关闭按钮，列表每项有图标、主副标题和选中红勾。
- */
 @Composable
 fun <T> SelectionBottomSheet(
     headerIcon: ImageVector,
@@ -72,14 +65,12 @@ fun <T> SelectionBottomSheet(
                 .fillMaxWidth()
                 .padding(bottom = 32.dp)
         ) {
-            // ===== 顶部 Header =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = AppSpacing.page, vertical = AppSpacing.xxxl),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧浅底圆角图标
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -114,7 +105,6 @@ fun <T> SelectionBottomSheet(
                     )
                 }
 
-                // 右侧关闭按钮
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -139,7 +129,6 @@ fun <T> SelectionBottomSheet(
 
             Spacer(Modifier.height(AppSpacing.sm))
 
-            // ===== 选项列表 =====
             items.forEach { item ->
                 val isSelected = item.id == selectedId
                 Row(

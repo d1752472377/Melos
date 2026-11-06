@@ -67,11 +67,6 @@ import kotlinx.coroutines.isActive
 import java.util.Locale
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 指示线在容器中的纵向位置比例。
- * contentPadding、指示线位置、[centerItemIndex] 的锚点都从这里推导，
- * 三者改动时始终对齐。
- */
 private const val LYRIC_ANCHOR_RATIO = 0.30f
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -85,9 +80,7 @@ fun MelosLyricsView(
     fontSizeSp: Int = 22,
     showTranslation: Boolean = true,
     showRomanization: Boolean = true,
-    /** 歌词是否正在加载：与「确实没有歌词」区分开，避免用户以为歌词坏了 */
     isLoading: Boolean = false,
-    /** 空歌词时点一下重新拉取 */
     onRetryLyric: (() -> Unit)? = null,
     onToggleLyricMode: (() -> Unit)? = null,
     onLineLongClick: (() -> Unit)? = null,
@@ -100,7 +93,6 @@ fun MelosLyricsView(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {
-                        // 空歌词时：优先重新拉取（这是用户最想要的），没有再退回切换封面
                         if (onRetryLyric != null && !isLoading) onRetryLyric() else onToggleLyricMode?.invoke()
                     }
                 ),
@@ -150,10 +142,7 @@ fun MelosLyricsView(
 
     var activeIndex by remember { mutableIntStateOf(0) }
 
-    // 用容器高度替代 BoxWithConstraints 的 maxHeight
     var containerHeightPx by remember { mutableIntStateOf(0) }
-    // 活跃歌词定位：顶部留 30% 容器高，底部留 70%，歌词整体偏上显示。
-    // 指示线、锚点、padding 都从同一个比例推导，三者不会互相漂移。
     val topPaddingDp: Dp = with(density) { (containerHeightPx * LYRIC_ANCHOR_RATIO).toDp() }
     val bottomPaddingDp: Dp =
         with(density) { (containerHeightPx * (1f - LYRIC_ANCHOR_RATIO)).toDp() }
@@ -168,14 +157,10 @@ fun MelosLyricsView(
         }
     }
 
-    // 同一首歌内歌词可能被增量补齐（翻译、逐字数据晚到）：这类变化不应抢走
-    // 用户正在看的位置。只有行数/首尾时间变了（换歌）才重新定位。
     val lyricsIdentity = remember(lyrics) {
         Triple(lyrics.size, lyrics.firstOrNull()?.timeMs, lyrics.lastOrNull()?.timeMs)
     }
 
-    // 首次加载 / 切歌 / 容器尺寸变化：等到高度就绪再瞬时定位。
-    // containerHeightPx == 0 时 contentPadding 还是 0，此时定位会错位。
     LaunchedEffect(lyricsIdentity, containerHeightPx) {
         if (containerHeightPx <= 0) return@LaunchedEffect
         val initialIdx = latestActiveIndexProvider().coerceIn(0, lyrics.lastIndex)
@@ -183,8 +168,6 @@ fun MelosLyricsView(
         scrollCtl.forceScrollTo(initialIdx, animate = false)
     }
 
-    // 播放中自动跟唱；冷却自然结束（followResumeTick 递增）后补做一次跟随，
-    // 冷却期间被静默跳过的那次跟随不会丢。强制滚动不会触发它。
     LaunchedEffect(activeIndex, scrollCtl.followResumeTick) {
         if (containerHeightPx <= 0) return@LaunchedEffect
         if (!scrollCtl.isUserControlling && activeIndex in lyrics.indices) {
@@ -212,7 +195,6 @@ fun MelosLyricsView(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            // 不对称 padding：顶部 30%，底部 70%，活跃歌词定位在屏幕偏上位置
             contentPadding = PaddingValues(top = topPaddingDp, bottom = bottomPaddingDp),
             verticalArrangement = Arrangement.spacedBy(AppSpacing.xl),
         ) {
@@ -270,8 +252,6 @@ fun MelosLyricsView(
                         .padding(horizontal = AppSpacing.xl, vertical = 5.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
-                    // 所有行使用同一套字号/行高/字重：高亮只改 scale、alpha 和颜色。
-                    // 否则高亮在滑动中移动会不断改变行高，内容在手指下方抖动。
                     if (showRomanization && !line.romanization.isNullOrBlank() && line.romanization != line.text) {
                         Text(
                             text = line.romanization,
@@ -324,8 +304,6 @@ fun MelosLyricsView(
             }
         }
 
-
-        // 翻阅指示线（仅在用户手动滑动时出现，自动跟唱不触发）
         val topAnchorDp: Dp =
             with(LocalDensity.current) { (containerHeightPx * LYRIC_ANCHOR_RATIO).toDp() }
         AnimatedVisibility(
@@ -391,7 +369,6 @@ fun MelosLyricsView(
             }
         }
 
-        // 「回到播放」胶囊
         AnimatedVisibility(
             visible = isUserBrowsing && kotlin.math.abs(centerIndex - activeIndex) > 2,
             enter = fadeIn(tween(180)),
@@ -451,8 +428,6 @@ private fun KaraokeSweepLine(
     sungColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    // 已唱占比按「字数」算（不是时间占比）：染色是沿文字从左往右擦过去的，
-    // 用时间占比会在字宽不等时出现「字还没唱到、颜色已经盖过去」的错位。
     val fraction = karaokeSweepFraction(line, currentTimeMs)
     var fullWidthPx by remember(line.text, fontSizeSp) { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -465,7 +440,6 @@ private fun KaraokeSweepLine(
     )
 
     Box(modifier = modifier.fillMaxWidth()) {
-        // 底：未唱部分（暗色）
         Text(
             text = line.text,
             color = Color.White.copy(alpha = 0.45f),
@@ -476,7 +450,6 @@ private fun KaraokeSweepLine(
                 }
             },
         )
-        // 面：已唱部分（亮色），用「限定宽度 + 裁切」实现逐字扫描
         if (fraction > 0f && fullWidthPx > 0) {
             val sungWidth = with(density) { (fullWidthPx * fraction).toDp() }
             Box(

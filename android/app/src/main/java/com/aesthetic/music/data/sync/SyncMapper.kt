@@ -14,28 +14,8 @@ import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.data.api.PlaylistItem
 
-/**
- * 本地数据 → 同步数据的**纯映射**：指纹基线、以及"只把我选中的那几条变成 wire 对象"。
- *
- * 为什么要单独抽一层：它是"同步到底同步了什么"的唯一真相来源。
- * 编排层（`LibraryController`）只负责取数据、发请求、写回本地，
- * 全部字段与键的规则都集中在这里，可以被单测逐条钉住（含"哪些字段不该同步"）。
- *
- * ## 明确的取舍
- * - **不**同步播放直链（会过期）、**不**同步本机绝对路径（换设备无意义，且属于本机信息）；
- * - 下载记录只带「哪台设备下过哪首歌 + 体积 + 时间」：文件名/路径属于本机事实，服务端也不存；
- * - 歌单封面只同步 http(s) 封面，本机图片封面在别的设备上必然加载失败。
- *
- * ## 有意未同步的字段（不是遗漏，改写在这里之前请先想清楚）
- * - `MyPlaylist.sourcePlatform / sourcePlaylistId / sourceName`（"从哪个平台的哪个歌单导入"）：
- *   它是**本机来源备注**，歌单内容本身会随 playlistSongs 一起同步，另一台设备拿到内容后可用；
- *   要同步它得给后端加三列，收益只是"在另一台设备上看到来源标签"，暂不做。
- * - 收藏歌单（kind=fav）的 `playCount / trackCount / platform / group`：这些由平台实时接口返回，
- *   换设备打开收藏歌单时会重新取一次，存进云端只会变成过期快照。
- */
 object SyncMapper {
 
-    /** 一条本地脚本（元数据 + 源码），由调用方从插件注册表拼出来 */
     data class LocalScript(
         val id: String,
         val name: String,
@@ -44,7 +24,6 @@ object SyncMapper {
         val enabled: Boolean = true,
     )
 
-    /** 一条本地下载记录（来自本机音频缓存索引） */
     data class LocalDownload(
         val platform: String,
         val songId: String,
@@ -53,8 +32,6 @@ object SyncMapper {
         val sizeBytes: Long = 0L,
         val downloadedAtMs: Long = 0L,
     )
-
-    // ==================== 指纹基线 ====================
 
     fun favoriteFingerprints(list: List<Song>): Map<String, String> =
         list.filter { it.id.isNotBlank() }.associate { SyncKey.song(it) to SyncFingerprint.of(it) }
@@ -75,9 +52,6 @@ object SyncMapper {
         return out
     }
 
-    /**
-     * 歌单曲目的指纹包含 `position`：同一首歌在歌单里被拖动排序后，位置变化必须同步过去。
-     */
     fun playlistSongFingerprints(mine: List<MyPlaylist>): Map<String, String> {
         val out = LinkedHashMap<String, String>()
         mine.filter { it.id.isNotBlank() }.forEach { p ->
@@ -106,8 +80,6 @@ object SyncMapper {
                 sizeBytes = it.sizeBytes,
             )
         }
-
-    // ==================== 推送内容（只含传入的键） ====================
 
     fun favoriteUpserts(list: List<Song>, keys: Collection<String>): List<Song> {
         if (keys.isEmpty()) return emptyList()
@@ -181,10 +153,6 @@ object SyncMapper {
             }
     }
 
-    /**
-     * 太大的脚本不上传（见 [MAX_SCRIPT_BYTES] 的说明）。单独暴露成函数，
-     * 是为了让编排层能就"哪些脚本被跳过了"给用户一句提示——静默不同步比报错更糟。
-     */
     fun oversizedScripts(list: List<LocalScript>): List<LocalScript> = list.filter { it.id.isNotBlank() && !fitsWire(it) }
 
     private fun fitsWire(script: LocalScript): Boolean =
@@ -213,8 +181,6 @@ object SyncMapper {
             }
     }
 
-    // ==================== 删除墓碑（从基线键反解出各字段） ====================
-
     fun favoriteDeletes(keys: Collection<String>): List<SyncSongKey> = keys.mapNotNull {
         SyncKey.decode(it).takeIf { p -> p.size == 2 }?.let { p -> SyncSongKey(platform = p[0], id = p[1]) }
     }
@@ -223,7 +189,6 @@ object SyncMapper {
 
     fun playlistDeletes(keys: Collection<String>): List<SyncPlaylistKey> = keys.mapNotNull {
         // 基线键形如 "<kind>\u0001888"：kind 必须跟着墓碑一起发出去，
-        // 否则服务端只能按默认值推断——收藏歌单(id 为平台数字 id)与自建歌单会被混为一谈。
         SyncKey.decode(it).takeIf { p -> p.size == 2 }
             ?.let { p -> SyncPlaylistKey(id = p[1], kind = p[0].ifBlank { PlaylistKind.MINE }) }
     }
@@ -242,31 +207,10 @@ object SyncMapper {
             ?.let { p -> SyncDownloadKey(platform = p[1], id = p[2], deviceId = p[0]) }
     }
 
-    /**
-     * 歌单封面归一化：网络 URL 与**内联图片**（`data:image/...;base64,`）才同步。
-     *
-     * - http(s)：平台封面，直接传；
-     * - data:image：用户自选封面被压成 288px JPEG 后的内联副本（见
-     *   PlaylistCoverStore.encodeCoverDataUrl）。它跟着歌单记录一起走，
-     *   所以换设备登录能看到同一张封面，不需要服务端有图片上传接口；
-     * - 应用私有目录下的绝对路径：**不同步**。那台设备上必然加载失败，
-     *   传上去只会让另一台设备看到一个永远坏掉的封面。
-     */
     fun wireCover(cover: String?): String? = cover?.trim()?.takeIf {
         it.startsWith("http://") || it.startsWith("https://") ||
             it.startsWith("data:image/", ignoreCase = true)
     }
 
-    /**
-     * 单个脚本源码同步上限（按 UTF-8 字节算）。
-     *
-     * 服务端只对**整个请求体**限制 4MB（Fastify bodyLimit），**没有字段级上限**。
-     * 这意味着一个异常巨大的脚本会把一次 push 整个顶爆（413），
-     * 连带**同一次同步里所有其它数据**都推不上去——用户看到的是"同步彻底坏了"，
-     * 却完全不知道原因。所以这里在源头挡住：超限的脚本只留在本机，并让上层明确提示。
-     *
-     * 512KB 的取法：正常音源脚本是几 KB~几十 KB，512KB 已属异常；
-     * 留足空间后仍能让"多个脚本 + 其它集合"一次性安全通过。
-     */
     const val MAX_SCRIPT_BYTES = 512 * 1024
 }

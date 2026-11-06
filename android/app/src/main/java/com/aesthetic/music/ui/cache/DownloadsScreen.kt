@@ -70,12 +70,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 我的下载 / 下载管理页：按收藏页的样式重塑。
- * 1. 大标题 + 顶部汇总卡片；
- * 2. 列表改为无外框、白底 + 分割线；
- * 3. 汇总卡片：播放全部 / 随机播放（打乱顺序整队播放）/ 搜索（页内实时过滤，播放以过滤结果为队列）。
- */
 @Composable
 fun DownloadsScreen(
     songs: List<AudioCacheService.CachedSong>,
@@ -88,15 +82,10 @@ fun DownloadsScreen(
     var searchQuery by remember { mutableStateOf("") }
     val searchFocus = remember { FocusRequester() }
 
-
-    // 点「搜索」展开后自动聚焦，省去再点一次输入框
     LaunchedEffect(isSearchExpanded) {
         if (isSearchExpanded) searchFocus.requestFocus()
     }
 
-    // 「我的下载」只显示用户主动点下载的歌；播放时边听边下产生的缓存在「本地缓存」页
-    // 再按文件路径去重：同一首歌可能存在多条缓存记录，重复的 filePath 会让
-    // LazyColumn 的 key 冲突直接闪退（IllegalArgumentException: Key was already used）
     val downloadedSongs = remember(songs) {
         songs.filter { it.manual }.distinctBy { it.filePath }
     }
@@ -114,7 +103,6 @@ fun DownloadsScreen(
         }
     }
 
-    // 将缓存歌曲模型映射为通用 Song 结构，支持直接接入播放器队列播放
     val filteredSongList = remember(filtered) { filtered.map { it.toSong() } }
 
     Box(
@@ -126,7 +114,6 @@ fun DownloadsScreen(
                 .fillMaxSize()
                 .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
-            // ===== 1. 顶部大标题 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,12 +141,10 @@ fun DownloadsScreen(
 
             Spacer(Modifier.height(AppSpacing.xxl))
 
-            // ===== 2. 顶部汇总卡片 =====
             if (songs.isNotEmpty()) {
                 DownloadsSummaryCard(
                     songCount = downloadedSongs.size,
                     totalSizeText = totalSizeText,
-                    // 过滤生效时，「播放全部 / 随机播放」只作用于当前可见的结果集
                     onPlayAll = {
                         if (filteredSongList.isNotEmpty()) {
                             onPlaySong(filteredSongList.first(), filteredSongList)
@@ -167,7 +152,6 @@ fun DownloadsScreen(
                     },
                     onShuffle = {
                         if (filteredSongList.isNotEmpty()) {
-                            // 打乱顺序后整队播放（不改全局播放模式）
                             val shuffled = filteredSongList.shuffled()
                             onPlaySong(shuffled.first(), shuffled)
                         }
@@ -181,7 +165,6 @@ fun DownloadsScreen(
                 Spacer(Modifier.height(AppSpacing.xxl))
             }
 
-            // ===== 2.5 列表内搜索（点汇总卡片的「搜索」展开） =====
             if (isSearchExpanded) {
                 ListSearchBar(
                     query = searchQuery,
@@ -193,7 +176,6 @@ fun DownloadsScreen(
                 Spacer(Modifier.height(AppSpacing.xxl))
             }
 
-            // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -220,7 +202,6 @@ fun DownloadsScreen(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-            // ===== 4. 歌曲列表 =====
             if (songs.isEmpty()) {
                 EmptyBox("暂无下载歌曲\n在歌曲详情或播放时点击下载，可在此离线免流收听")
             } else if (filtered.isEmpty()) {
@@ -233,7 +214,6 @@ fun DownloadsScreen(
                 ) {
                     itemsIndexed(
                         filtered,
-                        // key 带上下标兜底：即使上游还有重复路径也不会撞 key 闪退
                         key = { i, s -> "dl$i:${s.filePath}" },
                         contentType = { _, _ -> "download_song" },
                     ) { index, song ->
@@ -250,7 +230,6 @@ fun DownloadsScreen(
                                             (it.title == song.title && it.artist == song.artist)
                                 }
                                 if (target != null) {
-                                    // 用过滤后的列表当队列：边搜边播时上一首/下一首仍留在结果内
                                     onPlaySong(target, filteredSongList)
                                 }
                             },
@@ -264,9 +243,6 @@ fun DownloadsScreen(
 
 }
 
-/**
- * 顶部汇总卡片：已下载 XX 首 + 操作按钮（iOS 玻璃拟态风格）
- */
 @Composable
 private fun DownloadsSummaryCard(
     songCount: Int,
@@ -282,7 +258,6 @@ private fun DownloadsSummaryCard(
             .iosGlassCard(shape = RoundedCornerShape(22.dp), elevation = 6.dp)
             .padding(AppSpacing.xxxl)
     ) {
-        // 标签
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
@@ -301,7 +276,6 @@ private fun DownloadsSummaryCard(
 
         Spacer(Modifier.height(AppSpacing.md))
 
-        // 标题
         Text(
             text = "已下载",
             style = MaterialTheme.typography.titleLarge.copy(
@@ -313,7 +287,6 @@ private fun DownloadsSummaryCard(
 
         Spacer(Modifier.height(AppSpacing.xxs))
 
-        // 统计信息
         Text(
             text = "共 $songCount 首 · 占用 $totalSizeText",
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
@@ -322,12 +295,10 @@ private fun DownloadsSummaryCard(
 
         Spacer(Modifier.height(AppSpacing.xxxl))
 
-        // 操作按钮行
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 播放全部按钮 (主按钮)
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -356,7 +327,6 @@ private fun DownloadsSummaryCard(
 
             Spacer(Modifier.width(AppSpacing.lg))
 
-            // 随机播放按钮
             Box(
                 modifier = Modifier
                     .size(38.dp)
@@ -374,7 +344,6 @@ private fun DownloadsSummaryCard(
 
             Spacer(Modifier.width(AppSpacing.md))
 
-            // 搜索按钮
             Box(
                 modifier = Modifier
                     .size(38.dp)
@@ -393,9 +362,6 @@ private fun DownloadsSummaryCard(
     }
 }
 
-/**
- * 列表行：iOS 玻璃拟态胶囊卡片
- */
 @Composable
 private fun DownloadRow(
     song: AudioCacheService.CachedSong,
@@ -415,7 +381,6 @@ private fun DownloadRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 封面 / 图标
             Box(
                 modifier = Modifier
                     .size(46.dp)
@@ -433,7 +398,6 @@ private fun DownloadRow(
 
             Spacer(Modifier.width(AppSpacing.lg))
 
-            // 歌曲信息
             Column(Modifier.weight(1f)) {
                 Text(
                     text = song.title,
@@ -464,7 +428,6 @@ private fun DownloadRow(
                 }
             }
 
-            // 删除按钮
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -483,7 +446,6 @@ private fun DownloadRow(
     }
 }
 
-/** 缓存歌曲 → 通用 Song：id 缺失时用文件路径哈希兜底，保证播放器队列 key 稳定 */
 private fun AudioCacheService.CachedSong.toSong(): Song = Song(
     id = songId.ifBlank { filePath.hashCode().toString() },
     title = title,

@@ -30,13 +30,6 @@ import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
 
-/**
- * 实心主按钮：主色底 + 白字，可选前置图标与危险色。
- *
- * 之前插件管理页的 `PrimaryWideButton` / `DangerWideButton` 与歌单编辑页的 `PillButton`
- * 是同一形态的三份私有实现（同圆角、同底色、同字号），这里收敛成一处。
- * 只负责这一种视觉；FM 的圆形实心按钮、播放器圆形按钮等差异较大的控件仍保留各自实现。
- */
 @Composable
 fun AppSolidButton(
     text: String,

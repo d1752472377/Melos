@@ -9,7 +9,6 @@ import com.aesthetic.music.ui.library.LibraryController
 import com.aesthetic.music.ui.profile.CloudManageScreen
 import com.aesthetic.music.ui.profile.ProfileEditScreen
 
-/** 个人资料页（注册日期 / 登录用户名 / 邮箱绑定 / 昵称签名） */
 @Composable
 fun ProfileEditDestination(
     auth: AuthController,
@@ -49,8 +48,6 @@ fun ProfileEditDestination(
     )
 }
 
-
-/** 账号与云端同步页 */
 @Composable
 fun CloudManageDestination(
     auth: AuthController,

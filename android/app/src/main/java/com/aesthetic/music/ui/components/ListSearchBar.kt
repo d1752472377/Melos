@@ -33,12 +33,6 @@ import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 
-/**
- * 列表内搜索条：胶囊底 + 搜索图标 + 输入框 + 清空按钮。
- *
- * 收藏页/历史页顶部汇总卡片的「搜索」按钮展开它，实时过滤当前列表；
- * 与歌单详情页的「歌单内搜索」同属一类交互，故抽到公共层复用。
- */
 @Composable
 fun ListSearchBar(
     query: String,

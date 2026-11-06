@@ -3,10 +3,8 @@ package com.aesthetic.music.data.settings
 import android.content.Context
 import android.content.SharedPreferences
 
-/** 主题模式（参考 App 的三档切换） */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** 播放页主题（经典/黑胶唱机/Apple Music/唱片封套/流光 CD） */
 enum class PlayerTheme(val value: String, val label: String) {
     CLASSIC("classic", "经典"),
     COVER("cover", "黑胶唱机"),
@@ -19,7 +17,6 @@ enum class PlayerTheme(val value: String, val label: String) {
     }
 }
 
-/** 音质等级（对应后端 quality 参数） */
 enum class QualityLevel(val value: String, val label: String) {
     STANDARD("standard", "标准 128k"),
     HIGH("high", "高品质 320k"),
@@ -30,7 +27,6 @@ enum class QualityLevel(val value: String, val label: String) {
     }
 }
 
-/** 系统状态栏显示策略 */
 enum class StatusBarMode(val value: String, val label: String, val desc: String) {
     ALWAYS("always", "显示", "始终显示系统状态栏"),
     PLAYER_ONLY("player", "仅播放页", "播放页沉浸时隐藏，其余页面保持显示"),
@@ -41,7 +37,6 @@ enum class StatusBarMode(val value: String, val label: String, val desc: String)
     }
 }
 
-/** 下载/缓存文件命名规则 */
 enum class DownloadNaming(val value: String, val label: String, val example: String) {
     TITLE_ARTIST("title_artist", "歌名 - 歌手", "夜曲 - 周杰伦.mp3"),
     TITLE("title", "仅歌名", "夜曲.mp3"),
@@ -52,7 +47,6 @@ enum class DownloadNaming(val value: String, val label: String, val example: Str
     }
 }
 
-/** 缓存失败处理策略 */
 enum class DownloadFailurePolicy(val value: String, val label: String, val desc: String) {
     RETRY("retry", "自动重试", "失败后自动重试 2 次"),
     SKIP("skip", "直接跳过", "失败即跳过，不再重试也不提示"),
@@ -64,7 +58,6 @@ enum class DownloadFailurePolicy(val value: String, val label: String, val desc:
     }
 }
 
-/** 歌词字体大小选项 */
 enum class LyricFontSize(val value: String, val label: String, val spSize: Int) {
     STANDARD("standard", "标准", 22),
     LARGE("large", "较大", 26),
@@ -75,7 +68,6 @@ enum class LyricFontSize(val value: String, val label: String, val spSize: Int) 
     }
 }
 
-/** 歌词虚化/聚焦模糊模式 */
 enum class LyricBlurMode(val value: String, val label: String, val maxBlurPx: Float) {
     OFF("off", "关闭 (清晰)", 0f),
     SUBTLE("subtle", "轻度景深", 2.5f),
@@ -86,7 +78,6 @@ enum class LyricBlurMode(val value: String, val label: String, val maxBlurPx: Fl
     }
 }
 
-/** 播放页背景专辑图模糊度 */
 enum class BackgroundBlurMode(val value: String, val label: String, val blurDp: Int) {
     LIGHT("light", "微弱", 20),
     MEDIUM("medium", "标准", 40),
@@ -97,59 +88,37 @@ enum class BackgroundBlurMode(val value: String, val label: String, val blurDp: 
     }
 }
 
-/**
- * 新增设置项快照。
- *
- * 一次性读/写整组（而不是十几个分散的 key），避免"加了一项忘了读/写"这类漏配；
- * 写入是一次 `edit()` 批量提交，代价可忽略。
- */
 data class UserPrefs(
-    // ===== 主题与外观 =====
     val statusBarMode: StatusBarMode = StatusBarMode.ALWAYS,
     val playerTheme: PlayerTheme = PlayerTheme.CLASSIC,
     val lyricFontSize: LyricFontSize = LyricFontSize.STANDARD,
     val lyricBlurMode: LyricBlurMode = LyricBlurMode.OFF,
     val backgroundBlurMode: BackgroundBlurMode = BackgroundBlurMode.MEDIUM,
-    // ===== 播放 =====
     val preloadNext: Boolean = true,
     val crossFade: Boolean = false,
     val resumeAfterInterrupt: Boolean = true,
     val mixWithOthers: Boolean = false,
-    // ===== 歌词 =====
     val lyricTranslation: Boolean = true,
     val lyricRomanization: Boolean = false,
     val lyricOnline: Boolean = true,
     val lyricLocal: Boolean = false,
-    // ===== 下载与缓存 =====
     val cacheLimitBytes: Long = SettingsStore.DEFAULT_CACHE_LIMIT_BYTES,
     val downloadWhilePlaying: Boolean = true,
     val downloadNaming: DownloadNaming = DownloadNaming.TITLE_ARTIST,
     val downloadCoverLyrics: Boolean = true,
     val downloadFailurePolicy: DownloadFailurePolicy = DownloadFailurePolicy.RETRY,
     val downloadWifiOnly: Boolean = false,
-    // ===== 听歌统计 =====
-    /** 是否记录听歌数据（关闭后时长/次数/排行都不再累计，已有历史保留） */
     val statsRecording: Boolean = true,
-    /** 是否把听歌事件随云同步上传（关闭后仅本地记录，不上传） */
     val statsCloudSync: Boolean = true,
-    // ===== 音源策略（插件管理页） =====
-    /** 失败换源：当前音源解析失败时自动尝试下一个音源 */
     val sourceFailover: Boolean = true,
-    /** 智能切换：当前音源被判定为失败/偏慢时，不等失败直接改用更优音源 */
     val sourceSmartSwitch: Boolean = false,
-    /** 自动按照最快的进行使用：按实测速度排序，永远优先用最快的音源 */
     val sourceFastest: Boolean = false,
 )
 
-/**
- * 设置持久化（SharedPreferences）：主题模式三档、音质等级、悬浮窗开关。
- * 所有读取容错：未初始化或异常时返回默认值，绝不抛异常（避免播放链路崩溃）。
- */
 object SettingsStore {
 
     private const val TAG = "SettingsStore"
     private const val PREFS = "aesthetic_music_settings"
-    /** 缓存上限默认值：2GB */
     const val DEFAULT_CACHE_LIMIT_BYTES: Long = 2L * 1024 * 1024 * 1024
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_QUALITY = "quality"
@@ -171,7 +140,6 @@ object SettingsStore {
 
     private fun p(): SharedPreferences? = prefs
 
-    // ===== 主题模式 =====
     fun getThemeMode(): ThemeMode = try {
         val v = p()?.getString(KEY_THEME_MODE, null) ?: return ThemeMode.SYSTEM
         ThemeMode.entries.firstOrNull { it.name == v } ?: ThemeMode.SYSTEM
@@ -183,7 +151,6 @@ object SettingsStore {
         p()?.edit()?.putString(KEY_THEME_MODE, mode.name)?.apply()
     }
 
-    // ===== 音质 =====
     fun getQuality(): QualityLevel = try {
         QualityLevel.fromValue(p()?.getString(KEY_QUALITY, null))
     } catch (_: Exception) {
@@ -194,8 +161,6 @@ object SettingsStore {
         p()?.edit()?.putString(KEY_QUALITY, level.value)?.apply()
     }
 
-
-    // ===== 倍速播放（0.5x - 2.0x）=====
     fun getPlaybackSpeed(): Float = try {
         (p()?.getFloat(KEY_PLAYBACK_SPEED, 1f) ?: 1f).coerceIn(0.5f, 2f)
     } catch (_: Exception) {
@@ -206,9 +171,6 @@ object SettingsStore {
         p()?.edit()?.putFloat(KEY_PLAYBACK_SPEED, speed.coerceIn(0.5f, 2f))?.apply()
     }
 
-
-    // ==================== 设置页（主题与外观 / 播放 / 歌词 / 下载） ====================
-
     private const val KEY_STATUS_BAR = "status_bar_mode"
     private const val KEY_PRELOAD_NEXT = "play_preload_next"
     private const val KEY_CROSS_FADE = "play_cross_fade"
@@ -218,8 +180,6 @@ object SettingsStore {
     private const val KEY_LYRIC_ROMANIZATION = "lyric_romanization"
     private const val KEY_LYRIC_ONLINE = "lyric_online"
     private const val KEY_LYRIC_LOCAL = "lyric_local"
-    // 媒体卡片的 8 个 key 已随「设置 → 媒体卡片」整页删除（卡片不再有可配置项）：
-    // 旧版本写进 SharedPreferences 的值会被忽略，不影响任何逻辑，也不需要清理。
     private const val KEY_DL_WHILE_PLAYING = "download_while_playing"
     private const val KEY_DL_NAMING = "download_naming"
     private const val KEY_DL_COVER_LYRICS = "download_cover_lyrics"
@@ -257,7 +217,6 @@ object SettingsStore {
         p()?.edit()?.putString(key, value)?.apply()
     }
 
-    /** 读取新增设置项（任一读取异常都回落默认值，绝不抛异常打断设置页） */
     fun readPrefs(): UserPrefs {
         val d = UserPrefs()
         return try {
@@ -292,7 +251,6 @@ object SettingsStore {
         }
     }
 
-    /** 批量写入新增设置项 */
     fun writePrefs(prefs: UserPrefs) = bestEffort(TAG, "保存设置项") {
         p()?.edit()?.apply {
             putString(KEY_STATUS_BAR, prefs.statusBarMode.value)

@@ -62,27 +62,15 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/** 歌单编辑表单的提交结果 */
 data class PlaylistEditorResult(
     val name: String,
-    /** 最终封面：本机图片绝对路径 / 网络封面 URL；空串表示不设置（回落首曲封面） */
     val cover: String,
-    /** 平台导入带来的原始曲目（仅"新建"链路会带） */
     val importedSongs: List<Song> = emptyList(),
-    /** 来源平台（空表示本地自建） */
     val sourcePlatform: String = "",
     val sourcePlaylistId: String = "",
-    /** 来源平台的原始歌单名，用于溯源展示 */
     val sourceName: String = "",
 )
 
-/**
- * 自建歌单的创建 / 编辑表单（底部抽屉）。
- *
- * 相比旧的"只有一个名字输入框"的弹窗，这里补齐了两件事：
- * 1. 封面：可以从系统相册选一张本机图片（由 LibraryController 拷贝进私有目录并生成同步副本）；
- * 2. 可选的平台导入：粘贴链接或分享文案后回填歌单名/封面/曲目，作为歌单的原始记录。
- */
 @Composable
 fun PlaylistEditorSheet(
     title: String,
@@ -91,9 +79,7 @@ fun PlaylistEditorSheet(
     onConfirm: (PlaylistEditorResult) -> Unit,
     initialName: String = "",
     initialCover: String = "",
-    /** 编辑已有歌单时隐藏"从其他平台导入"区块 */
     showPlatformImport: Boolean = false,
-    /** 平台导入的解析状态（由 PlaylistImportController 提供） */
     importState: PlaylistResolveState = PlaylistResolveState.Idle,
     onResolveImport: (String) -> Unit = {},
     onClearImport: () -> Unit = {},
@@ -103,14 +89,7 @@ fun PlaylistEditorSheet(
 ) {
     var name by remember { mutableStateOf(initialName) }
     var nameEdited by remember { mutableStateOf(initialName.isNotBlank()) }
-    /** 本次新选的本机封面（尚未落库；取消时删除该文件） */
     var localCover by remember { mutableStateOf<String?>(null) }
-    /**
-     * 本次新选封面的**可同步副本**（`data:image/jpeg;base64,...`）。
-     *
-     * 为什么要两份：本机文件用于即时预览（解码快），data URL 才是写进歌单、
-     * 能跟着云端同步走的那个值。取消时本地文件会被删掉，data URL 只是内存里的字符串。
-     */
     var pickedDataUrl by remember { mutableStateOf<String?>(null) }
     var importText by remember { mutableStateOf("") }
 
@@ -125,14 +104,12 @@ fun PlaylistEditorSheet(
             onToast("封面设置失败，请换一张图片试试")
             return@rememberLauncherForActivityResult
         }
-        // 换图时清掉上一张未被引用的本机封面，避免文件越攒越多
         val previous = localCover
         if (previous != null && previous != initialCover) onDeleteCover(previous)
         localCover = picked.path
         pickedDataUrl = picked.dataUrl
     }
 
-    // 解析成功后自动回填名字（用户手动改过就不再覆盖）
     LaunchedEffect(ready?.sourcePlaylistId) {
         val target = ready ?: return@LaunchedEffect
         if (!nameEdited || name.isBlank()) {
@@ -147,7 +124,6 @@ fun PlaylistEditorSheet(
 
     AppBottomSheet(
         onDismissRequest = {
-            // 取消时删掉本次新选、尚未被任何歌单引用的本机封面
             val picked = localCover
             if (picked != null && picked != initialCover) onDeleteCover(picked)
             onDismiss()
@@ -171,7 +147,6 @@ fun PlaylistEditorSheet(
             )
             Spacer(Modifier.height(AppSpacing.page))
 
-            // ===== 封面 + 名称 =====
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -238,7 +213,6 @@ fun PlaylistEditorSheet(
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = if (localCover.isNullOrBlank()) TextMuted else PrimaryBrown,
                         )
-                        // 已设置过封面时给一个撤销入口，避免"选错图只能删歌单"
                         if (localCover == null && initialCover.isNotBlank()) {
                             Spacer(Modifier.width(AppSpacing.sm))
                             Text(
@@ -258,7 +232,6 @@ fun PlaylistEditorSheet(
                 }
             }
 
-            // ===== 可选：从其他平台导入 =====
             if (showPlatformImport) {
                 Spacer(Modifier.height(22.dp))
 
@@ -324,7 +297,6 @@ fun PlaylistEditorSheet(
 
             Spacer(Modifier.height(AppSpacing.section))
 
-            // ===== 主按钮 =====
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -332,7 +304,6 @@ fun PlaylistEditorSheet(
                     .background(if (canConfirm) PrimaryBrown else Stone200)
                     .clickable(enabled = canConfirm) {
                         val inline = pickedDataUrl
-                        // 用内联副本当封面时，本地预览文件就没有引用者了，顺手删掉
                         if (inline != null) {
                             val preview = localCover
                             if (preview != null && preview != initialCover) onDeleteCover(preview)
@@ -364,7 +335,6 @@ fun PlaylistEditorSheet(
     }
 }
 
-/** 解析状态区：进度 / 失败原因 / 已解析出的歌单预览 */
 @Composable
 private fun ImportStatusBlock(
     state: PlaylistResolveState,
@@ -444,7 +414,6 @@ private fun ImportStatusBlock(
     }
 }
 
-/** 表单输入框（与旧弹窗保持一致的浅底圆角样式） */
 @Composable
 private fun InputBox(
     value: String,

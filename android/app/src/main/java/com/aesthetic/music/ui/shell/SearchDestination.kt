@@ -11,7 +11,6 @@ import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.search.SearchController
 import com.aesthetic.music.ui.search.SearchScreen
 
-/** 全局搜索页 */
 @Composable
 fun SearchDestination(
     search: SearchController,

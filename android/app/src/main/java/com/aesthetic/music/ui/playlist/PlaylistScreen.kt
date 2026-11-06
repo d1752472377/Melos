@@ -80,7 +80,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/** 统一展示的歌单模型（合并自建与收藏） */
 private sealed class UnifiedPlaylistItem {
     abstract val id: String
     abstract val name: String
@@ -110,12 +109,6 @@ private sealed class UnifiedPlaylistItem {
     }
 }
 
-/**
- * 我的歌单页（参考现代卡片设计图 2 & 图 5 重塑）：
- * 1. 顶部大卡片：2x2四宫格封面 + "我的歌单" + "☲ 全部 ∨" 平台筛选胶囊 + 批量与搜索图标 + 2列统计（歌单/歌曲）+ 新建歌单/导入歌单双操作胶囊；
- * 2. 规范的“选择平台”抽屉（BottomSheet），带各平台数量统计与选中红勾；
- * 3. 歌单列表白底圆角容器 + 平台标签药丸 + ▶ 播放与 ··· 更多操作。
- */
 @Composable
 fun PlaylistScreen(
     myPlaylists: List<MyPlaylist>,
@@ -127,11 +120,8 @@ fun PlaylistScreen(
     onDeletePlaylist: (String) -> Unit,
     onOpenImport: () -> Unit,
     onPlayPlaylist: (List<Song>) -> Unit,
-    /** 分享歌单（名称 + 副标题），由宿主决定分享渠道 */
     onSharePlaylist: (name: String, subtitle: String) -> Unit = { _, _ -> },
-    /** 「更新」收藏的歌单：重新从平台拉取名/封面/曲目数 */
     onRefreshFavorite: (PlaylistItem) -> Unit = {},
-    /** 取消收藏（或移除收藏歌单的本地记录） */
     onRemoveFavorite: (PlaylistItem) -> Unit = {},
     importPreview: PlaylistResolveState = PlaylistResolveState.Idle,
     onResolveImport: (String) -> Unit = {},
@@ -146,7 +136,6 @@ fun PlaylistScreen(
     var selectedItem by remember { mutableStateOf<UnifiedPlaylistItem?>(null) }
     var deleteTarget by remember { mutableStateOf<MyPlaylist?>(null) }
 
-    // 平台筛选：ALL, CUSTOM, 或具体平台名称
     var selectedPlatformFilter by remember { mutableStateOf("ALL") }
     var showPlatformSheet by remember { mutableStateOf(false) }
 
@@ -154,7 +143,6 @@ fun PlaylistScreen(
     var searchQuery by remember { mutableStateOf("") }
     val searchFocus = remember { FocusRequester() }
 
-    // 排序升降序：true 为默认正序，false 为倒序
     var sortAscending by remember { mutableStateOf(true) }
 
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -163,7 +151,6 @@ fun PlaylistScreen(
         if (isSearchExpanded) searchFocus.requestFocus()
     }
 
-    // 全部歌单（合并自建与收藏）
     val allUnifiedPlaylists = remember(myPlaylists, favoritePlaylists) {
         val list = mutableListOf<UnifiedPlaylistItem>()
         myPlaylists.forEach { list.add(UnifiedPlaylistItem.Custom(it)) }
@@ -171,9 +158,6 @@ fun PlaylistScreen(
         list
     }
 
-    // 分类统计（用于分类 BottomSheet 与胶囊计数）
-    // 维度只有两个：自建（我的歌单，含从平台导入的）与收藏（在平台上收藏进来的歌单）。
-    // 不再按平台切分——「自建」和「网易云」是两种不同维度，混在一排里用户无法判断该点哪个。
     val playlistStats = remember(allUnifiedPlaylists) {
         val totalCount = allUnifiedPlaylists.size
         val customCount = allUnifiedPlaylists.count { it is UnifiedPlaylistItem.Custom }
@@ -181,7 +165,6 @@ fun PlaylistScreen(
         Triple(totalCount, customCount, favoriteCount)
     }
 
-    // 筛选
     val filteredByCategory = remember(allUnifiedPlaylists, selectedPlatformFilter) {
         when (selectedPlatformFilter) {
             "ALL" -> allUnifiedPlaylists
@@ -191,7 +174,6 @@ fun PlaylistScreen(
         }
     }
 
-    // 搜索过滤
     val filtered = remember(filteredByCategory, searchQuery, sortAscending) {
         val q = searchQuery.trim()
         val list = if (q.isEmpty()) {
@@ -202,7 +184,6 @@ fun PlaylistScreen(
         if (sortAscending) list else list.reversed()
     }
 
-    // 统计数据（歌单总数、歌曲总数）
     val totalSongCount = remember(myPlaylists, favoritePlaylists) {
         myPlaylists.sumOf { it.songs.size } + favoritePlaylists.sumOf { (it.trackCount ?: 0L).toInt() }
     }
@@ -226,7 +207,6 @@ fun PlaylistScreen(
                 .fillMaxSize()
                 .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
-            // ===== 1. 顶部 Apple Bento 网格媒体库大卡片 =====
             LibraryBentoSection(
                 playlistCount = allUnifiedPlaylists.size,
                 songCount = totalSongCount,
@@ -264,7 +244,6 @@ fun PlaylistScreen(
 
             Spacer(Modifier.height(AppSpacing.xl))
 
-            // ===== 2. 搜索栏展开 =====
             if (isSearchExpanded) {
                 ListSearchBar(
                     query = searchQuery,
@@ -276,7 +255,6 @@ fun PlaylistScreen(
                 Spacer(Modifier.height(AppSpacing.xl))
             }
 
-            // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -293,7 +271,6 @@ fun PlaylistScreen(
                     color = TextPrimary,
                 )
 
-                // 数量与排序切换
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -321,7 +298,6 @@ fun PlaylistScreen(
 
             Spacer(Modifier.height(AppSpacing.md))
 
-            // ===== 4. 歌单列表容器 =====
             if (allUnifiedPlaylists.isEmpty()) {
                 EmptyBox("还没有歌单\n点击上方「新建歌单」或「导入歌单」添加")
             } else if (filtered.isEmpty()) {
@@ -365,7 +341,6 @@ fun PlaylistScreen(
                                     }
                                 },
                                 onMore = {
-                                    // 两种歌单都要能打开动作弹窗：收藏的歌单也需要「播放 / 分享 / 更新 / 取消收藏」
                                     selectedItem = item
                                     showActionSheet = true
                                 }
@@ -385,7 +360,6 @@ fun PlaylistScreen(
         }
     }
 
-    // ===== 分类筛选抽屉（对齐参考图 4 的「选择平台」弹窗版式，但维度改成归属） =====
     if (showPlatformSheet) {
         val (total, custom, favorite) = playlistStats
         val options = listOf(
@@ -420,12 +394,6 @@ fun PlaylistScreen(
         )
     }
 
-    // ===== 歌单操作底部弹窗 =====
-    // ===== 歌单操作底部弹窗（对齐参考图 5/6 的版式）=====
-    // 版式：顶部一张「歌单信息条」（封面 + 名称 + 数量·分类），下面一组动作。
-    // 与参考图的差别：**没有「赞助用户」这一项**，封面也不需要任何付费门槛——
-    // 用户自选的封面会被压成 288px 的 JPEG 内联副本（见 PlaylistCoverStore.encodeCoverDataUrl），
-    // 跟着歌单记录一起走云端同步，换设备登录即可看到同一张封面。
     val actionItem: UnifiedPlaylistItem? = selectedItem
     if (showActionSheet && actionItem != null) {
         AppBottomSheet(
@@ -440,7 +408,6 @@ fun PlaylistScreen(
                     .padding(horizontal = AppSpacing.page)
                     .padding(bottom = 28.dp)
             ) {
-                // 歌单信息条
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -505,7 +472,6 @@ fun PlaylistScreen(
 
                 Spacer(Modifier.height(AppSpacing.md))
 
-                // 动作组（一张圆角卡，条目间 1dp 分隔线）
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -605,7 +571,6 @@ fun PlaylistScreen(
         }
     }
 
-    // ===== 删除确认弹窗 =====
     deleteTarget?.let { target ->
         AppDialog(
             onDismissRequest = { deleteTarget = null },
@@ -626,7 +591,6 @@ fun PlaylistScreen(
         }
     }
 
-    // ===== 新建歌单表单 =====
     if (showCreateSheet) {
         PlaylistEditorSheet(
             title = "新建歌单",
@@ -650,7 +614,6 @@ fun PlaylistScreen(
         )
     }
 
-    // ===== 编辑歌单表单 =====
     editTarget?.let { target ->
         PlaylistEditorSheet(
             title = "编辑歌单",
@@ -670,12 +633,6 @@ fun PlaylistScreen(
     }
 }
 
-
-
-/**
- * 歌单列表单项（对应参考图 2）：
- * 圆角封面、歌单名、平台小胶囊 + 歌曲数、右侧播放三角与三点
- */
 @Composable
 private fun PlaylistRowItem(
     item: UnifiedPlaylistItem,
@@ -690,7 +647,6 @@ private fun PlaylistRowItem(
             .padding(horizontal = AppSpacing.xxl, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 封面：有封面展示封面，无封面展示灰色圆角加音符
         Box(
             modifier = Modifier.size(48.dp),
             contentAlignment = Alignment.Center
@@ -717,7 +673,6 @@ private fun PlaylistRowItem(
 
         Spacer(Modifier.width(AppSpacing.xl))
 
-        // 歌单标题与副标题信息
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.name,
@@ -733,7 +688,6 @@ private fun PlaylistRowItem(
             Spacer(Modifier.height(AppSpacing.xxs))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 平台小标签胶囊
                 val isCustom = item.platformTag == "自建"
                 Box(
                     modifier = Modifier
@@ -761,7 +715,6 @@ private fun PlaylistRowItem(
             }
         }
 
-        // 播放小三角
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -779,7 +732,6 @@ private fun PlaylistRowItem(
 
         Spacer(Modifier.width(AppSpacing.xxs))
 
-        // 三点菜单
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -797,14 +749,6 @@ private fun PlaylistRowItem(
     }
 }
 
-
-/**
- * 动作弹窗里的一行：图标 + 标题（可选副标题）+ 文本色。
- *
- * 与旧的 [BottomSheetActionItem] 的区别：多了可选副标题（「修改封面」「更新」需要一句解释），
- * 且条目之间由外层卡片的 1dp 分隔线切分，不再靠 10dp 的 Spacer 堆出间距——
- * 参考图里那一组动作是一张整卡，条目之间只有一条细线。
- */
 @Composable
 private fun PlaylistSheetAction(
     icon: ImageVector,

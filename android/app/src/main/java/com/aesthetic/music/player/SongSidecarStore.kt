@@ -7,16 +7,6 @@ import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-/**
- * 缓存歌曲的"副文件"：专辑封面与歌词。
- *
- * 对应设置项「下载与缓存 → 封面与歌词」。
- * - 封面：与音频同目录、同基础名的 `.jpg`（`<基础名>.jpg`，基础名 = 音频文件名去掉扩展名）；
- * - 歌词：由 [LocalLyricStore.saveLocalLyric] 写入 filesDir/lyrics（同时会尝试写同目录 .lrc）。
- *
- * 单独放一个对象的理由：AudioCacheService 只管音频字节流（它是纯下载器，没有仓库/歌词解析），
- * 封面与歌词是"带业务语义"的补齐动作，放在这里调用方（PlayerManager / 手动下载）更清楚。
- */
 object SongSidecarStore {
 
     private val client: OkHttpClient by lazy {
@@ -26,17 +16,12 @@ object SongSidecarStore {
             .build()
     }
 
-    /** 封面文件位置（与音频同目录同基础名） */
     fun coverFileFor(audioPath: String): File {
         val audio = File(audioPath)
         val stem = audio.name.substringBeforeLast('.')
         return File(audio.parentFile ?: audio, "$stem.jpg")
     }
 
-    /**
-     * 下载并保存封面。已有封面或没有封面地址时直接跳过。
-     * IO 阻塞调用，请在 IO 线程/协程里用。
-     */
     fun saveCover(context: Context, song: com.aesthetic.music.data.model.Song): File? {
         val url = song.artwork
         if (url.isNullOrBlank()) return null

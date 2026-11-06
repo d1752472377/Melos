@@ -74,19 +74,6 @@ import java.util.Locale
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 全功能播放器中控抽屉（Liquid Glass 玻璃液化质感）：
- * 整合：
- * 1. 播放倍速 (Playback Speed)
- * 2. 睡眠定时 (Sleep Timer)
- * 3. 封面/歌词视图切换 (Cover/Lyrics Toggle)
- * 4. 离线下载 (Download Song)
- * 5. 收藏至歌单 (Add to Playlist)
- * 6. 播放页主题热切 (Player Theme)
- * 7. 播放模式切换 (Play Mode)
- * 8. 歌词字体大小与模糊控制 (Lyrics Font & Blur)
- * 9. 背景画质模糊控制 (Background Blur)
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerControlCenterSheet(
@@ -105,7 +92,6 @@ fun PlayerControlCenterSheet(
     onTogglePlayMode: () -> Unit,
     onDownload: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    /** 当前音质等级（与设置页同一份设置，改这里等于改全局音质） */
     currentQuality: QualityLevel,
     onQualityChange: (QualityLevel) -> Unit,
     currentLyricFontSize: LyricFontSize,
@@ -166,7 +152,6 @@ fun PlayerControlCenterSheet(
                 .padding(top = AppSpacing.lg, bottom = AppSpacing.section)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // 顶栏拖动把手 (Liquid Capsule)
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -177,7 +162,6 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(AppSpacing.xl))
 
-            // 标题与歌曲信息栏
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -230,7 +214,6 @@ fun PlayerControlCenterSheet(
                     )
                 }
 
-                // 关闭按钮
                 Box(
                     modifier = Modifier
                         .size(34.dp)
@@ -250,12 +233,10 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(AppSpacing.xxxl))
 
-            // 第一板块：4 个快捷功能液化磁贴
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             ) {
-                // 1. 切换封面/歌词
                 LiquidTile(
                     modifier = Modifier.weight(1f),
                     icon = if (showLyric) Icons.Filled.Album else Icons.Filled.Lyrics,
@@ -265,7 +246,6 @@ fun PlayerControlCenterSheet(
                     onClick = onToggleLyric,
                 )
 
-                // 2. 播放顺序
                 val (modeIcon, modeText) = when (playMode) {
                     PlayMode.SEQUENCE -> Icons.Filled.Repeat to "顺序播放"
                     PlayMode.REPEAT -> Icons.Filled.RepeatOne to "单曲循环"
@@ -287,7 +267,6 @@ fun PlayerControlCenterSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             ) {
-                // 3. 下载当前单曲
                 LiquidTile(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Download,
@@ -297,7 +276,6 @@ fun PlayerControlCenterSheet(
                     onClick = onDownload,
                 )
 
-                // 4. 添加到歌单
                 LiquidTile(
                     modifier = Modifier.weight(1f),
                     icon = Icons.AutoMirrored.Filled.PlaylistAdd,
@@ -310,9 +288,6 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(AppSpacing.page))
 
-            // 第二板块：音质（GZ 播放页也有音质可选）
-            // 为什么放在中控台而不是设置页：音质是"这首/此刻"的诉求（耳机/外放/流量），
-            // 藏在设置深处会让人每次都翻两层菜单。切换后会从当前位置重播（见 PlayerManager）。
             SectionHeader(
                 icon = Icons.Filled.HighQuality,
                 title = "播放音质",
@@ -327,7 +302,6 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(AppSpacing.page))
 
-            // 第三板块：播放倍速分段控制器
             SectionHeader(
                 icon = Icons.Filled.Speed,
                 title = "播放倍速",
@@ -341,7 +315,6 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(AppSpacing.page))
 
-            // 第三板块：睡眠定时
             SectionHeader(
                 icon = Icons.Filled.Bedtime,
                 title = "睡眠定时",
@@ -359,7 +332,6 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(AppSpacing.page))
 
-            // 第四板块：播放页主题切换
             SectionHeader(
                 icon = Icons.Filled.Palette,
                 title = "播放页主题",
@@ -373,7 +345,6 @@ fun PlayerControlCenterSheet(
 
             Spacer(Modifier.height(AppSpacing.page))
 
-            // 第五板块：歌词与视觉个性化
             SectionHeader(
                 icon = Icons.Filled.FormatSize,
                 title = "歌词字体大小",
@@ -429,7 +400,6 @@ fun PlayerControlCenterSheet(
     }
 }
 
-/** 格式化睡眠定时剩余时间 */
 private fun formatTimer(ms: Long): String {
     val totalSec = (ms / 1000).coerceAtLeast(0)
     val m = totalSec / 60
@@ -437,7 +407,6 @@ private fun formatTimer(ms: Long): String {
     return String.format(Locale.US, "%02d:%02d", m, s)
 }
 
-/** 分区标题栏 */
 @Composable
 private fun SectionHeader(
     icon: ImageVector,
@@ -496,7 +465,6 @@ private fun SectionHeader(
     }
 }
 
-/** 液化玻璃磁贴 */
 @Composable
 private fun LiquidTile(
     icon: ImageVector,
@@ -586,7 +554,6 @@ private fun LiquidTile(
     }
 }
 
-/** 液化分段倍速控制条 */
 @Composable
 private fun LiquidSpeedSegmentedBar(
     currentSpeed: Float,
@@ -644,7 +611,6 @@ private fun LiquidSpeedSegmentedBar(
     }
 }
 
-/** 液化睡眠定时快捷选项条 */
 @Composable
 private fun LiquidSleepTimerBar(
     sleepRemainingMs: Long,
@@ -681,7 +647,6 @@ private fun LiquidSleepTimerBar(
     }
 }
 
-/** 液化播放页主题卡片 */
 @Composable
 private fun LiquidThemeCards(
     currentTheme: PlayerTheme,
@@ -774,7 +739,6 @@ private fun LiquidThemeCards(
                         }
                     }
 
-                    // 迷你卡片装饰
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
@@ -812,7 +776,6 @@ private fun LiquidThemeCards(
     }
 }
 
-/** 液化通用选项分段控制条 */
 @Composable
 private fun <T> LiquidOptionSegmentedBar(
     options: List<Pair<T, String>>,

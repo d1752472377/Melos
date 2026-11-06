@@ -9,7 +9,6 @@ import com.aesthetic.music.data.settings.DownloadFailurePolicy
 import com.aesthetic.music.data.settings.DownloadNaming
 import com.aesthetic.music.data.settings.UserPrefs
 
-/** 下载与缓存设置页：边听边下 / 命名规则 / 封面与歌词 / 失败策略 / 仅 WiFi */
 @Composable
 fun DownloadSettingsScreen(
     prefs: UserPrefs,

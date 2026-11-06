@@ -50,11 +50,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 缓存管理页：展示缓存总占用，点击打开抽屉看三类明细并可分别/一键清理。
- *
- * 数据与清理动作都由 destination 提供（需要 Context / 协程），这里只负责呈现。
- */
 @Composable
 fun CacheManageScreen(
     breakdown: CacheCenter.Breakdown?,
@@ -70,12 +65,9 @@ fun CacheManageScreen(
     onClearTemp: () -> Unit,
     onClearAll: () -> Unit,
     onOpenCachedSongs: () -> Unit,
-    /** 当前缓存上限（字节），由 SettingsController 统一持有 */
     cacheLimitBytes: Long,
-    /** 用户修改缓存上限（字节）：保存并立即按新上限清理一次 */
     onCacheLimitChange: (Long) -> Unit = {},
 ) {
-    // 缓存上限（默认 2GB）：超过按最旧自动清理
     val limitPresets = listOf(
         "512M" to 512L * 1024 * 1024,
         "1G" to 1024L * 1024 * 1024,
@@ -86,7 +78,6 @@ fun CacheManageScreen(
     var cacheLimit by remember(cacheLimitBytes) { mutableLongStateOf(cacheLimitBytes) }
 
     SettingsPageScaffold(title = "缓存管理", subtitle = "查看占用并清理本地缓存", onBack = onBack) {
-        // ===== 总占用卡片 =====
         SettingsSection {
             Column(
                 modifier = Modifier
@@ -151,7 +142,6 @@ fun CacheManageScreen(
 
         SettingsGap()
 
-        // ===== 缓存上限（超过自动按最旧淘汰） =====
         SettingsSection(title = "缓存上限") {
             Column(Modifier.padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg)) {
                 Text(
@@ -230,7 +220,6 @@ fun CacheManageScreen(
     }
 }
 
-/** 三色占比条：一眼看出谁占地方 */
 @Composable
 private fun CacheRatioBar(breakdown: CacheCenter.Breakdown) {
     val total = breakdown.total.coerceAtLeast(1L)
@@ -272,7 +261,6 @@ private fun RatioLegend(label: String, size: Long, color: Color) {
     }
 }
 
-/** 缓存明细抽屉：三类各自的大小 + 单独清理 */
 @Composable
 private fun CacheDetailSheet(
     breakdown: CacheCenter.Breakdown?,
@@ -373,7 +361,6 @@ private fun CacheDetailRow(
     }
 }
 
-/** 清理确认弹窗（供 destination 复用，避免"点了就没了"的误操作） */
 @Composable
 fun CacheClearConfirmDialog(
     title: String,

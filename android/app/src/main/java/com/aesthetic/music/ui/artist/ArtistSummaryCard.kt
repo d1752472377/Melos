@@ -44,10 +44,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 歌手信息卡片（歌手页 / 全部演唱页共用）：
- * 拟态毛玻璃头像 + 名字/别名 + 单曲数，下排「播放全部 / 随机播放 / 搜索」。
- */
 @Composable
 fun ArtistSummaryCard(
     name: String,

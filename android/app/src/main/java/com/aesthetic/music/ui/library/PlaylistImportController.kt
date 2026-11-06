@@ -12,14 +12,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** 外部歌单（链接/文案）解析与导入状态 */
 sealed interface PlaylistResolveState {
 
     data object Idle : PlaylistResolveState
 
     data object Loading : PlaylistResolveState
 
-    /** 解析成功：歌单名 / 封面 / 曲目均已抓到，可直接落成本地歌单 */
     data class Ready(
         val platform: String,
         val sourcePlaylistId: String,
@@ -33,29 +31,16 @@ sealed interface PlaylistResolveState {
     data class Failed(val message: String) : PlaylistResolveState
 }
 
-/**
- * 外部歌单导入控制器。
- *
- * 两条链路的归属刻意不同，别混：
- * - [resolveForPreview]：「新建歌单」表单里的**可选**导入，只回填名字/封面/曲目给用户预览与修改，
- *   用户点保存后才由 `LibraryController.createPlaylist` 落成**自建歌单**（来源平台与原始 ID 一并记录）；
- * - [importFromText]：「导入歌单」弹窗（收藏歌单页的入口），导入结果是**收藏歌单**——
- *   它只是把平台上的歌单收进来听，不该混进"我自己建的歌单"。
- */
 class PlaylistImportController(
     private val repository: MusicRepository,
     private val scope: CoroutineScope,
-    /** 一次性提示（导入完成/失败） */
     private val onToast: (String) -> Unit,
-    /** 加入收藏歌单（已存在则刷新信息）；由 LibraryController 实现 */
     private val onCollectPlaylist: (PlaylistItem) -> Unit,
 ) {
 
-    /** 「新建歌单」里的可选导入状态 */
     private val _preview = MutableStateFlow<PlaylistResolveState>(PlaylistResolveState.Idle)
     val preview: StateFlow<PlaylistResolveState> = _preview.asStateFlow()
 
-    /** 「导入歌单」弹窗状态 */
     private val _import = MutableStateFlow<PlaylistResolveState>(PlaylistResolveState.Idle)
     val importState: StateFlow<PlaylistResolveState> = _import.asStateFlow()
 
@@ -69,7 +54,6 @@ class PlaylistImportController(
         _import.value = PlaylistResolveState.Idle
     }
 
-    /** 导入并收藏：抓到歌单名/封面/曲目后加入收藏歌单，成功后回调收藏条目（供跳转详情） */
     fun importFromText(text: String, onImported: (PlaylistItem) -> Unit) {
         _import.value = PlaylistResolveState.Loading
         scope.launch {
@@ -87,7 +71,6 @@ class PlaylistImportController(
                         _import.value = PlaylistResolveState.Failed("该歌单没有可导入的歌曲")
                         return@onSuccess
                     }
-                    // 名字优先级：平台抓到的真名 > 分享文案里的名字 > 兜底名
                     val name = data.info?.name.orEmpty()
                         .ifBlank { link.titleHint.orEmpty() }
                         .ifBlank { "${link.platformName}歌单" }
@@ -153,10 +136,6 @@ class PlaylistImportController(
         }
     }
 
-    /**
-     * 解析链接：先按文案直接识别；识别不出平台时再尝试展开跳转（短链，如 `163cn.tv/xxx`）后重试。
-     * 短链本身就带不出平台与歌单 ID，只有跟着跳转拿到最终地址才能导入。
-     */
     private suspend fun resolveLink(text: String): PlaylistLink? {
         PlaylistLinkParser.parse(text)?.let { return it }
         val url = PlaylistLinkParser.firstUrl(text) ?: return null

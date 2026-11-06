@@ -29,11 +29,6 @@ import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextFaint
 
-/**
- * 2x2 四宫格封面组件：
- * 从封面列表中提取最多前 4 张图片拼贴成一个方形圆角封面卡片；
- * 当封面只有 1 张时展示单张；为空时展示默认占位图。
- */
 @Composable
 fun QuadCover(
     covers: List<String?>,
@@ -67,7 +62,6 @@ fun QuadCover(
                 )
             }
             else -> {
-                // 2x2 四宫格拼贴
                 val c0 = validCovers.getOrNull(0)
                 val c1 = validCovers.getOrNull(1) ?: c0
                 val c2 = validCovers.getOrNull(2) ?: c0
@@ -95,7 +89,6 @@ private fun AsyncCoverImage(
 ) {
     val context = LocalContext.current
     if (!url.isNullOrBlank()) {
-        // 歌单自选封面可能是内联 data URL（见 PlaylistCoverImage），这里也要能画
         if (isInlineImage(url)) {
             val bitmap = remember(url) { decodeInlineImage(url) }
             if (bitmap != null) {

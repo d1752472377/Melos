@@ -3,12 +3,6 @@ package com.aesthetic.music.data.settings
 import android.content.Context
 import android.content.SharedPreferences
 
-/**
- * 「猜你喜欢」已推荐过的歌曲记忆（`platform:songId` 键集合）。
- *
- * 没有这张表，「换一批」会因为种子不变而反复返回同一批结果。
- * 最多保留 [MAX_KEYS] 条，按写入顺序丢最旧的。
- */
 object GuessHistoryStore {
 
     private const val PREFS = "aesthetic_music_guess"
@@ -21,7 +15,6 @@ object GuessHistoryStore {
         prefs = PrefsJson.prefs(context, PREFS)
     }
 
-    /** 已推荐过的键（解析失败按空处理，绝不让推荐页因为脏数据打不开） */
     fun load(): Set<String> {
         val list = PrefsJson.load<List<String>>(
             prefs,
@@ -32,7 +25,6 @@ object GuessHistoryStore {
         return list.filter { it.isNotBlank() }.toSet()
     }
 
-    /** 追加一批已推荐的键（去重 + 截断到 [MAX_KEYS]，保留最新的） */
     fun record(keys: Collection<String>) {
         if (keys.isEmpty()) return
         val merged = LinkedHashSet(load())

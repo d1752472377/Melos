@@ -71,14 +71,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 歌手页：参考「我的收藏」的版式。
- *
- * 1. 顶部大标题（无返回按钮，回退交给系统手势 / 返回键）；
- * 2. 歌手信息卡片：头像 + 名字/别名 + 单曲数 + 播放全部 / 随机播放 / 搜索；
- * 3. 「热门单曲」标题 + 歌曲列表（复用 SongRow，右侧「...」打开单曲操作抽屉）；
- *    搜索时在页内过滤，列表本身样式不变。
- */
 @Composable
 fun ArtistScreen(
     name: String,
@@ -99,12 +91,10 @@ fun ArtistScreen(
     var searchQuery by remember { mutableStateOf("") }
     val searchFocus = remember { FocusRequester() }
 
-    // 点「搜索」展开后自动聚焦，省去再点一次输入框
     LaunchedEffect(isSearchExpanded) {
         if (isSearchExpanded) searchFocus.requestFocus()
     }
 
-    // 页内过滤：搜歌名 / 歌手 / 专辑
     val visibleSongs = remember(songs, searchQuery) {
         val q = searchQuery.trim()
         if (q.isEmpty()) {
@@ -130,7 +120,6 @@ fun ArtistScreen(
                 .fillMaxSize()
                 .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
-            // ===== 1. 顶部大标题（与「我的收藏」一致，不再有返回按钮） =====
             Text(
                 text = "歌手详情",
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -143,7 +132,6 @@ fun ArtistScreen(
 
             Spacer(Modifier.height(AppSpacing.xxl))
 
-            // ===== 2. 歌手信息卡片：名字/别名 + 单曲数 + 播放全部/随机播放/搜索 =====
             ArtistSummaryCard(
                 name = name,
                 alias = alias,
@@ -159,7 +147,6 @@ fun ArtistScreen(
                 modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
-            // ===== 2.5 列表内搜索（点卡片的「搜索」展开） =====
             if (isSearchExpanded) {
                 Spacer(Modifier.height(AppSpacing.xl))
                 ListSearchBar(
@@ -173,7 +160,6 @@ fun ArtistScreen(
 
             Spacer(Modifier.height(AppSpacing.xxxl))
 
-            // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -200,8 +186,6 @@ fun ArtistScreen(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-
-            // 热门歌曲列表
             if (isLoading && songs.isEmpty()) {
                 LoadingBox(message = "探索音乐库中…")
             } else if (!isLoading && songs.isEmpty()) {
@@ -210,7 +194,6 @@ fun ArtistScreen(
                     onRetry = if (errorMessage != null) onRetry else null,
                 )
             } else {
-                // 现代拟态毛玻璃容器：左右边距悬浮、大圆角上沿
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -259,7 +242,6 @@ fun ArtistScreen(
                                 )
                             }
                         }
-                        // 最后一项：全部演唱
                         item(key = "all_songs_footer") {
                             Row(
                                 modifier = Modifier

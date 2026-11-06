@@ -67,18 +67,10 @@ private val ThemeMode.label: String
         ThemeMode.DARK -> "深色"
     }
 
-/** 设置主页可跳转的子页面 */
 enum class SettingsPage {
     APPEARANCE, QUALITY, PLAYBACK, LYRICS, DOWNLOAD, CACHE
 }
 
-/**
- * 设置主页。
- *
- * 结构：常用设置（各项独立成页）→ 关于。
- * 「插件管理」「账号与同步」不再放这里：二者在个人页都有入口，属于同一功能开两个入口。
- * 「桌面悬浮胶囊」已整体移除。本页只显示每项的当前状态摘要，设置项本身各自独立成页。
- */
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
@@ -126,7 +118,6 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(AppSpacing.xxxl))
 
-        // ===== 常用设置：各项已独立成子页面，这里只放入口 =====
         SectionCard(title = "常用设置") {
             SettingRow(
                 icon = Icons.Filled.Palette,
@@ -185,7 +176,6 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(AppSpacing.xl))
 
-        // ===== 关于 =====
         SectionCard(title = "关于软件") {
             SettingRow(
                 icon = Icons.Filled.SystemUpdate,

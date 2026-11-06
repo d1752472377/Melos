@@ -1,22 +1,15 @@
 package com.aesthetic.music.ui.navigation
 
-/**
- * 应用页面路由定义：
- * 规范统一管理应用内所有导航目标，替代旧版脆弱的 if-else 覆盖。
- */
 sealed class ScreenRoute(val route: String) {
-    // 底部四大主要 Tab
     data object Home : ScreenRoute("home")
     data object Fm : ScreenRoute("fm")
     data object Playlist : ScreenRoute("playlist")
     data object Profile : ScreenRoute("profile")
 
-    // 独立二级详情页
     data object Search : ScreenRoute("search")
     data object Ranks : ScreenRoute("ranks")
-    /** 猜你喜欢（首页三大入口第一张卡进入；推荐算法见 ui/guess/GuessRecommend） */
     data object GuessYouLike : ScreenRoute("guess_you_like")
-    data object SheetSquare : ScreenRoute("sheet_square") // 歌单广场
+    data object SheetSquare : ScreenRoute("sheet_square")
     data object PlaylistDetail : ScreenRoute("playlist_detail")
     data object AlbumDetail : ScreenRoute("album_detail")
     data object ArtistDetail : ScreenRoute("artist_detail")
@@ -25,7 +18,6 @@ sealed class ScreenRoute(val route: String) {
     data object CacheList : ScreenRoute("cache_list")
     data object History : ScreenRoute("history")
     data object Settings : ScreenRoute("settings")
-    // 设置子页面
     data object SettingsAppearance : ScreenRoute("settings_appearance")
     data object SettingsQuality : ScreenRoute("settings_quality")
     data object SettingsPlayback : ScreenRoute("settings_playback")

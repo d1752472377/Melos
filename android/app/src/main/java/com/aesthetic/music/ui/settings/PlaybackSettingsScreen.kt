@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.runtime.Composable
 
-/** 播放设置页：预加载 / 淡入淡出 / 打断自动恢复 / 混合播放 */
 @Composable
 fun PlaybackSettingsScreen(
     prefs: com.aesthetic.music.data.settings.UserPrefs,

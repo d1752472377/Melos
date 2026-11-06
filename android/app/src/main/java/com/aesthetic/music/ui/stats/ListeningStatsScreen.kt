@@ -65,14 +65,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 听歌统计页（重写版）。
- *
- * 页面结构：累计概览（含今日/本周/本月）→ 30 天趋势（可点柱子下钻单日）
- * → 近三月对比 → 歌曲排行 → 时段分布。
- *
- * 所有数字都来自 [StatsStore] 的真实记录。
- */
 @Composable
 fun ListeningStatsScreen(
     stats: ListeningStats,
@@ -117,7 +109,6 @@ fun ListeningStatsScreen(
         ) {
             StatsHeader(onBack = onBack)
 
-            // ===== 累计概览（含今日/本周/本月） =====
             StatsHeroCard(
                 stats = stats,
                 spanDays = spanDays,
@@ -129,7 +120,6 @@ fun ListeningStatsScreen(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-            // ===== 30 天趋势 =====
             StatsGlassCard {
                 StatsSectionTitle(
                     title = "近 ${ListeningInsights.TREND_DAYS} 天收听趋势",
@@ -152,7 +142,6 @@ fun ListeningStatsScreen(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-            // ===== 近三月对比 =====
             StatsGlassCard {
                 val maxMonth = months.maxOfOrNull { it.durationMs } ?: 0L
                 StatsSectionTitle(
@@ -180,7 +169,6 @@ fun ListeningStatsScreen(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-            // ===== 歌曲排行 =====
             StatsGlassCard {
                 StatsSectionTitle(
                     title = "最常听的歌",
@@ -216,7 +204,6 @@ fun ListeningStatsScreen(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-            // ===== 时段分布 =====
             StatsGlassCard {
                 StatsSectionTitle(
                     title = "时段分布",
@@ -267,8 +254,6 @@ fun ListeningStatsScreen(
     }
 }
 
-// ==================== 顶部 ====================
-
 @Composable
 private fun StatsHeader(onBack: () -> Unit) {
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -306,7 +291,6 @@ private fun StatsHeader(onBack: () -> Unit) {
     }
 }
 
-/** 右上角状态：记录中（薄荷绿）/ 已暂停（珊瑚红） */
 @Composable
 private fun StatRecordingBadge(recording: Boolean) {
     val color = if (recording) AccentMint else AccentCoral
@@ -332,8 +316,6 @@ private fun StatRecordingBadge(recording: Boolean) {
     }
 }
 
-// ==================== 累计概览（含今日/本周/本月） ====================
-
 @Composable
 private fun StatsHeroCard(
     stats: ListeningStats,
@@ -344,7 +326,6 @@ private fun StatsHeroCard(
     monthSum: RangeSummary,
 ) {
     StatsGlassCard {
-        // 顶部：图标 + 标题/副标题 + 记录状态
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -382,12 +363,10 @@ private fun StatsHeroCard(
 
         Spacer(Modifier.height(AppSpacing.xxl))
 
-        // 大数字
         StatsBigDuration(ms = stats.totalListenMs)
 
         Spacer(Modifier.height(AppSpacing.sm))
 
-        // 一行汇总
         Text(
             text = if (stats.isEmpty) {
                 "数据只存在本机，未登录也不影响统计"
@@ -400,7 +379,6 @@ private fun StatsHeroCard(
 
         Spacer(Modifier.height(AppSpacing.xxxl))
 
-        // 今日 / 本周 / 本月
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
@@ -429,8 +407,6 @@ private fun StatsHeroCard(
         }
     }
 }
-
-// ==================== 今日/本周/本月小卡 ====================
 
 @Composable
 private fun QuickSliceCard(
@@ -468,8 +444,6 @@ private fun QuickSliceCard(
         )
     }
 }
-
-// ==================== 完整排行抽屉 ====================
 
 @Composable
 private fun SongRankingSheet(songs: List<SongStat>, onDismiss: () -> Unit) {
@@ -518,8 +492,6 @@ private fun SongRankingSheet(songs: List<SongStat>, onDismiss: () -> Unit) {
         }
     }
 }
-
-// ==================== 单日日记抽屉 ====================
 
 @Composable
 private fun DayDetailSheet(day: String, stat: DayStat?, onDismiss: () -> Unit) {
@@ -691,8 +663,6 @@ private fun DaySongRow(rank: Int, song: SongStat) {
         }
     }
 }
-
-// ==================== 文案 ====================
 
 private fun slotPersona(slotLabel: String, percent: Int): String = when (slotLabel) {
     "凌晨" -> "你常在凌晨听歌——占比 $percent%，是标准的深夜听众。"

@@ -14,11 +14,6 @@ import androidx.compose.ui.node.invalidateDraw
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/**
- * 全局微动缩放反馈（无阴影闪烁）：
- * 点击/按下时平滑微缩（scale 0.95f），松手弹性回弹（scale 1.0f）。
- * 彻底消除 Android 默认灰白闪烁的波纹/阴影，实现类似 iOS 图标与控件的灵动触觉微动反馈。
- */
 object ScaleIndication : IndicationNodeFactory {
     override fun create(interactionSource: InteractionSource): Modifier.Node {
         return ScaleIndicationNode(interactionSource)
@@ -41,7 +36,6 @@ private class ScaleIndicationNode(
             interactionSource.interactions.collect { interaction ->
                 when (interaction) {
                     is PressInteraction.Press -> {
-                        // 按下立即迅速微缩（scale 0.95f，灵敏响应）
                         scaleAnim.animateTo(
                             targetValue = 0.95f,
                             animationSpec = spring(
@@ -52,12 +46,10 @@ private class ScaleIndicationNode(
                         )
                     }
                     is PressInteraction.Release -> {
-                        // 若轻点过快尚未缩至目标，先确保有微动再弹性回弹
                         if (scaleAnim.value > 0.96f) {
                             scaleAnim.snapTo(0.95f)
                             invalidateDraw()
                         }
-                        // 松手回弹带弹性
                         scaleAnim.animateTo(
                             targetValue = 1f,
                             animationSpec = spring(

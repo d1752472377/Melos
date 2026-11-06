@@ -8,7 +8,6 @@ import androidx.compose.ui.unit.dp
 import com.aesthetic.music.data.settings.QualityLevel
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/** 音质设置页：当前仅音质等级可选，更多音质选项留待后续补充 */
 @Composable
 fun QualitySettingsScreen(
     quality: QualityLevel,

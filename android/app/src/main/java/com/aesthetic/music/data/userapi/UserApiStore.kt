@@ -5,9 +5,6 @@ import android.content.SharedPreferences
 import com.aesthetic.music.data.AppJson
 import java.io.File
 
-/**
- * 音源脚本元数据模型
- */
 data class ScriptMetadata(
     val id: String = "",
     val name: String = "自定义音源",
@@ -19,11 +16,6 @@ data class ScriptMetadata(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
-/**
- * 本地自定义音源脚本持久化存储：
- * - 脚本 JS 源码存储在 Context filesDir/active_user_api.js，避免大文件撑爆 SharedPreferences
- * - 脚本元信息存入 SharedPreferences 供快速读取展示
- */
 object UserApiStore {
 
     private const val PREFS = "aesthetic_music_user_api"
@@ -41,13 +33,6 @@ object UserApiStore {
         }
     }
 
-    /**
-     * 获取当前保存在本地的脚本源码
-     *
-     * ⚠ 这是**旧版单脚本**存储。自多插件模型（data/source/SourceRegistryStore）上线后，
-     * 本 store 只剩一个职责：升级时把用户原有的那份脚本迁移成插件（见 SourceRegistryStore.migrateLegacy）。
-     * 因此这里只有"读"，写入/删除已移除——避免再出现两处都在写同一份脚本的错位。
-     */
     fun getScriptContent(): String? {
         return try {
             if (scriptFile?.exists() == true) {
@@ -61,9 +46,6 @@ object UserApiStore {
         }
     }
 
-    /**
-     * 获取当前脚本元数据
-     */
     fun getMetadata(): ScriptMetadata? {
         val raw = prefs?.getString(KEY_META, null) ?: return null
         return try {
@@ -73,9 +55,6 @@ object UserApiStore {
         }
     }
 
-    /**
-     * 从脚本代码头部的注释解析元信息（支持 @name, @version, @description, @author 等）
-     */
     fun parseScriptHeader(content: String): ScriptMetadata {
         val headerRegex = Regex("""/\*!([\s\S]*?)\*/""")
         val match = headerRegex.find(content)

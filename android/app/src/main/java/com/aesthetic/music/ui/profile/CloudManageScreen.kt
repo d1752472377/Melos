@@ -70,14 +70,6 @@ import java.util.Date
 import java.util.Locale
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 账号与云端同步页（云端优先现代重构）。
- *
- * 彻底移除技术说教与冗余配置：
- * 1. 后端服务默认连接，无需手动输入服务器地址或测试连通性；
- * 2. 移除离线优先时代的"清空本地数据"，全面以云端账号为准；
- * 3. 聚焦核心诉求：账号状态、一键云同步、多端在线设备管理、退出登录。
- */
 @Composable
 fun CloudManageScreen(
     user: UserInfo? = null,
@@ -146,7 +138,6 @@ fun CloudManageScreen(
     ) {
         HomeAmbientGlowBackground()
         Column(modifier = Modifier.fillMaxSize()) {
-            // ===== 顶栏：与排行榜/歌单广场等二级页完全一致（见 SecondaryPageTopBar）=====
             SecondaryPageTopBar(title = "账号与云端同步", onBack = onBack)
 
             Column(
@@ -156,7 +147,6 @@ fun CloudManageScreen(
                     .padding(bottom = BottomContentSpacer)
                     .verticalScroll(rememberScrollState()),
             ) {
-            // ===== 1. 账号概览与同步状态卡片 =====
             SectionCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -188,7 +178,6 @@ fun CloudManageScreen(
                                 color = TextPrimary,
                             )
                             Spacer(Modifier.width(AppSpacing.sm))
-                            // 云端连接健康徽章
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
@@ -233,7 +222,6 @@ fun CloudManageScreen(
 
                 Spacer(Modifier.height(AppSpacing.xxl))
 
-                // 同步状态信息
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -336,7 +324,6 @@ fun CloudManageScreen(
                 }
             }
 
-            // ===== 2. 活跃多端设备列表 =====
             if (showSessions) {
                 Spacer(Modifier.height(AppSpacing.xxl))
                 SectionCard {
@@ -451,7 +438,6 @@ fun CloudManageScreen(
                 }
             }
 
-            // ===== 3. 云端漫游数据清单 =====
             Spacer(Modifier.height(AppSpacing.xxl))
             SectionCard {
                 Column {
@@ -512,7 +498,6 @@ fun CloudManageScreen(
                 }
             }
 
-            // ===== 4. 退出登录卡片 =====
             Spacer(Modifier.height(AppSpacing.xxl))
             SectionCard {
                 Row(

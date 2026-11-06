@@ -9,12 +9,6 @@ import com.aesthetic.music.data.settings.StatusBarMode
 import com.aesthetic.music.data.settings.ThemeMode
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 主题与外观设置页：主题模式 / 系统状态栏。
- *
- * 两个分段选择都由外部传入当前值（而不是本页去 SettingsStore 一次性读快照）：
- * 读快照的话改完设置不会触发重组，选中态要退出页面再进来才更新。
- */
 @Composable
 fun AppearanceSettingsScreen(
     themeMode: ThemeMode,

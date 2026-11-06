@@ -18,23 +18,10 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/**
- * 音频缓存服务（移植自参考 App 的 AudioCacheService）：
- * - 缓存目录 cacheDir/audio_cache，索引 _index.json
- * - 文件命名 "歌名-歌手.ext"，下载到 .tmp 成功后重命名
- * - 播放前查缓存命中（>10KB 才有效），命中直接播本地文件秒开；
- *   未命中播在线 URL，后台异步下载缓存（不阻塞播放）
- * - 索引常驻内存：首次访问读盘一次，之后所有查询零磁盘 I/O，
- *   写入同步落盘 + 更新内存，全程单把锁保证一致
- * - 缓存总量超上限（默认 2GB）时，按最后修改时间从旧到新自动清理
- */
 object AudioCacheService {
 
     private const val INDEX_FILE_NAME = "_index.json"
 
-    /** 缓存目录总大小上限：超过后自动删除最旧的音频文件 */
-
-    /** 平台 id（管理后台可自定义，可能含下划线），用作 key 分隔符的平台白名单 */
     private val KNOWN_PLATFORMS = setOf("kuwo", "netease", "chksz", "qq", "kugou")
 
     private data class CacheEntry(
@@ -44,7 +31,6 @@ object AudioCacheService {
         val songId: String,
         val filePath: String,
         val fileSize: Long,
-        /** true = 用户主动点下载（进「我的下载」页）；false = 播放时边听边下的缓存 */
         val manual: Boolean = false,
     )
 
@@ -56,12 +42,8 @@ object AudioCacheService {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    /** 进行中的缓存下载（key=缓存键）：切歌时取消上一首的下载，
-     *  此前每次 cacheAudio 独立 launch 且不可取消，快速切歌会堆积并发整曲下载抢带宽 */
     private val downloadJobs = HashMap<String, kotlinx.coroutines.Job>()
 
-    /** 当前正在播放的缓存文件路径：容量清理时跳过，
-     *  防止"正在播 A（本地缓存）、同时后台下载 B 触发容量清理"时把 A 删掉导致读失败 */
     @Volatile
     private var protectedPath: String? = null
 
@@ -79,11 +61,6 @@ object AudioCacheService {
 
     private fun indexFile(context: Context) = File(cacheDir(context), INDEX_FILE_NAME)
 
-    /**
-     * 索引 key：platform / songId / quality 用 \u0001 分隔（各字段中都不会出现该字符），
-     * 避免平台或歌曲 id 含下划线时的 key 碰撞；加音质维度后，
-     * 切换音质设置不会误用旧音质缓存文件（直链按音质区分，文件内容不同）。
-     */
     private fun cacheKey(platformCode: String, songId: String, quality: String) =
         "$platformCode\u0001$songId\u0001$quality"
 
@@ -126,7 +103,6 @@ object AudioCacheService {
     private fun <T> queryIndex(context: Context, block: (Map<String, CacheEntry>) -> T): T =
         synchronized(indexLock) { block(getIndexLocked(context)) }
 
-    /** 锁内修改索引并落盘（落盘失败不影响内存一致性） */
     private fun mutateIndex(context: Context, block: (MutableMap<String, CacheEntry>) -> Unit) {
         synchronized(indexLock) {
             val index = getIndexLocked(context)
@@ -149,9 +125,6 @@ object AudioCacheService {
         return "mp3"
     }
 
-    /** 按 UTF-8 字节预算截断（ext4 文件名上限 255 字节；CJK 每字占 3 字节，
-     *  此前按字符 take(60) 裁剪，"60 汉字歌名 + 60 汉字歌手"=360 字节必然超限，
-     *  中文长歌名缓存静默 100% 失败） */
     private fun truncateBytes(s: String, maxBytes: Int): String {
         val bytes = s.toByteArray(Charsets.UTF_8)
         if (bytes.size <= maxBytes) return s
@@ -166,7 +139,6 @@ object AudioCacheService {
         return sb.toString()
     }
 
-    /** 文件名校净化：非法字符 + 控制字符替换、空白折叠、按字节预算裁剪 */
     private fun sanitize(name: String, maxBytes: Int = 60): String =
         // 注意：raw string 不做 \uXXXX 转义，控制字符范围必须用普通字符串
         truncateBytes(
@@ -176,8 +148,6 @@ object AudioCacheService {
             maxBytes,
         )
 
-    /** 缓存文件基础名：按「下载设置 → 缓存文件命名」生成，末尾附 songId 防同名覆盖。
-     *  字节预算：标题 60 + '-' + 歌手 40 + '-' + id 20 + 扩展名 5 = 126 字节，远低于 255 上限 */
     private fun baseFileName(name: String, artist: String, songId: String): String {
         val title = sanitize(name.ifBlank { "未知歌曲" }, 60)
         val singer = sanitize(artist.ifBlank { "未知歌手" }, 40)
@@ -190,7 +160,6 @@ object AudioCacheService {
         return "$stem-$id"
     }
 
-    /** 检查是否已有缓存，返回本地文件路径（不存在/过小返回 null）。索引走内存，无重复读盘 */
     fun getCachedPath(context: Context, platformCode: String, songId: String, quality: String): String? {
         return try {
             val entry = queryIndex(context) { it[cacheKey(platformCode, songId, quality)] } ?: return null
@@ -201,8 +170,6 @@ object AudioCacheService {
         }
     }
 
-    /** 后台异步下载缓存（不阻塞调用方），完成后回调本地路径（失败回调 null）。
-     *  同一 key 再次缓存时先取消上一次未完成的下载 */
     fun cacheAudio(
         context: Context,
         platformCode: String,
@@ -212,12 +179,10 @@ object AudioCacheService {
         artist: String,
         quality: String,
         scope: CoroutineScope,
-        /** true = 用户主动下载：不受「边听边下」限制，但仍受「仅 WiFi」限制 */
         manual: Boolean = false,
         onDone: (String?) -> Unit,
     ) {
         if (url.isBlank()) { onDone(null); return }
-        // 省流闸门：所有缓存入口都经过这里，避免某条路径绕过「边听边下 / 仅 WiFi」
         val prefs = SettingsStore.readPrefs()
         if (!DownloadPolicy.allowed(context, prefs, manual)) {
             onDone(null)
@@ -232,7 +197,6 @@ object AudioCacheService {
             val ext = extractExt(url)
             val baseName = baseFileName(name, artist, songId)
             var done: String? = null
-            // 失败策略：自动重试 = 首次 + 最多 2 次重试（递增退避）；其余策略只尝试一次
             val maxAttempts =
                 if (prefs.downloadFailurePolicy == DownloadFailurePolicy.RETRY) 3 else 1
             var lastError: Throwable? = null
@@ -240,14 +204,12 @@ object AudioCacheService {
             // 清理逻辑也用到它，声明必须提到 try 之前
             val selfJob = coroutineContext[kotlinx.coroutines.Job]
             try {
-                // 已有缓存直接返回
                 getCachedPath(context, platformCode, songId, quality)?.let { onDone(it); return@launch }
                 synchronized(indexLock) { if (selfJob != null) downloadJobs[key] = selfJob }
 
                 var attempt = 0
                 while (attempt < maxAttempts && done == null) {
                     attempt++
-                    // tmp 文件名带时间戳：同一首歌并发缓存时互不干扰（旧实现共用同名 tmp 会互相覆盖）
                     val tmp = File(dir, "$baseName.$ext.tmp-${System.nanoTime()}")
                     try {
                         tmp.delete()
@@ -260,7 +222,6 @@ object AudioCacheService {
                                 }
                                 if (tmp.length() > 10240) {
                                     val target = File(dir, "$baseName.$ext")
-                                    // 同名目标已存在（并发缓存同一首歌）：先删除再重命名，保证最终文件完整
                                     if (target.exists()) target.delete()
                                     if (tmp.renameTo(target)) {
                                         mutateIndex(context) {
@@ -270,7 +231,6 @@ object AudioCacheService {
                                                 manual = manual,
                                             )
                                         }
-                                        // 容量清理时保护"正在播放"的文件（调用方传入当前播放路径）
                                         enforceCacheLimitIfNeeded(context)
                                         done = target.absolutePath
                                     } else {
@@ -293,7 +253,6 @@ object AudioCacheService {
             } finally {
                 synchronized(indexLock) { if (downloadJobs[key] === selfJob) downloadJobs.remove(key) }
             }
-            // 「提示我」策略下失败要说话；其余策略静默（避免连播时刷屏）
             if (done == null) {
                 LogReporter.w(
                     "AudioCache",
@@ -308,27 +267,20 @@ object AudioCacheService {
         }
     }
 
-    /**
-     * 缓存总量超上限时，把音频文件按最后修改时间从旧到新删除，
-     * 直到回到上限以内；被删文件同步从索引中移除。IO 线程调用。
-     */
     private fun enforceCacheLimitIfNeeded(context: Context) {
         try {
             val files = cacheDir(context).listFiles()
                 ?.filter { it.isFile && it.name != INDEX_FILE_NAME }
                 ?: return
             var total = files.sumOf { it.length() }
-            // 上限可由用户在「缓存管理」页调整（默认 2GB）
             val limit = SettingsStore.readPrefs().cacheLimitBytes
             if (total <= limit) return
             synchronized(indexLock) {
                 val index = getIndexLocked(context)
-                // 预建 filePath -> key 映射，删除循环 O(1) 定位（旧写法 removeAll 是 O(n²)）
                 val keyByPath = HashMap<String, String>(index.size)
                 for ((k, v) in index) keyByPath[v.filePath] = k
                 for (f in files.sortedBy { it.lastModified() }) {
                     if (total <= limit) break
-                    // 跳过正在播放的文件（它同时是"最旧"的可能：整首播完前 lastModified 不更新）
                     if (f.absolutePath == protectedPath) continue
                     val size = f.length()
                     if (f.delete()) {
@@ -359,7 +311,6 @@ object AudioCacheService {
             queryIndex(context) { it.values.toList() }.count { File(it.filePath).exists() }
         } catch (_: Exception) { 0 }
 
-    /** 缓存列表（用于缓存列表页展示），按大小降序 */
     fun listCached(context: Context): List<CachedSong> =
         try {
             queryIndex(context) { it.values.toList() }
@@ -380,7 +331,6 @@ object AudioCacheService {
                 .sortedByDescending { it.size }
         } catch (_: Exception) { emptyList() }
 
-    /** 缓存列表条目（供 UI 展示） */
     data class CachedSong(
         val title: String,
         val artist: String,
@@ -388,11 +338,9 @@ object AudioCacheService {
         val filePath: String,
         val platformCode: String = "",
         val songId: String = "",
-        /** true = 用户主动下载；false = 播放时产生的缓存 */
         val manual: Boolean = false,
     )
 
-    /** 删除单个缓存（按路径），并同步清掉索引条目避免残留 */
     fun removeCacheByPath(context: Context, path: String) {
         try {
             File(path).delete()
@@ -407,15 +355,11 @@ object AudioCacheService {
     }
 
     fun clearCache(context: Context) {
-        // 先取删除前的索引：清空缓存是用户显式动作，要把这些歌的下载记录作为墓碑同步出去；
-        // 清完再取就一条也拿不到了（"云端记录永远删不掉"就是这么来的）
         val removed = try { queryIndex(context) { it.values.toList() } } catch (_: Exception) { emptyList() }
         try {
             cacheDir(context).listFiles()?.forEach { if (it.isFile) it.delete() }
         } catch (_: Exception) {
         }
-        // 同步清空内存索引并回写磁盘 _index.json：此前只清内存，冷启动后旧索引被重新加载
-        //（虽然每条都会经 exists() 校验自愈，但 count/list 在自愈前短暂漂移）
         synchronized(indexLock) {
             indexCache = mutableMapOf()
             try {
@@ -438,12 +382,6 @@ object AudioCacheService {
         }
     }
 
-    /**
-     * 把"用户删掉的缓存条目"记成云同步墓碑（下载记录以 设备id + 平台 + 歌曲id 为键）。
-     *
-     * 只在**用户显式删除**的入口调用：容量上限淘汰（trim）虽然也删文件，
-     * 但那是本地空间管理的副作用，不代表"我不想再要这首歌"，不该把别的设备的记录一起删掉。
-     */
     private fun recordDownloadDeletes(entries: List<CacheEntry>) {
         val valid = entries.filter { it.platformCode.isNotBlank() && it.songId.isNotBlank() }
         if (valid.isEmpty()) return
@@ -454,12 +392,6 @@ object AudioCacheService {
         )
     }
 
-    /**
-     * 文件大小格式化。
-     * 固定 Locale.US：大小是机器可读格式，不应跟随系统语言——
-     * 此前隐式使用默认 Locale，在阿拉伯语/印地语等语系下会输出非拉丁数字或
-     * 逗号小数点（如 "1,5 MB"），缓存页显示异常。
-     */
     fun formatSize(bytes: Long): String = when {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)

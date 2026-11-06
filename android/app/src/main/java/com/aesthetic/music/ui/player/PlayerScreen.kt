@@ -113,7 +113,6 @@ import com.aesthetic.music.ui.theme.AppColors
 @Composable
 fun PlayerScreen(
     state: PlayerState,
-    /** 高频进度流：在播放页内部订阅，避免进度更新向上扩散到 AppShell */
     progressFlow: StateFlow<PlaybackProgress>,
     /** 某首歌是否已收藏。传函数而不是布尔量：队列里每一行都要判断，不能只判断当前曲 */
     isFavorite: (Song) -> Boolean,
@@ -129,11 +128,8 @@ fun PlayerScreen(
     onRemoveFromQueue: (Int) -> Unit,
     onMoveQueueItem: (from: Int, to: Int) -> Unit,
     onClearQueue: () -> Unit,
-    /** 歌词为空且没在加载时补拉一次（修复「首曲没歌词、切歌才有」） */
     onEnsureLyrics: () -> Unit,
-    /** 用户主动点「重新加载」 */
     onReloadLyrics: () -> Unit,
-    /** 当前音质与切换回调（音质是可选项，见中控台「音质」板块） */
     currentQuality: QualityLevel,
     onQualityChange: (QualityLevel) -> Unit,
     currentPlayerTheme: PlayerTheme,
@@ -153,16 +149,13 @@ fun PlayerScreen(
     hazeState: HazeState? = null,
 ) {
     val song = state.currentSong
-    // 进度只在播放页内部收集：每 500ms 一次的更新不会离开本页作用域
     val progress by progressFlow.collectAsState()
     val animatedPositionState = remember { mutableLongStateOf(0L) }
 
-    // 切歌即确保歌词在途：首曲的歌词请求常常和冷启动抢网络，失败后此前就永久空白了
     LaunchedEffect(song?.platform, song?.id) {
         if (song != null) onEnsureLyrics()
     }
 
-    // 帧级平滑插值：逐帧刷新当前毫秒数，供歌词视图绘制平滑字级染色与滚动
     LaunchedEffect(state.isPlaying, progress.positionMs, state.speed) {
         animatedPositionState.longValue = progress.positionMs
         if (state.isPlaying) {
@@ -181,14 +174,11 @@ fun PlayerScreen(
 
     var showLyric by remember { mutableStateOf(true) }
 
-    // 歌词页常亮：歌词是「看着唱 / 躺着看滚动」的场景，屏幕一熄就得抬手点一下。
-    // 只在歌词模式生效（封面模式不需要），离开页面或切回封面时自动复原。
     KeepScreenOn(enabled = showLyric)
     var showQueueSheet by remember { mutableStateOf(false) }
     var showControlCenterSheet by remember { mutableStateOf(false) }
     var showAudioDetailSheet by remember { mutableStateOf(false) }
 
-    // 主题不变时缓存渐变画刷
     val bgGradient: Brush = remember(currentPlayerTheme) {
         when (currentPlayerTheme) {
             PlayerTheme.CLASSIC -> Brush.verticalGradient(listOf(PlayerBg, PlayerBgDark))
@@ -205,10 +195,6 @@ fun PlayerScreen(
         }
     }
 
-    // ───────────────────────────────────────────────
-    // 铁律一：不再全屏消费 pointer 事件。
-    // 透传防护交给内容区自身的 clickable；背景层用一个只吞 tap 的点击层兜底。
-    // ───────────────────────────────────────────────
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -226,7 +212,6 @@ fun PlayerScreen(
                 .background(bgGradient, alpha = if (currentPlayerTheme == PlayerTheme.CLASSIC) 0.85f else 0.72f)
         )
 
-        // 兜底层：只吞 tap，不碰任何 move 事件
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -252,7 +237,6 @@ fun PlayerScreen(
             )
             Spacer(Modifier.height(AppSpacing.md))
 
-            // 歌曲信息
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -347,7 +331,6 @@ fun PlayerScreen(
 
             Spacer(Modifier.height(AppSpacing.xxl))
 
-            // 主内容区域
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -412,7 +395,6 @@ fun PlayerScreen(
             onMove = onMoveQueueItem,
             onClear = {
                 onClearQueue()
-                // 清空后队列没了，抽屉留在屏幕上只会是一张空卡片，直接收起
                 showQueueSheet = false
             },
             onToggleFavorite = onToggleFavorite,
@@ -466,9 +448,6 @@ fun PlayerScreen(
     }
 }
 
-/**
- * 带有手势跟手与单击切换模式的封面 Box
- */
 @Composable
 private fun AnimatedCoverBox(
     artworkUrl: String?,
@@ -484,7 +463,6 @@ private fun AnimatedCoverBox(
     val swipeThreshold = with(LocalDensity.current) { 100.dp.toPx() }
     var containerWidthPx by remember { mutableFloatStateOf(1000f) }
 
-    // 黑胶持续旋转动效
     val vinylRotation = remember { Animatable(0f) }
     LaunchedEffect(isPlaying) {
         if (isPlaying) {

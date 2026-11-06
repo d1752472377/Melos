@@ -100,10 +100,6 @@ import kotlinx.coroutines.withContext
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
-/**
- * 异步分析图片平均亮度：
- * 返回 true 表示浅色图片（文本使用黑色/深色），false 表示深色图片（文本使用白色/浅色）
- */
 private suspend fun calculateImageIsLight(context: Context, imagePath: String): Boolean {
     return withContext(Dispatchers.IO) {
         try {
@@ -130,7 +126,6 @@ private suspend fun calculateImageIsLight(context: Context, imagePath: String): 
                             val r = android.graphics.Color.red(pixel) / 255.0
                             val g = android.graphics.Color.green(pixel) / 255.0
                             val b = android.graphics.Color.blue(pixel) / 255.0
-                            // ITU-R BT.709 亮度权重公式
                             totalLuminance += 0.2126 * r + 0.7152 * g + 0.0722 * b
                             count++
                         }
@@ -147,12 +142,6 @@ private suspend fun calculateImageIsLight(context: Context, imagePath: String): 
     }
 }
 
-/**
- * 个人界面：
- * 1. 顶部个性化卡片：头像（点击上传更换）、昵称、登录用户名、注册日期、编辑资料按钮、右上角三点下拉菜单；
- * 2. 快捷入口：收藏、歌单、播放历史、下载；
- * 3. 详细功能列表：设置、插件管理、检查更新。
- */
 @Composable
 fun ProfileScreen(
     nickname: String,
@@ -224,7 +213,6 @@ fun ProfileScreen(
             .fillMaxSize()
             .background(Background)
     ) {
-        // 全局动态呼吸极光光斑背景
         HomeAmbientGlowBackground()
 
         LazyColumn(
@@ -237,7 +225,6 @@ fun ProfileScreen(
                 bottom = BottomContentSpacer,
             ),
         ) {
-            // ===== 1. 顶部个性化卡片 =====
             item(key = "top_profile_card") {
                 TopProfileCard(
                     nickname = nickname,
@@ -271,11 +258,6 @@ fun ProfileScreen(
                 )
             }
 
-            // ===== 2. 功能入口：上排4个独立毛玻璃卡片 + 下排快速功能入口 =====
-            // ===== 2. 快捷统计（一张卡里的四等分）+ 三个功能入口（一张卡里三条）=====
-            // 合并的动机：原来 4 张统计卡 + 3 张功能卡 = 7 张独立毛玻璃卡片，
-            // 卡与卡之间还各有 12dp 间距，光这两块就占掉半屏；而它们的视觉权重完全相同，
-            // 读者要扫 7 次才能看完。现在收敛成「1 + 1」两张卡，用分隔线而不是间距区分条目。
             item(key = "music_entry_section") {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
                     MusicStatsCard(
@@ -327,15 +309,11 @@ fun ProfileScreen(
                 }
             }
 
-
-            // ===== 3. 系统功能列表（不再单独放「系统与设置」大标题） =====
-            // 剩余系统功能列表 (毛玻璃卡片组)
             item(key = "feature_menu_card") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
-                        // [迁移] 原 GlassTokens.glowBorderBrush/dockBorderBrush 为编造渐变，改用 GZ 真值 token
                         .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
                         .padding(vertical = AppSpacing.xxs),
                 ) {
@@ -368,7 +346,6 @@ fun ProfileScreen(
         }
     }
 
-    // ===== 恢复默认确认弹窗 =====
     if (showRestoreConfirm) {
         AppConfirmDialog(
             onDismissRequest = { showRestoreConfirm = false },
@@ -382,7 +359,6 @@ fun ProfileScreen(
         )
     }
 
-    // ===== 退出登录确认弹窗 =====
     if (showLogoutConfirm) {
         AppConfirmDialog(
             onDismissRequest = { showLogoutConfirm = false },
@@ -398,9 +374,6 @@ fun ProfileScreen(
 
 }
 
-/**
- * 顶部个性化卡片（支持图片亮度检测与自适应字体）
- */
 @Composable
 private fun TopProfileCard(
     nickname: String,
@@ -422,19 +395,16 @@ private fun TopProfileCard(
 ) {
     val context = LocalContext.current
 
-    // 状态：背景是否为浅色（默认浅色弥散背景，属于浅色）
     var isLightBackground by remember { mutableStateOf(true) }
 
-    // 监测 backgroundPath 变动，动态分析亮度
     LaunchedEffect(backgroundPath) {
         if (!backgroundPath.isNullOrBlank()) {
             isLightBackground = calculateImageIsLight(context, backgroundPath)
         } else {
-            isLightBackground = true // 默认粉蓝白色渐变卡片属于浅色
+            isLightBackground = true
         }
     }
 
-    // 根据明暗动态派生色彩系统
     val primaryTextColor = if (isLightBackground) AppColors.profileOnLight else Color.White
     val secondaryTextColor = if (isLightBackground) AppColors.profileSecondaryOnLight else Color.White.copy(alpha = 0.72f)
     val buttonBgColor = if (isLightBackground) Color.White.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.15f)
@@ -458,7 +428,6 @@ private fun TopProfileCard(
                 )
             ),
     ) {
-        // 自定义背景图层与智能补光遮罩
         if (!backgroundPath.isNullOrBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(context).data(backgroundPath).crossfade(true).build(),
@@ -473,7 +442,6 @@ private fun TopProfileCard(
                     .matchParentSize()
                     .background(
                         if (isLightBackground) {
-                            // 浅色图：使用纯白透明渐变（Brush 类型）
                             Brush.verticalGradient(
                                 colors = listOf(
                                     Color.White.copy(alpha = 0.15f),
@@ -481,7 +449,6 @@ private fun TopProfileCard(
                                 )
                             )
                         } else {
-                            // 深色图：使用黑白暗色渐变（Brush 类型）
                             Brush.verticalGradient(
                                 colors = listOf(
                                     Color.Black.copy(alpha = 0.20f),
@@ -498,7 +465,6 @@ private fun TopProfileCard(
                 .fillMaxWidth()
                 .padding(AppSpacing.page)
         ) {
-            // 顶栏：微型标题与三点菜单
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -535,7 +501,6 @@ private fun TopProfileCard(
                             .background(Color.White)
                             .clip(RoundedCornerShape(16.dp)),
                     ) {
-                        // 1. 更换背景（带加号图标）
                         DropdownMenuItem(
                             text = { Text("更换背景", color = AppColors.profileOnLight, fontSize = 13.sp) },
                             leadingIcon = {
@@ -549,7 +514,6 @@ private fun TopProfileCard(
                             onClick = onChangeBackgroundClick,
                         )
 
-                        // 2. 背景模糊
                         DropdownMenuItem(
                             text = {
                                 Text(
@@ -569,7 +533,6 @@ private fun TopProfileCard(
                             onClick = onToggleBgBlur,
                         )
 
-                        // 3. 恢复默认（仅在用户改动了背景图或开启了模糊时显示，默认状态下自动隐藏）
                         if (isCustomBackground) {
                             DropdownMenuItem(
                                 text = { Text("恢复默认", color = AppColors.profileOnLight, fontSize = 13.sp) },
@@ -585,7 +548,6 @@ private fun TopProfileCard(
                             )
                         }
 
-                        // 4. 退出登录（移除了上方横线，紧凑排版）
                         DropdownMenuItem(
                             text = { Text("退出登录", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
                             leadingIcon = {
@@ -604,12 +566,10 @@ private fun TopProfileCard(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-            // 用户头像与基本信息
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // 奢华双环发光头像
                 Box(
                     modifier = Modifier
                         .size(70.dp)
@@ -674,7 +634,6 @@ private fun TopProfileCard(
                         color = secondaryTextColor,
                     )
 
-                    // 听歌时长与统计概览微胶囊
                     val totalMinutes = (localStats.totalPlayMs / 60000L).coerceAtLeast(0)
                     val totalHours = totalMinutes / 60
                     val remainMin = totalMinutes % 60
@@ -715,7 +674,6 @@ private fun TopProfileCard(
 
             Spacer(Modifier.height(AppSpacing.xxxl))
 
-            // 宽幅自适应编辑资料按钮
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -764,14 +722,6 @@ private fun TopProfileCard(
     }
 }
 
-/**
- * 四个快捷统计（收藏 / 歌单 / 历史 / 下载）—— **合并成一张卡片**。
- *
- * 原来是四张各自独立的毛玻璃卡：4 × (图标底 + 数字 + 标签) 的纵向堆叠，
- * 单这一排就吃掉 90dp 高度，而且四个彩色图标底块挨在一起非常吵。
- * 现在改成一张卡内的四等分列 + 竖分隔线，图标不再带底色块（只保留彩色图标本身），
- * 高度降到约 56dp，页面整体上移、下面内容更早出现。
- */
 @Composable
 private fun MusicStatsCard(
     favoritesCount: Int,
@@ -829,7 +779,6 @@ private fun MusicStatsCard(
     }
 }
 
-/** 四等分之间的竖分隔线（替代原来的卡片间距） */
 @Composable
 private fun StatDivider() {
     Box(
@@ -885,9 +834,6 @@ private fun CompactStatItem(
     }
 }
 
-/**
- * 菜单行项
- */
 @Composable
 private fun ProfileMenuItem(
     icon: ImageVector,
@@ -951,13 +897,6 @@ private fun ProfileMenuItem(
     }
 }
 
-/**
- * 功能入口行（听歌统计 / 专业调音台 / 云端备份与同步）。
- *
- * 与 [ProfileMenuItem] 的区别：这里的图标是**彩色语义图标**（青=统计、蓝=调音、紫=云），
- * 但没有底色块——一列彩色底块挨在一起会显得很吵，而且每个底块都占 32dp 见方，
- * 三条排下来白白多出 30dp 高度。现在只留图标本身，行高收到 48dp 左右。
- */
 @Composable
 private fun ProfileFeatureRow(
     icon: ImageVector,
@@ -1027,7 +966,6 @@ private fun ProfileFeatureRow(
     }
 }
 
-/** 功能行之间的 1dp 分隔线（左右各留 16dp，与行内边距对齐） */
 @Composable
 private fun ProfileRowDivider() {
     Box(

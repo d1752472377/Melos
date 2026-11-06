@@ -46,21 +46,12 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/** 历史排序选项 */
 enum class HistorySortOrder(val title: String, val subtitle: String) {
     RECENT("最近播放", "最近听过的排在前面"),
     EARLIEST("最早播放", "最早听过的排在前面"),
     TITLE("歌曲名称", "按歌曲名称升序排列"),
 }
 
-/**
- * 播放历史页：
- * 1. 顶部大卡片：2x2 四宫格封面 + 标题 + 排序下拉胶囊 + 搜索图标 + 3 列统计 + 双操作按钮；
- * 2. 排序 BottomSheet 弹窗；
- * 3. 歌曲列表白底圆角容器 + 正在播放波形指示 + 更多操作。
- *
- * 公共骨架见 [com.aesthetic.music.ui.components.SongCollection]；本页只保留标题、清空入口、排序项与空态文案。
- */
 @Composable
 fun HistoryScreen(
     songs: List<Song>,

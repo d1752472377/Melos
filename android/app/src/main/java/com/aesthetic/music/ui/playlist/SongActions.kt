@@ -59,15 +59,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 单曲操作相关公共组件。
- *
- * 这两块原先是 PlaylistDetailScreen 的私有实现（SongActionBottomSheet / AddToPlaylistBottomSheet）。
- * 现在统一由 `ui/shell/SongActionsHost.kt` 的宿主渲染，页面只上报目标歌曲，
- * 不再各自维护两个抽屉状态与级联回调。
- */
-
-/** 单曲操作抽屉：顶部歌曲信息 + 一组动作 */
 @Composable
 fun SongActionSheet(
     song: Song,
@@ -78,9 +69,7 @@ fun SongActionSheet(
     onAddToQueue: () -> Unit,
     onDownload: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    /** 可选：打开该歌曲的播放卡片（历史等列表页用） */
     onViewCard: (() -> Unit)? = null,
-    /** 可选：把该歌曲从当前列表移除（历史页用） */
     onRemove: (() -> Unit)? = null,
     removeLabel: String = "移除",
 ) {
@@ -92,7 +81,6 @@ fun SongActionSheet(
                 .fillMaxWidth()
                 .padding(vertical = AppSpacing.xxxl)
         ) {
-            // 顶部歌曲信息
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -182,7 +170,6 @@ fun SongActionSheet(
     }
 }
 
-/** 抽屉里的单行动作项 */
 @Composable
 fun SongActionMenuItem(
     icon: ImageVector,
@@ -215,7 +202,6 @@ fun SongActionMenuItem(
     }
 }
 
-/** 把歌曲收藏到自建歌单的抽屉，内含「新建歌单」二级弹窗 */
 @Composable
 fun AddToPlaylistSheet(
     song: Song,
@@ -233,7 +219,6 @@ fun AddToPlaylistSheet(
                 .fillMaxWidth()
                 .padding(vertical = AppSpacing.xxxl)
         ) {
-            // 标题
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -272,7 +257,6 @@ fun AddToPlaylistSheet(
                 color = Stone200
             )
 
-            // 自建歌单列表
             if (myPlaylists.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -344,7 +328,6 @@ fun AddToPlaylistSheet(
         }
     }
 
-    // 新建歌单对话框
     if (showCreateDialog) {
         AppDialog(
             onDismissRequest = {

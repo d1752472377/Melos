@@ -38,11 +38,6 @@ import com.aesthetic.music.data.settings.UserStore
 import com.aesthetic.music.data.source.SourceManager
 import kotlinx.coroutines.CancellationException
 
-/**
- * 音乐数据仓库：
- * 1. 核心音乐能力（搜索、榜单、广场、电台、直链、歌词）：完全在客户端独立运行（直连平台公开协议 + 本地 QuickJS 音源脚本）；
- * 2. 账号与同步能力：连接用户私有后端，支持用户认证与多端增量 LWW 数据同步。
- */
 class MusicRepository(
     private val api: MusicApi = ApiClient.api,
 ) {
@@ -60,30 +55,21 @@ class MusicRepository(
         Result.failure(friendlyError(e))
     }
 
-    // ==================== 音乐搜索（四平台直连） ====================
-    /** 单曲搜索（多平台） */
     suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): Result<List<Song>> =
         apiCatching { PlatformMusicService.search(keyword, limit, platform) }
 
-    /** 歌单搜索（多平台：网易云 / 酷狗 / 酷我；QQ 暂不支持） */
     suspend fun searchPlaylists(keyword: String, limit: Int = 20, platform: String? = null): Result<List<PlaylistItem>> =
         apiCatching { PlatformMusicService.searchPlaylists(keyword, limit, platform) }
 
-    /** 专辑搜索（多平台：网易云 / 酷狗 / 酷我；QQ 暂不支持） */
     suspend fun searchAlbums(keyword: String, limit: Int = 20, platform: String? = null): Result<List<AlbumItem>> =
         apiCatching { PlatformMusicService.searchAlbums(keyword, limit, platform) }
 
-
-
-    /** 专辑详情 + 曲目列表 */
     suspend fun getAlbum(id: String): Result<AlbumDetailData> = apiCatching {
         PlatformMusicService.getAlbum(id)
     }
 
-    /** 歌手搜索（多平台：网易云 / 酷狗 / 酷我；QQ 暂不支持） */
     suspend fun searchArtists(keyword: String, limit: Int = 12, platform: String? = null): Result<List<ArtistItem>> =
         apiCatching { PlatformMusicService.searchArtists(keyword, limit, platform) }
-
 
     suspend fun getArtist(platform: String?, id: String, limit: Int = 50): Result<ArtistDetailData> = apiCatching {
         PlatformMusicService.getArtist(platform, id, limit)
@@ -93,13 +79,6 @@ class MusicRepository(
         PlatformMusicService.getArtistAllSongs(platform, id, maxCount)
     }
 
-    /**
-     * 解析播放直链。
-     *
-     * 音源选择（用哪个插件、失败要不要换、要不要按最快挑）统一交给 [SourceManager]：
-     * 之前这里写死"有脚本就用脚本，没有就走内置直连"，只支持单一脚本，
-     * 也就没有"换源"可言；现在按用户设置的三条策略在多个插件间挑选与兜底。
-     */
     suspend fun getSongUrl(song: Song, quality: String = "lossless"): Result<SongUrlData> = apiCatching {
         SourceManager.resolveUrl(song, quality)
     }
@@ -109,17 +88,10 @@ class MusicRepository(
         if (!lyric.lyric.isNullOrBlank()) lyric else LyricData(platform = song.platform)
     }
 
-    /**
-     * 歌单详情：歌单名 / 封面 / 曲目一次性抓回。
-     *
-     * 取代了原先只支持网易云的 `getPlaylist(id)`——收藏/导入进来的歌单可能来自任何平台，
-     * 一律走这个按平台分发的入口，避免"打开是空白或串歌"。
-     */
     suspend fun getPlaylistDetail(platform: String?, id: String): Result<PlaylistDetailData> = apiCatching {
         PlatformMusicService.getPlaylistDetail(platform, id)
     }
 
-    /** 展开跳转链接（分享用的短链）：失败时返回原 URL */
     suspend fun resolveFinalUrl(url: String): Result<String> = apiCatching {
         PlatformMusicService.resolveFinalUrl(url)
     }
@@ -127,8 +99,6 @@ class MusicRepository(
     suspend fun getHotPlaylists(limit: Int = 20): Result<List<PlaylistItem>> = apiCatching {
         PlatformMusicService.getHotPlaylists(limit)
     }
-
-    // ==================== 内容发现（直连公共平台协议） ====================
 
     suspend fun getDaily(limit: Int = 8): Result<DailyData> = apiCatching {
         PlatformMusicService.getDaily(limit)
@@ -138,23 +108,14 @@ class MusicRepository(
         PlatformMusicService.getNewSongs(limit)
     }
 
-    /**
-     * 按语种/地区取新歌（首页「新歌首发」三张地区卡）。
-     * 区域目录见 [NewSongRegions]：7 华语 / 96 欧美 / 8 日语 / 16 韩语。
-     */
     suspend fun getNewSongsByArea(areaId: Int, limit: Int = 20): Result<List<Song>> = apiCatching {
         PlatformMusicService.newSongsByArea(areaId, limit)
     }
 
-    /**
-     * 相似歌曲（「猜你喜欢」的候选池来源）。
-     * 仅网易云数字 id 有结果，其它平台返回空列表而不是失败。
-     */
     suspend fun getSimilarSongs(songId: String, limit: Int = 20): Result<List<Song>> = apiCatching {
         PlatformMusicService.similarSongs(songId, limit)
     }
 
-    /** 榜单列表：平台由 [RankCatalog] 定义（网易云 / QQ / 酷狗 / 酷我），默认网易云 */
     suspend fun getRanks(platform: String = RankCatalog.DEFAULT): Result<RanksData> = apiCatching {
         PlatformMusicService.getRanks(platform)
     }
@@ -168,38 +129,27 @@ class MusicRepository(
         PlatformMusicService.getCategories()
     }
 
-    // ==================== 歌单广场 ====================
-
-    /** 歌单广场标签（左侧抽屉） */
     fun sheetTags(): List<String> = PlatformMusicService.defaultSheetTags
 
-    /** 歌单广场列表：最新/最热 + 标签过滤 */
     suspend fun sheetPlaylists(cat: String, order: String, limit: Int = 40): Result<List<PlaylistItem>> =
         apiCatching {
             PlatformMusicService.sheetPlaylists(cat, order, limit)
         }
 
-    // ==================== FM 电台（免登录会话级推荐） ====================
-
-    /** FM 风格种子池：推荐新歌或按标签拉精品歌单曲目 */
     suspend fun fmSeedSongs(tag: String, limit: Int = 120): Result<List<Song>> =
         apiCatching {
             PlatformMusicService.fmSeedSongs(tag, limit)
         }
 
-    /** 歌手热歌（FM 漂移：点赞/听完 → 歌手 ID） */
     suspend fun artistTopSongs(artistId: String, limit: Int = 50): Result<List<Song>> =
         apiCatching {
             PlatformMusicService.artistTopSongs(artistId, limit)
         }
 
-    /** 按歌手名/歌名搜索扩充（FM 漂移补充） */
     suspend fun searchSongs(query: String, limit: Int = 20): Result<List<Song>> =
         apiCatching {
             PlatformMusicService.searchSongs(query, limit)
         }
-
-    // ==================== 用户体系 (Auth) ====================
 
     suspend fun register(
         username: String,
@@ -273,21 +223,16 @@ class MusicRepository(
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "获取个人信息失败")
     }
 
-    /** 当前账号的登录设备列表（服务端按会话记录，用于"退出其它设备"） */
     suspend fun getSessions(): Result<List<SessionDto>> = apiCatching {
         val resp = api.sessions()
         if (resp.code == 200) resp.data ?: emptyList() else throw Exception(resp.msg ?: "获取设备列表失败")
     }
 
-    /** 撤销指定会话（把那台设备踢下线） */
     suspend fun deleteSession(sessionId: String): Result<Unit> = apiCatching {
         val resp = api.deleteSession(sessionId)
         if (resp.code == 200) Unit else throw Exception(resp.msg ?: "撤销会话失败")
     }
 
-    /**
-     * 更新资料。字段为 null = 不改动该项（后端按「缺省即不改」处理）。
-     */
     suspend fun updateProfile(
         nickname: String? = null,
         avatar: String? = null,
@@ -298,15 +243,6 @@ class MusicRepository(
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "更新资料失败")
     }
 
-    // ==================== 云端同步 ====================
-
-    /**
-     * 服务器可达性探测（不需要登录）。
-     *
-     * 以前这里靠 `/api/me` 或 `/api/sync/pull` 判断，未登录时必然拿 401，
-     * 于是"地址填错"和"地址对但没登录"在界面上是同一句"连接失败"。
-     * 现在改走无需鉴权的 `/api/health`，语义唯一：地址是否指向一个活着的 Melos 后端。
-     */
     suspend fun testConnection(): Result<Boolean> = apiCatching {
         val resp = api.health()
         if (resp.code == 200) true else throw Exception(resp.msg ?: "HTTP ${resp.code}")
@@ -322,12 +258,6 @@ class MusicRepository(
         if (resp.code == 200 && resp.data != null) resp.data else throw Exception(resp.msg ?: "同步上传失败")
     }
 
-    // ==================== 客户端版本检查 ====================
-
-    /**
-     * 向当前连接的后端获取最新启用的客户端版本。
-     * 若未发布版本或接口异常返回失败。
-     */
     suspend fun getLatestVersion(): Result<AppVersionDto?> = apiCatching {
         val resp = api.latestVersion()
         if (resp.code == 200) resp.data else throw Exception(resp.msg ?: "检查更新失败")

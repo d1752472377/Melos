@@ -5,16 +5,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
-/**
- * 全局调色板状态：深色/浅色切换。
- * 配色基于 Apple HIG system colors：一个主色 + 中性灰阶，无渐变。
- * 所有颜色通过 getter 动态返回，Compose 中读取时自动参与重组。
- */
 object Palette {
     var isDark by mutableStateOf(false)
 }
 
-/** 应用三档主题模式（systemDark 为系统当前是否深色） */
 fun applyThemeMode(mode: com.aesthetic.music.data.settings.ThemeMode, systemDark: Boolean) {
     Palette.isDark = when (mode) {
         com.aesthetic.music.data.settings.ThemeMode.SYSTEM -> systemDark
@@ -25,99 +19,75 @@ fun applyThemeMode(mode: com.aesthetic.music.data.settings.ThemeMode, systemDark
 
 private fun light(c: Color, d: Color) = if (Palette.isDark) d else c
 
-// ===== 基础底色系统 =====
-val Background get() = Color.Transparent                                  // 保持通透，透出全局底层环境光
-val Surface get() = light(Color(0xFFFFFFFF), Color(0xFF1C1C1E))           // secondarySystemGroupedBackground
-val SurfaceSoft get() = light(Color(0xFFE5E5EA), Color(0xFF2C2C2E))       // systemGray5 / tertiary
+val Background get() = Color.Transparent
+val Surface get() = light(Color(0xFFFFFFFF), Color(0xFF1C1C1E))
+val SurfaceSoft get() = light(Color(0xFFE5E5EA), Color(0xFF2C2C2E))
 
-// ===== 唯一主色（Apple Music 红粉）=====
-// 渐变起止色取同一个值，原有渐变处自动变成纯色
 val PrimaryBrown get() = light(Color(0xFFFF2D55), Color(0xFFFF375F))
 val PrimaryGradientStart get() = light(Color(0xFFFF2D55), Color(0xFFFF375F))
 val PrimaryGradientEnd get() = light(Color(0xFFFF2D55), Color(0xFFFF375F))
 
-// ===== 辅助强调色（仅用于少量语义场景）=====
-val AccentCoral get() = light(Color(0xFFFF2D55), Color(0xFFFF375F))       // 收藏 / 榜一（与主色一致）
-val AccentMint get() = light(Color(0xFF34C759), Color(0xFF30D158))        // 播放中 / 活跃
-val AccentCyan get() = light(Color(0xFF007AFF), Color(0xFF0A84FF))        // 发现 / 统计
-val AccentAmber get() = light(Color(0xFFFF9500), Color(0xFFFF9F0A))       // VIP / 经典
-val AccentRose get() = light(Color(0xFFFF6482), Color(0xFFFF6482))        // 爱心
+val AccentCoral get() = light(Color(0xFFFF2D55), Color(0xFFFF375F))
+val AccentMint get() = light(Color(0xFF34C759), Color(0xFF30D158))
+val AccentCyan get() = light(Color(0xFF007AFF), Color(0xFF0A84FF))
+val AccentAmber get() = light(Color(0xFFFF9500), Color(0xFFFF9F0A))
+val AccentRose get() = light(Color(0xFFFF6482), Color(0xFFFF6482))
 
-val PlayerBg get() = light(Color(0xFF1C1C1E), Color(0xFF0A0A0A))          // 播放页底
+val PlayerBg get() = light(Color(0xFF1C1C1E), Color(0xFF0A0A0A))
 val PlayerBgDark get() = light(Color(0xFF0F0F10), Color(0xFF000000))
 
 val AmberLight = Color(0xFFFFE8C2)
 val Rose get() = AccentCoral
 
-// ===== 灰阶体系（Apple label / gray）=====
-val TextPrimary get() = light(Color(0xFF000000), Color(0xFFFFFFFF))       // label
-val TextMuted get() = light(Color(0x993C3C43), Color(0x99EBEBF5))         // secondaryLabel（60%）
-val TextSoft get() = light(Color(0xFF8E8E93), Color(0xFF8E8E93))          // systemGray
-val TextFaint get() = light(Color(0xFFC7C7CC), Color(0xFF48484A))         // systemGray3
+val TextPrimary get() = light(Color(0xFF000000), Color(0xFFFFFFFF))
+val TextMuted get() = light(Color(0x993C3C43), Color(0x99EBEBF5))
+val TextSoft get() = light(Color(0xFF8E8E93), Color(0xFF8E8E93))
+val TextFaint get() = light(Color(0xFFC7C7CC), Color(0xFF48484A))
 
-val Stone200 get() = light(Color(0xFFD1D1D6), Color(0xFF3A3A3C))          // 描边 systemGray4
-val Stone100 get() = light(Color(0xFFF2F2F7), Color(0xFF242426))          // 按钮浅底 / 次级卡片
+val Stone200 get() = light(Color(0xFFD1D1D6), Color(0xFF3A3A3C))
+val Stone100 get() = light(Color(0xFFF2F2F7), Color(0xFF242426))
 
-// 卡片统一描边
 val CardBorder get() = light(Color.White.copy(alpha = 0.9f), Color(0xFF2C2C2E))
 
-// ===== 沉浸式页面（FM 电台页）主题色 =====
 val FmBackground get() = light(Color(0xFFF2F2F7), Color(0xFF000000))
 val FmScrimTop get() = light(Color(0x99FFFFFF), Color(0x99000000))
 val FmScrimMid get() = light(Color(0xCCF2F2F7), Color(0xCC000000))
 val FmScrimBottom get() = light(Color(0xFAF2F2F7), Color(0xFA000000))
 val FmSheetContainer get() = light(Color(0xFFFFFFFF), Color(0xFF1C1C1E))
 
-/** FM 页前景色：深色=白，浅色=黑（文字 / 图标 / 进度条） */
 fun fmOn(alpha: Float = 1f): Color =
     if (Palette.isDark) Color.White.copy(alpha = alpha) else Color.Black.copy(alpha = alpha)
 
-/** FM 页「玻璃」叠色：深色=白叠加，浅色=黑叠加（胶囊 / 按钮底 / 分隔） */
 fun fmGlass(alpha: Float): Color =
     if (Palette.isDark) Color.White.copy(alpha = alpha) else Color.Black.copy(alpha = alpha)
 
-// FM 卡片（玻璃感）
 val FmCardBg get() = light(Color.White.copy(alpha = 0.88f), Color.White.copy(alpha = 0.10f))
 val FmCardBorder get() = light(Color.Transparent, Color.White.copy(alpha = 0.16f))
 
-// FM 抽屉里的卡片
 val FmSheetCardBg get() = light(Color.White, Color.White.copy(alpha = 0.10f))
 val FmSheetCardBorder get() = light(Stone200, Color.White.copy(alpha = 0.14f))
 
-// FM 实心圆按钮：浅色纯黑、深色纯白（图标取反色）
 val FmSolidFill get() = light(Color(0xFF000000), Color.White)
 val FmOnSolid get() = light(Color.White, Color(0xFF000000))
 
-// ===== 听歌统计页专用 =====
-// 去掉蓝紫色调，改为中性灰渐变
 val StatsGradientTop get() = light(Color(0xFFF8F8FA), Color(0xFF1C1C1E))
 val StatsGradientMid get() = light(Color(0xFFF2F2F7), Color(0xFF0A0A0A))
 val StatsGradientBottom get() = light(Color(0xFFF2F2F7), Color(0xFF000000))
 
-// 毛玻璃卡片
 val GlassSurface get() = light(Color(0xE6FFFFFF), Color(0xE61C1C1E))
 val GlassSurfaceSoft get() = light(Color(0x99FFFFFF), Color(0x1AFFFFFF))
 val GlassBorder get() = light(Color(0x66FFFFFF), Color(0x1FFFFFFF))
 
-// 数据可视化（Apple indigo / teal）
 val AccentViolet get() = light(Color(0xFF5856D6), Color(0xFF5E5CE6))
 val AccentTeal get() = light(Color(0xFF30B0C7), Color(0xFF40C8E0))
 
-// 排行榜前三名（金银铜）
 val RankGold get() = light(Color(0xFFFFCC00), Color(0xFFFFD60A))
 val RankSilver get() = light(Color(0xFF8E8E93), Color(0xFFAEAEB2))
 val RankBronze get() = light(Color(0xFFA2845E), Color(0xFFAC8E68))
 
-/**
- * 页面级静态配色。
- *
- * 除封面取色、播放页封面主色等由内容动态生成的颜色外，UI 中不再直接写 `Color(0x...)`：
- * 新颜色先在这里登记，再由页面引用。按用途分组，避免同一色值在多个页面各写一遍。
- */
 object AppColors {
-    // ===== 语义色 =====
-    val onAccent = Color(0xFFF7F6F2)              // 主色底上的暖白文字
-    val authCheck = Color(0xFF2C2523)             // 登录页协议勾选
+    val onAccent = Color(0xFFF7F6F2)
+    val authCheck = Color(0xFF2C2523)
     val errorSurface = Color(0xFFFFF1F0)
     val errorBorder = Color(0xFFFFA39E)
     val errorText = Color(0xFFCF1322)
@@ -126,7 +96,6 @@ object AppColors {
     val successSurfaceSoft = Color(0xFFE8F5E9)
     val successText = Color(0xFF2E7D32)
 
-    // ===== 跨页面强调色（沿用现有视觉值）=====
     val sky = Color(0xFF38BDF8)
     val skyDeep = Color(0xFF0284C7)
     val skySoft = Color(0xFF7DD3FC)
@@ -147,7 +116,6 @@ object AppColors {
     val lime = Color(0xFFEAF989)
     val favorite = Color(0xFFFF3366)
 
-    // ===== Slate 灰阶（Tailwind 历史值）=====
     val slate50 = Color(0xFFF8FAFC)
     val slate100 = Color(0xFFF1F5F9)
     val slate200 = Color(0xFFE2E8F0)
@@ -164,7 +132,6 @@ object AppColors {
     val graySoft = Color(0xFF9A9AA0)
     val ink = Color(0xFF1C1C1E)
 
-    // ===== 平台品牌色 =====
     val brandNetease = Color(0xFFE53935)
     val brandNeteaseDeep = Color(0xFFC20C0C)
     val brandNeteaseRank = Color(0xFFE23B34)
@@ -180,7 +147,6 @@ object AppColors {
     val brandUnknown = Color(0xFF9E9E9E)
     val brandUnknownAlt = Color(0xFF8893A7)
 
-    // ===== 首页版块 =====
     val entryPink1 = Color(0xFFFF9DCE)
     val entryPink2 = Color(0xFFFFC5DC)
     val entryPink3 = Color(0xFFFFE8F3)
@@ -200,7 +166,6 @@ object AppColors {
     val rankingPlaceholderLight = Color(0xFFE8E8ED)
     val homeHole = Color(0xFF18181E)
 
-    // ===== 首页环境光 =====
     val auroraLightBase = Color(0xFFFAFAFC)
     val auroraDarkBase = Color(0xFF0E0D12)
     val auroraDarkTop = Color(0xFF15131A)
@@ -214,7 +179,6 @@ object AppColors {
     val auroraYellow = Color(0xFFFFD175)
     val auroraPink = Color(0xFFF8C0D0)
 
-    // ===== 通用封面占位 =====
     val coverPlaceholderLight1 = Color(0xFFEDE9FE)
     val coverPlaceholderLight2 = Color(0xFFE0E7FF)
     val coverPlaceholderDark1 = Color(0xFF26262E)
@@ -222,13 +186,11 @@ object AppColors {
     val coverIconDark = Color(0xFF64748B)
     val coverIconUnknown = Color(0xFF8893A7)
 
-    // ===== FM 页 =====
     val fmDeep = Color(0xFF101014)
     val fmPanel = Color(0xFF26262E)
     val fmBlack = Color(0xFF0F0F12)
     val fmGold = Color(0xFFD4AF37)
 
-    // ===== 播放器 / 队列 / 音质抽屉 =====
     val disc1 = Color(0xFF232327)
     val disc2 = Color(0xFF141417)
     val disc3 = Color(0xFF1E1E22)
@@ -304,14 +266,12 @@ object AppColors {
     val karaokeActive = Color(0xFF9E2A2B)
     val karaokeIdle = Color(0xFF7A2526)
 
-    // ===== 个人中心 =====
     val profileOnLight = Color(0xFF1E2329)
     val profileSecondaryOnLight = Color(0xFF5E6B7A)
     val profileAvatar1 = Color(0xFFCCE4FF)
     val profileAvatar2 = Color(0xFFF7FAFD)
     val profileAvatar3 = Color(0xFFFFB3C6)
 
-    // ===== 歌单 / 榜单 / 缓存 =====
     val activeRowBgDark = Color(0x2838BDF8)
     val songTitleDark = Color(0xFFF1F5F9)
     val bentoOverlayWhite20 = Color(0x33FFFFFF)
@@ -330,12 +290,10 @@ object AppColors {
     val cacheTemp = Color(0xFF8A8F98)
     val cacheDanger = Color(0xFFC0392B)
 
-    // ===== Toast =====
     val toastError = Color(0xFFF87171)
     val toastSuccess = Color(0xFF4ADE80)
     val toastShadow = Color(0x66000000)
 
-    // ===== GZ 玻璃 token（GlassTokens.kt）=====
     val glassTextHighLight = Color(0xFF1C1C1E)
     val glassTextHighDark = Color(0xFFF2F2F7)
     val glassTextMediumLight = Color(0xFF8E8E93)
@@ -346,7 +304,6 @@ object AppColors {
     val defaultCoverTone = Color(0xFFFA243C)
     val coverToneFallback = Color(0xFF8E8E93)
 
-    // ===== 其他 =====
     val quietSurfaceDark = Color(0xFF2A2A30)
     val quietSurfaceLight = Color(0xFFF0F0F4)
     val equalizerNegativeLight = Color(0xFF6B7280)

@@ -9,7 +9,6 @@ import com.aesthetic.music.ui.playlist.PlaylistDetailController
 import com.aesthetic.music.ui.sheet.PlaylistPage
 import com.aesthetic.music.ui.sheet.SheetController
 
-/** 歌单广场（分类标签歌单） */
 @Composable
 fun SheetSquareDestination(
     sheet: SheetController,
@@ -22,8 +21,6 @@ fun SheetSquareDestination(
     val isLoading by sheet.isLoading.collectAsState()
     val error by sheet.error.collectAsState()
 
-    // 进页面就加载（幂等：已有数据/正在加载时不会重复请求）。
-    // 少了这一句，从首页进来看到的就是"该分类下暂无歌单"——列表其实是空的，不是真的没有。
     LaunchedEffect(Unit) { sheet.ensureLoaded() }
 
     PlaylistPage(

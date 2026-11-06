@@ -92,10 +92,6 @@ private enum class LoginMode {
     EMAIL_CODE,
 }
 
-/**
- * 登录/注册统一输入框：浅色填充底、无下划线，聚焦时主题色描边。
- * 比 Material 默认 OutlinedTextField 更贴合页面的圆角卡片风格。
- */
 @Composable
 private fun AuthField(
     value: String,
@@ -146,32 +142,17 @@ private fun AuthField(
     )
 }
 
-/**
- * 现代极简一体化鉴权门禁界面（Melos Modern Auth Screen）。
- *
- * 遵循 Stitch 暖调纸质素雅风格：
- * 1. 顶部 Brand Header：Melos 品牌标志与精致副标题；
- * 2. 顶级 Segmented Control 胶囊：【登录】与【注册】平滑切换；
- * 3. 登录面板：
- *    - 默认账号密码（支持输入用户名或绑定的邮箱 + 密码）
- *    - 可无缝切换为「邮箱验证码免密登录」
- * 4. 注册面板：
- *    - 输入邮箱 -> 获取 6 位邮件验证码（60秒倒计时） -> 输入用户名与密码 -> 开启音乐之旅
- * 5. 全流程开箱即用，无任何服务器配置冗杂输入。
- */
 @Composable
 fun AuthScreen(auth: AuthController) {
     var activeTab by remember { mutableStateOf(AuthTab.LOGIN) }
     var loginMode by remember { mutableStateOf(LoginMode.PASSWORD) }
 
-    // 登录表单
     var loginAccount by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
     var loginEmail by remember { mutableStateOf("") }
     var loginCode by remember { mutableStateOf("") }
     var showLoginPassword by remember { mutableStateOf(false) }
 
-    // 注册表单
     var regEmail by remember { mutableStateOf("") }
     var regCode by remember { mutableStateOf("") }
     var regUsername by remember { mutableStateOf("") }
@@ -180,7 +161,6 @@ fun AuthScreen(auth: AuthController) {
     var showRegPassword by remember { mutableStateOf(false) }
     var agreedToTerms by remember { mutableStateOf(true) }
 
-    // 观察 ViewModel 状态
     val isBusy by auth.isBusy.collectAsState()
     val authError by auth.error.collectAsState()
     val codeCountdown by auth.codeCountdown.collectAsState()
@@ -189,7 +169,6 @@ fun AuthScreen(auth: AuthController) {
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        // 底层动态光晕背景（解决全黑/底色穿透问题，与全局 iOS 拟态质感保持一致）
         HomeAmbientGlowBackground()
 
         Column(
@@ -203,7 +182,6 @@ fun AuthScreen(auth: AuthController) {
         ) {
             Spacer(Modifier.height(AppSpacing.xxl))
 
-            // ===== 1. 品牌 Header =====
             Image(
                 painter = painterResource(id = R.drawable.ic_melos_logo),
                 contentDescription = "Melos Logo",
@@ -234,7 +212,6 @@ fun AuthScreen(auth: AuthController) {
 
             Spacer(Modifier.height(32.dp))
 
-            // ===== 2. 顶级 Tab 切换 (Segmented Pill Control) =====
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -244,7 +221,6 @@ fun AuthScreen(auth: AuthController) {
                     .padding(3.dp),
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    // 登录 Tab
                     val loginSelected = activeTab == AuthTab.LOGIN
                     val loginBg by animateColorAsState(
                         if (loginSelected) PrimaryBrown else Color.Transparent,
@@ -280,7 +256,6 @@ fun AuthScreen(auth: AuthController) {
                         )
                     }
 
-                    // 注册 Tab
                     val registerSelected = activeTab == AuthTab.REGISTER
                     val registerBg by animateColorAsState(
                         if (registerSelected) PrimaryBrown else Color.Transparent,
@@ -320,7 +295,6 @@ fun AuthScreen(auth: AuthController) {
 
             Spacer(Modifier.height(28.dp))
 
-            // ===== 3. 表单卡片容器 =====
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -331,9 +305,7 @@ fun AuthScreen(auth: AuthController) {
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     if (activeTab == AuthTab.LOGIN) {
-                        // ----------------- 【登录面板】 -----------------
                         if (loginMode == LoginMode.PASSWORD) {
-                            // 账号密码登录
                             Text(
                                 text = "账号或邮箱",
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -384,7 +356,6 @@ fun AuthScreen(auth: AuthController) {
 
                             Spacer(Modifier.height(AppSpacing.lg))
 
-                            // 切换到邮箱验证码登录
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End,
@@ -403,7 +374,6 @@ fun AuthScreen(auth: AuthController) {
                                 )
                             }
                         } else {
-                            // 邮箱验证码登录
                             Text(
                                 text = "邮箱地址",
                                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -446,7 +416,6 @@ fun AuthScreen(auth: AuthController) {
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 )
 
-                                // 发送验证码按钮
                                 Box(
                                     modifier = Modifier
                                         .height(56.dp)
@@ -473,7 +442,6 @@ fun AuthScreen(auth: AuthController) {
 
                             Spacer(Modifier.height(AppSpacing.lg))
 
-                            // 切换回密码登录
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End,
@@ -495,7 +463,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.page))
 
-                        // 错误提示区
                         AnimatedVisibility(visible = authError != null) {
                             authError?.let { err ->
                                 Row(
@@ -515,7 +482,6 @@ fun AuthScreen(auth: AuthController) {
                             }
                         }
 
-                        // 登录主按钮 (52dp Pill)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -545,8 +511,6 @@ fun AuthScreen(auth: AuthController) {
                             }
                         }
                     } else {
-                        // ----------------- 【注册面板】 -----------------
-                        // 1. 邮箱
                         Text(
                             text = "注册邮箱",
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -567,7 +531,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        // 2. 验证码
                         Text(
                             text = "邮箱验证码",
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -616,7 +579,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        // 3. 用户名
                         Text(
                             text = "用户名",
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -636,7 +598,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        // 4. 密码
                         Text(
                             text = "设置密码",
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -668,7 +629,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xl))
 
-                        // 5. 昵称（选填）
                         Text(
                             text = "音乐昵称 (选填)",
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
@@ -687,7 +647,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xxl))
 
-                        // 协议勾选
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -716,7 +675,6 @@ fun AuthScreen(auth: AuthController) {
 
                         Spacer(Modifier.height(AppSpacing.xxxl))
 
-                        // 错误提示区
                         AnimatedVisibility(visible = authError != null) {
                             authError?.let { err ->
                                 Row(
@@ -736,7 +694,6 @@ fun AuthScreen(auth: AuthController) {
                             }
                         }
 
-                        // 注册主按钮 (52dp Pill)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()

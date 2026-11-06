@@ -97,17 +97,12 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/** 歌单排序规则 */
 enum class PlaylistSortOrder(val label: String) {
     DEFAULT("默认排序"),
     TITLE("按歌曲名 (A-Z)"),
     ARTIST("按歌手名 (A-Z)"),
 }
 
-/**
- * 将颜色强制压暗到指定亮度
- * 提取色相和饱和度，但将亮度强制降低
- */
 private fun forceDarkColor(color: Color, targetLightness: Float = 0.12f): Color {
     val r = color.red.coerceIn(0f, 1f)
     val g = color.green.coerceIn(0f, 1f)
@@ -116,7 +111,6 @@ private fun forceDarkColor(color: Color, targetLightness: Float = 0.12f): Color 
     val max = maxOf(r, g, b)
     val min = minOf(r, g, b)
 
-    // 如果是灰色（r=g=b），直接返回深灰色
     if (max - min < 0.01f) {
         val l = targetLightness
         return Color(l, l, l, 1f)
@@ -124,14 +118,12 @@ private fun forceDarkColor(color: Color, targetLightness: Float = 0.12f): Color 
 
     val d = max - min
 
-    // 计算色相 (0-1)
     val h = when (max) {
         r -> ((g - b) / d + if (g < b) 6f else 0f) / 6f
         g -> ((b - r) / d + 2f) / 6f
         else -> ((r - g) / d + 4f) / 6f
     }
 
-    // 计算原始饱和度
     val l_original = (max + min) / 2f
     val s_original = if (l_original > 0.5f) {
         d / (2f - max - min)
@@ -141,11 +133,9 @@ private fun forceDarkColor(color: Color, targetLightness: Float = 0.12f): Color 
         0f
     }
 
-    // 使用原始饱和度但降低亮度
-    val s = s_original.coerceIn(0f, 0.6f) // 限制饱和度不要过高
+    val s = s_original.coerceIn(0f, 0.6f)
     val l = targetLightness
 
-    // HSL 转 RGB
     fun hue2rgb(p: Float, q: Float, t: Float): Float {
         var tt = t
         if (tt < 0) tt += 1
@@ -167,13 +157,6 @@ private fun forceDarkColor(color: Color, targetLightness: Float = 0.12f): Color 
     )
 }
 
-/**
- * 现代沉浸式歌单详情页：
- * 1. 顶部大图展示歌单封面，底部背景色提取自歌单图片色系并平滑过渡；
- * 2. 歌单级操作：播放全部、歌单收藏、歌单排序、歌单内实时搜索；
- * 3. 歌曲级操作（点击「...」）：收藏歌曲、添加到自建歌单（底部抽屉选择）、加入播放队列、下一首播放、下载；
- * 4. 自建歌单抽屉：底部弹层列出自建歌单，支持选择入库与一键新建。
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistDetailScreen(
@@ -194,25 +177,21 @@ fun PlaylistDetailScreen(
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    // ===== 色系提取 =====
     val dominantColors = rememberDominantColors(
         url = playlist.coverUrl ?: songs.firstOrNull()?.artwork,
         defaultAccent = PrimaryBrown
     )
 
-    // 添加调试日志
     LaunchedEffect(dominantColors) {
         android.util.Log.d("PlaylistDetail", "bgStart original: ${dominantColors.bgStart}")
         android.util.Log.d("PlaylistDetail", "bgEnd original: ${dominantColors.bgEnd}")
         android.util.Log.d("PlaylistDetail", "buttonColor original: ${dominantColors.buttonColor}")
     }
 
-    // 在计算 baseDarkBg 后添加
     val baseDarkBg = remember(dominantColors.bgEnd) {
         forceDarkColor(dominantColors.bgEnd, targetLightness = 0.12f)
     }
 
-    // 通知外部背景色变化
     LaunchedEffect(baseDarkBg) {
         onBackgroundColorChange(baseDarkBg, true)
     }
@@ -223,24 +202,19 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // 压暗按钮强调色
     val accentColor = remember(dominantColors.buttonColor) {
         forceDarkColor(dominantColors.buttonColor, targetLightness = 0.3f)
     }
 
-    // 调试日志
     LaunchedEffect(baseDarkBg) {
         android.util.Log.d("PlaylistDetail", "baseDarkBg after darken: $baseDarkBg")
     }
 
-
-    // ===== 歌单内搜索与排序状态 =====
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var sortOrder by remember { mutableStateOf(PlaylistSortOrder.DEFAULT) }
     var showSortDialog by remember { mutableStateOf(false) }
 
-    // 过滤与排序后的歌曲列表
     val displaySongs = remember(songs, searchQuery, sortOrder) {
         var list = songs
         if (searchQuery.isNotBlank()) {
@@ -263,7 +237,6 @@ fun PlaylistDetailScreen(
             .fillMaxSize()
             .background(baseDarkBg)
     ) {
-        // 1. 顶部大图封面背景（含渐变过度遮罩）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -271,7 +244,6 @@ fun PlaylistDetailScreen(
         ) {
             val coverUrl = playlist.coverUrl ?: songs.firstOrNull()?.artwork
             if (!coverUrl.isNullOrBlank()) {
-                // 内联封面（data:image/...）要自己解码，Coil 不认 data URI
                 PlaylistCoverImage(
                     model = coverUrl,
                     modifier = Modifier.fillMaxSize(),
@@ -285,7 +257,6 @@ fun PlaylistDetailScreen(
                 )
             }
 
-            // 渐变蒙版：顶部微暗保证返回按钮清晰，底部平滑融入 baseDarkBg
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -300,14 +271,12 @@ fun PlaylistDetailScreen(
             )
         }
 
-        // 2. 主体滚动内容
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 bottom = BottomContentSpacer
             )
         ) {
-            // 头部留白与顶部信息区
             item(key = "playlist_header_info") {
                 Column(
                     modifier = Modifier
@@ -316,12 +285,10 @@ fun PlaylistDetailScreen(
                 ) {
                     Spacer(Modifier.height(56.dp))
 
-                    // 歌单双列沉浸式 Hero 头部（大图海报 + 标题与平台信息）
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 左侧拟态封面大卡
                         Box(
                             modifier = Modifier
                                 .size(110.dp)
@@ -369,7 +336,6 @@ fun PlaylistDetailScreen(
 
                         Spacer(Modifier.width(AppSpacing.xxl))
 
-                        // 右侧信息区
                         Column(
                             modifier = Modifier.weight(1f)
                         ) {
@@ -388,7 +354,6 @@ fun PlaylistDetailScreen(
 
                             Spacer(Modifier.height(AppSpacing.sm))
 
-                            // 平台标签
                             if (!playlist.platform.isNullOrBlank()) {
                                 Row(
                                     modifier = Modifier
@@ -409,7 +374,6 @@ fun PlaylistDetailScreen(
                                 Spacer(Modifier.height(AppSpacing.xs))
                             }
 
-                            // 歌曲数与播放量
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
@@ -444,15 +408,11 @@ fun PlaylistDetailScreen(
 
                     Spacer(Modifier.height(AppSpacing.page))
 
-                    // 核心流体操作栏（LiquidGlassButton 播放全部 + 随机 + 搜索 + 收藏 + 排序）
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
-                        // [GZ 真值] LiquidGlassButton 已换成逐值还原版（LiquidGlassButtonKt.java:101）：
-                        // GZ 的 API 不含 text/icon/accentColor/height —— 尺寸走 modifier，文案与图标走 content。
-                        // 主操作按钮对应 GZ 的 Primary 档（PlayerScreenKt 的主按钮即 Primary）。
                         LiquidGlassButton(
                             onClick = {
                                 if (displaySongs.isNotEmpty()) {
@@ -495,7 +455,6 @@ fun PlaylistDetailScreen(
                             modifier = Modifier.weight(0.9f)
                         )
 
-                        // 歌单内搜索按钮
                         LiquidGhostButton(
                             text = "",
                             icon = Icons.Filled.Search,
@@ -507,7 +466,6 @@ fun PlaylistDetailScreen(
                             modifier = Modifier.size(44.dp)
                         )
 
-                        // 歌单收藏按钮
                         LiquidGhostButton(
                             text = "",
                             icon = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -517,7 +475,6 @@ fun PlaylistDetailScreen(
                             modifier = Modifier.size(44.dp)
                         )
 
-                        // 排序按钮
                         LiquidGhostButton(
                             text = "",
                             icon = Icons.Filled.SwapVert,
@@ -527,7 +484,6 @@ fun PlaylistDetailScreen(
                         )
                     }
 
-                    // 歌单内搜索输入框（折叠展开动画）
                     AnimatedVisibility(
                         visible = isSearchExpanded,
                         enter = fadeIn() + expandVertically(),
@@ -590,7 +546,6 @@ fun PlaylistDetailScreen(
                 }
             }
 
-            // 加载/错误/内容态展示
             if (isLoading && songs.isEmpty()) {
                 item(key = "loading_state") {
                     Box(
@@ -631,7 +586,6 @@ fun PlaylistDetailScreen(
                     }
                 }
             } else {
-                // 歌曲行列表
                 itemsIndexed(
                     items = displaySongs,
                     key = { i, s -> "$i:${s.platform}:${s.id}" }
@@ -647,7 +601,6 @@ fun PlaylistDetailScreen(
             }
         }
 
-        // 3. 悬浮顶部返回与操作条
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -672,7 +625,6 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // ===== 排序选择弹窗 =====
     if (showSortDialog) {
         AppDialog(
             onDismissRequest = { showSortDialog = false },
@@ -719,8 +671,6 @@ fun PlaylistDetailScreen(
 
 }
 
-// ==================== 歌曲行组件 ====================
-
 @Composable
 private fun PlaylistSongRow(
     song: Song,
@@ -740,7 +690,6 @@ private fun PlaylistSongRow(
             .padding(horizontal = AppSpacing.page, vertical = AppSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 封面
         SongCover(
             url = song.artwork,
             modifier = Modifier.size(48.dp),
@@ -749,7 +698,6 @@ private fun PlaylistSongRow(
 
         Spacer(Modifier.width(AppSpacing.lg))
 
-        // 歌曲与歌手/专辑
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
@@ -767,7 +715,6 @@ private fun PlaylistSongRow(
                     PlatformTag(song.platform)
                     Spacer(Modifier.width(5.dp))
                 }
-                // 无损 SQ 标 (全量无锁化)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(3.dp))
@@ -794,7 +741,6 @@ private fun PlaylistSongRow(
         }
 
         if (isCurrent) {
-            // [GZ 真值] PlayingBarsKt.java:122 固定条高 16.dp，GZ 调用点自行用 modifier 限制高度
             PlayingBars(
                 isPlaying = true,
                 color = activeTitleColor,
@@ -804,7 +750,6 @@ private fun PlaylistSongRow(
 
         Spacer(Modifier.width(AppSpacing.xxs))
 
-        // 更多操作按钮 "..."
         Box(
             modifier = Modifier
                 .size(36.dp)

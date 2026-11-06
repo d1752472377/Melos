@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** 歌手页定位信息（平台内标识） */
 data class ArtistRef(
     val platform: String,
     val id: String,
@@ -20,12 +19,6 @@ data class ArtistRef(
     val alias: String? = null,
 )
 
-/**
- * 歌手页控制器：定位信息 + 详情拉取 + 全量歌曲拉取。
- *
- * 从 `MainViewModel` 抽出：只依赖 [MusicRepository]，用请求令牌防止快速切换歌手时旧响应覆盖。
- * 由对应 Destination 直接依赖本控制器。
- */
 class ArtistController(
     private val repository: MusicRepository,
     private val scope: CoroutineScope,
@@ -40,7 +33,6 @@ class ArtistController(
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
-    // 全部演唱歌曲列表及状态
     private val _allSongs = MutableStateFlow<List<Song>>(emptyList())
     val allSongs: StateFlow<List<Song>> = _allSongs.asStateFlow()
     private val _isLoadingAllSongs = MutableStateFlow(false)
@@ -48,7 +40,6 @@ class ArtistController(
     private val _allSongsError = MutableStateFlow<String?>(null)
     val allSongsError: StateFlow<String?> = _allSongsError.asStateFlow()
 
-    /** 请求令牌（快速切换歌手时丢弃旧响应） */
     @Volatile
     private var requestId = 0L
 
@@ -75,7 +66,6 @@ class ArtistController(
             _allSongsError.value = null
 
             repository.getArtist(ref.platform, ref.id).onSuccess { detail ->
-                // 请求在途期间用户已打开别的歌手：丢弃过期响应
                 if (req != requestId) return@launch
                 val finalInfo = detail.info?.copy(
                     avatar = detail.info.avatar ?: ref.avatar,
@@ -89,19 +79,16 @@ class ArtistController(
                 )
                 val finalDetail = detail.copy(info = finalInfo)
                 _artistDetail.value = finalDetail
-                // 先用前 50 首作为全部演唱的初始预填，保证跳转"全部演唱"绝不出现白屏
                 if (_allSongs.value.isEmpty() && finalDetail.songs.isNotEmpty()) {
                     _allSongs.value = finalDetail.songs
                 }
             }.onFailure { e ->
                 if (req != requestId) return@launch
                 LogReporter.w("Artist", "歌手详情加载失败 platform=${ref.platform} id=${ref.id}", e)
-                // 失败要可见：否则页面显示"暂无相关歌曲"，把网络错误伪装成歌手无作品
                 _error.value = e.message ?: "获取歌手失败"
             }
             if (req == requestId) _isLoading.value = false
 
-            // 后台静默启动全量歌曲拉取
             loadAllSongsInternal(ref, req)
         }
     }
@@ -125,7 +112,6 @@ class ArtistController(
         }.onFailure { e ->
             if (req != requestId) return@onFailure
             LogReporter.w("Artist", "全部歌曲加载失败 platform=${ref.platform} id=${ref.id}", e)
-            // 如果已有种子单曲（如详情页前50首），不覆写页面为纯错误态，仅记录供重试
             _allSongsError.value = e.message ?: "拉取全部曲目失败"
         }
         if (req == requestId) _isLoadingAllSongs.value = false

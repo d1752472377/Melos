@@ -24,13 +24,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/**
- * 设置页。
- *
- * 本页只保留「常用设置 / 播放与音效 / 关于」：
- * 「插件管理」「账号与同步」在个人页都有入口，重复入口已移除；
- * 「桌面悬浮胶囊」已整体删除。
- */
 @Composable
 fun SettingsDestination(
     settings: SettingsController,
@@ -47,7 +40,6 @@ fun SettingsDestination(
         quality = qualityLevel,
         userPrefs = userPrefs,
         onBack = nav.popBack,
-        // 设置项各自独立成页：主页只做入口，改设置不再需要一页滚到底
         onOpenPage = { page ->
             nav.navigate(
                 when (page) {
@@ -65,22 +57,12 @@ fun SettingsDestination(
     )
 }
 
-
-/**
- * 设置子页面（主题与外观 / 音质 / 播放 / 歌词 / 下载 / 缓存）的目的地。
- *
- * 这些页面集中在一个文件：它们的职责都是"绑定 [SettingsController] + 返回"，
- * 每个页面单独一个文件只会制造一份份同样的样板。页面本身在 ui/settings/ 下各自独立。
- */
-
-/** 主题与外观 */
 @Composable
 fun SettingsAppearanceDestination(
     settings: SettingsController,
     nav: ShellNav,
     onPageBackground: (Color?, Boolean) -> Unit,
 ) {
-    // 选「自动」时需要立刻按当前系统深浅应用一次，否则要等系统切换才生效
     val systemDark = isSystemInDarkTheme()
     val themeMode by settings.themeMode.collectAsState()
     val userPrefs by settings.prefs.collectAsState()
@@ -96,7 +78,6 @@ fun SettingsAppearanceDestination(
     )
 }
 
-/** 音质 */
 @Composable
 fun SettingsQualityDestination(
     settings: SettingsController,
@@ -114,7 +95,6 @@ fun SettingsQualityDestination(
     )
 }
 
-/** 播放设置 */
 @Composable
 fun SettingsPlaybackDestination(
     settings: SettingsController,
@@ -135,7 +115,6 @@ fun SettingsPlaybackDestination(
     )
 }
 
-/** 歌词显示 */
 @Composable
 fun SettingsLyricsDestination(
     settings: SettingsController,
@@ -156,7 +135,6 @@ fun SettingsLyricsDestination(
     )
 }
 
-/** 下载设置 */
 @Composable
 fun SettingsDownloadDestination(
     settings: SettingsController,
@@ -178,7 +156,6 @@ fun SettingsDownloadDestination(
     )
 }
 
-/** 缓存管理（占用统计 + 分类清理 + 抽屉明细） */
 @Composable
 fun SettingsCacheDestination(
     settings: SettingsController,
@@ -191,13 +168,11 @@ fun SettingsCacheDestination(
     val context = LocalContext.current
     val prefs by settings.prefs.collectAsState()
     val manage = rememberCacheManageState(context, scope)
-    // 待确认的清理动作（null = 没有弹窗）
     var pendingClear by remember { mutableStateOf<CacheKind?>(null) }
 
     CacheManageScreen(
         breakdown = manage.breakdown,
         isScanning = manage.isScanning,
-        // 用本次扫描得到的歌曲数（与总占用同源），避免与列表页的计数不一致
         cachedSongCount = manage.cachedSongCount,
         showDetail = manage.showDetail,
         onBack = {
@@ -215,7 +190,6 @@ fun SettingsCacheDestination(
         cacheLimitBytes = prefs.cacheLimitBytes,
         onCacheLimitChange = { bytes ->
             settings.setCacheLimitBytes(bytes)
-            // 用户调小上限后立即按新上限清理一次
             scope.launch(Dispatchers.IO) {
                 com.aesthetic.music.player.AudioCacheService.enforceCacheLimit(context)
             }

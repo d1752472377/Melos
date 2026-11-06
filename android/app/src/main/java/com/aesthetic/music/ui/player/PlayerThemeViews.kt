@@ -32,10 +32,6 @@ import coil.compose.AsyncImage
 import com.aesthetic.music.ui.theme.AmberLight
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 唱片架黑胶封套抽拉视图（移植自瓜子音乐 RecordShelfPlayer 核心动效）
- * 包含外层黑胶纸质封套与内部抽出式黑胶唱片，播放时唱片抽出并持续旋转。
- */
 @Composable
 fun RecordShelfCover(
     artworkUrl: String?,
@@ -57,7 +53,6 @@ fun RecordShelfCover(
         modifier = modifier.size(320.dp, 260.dp),
         contentAlignment = Alignment.CenterStart
     ) {
-        // 1. 抽出式黑胶唱片（处于底层）
         Box(
             modifier = Modifier
                 .offset(x = (revealAnim.value + 40f).dp)
@@ -80,7 +75,6 @@ fun RecordShelfCover(
                 .border(1.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            // 逼真音轨同心圆纹理
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val centerOffset = Offset(size.width / 2, size.height / 2)
                 val maxRadius = size.width / 2
@@ -95,7 +89,6 @@ fun RecordShelfCover(
                 }
             }
 
-            // 唱片中心标签封面
             if (!artworkUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = artworkUrl,
@@ -118,7 +111,6 @@ fun RecordShelfCover(
                 }
             }
 
-            // 唱片中心金色扣孔
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -140,7 +132,6 @@ fun RecordShelfCover(
             }
         }
 
-        // 2. 外层专辑封套（处于上层，遮盖住唱片的左半部分）
         Box(
             modifier = Modifier
                 .offset(x = 10.dp)
@@ -172,7 +163,6 @@ fun RecordShelfCover(
                 }
             }
 
-            // 封套右边缘立体压痕与纸套内层阴影
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -190,10 +180,6 @@ fun RecordShelfCover(
     }
 }
 
-/**
- * 流光 CD 视图（移植自瓜子音乐 LuminousCdPlayer 核心动效）
- * 逼真光学光盘反射效果与全息镭射七彩偏光，旋转时流光流转。
- */
 @Composable
 fun LuminousCdCover(
     artworkUrl: String?,
@@ -222,27 +208,24 @@ fun LuminousCdCover(
             .border(1.5.dp, Color.White.copy(alpha = 0.45f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        // 全息流光彩虹干涉渐变
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerOffset = Offset(size.width / 2, size.height / 2)
             val maxR = size.width / 2
 
-            // 镭射反光条
             val holoBrush = Brush.sweepGradient(
                 colors = listOf(
-                    AppColors.neonPinkSoft, // 粉
-                    AppColors.neonVioletSoft, // 紫
-                    AppColors.neonBlueSoft, // 蓝
-                    AppColors.neonGreenSoft, // 绿
-                    AppColors.neonYellowSoft, // 黄
-                    AppColors.neonOrangeSoft, // 橙
-                    AppColors.neonPinkSoft  // 粉环闭合
+                    AppColors.neonPinkSoft,
+                    AppColors.neonVioletSoft,
+                    AppColors.neonBlueSoft,
+                    AppColors.neonGreenSoft,
+                    AppColors.neonYellowSoft,
+                    AppColors.neonOrangeSoft,
+                    AppColors.neonPinkSoft
                 ),
                 center = centerOffset
             )
             drawCircle(brush = holoBrush, radius = maxR, center = centerOffset)
 
-            // CD 音轨同心圆微细刻线
             val rings = listOf(0.94f, 0.88f, 0.82f, 0.76f, 0.70f)
             rings.forEach { rFactor ->
                 drawCircle(
@@ -254,7 +237,6 @@ fun LuminousCdCover(
             }
         }
 
-        // CD 印刷面：中心封面圆形区域
         if (!artworkUrl.isNullOrBlank()) {
             AsyncImage(
                 model = artworkUrl,
@@ -277,7 +259,6 @@ fun LuminousCdCover(
             }
         }
 
-        // CD 透明亚克力夹持内环与中心通孔
         Box(
             modifier = Modifier
                 .size(46.dp)

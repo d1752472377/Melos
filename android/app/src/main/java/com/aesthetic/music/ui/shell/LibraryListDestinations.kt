@@ -9,7 +9,6 @@ import com.aesthetic.music.ui.library.FavoritesScreen
 import com.aesthetic.music.ui.library.HistoryScreen
 import com.aesthetic.music.ui.library.LibraryController
 
-/** 我的收藏页 */
 @Composable
 fun FavoritesDestination(
     library: LibraryController,
@@ -52,8 +51,6 @@ fun FavoritesDestination(
     )
 }
 
-
-/** 最近播放页 */
 @Composable
 fun HistoryDestination(
     library: LibraryController,
@@ -88,7 +85,6 @@ fun HistoryDestination(
         actions = actions,
         playerManager = playerManager,
         myPlaylists = myPlaylists,
-        // 查看卡片：不是当前播放的歌就先按历史列表播它，再打开全屏播放器
         onViewCard = { song ->
             val cur = playerState.currentSong
             val isCurrent = cur != null && cur.id == song.id && cur.platform == song.platform

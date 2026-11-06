@@ -8,7 +8,6 @@ import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.runtime.Composable
 import com.aesthetic.music.data.settings.UserPrefs
 
-/** 歌词设置页：翻译 / 音译 / 歌词来源（在线、本地） */
 @Composable
 fun LyricSettingsScreen(
     prefs: UserPrefs,

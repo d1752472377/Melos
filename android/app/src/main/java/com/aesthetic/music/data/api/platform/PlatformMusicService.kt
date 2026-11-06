@@ -73,7 +73,6 @@ object PlatformMusicService {
         }
     }
 
-    /** 清洗酷我返回字符串中的 unicode 转义 (\\u0026 -> &) 及 HTML 实体 (&nbsp;) */
     private fun cleanKuwoText(text: String?): String {
         if (text.isNullOrBlank()) return ""
         var s = text
@@ -144,8 +143,6 @@ object PlatformMusicService {
                 .build(),
         )
 
-    // ==================== 多平台搜索入口 ====================
-
     private const val P_NETEASE = "netease"
     private const val P_QQ = "qq"
     private const val P_KUGOU = "kugou"
@@ -154,8 +151,6 @@ object PlatformMusicService {
     private fun platformsOf(platform: String?): List<String> =
         if (platform.isNullOrBlank()) listOf(P_NETEASE, P_QQ, P_KUGOU, P_KUWO)
         else listOf(platform)
-
-    // ---------- 单曲 ----------
 
     suspend fun search(keyword: String, limit: Int = 30, platform: String? = null): List<Song> {
         val plats = platformsOf(platform)
@@ -170,7 +165,6 @@ object PlatformMusicService {
         }
     }
 
-    // [新增] 相关性评分
     private fun relevanceScore(song: Song, keyword: String): Int {
         val kw = keyword.trim().lowercase()
         if (kw.isEmpty()) return 0
@@ -192,7 +186,6 @@ object PlatformMusicService {
         return score
     }
 
-    // [新增] 重排
     private fun rankSongs(songs: List<Song>, keyword: String): List<Song> =
         songs.sortedByDescending { relevanceScore(it, keyword) }
 
@@ -204,8 +197,6 @@ object PlatformMusicService {
             P_KUWO -> searchSongsKuwo(kw, limit)
             else -> emptyList()
         }
-
-    // ---------- 歌手 ----------
 
     suspend fun searchArtists(keyword: String, limit: Int = 12, platform: String? = null): List<ArtistItem> {
         val plats = platformsOf(platform)
@@ -228,8 +219,6 @@ object PlatformMusicService {
             else -> emptyList()
         }
 
-    // ---------- 歌单 ----------
-
     suspend fun searchPlaylists(keyword: String, limit: Int = 20, platform: String? = null): List<PlaylistItem> {
         val plats = platformsOf(platform)
         if (plats.size == 1) return searchPlaylistsOn(plats[0], keyword, limit)
@@ -250,8 +239,6 @@ object PlatformMusicService {
             P_KUWO -> searchPlaylistsKuwo(kw, limit)
             else -> emptyList()
         }
-
-    // ---------- 专辑 ----------
 
     suspend fun searchAlbums(keyword: String, limit: Int = 20, platform: String? = null): List<AlbumItem> {
         val plats = platformsOf(platform)
@@ -274,8 +261,6 @@ object PlatformMusicService {
             else -> emptyList()
         }
 
-    // ==================== 网易云 ====================
-
     private suspend fun searchSongsNetease(kw: String, limit: Int): List<Song> {
         val root = cloudSearch(kw, type = 1, limit = limit)
         val arr = root.getAsJsonObject("result")?.getAsJsonArray("songs") ?: return emptyList()
@@ -293,7 +278,6 @@ object PlatformMusicService {
         result.getAsJsonObject("artist")
             ?.let { return listOfNotNull(parseNeteaseArtist(it)) }
 
-        // 兜底：从 songs[].artists 去重提取
         val songs = result.getAsJsonArray("songs")
         if (songs != null && songs.size() > 0) {
             val seen = LinkedHashMap<String, ArtistItem>()
@@ -367,8 +351,6 @@ object PlatformMusicService {
             platform = P_NETEASE,
         )
     }
-
-    // ==================== QQ（musicu.fcg，四类） ====================
 
     private fun stripJsonp(body: String): String {
         val s = body.indexOf('(')
@@ -498,8 +480,6 @@ object PlatformMusicService {
         }
     }
 
-    // ==================== 酷狗（HTTP） ====================
-
     private suspend fun kugouJson(url: String): JsonObject = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(url)
             .header("User-Agent", BROWSER_UA)
@@ -512,7 +492,6 @@ object PlatformMusicService {
 
     private suspend fun searchSongsKugou(kw: String, limit: Int): List<Song> {
         return try {
-            // 优先使用官方 WebFilter song_search_v2 接口：Image 字段含真实专辑封面
             val url = "http://songsearch.kugou.com/song_search_v2?keyword=${URLEncoder.encode(kw, "UTF-8")}&page=1&pagesize=$limit&clientver=&platform=WebFilter"
             val root = kugouJson(url)
             val list = root.getAsJsonObject("data")?.getAsJsonArray("lists")
@@ -554,23 +533,18 @@ object PlatformMusicService {
         }
     }
 
-    // [新增]
     private fun kugouCover(o: JsonObject): String? {
-        // 1) 优先用 album_id 拼官方封面
         val albumId = o.get("album_id")?.asString?.takeIf { it.isNotBlank() && it != "0" }
         if (albumId != null) return "https://imge.kugou.com/stdmusic/240/$albumId.jpg"
-        // 2) imgurl / img 直接给（含 {size} 占位符）
         val raw = o.get("imgurl")?.asString
             ?: o.get("img")?.asString
             ?: o.get("album_img")?.asString
         if (!raw.isNullOrBlank()) return raw.replace("{size}", "240")
-        // 3) 最后用 hash 走酷狗封面兜底（部分接口支持）
         val hash = o.get("hash")?.asString
         if (!hash.isNullOrBlank()) return "https://imge.kugou.com/stdmusic/240/$hash.jpg"
         return null
     }
 
-    // [新增]
     private fun kugouArtistAvatar(o: JsonObject): String? {
         val raw = o.get("imgurl")?.asString
             ?: o.get("img")?.asString
@@ -663,11 +637,7 @@ object PlatformMusicService {
         }
     }
 
-// ==================== 酷我（HTTP，单引号伪 JSON） ====================
-
     private fun kuwoNormalize(raw: String): String {
-        // 酷我 r.s 是单引号伪 JSON。只把「单引号」替换为双引号，
-        // 已有的反斜杠转义（\uXXXX、\'、\"）原样保留，交给 Gson 解码。
         val sb = StringBuilder(raw.length + 32)
         var i = 0
         while (i < raw.length) {
@@ -696,7 +666,6 @@ object PlatformMusicService {
 
     private suspend fun kuwoRaw(url: String): JsonObject = parseJson(url, kuwoNormalize(kuwoBody(url)))
 
-    /** 酷我封面：web_albumpic_short 是相对路径；hts_* 已是完整 URL */
     private fun kuwoCover(path: String?): String? {
         val p = path?.takeIf { it.isNotBlank() } ?: return null
         return if (p.startsWith("http")) p else "https://img2.kuwo.cn/star/albumcover/$p"
@@ -758,7 +727,6 @@ object PlatformMusicService {
     private suspend fun searchPlaylistsKuwo(kw: String, limit: Int): List<PlaylistItem> {
         val url = "http://search.kuwo.cn/r.s?all=${URLEncoder.encode(kw, "UTF-8")}" +
                 "&ft=playlist&itemset=web_2013&client=kt&pn=0&rn=$limit&rformat=json&encoding=utf8"
-        // 歌单列表字段是 abslist；名字字段是小写 name；封面 hts_pic 是完整 URL
         val arr = kuwoRaw(url).getAsJsonArray("abslist") ?: return emptyList()
         return arr.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
@@ -780,7 +748,6 @@ object PlatformMusicService {
     private suspend fun searchAlbumsKuwo(kw: String, limit: Int): List<AlbumItem> {
         val url = "http://search.kuwo.cn/r.s?all=${URLEncoder.encode(kw, "UTF-8")}" +
                 "&ft=album&itemset=web_2013&client=kt&pn=0&rn=$limit&rformat=json&encoding=utf8"
-        // 专辑列表字段是 albumlist（不是 abslist）；名字字段是小写 name；封面 hts_img 是完整 URL
         val arr = kuwoRaw(url).getAsJsonArray("albumlist") ?: return emptyList()
         return arr.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
@@ -799,7 +766,6 @@ object PlatformMusicService {
             )
         }
     }
-    // ==================== 以下保持原有实现：详情 / 榜单 / 歌词 / 直链 / 辅助 ====================
 
     suspend fun getNeteaseSingerSongs(artistId: String, offset: Int, limit: Int): Pair<Long, List<Song>> {
         val url = "https://music.163.com/api/v1/artist/songs?id=${URLEncoder.encode(artistId, "UTF-8")}&offset=$offset&limit=$limit"
@@ -1070,22 +1036,9 @@ object PlatformMusicService {
         return AlbumDetailData(info = info, songs = songs)
     }
 
-    /**
-     * 网易云歌单曲目。
-     *
-     * @param limit 只要前 N 首（0 = 全部）。歌单详情接口的 `tracks` 只回前 10 首，
-     *   全量曲目在 `trackIds` 里，需要按 ID 批量补全——因此做"只看前几首"的调用（分类预览、
-     *   FM 种子）时必须能短路，否则每次都会为 3 首歌拉回上千首。
-     */
     suspend fun getPlaylist(id: String, limit: Int = 0): List<Song> =
         neteasePlaylistDetail(id, limit).songs
 
-    // ==================== 歌单详情（导入外部歌单：名字 + 封面 + 全部曲目） ====================
-
-    /**
-     * 抓取歌单详情。导入外部歌单时必须同时拿到名字与封面：
-     * 只抓歌曲会让用户导进来的歌单叫"导入的歌单"、封面退化成首曲封面，失去"原始记录"的意义。
-     */
     suspend fun getPlaylistDetail(platform: String?, id: String): PlaylistDetailData {
         val p = platform?.takeIf { it.isNotBlank() } ?: P_NETEASE
         return when (p) {
@@ -1097,13 +1050,8 @@ object PlatformMusicService {
         }
     }
 
-    /** 单次导入的曲目上限：与 LibraryController 的单个歌单上限保持一致 */
     private const val MAX_PLAYLIST_SONGS = 1000
 
-    /**
-     * 展开跳转链接（网易云 `163cn.tv/xxx` 这类短链只有跳转后的地址才带平台与歌单 ID）。
-     * 失败或本就没有跳转时返回原 URL，由调用方自行判断是否继续。
-     */
     suspend fun resolveFinalUrl(url: String): String = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
@@ -1146,7 +1094,6 @@ object PlatformMusicService {
         return PlaylistDetailData(info = info, songs = songs)
     }
 
-    /** 按曲目 ID 批量补全歌曲：分块请求并保持歌单原始顺序 */
     private suspend fun fetchNeteaseSongsByIds(ids: List<Long>): List<Song> {
         if (ids.isEmpty()) return emptyList()
         val byId = HashMap<String, Song>(ids.size)
@@ -1155,7 +1102,6 @@ object PlatformMusicService {
             val root = try {
                 getJson(url)
             } catch (e: Exception) {
-                // 某一批失败就保留已取到的部分，总比整单导入失败好
                 Log.w(TAG, "netease song detail batch failed: ${e.message}")
                 break
             }
@@ -1179,8 +1125,6 @@ object PlatformMusicService {
         val resp = httpClient.newCall(req).execute()
         if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
         val body = resp.body?.string().orEmpty()
-        // 该接口在 format=json 下是标准 JSON，但历史上也出现过 JSONP 包装；只在必要时剥离，
-        // 否则歌名里的括号会被 stripJsonp 当成包裹符号截断 JSON。
         val cleaned = if (body.trimStart().startsWith("{")) body else stripJsonp(body)
         val root = parseJson(url, cleaned)
         val cd = root.getAsJsonArray("cdlist")?.firstOrNull()?.asJsonObject
@@ -1212,7 +1156,6 @@ object PlatformMusicService {
     }
 
     private suspend fun kugouPlaylistDetail(id: String): PlaylistDetailData {
-        // 名字/封面信息接口偶发不可用：此时只要有歌曲就仍然导入，歌单名回落为文案里的名字
         val meta = runCatching {
             kugouJson("http://mobilecdn.kugou.com/api/v3/special/info?specialid=$id&format=json")
                 .getAsJsonObject("data")
@@ -1230,14 +1173,8 @@ object PlatformMusicService {
         return PlaylistDetailData(info = info, songs = songs)
     }
 
-    /**
-     * 酷狗曲目统一解析：歌单（special/song）与榜单（rank/song）两个接口的字段同构，
-     * 抽成一份避免两处漂移——此前只有歌单做过 "filename 兜底" 处理，榜单曲目没有，
-     * 结果部分榜单会出现空歌名。
-     */
     private fun kugouSongFrom(o: JsonObject): Song? {
         val hash = o.optString("hash") ?: return null
-        // filename 形如 "歌手 - 歌名"，作为缺失字段的兜底
         val fileName = o.optString("filename").orEmpty()
         val hasSeparator = fileName.contains(" - ")
         return Song(
@@ -1252,7 +1189,6 @@ object PlatformMusicService {
         )
     }
 
-    /** 酷狗歌单曲目分页拉取（每页 100，最多 5 页，避免超大歌单打满内存） */
     private suspend fun kugouPlaylistSongs(id: String): List<Song> {
         val out = mutableListOf<Song>()
         var page = 1
@@ -1277,13 +1213,10 @@ object PlatformMusicService {
         val url = "http://nplserver.kuwo.cn/pl.svc?op=getlistinfo&pid=$id&pn=0&rn=300&encode=utf-8" +
                 "&keyset=pl2012&identity=kuwo&pcmp4=1&vipver=MUSIC_9.0.2.0_W1&newver=1"
         val body = kuwoBody(url)
-        // pl.svc 返回标准 JSON；只有解析为空时才按酷我的单引号伪 JSON 规范化后重试
         val direct = parseJson(url, body)
         val root = if (direct.size() > 0) direct else parseJson(url, kuwoNormalize(body))
         val list = root.getAsJsonArray("musiclist")
-        // 酷我 pl.svc 的顶层歌单名是 title（info 是简介，name 只出现在曲目里），封面是 pic
         val name = cleanKuwoText(root.optString("title") ?: root.optString("name"))
-        // 既没有歌单名也没有曲目 → 判定为无效/私密歌单；只有空曲目则交由上层提示"没有可导入的歌曲"
         if (list == null && name.isBlank()) throw IOException("歌单不存在或为私密歌单")
         val songs = list?.mapNotNull { e ->
             val o = e.asJsonObject ?: return@mapNotNull null
@@ -1360,19 +1293,6 @@ object PlatformMusicService {
         return NewSongsData(title = "新歌速递", songs = songs)
     }
 
-    /**
-     * 按语种/地区取新歌（首页「新歌首发」三张地区卡的数据源）。
-     *
-     * 接口：`https://music.163.com/api/discovery/new/songs?areaId=<areaId>&limit=<n>`
-     *  - 返回体是 `{ code, data: [song...] }`，元素结构与 `personalized/newsong` 的
-     *    `result[].song` 同构（`name` / `artists[].name` / `album.picUrl`），因此直接复用
-     *    [parseNeteaseSong]；
-     *  - `limit` 实测被服务端忽略（恒返回 100 条），这里仍在客户端截断到调用方要的数量，
-     *    免得把 100 首塞进首页卡片；
-     *  - 未知 [areaId] 会返回空 `data`（不是报错），所以上层不需要为「某个地区没歌」写分支。
-     *
-     * @param areaId 地区参数，取值见 [NewSongRegions]（7 华语 / 96 欧美 / 8 日语 / 16 韩语）
-     */
     suspend fun newSongsByArea(areaId: Int, limit: Int = 20): List<Song> {
         val safeLimit = limit.coerceIn(1, 100)
         val url = "https://music.163.com/api/discovery/new/songs?areaId=$areaId&limit=$safeLimit"
@@ -1381,17 +1301,6 @@ object PlatformMusicService {
         return arr.take(safeLimit).mapNotNull { parseNeteaseSong(it) }
     }
 
-    /**
-     * 相似歌曲（「猜你喜欢」把种子歌扩展成候选池的唯一外部依赖）。
-     *
-     * 接口：`https://music.163.com/api/discovery/simiSong?songid=<id>&limit=<n>`（实测 200 可用），
-     * 返回体 `{ code, songs: [song...] }`，元素带 `recommendReason = "相似歌曲"` 与
-     * `alg = "alg-music-rec-pp-sim_song-..."`，即网易云的协同过滤结果。
-     *
-     * 只有网易云有这个接口，而且它只认**数字歌曲 id**；其它平台（QQ 的 songmid、酷狗的 hash）
-     * 传进去只会拿到 404，因此这里直接返回空列表——由上层把「该种子没扩展到候选」计入
-     * 失败数，而不是把它当异常。
-     */
     suspend fun similarSongs(songId: String, limit: Int = 20): List<Song> {
         val id = songId.trim()
         if (id.isEmpty() || id.any { !it.isDigit() }) return emptyList()
@@ -1480,15 +1389,6 @@ object PlatformMusicService {
         return out.shuffled()
     }
 
-    // ==================== 排行榜（四平台） ====================
-
-    /**
-     * 拉取指定平台的榜单列表。
-     *
-     * 与旧实现的区别：以前只认网易云（`getRanks()` 写死 `/api/toplist/detail`），
-     * 现在按平台分派。失败**不吞异常**——由上层展示「加载失败 + 重试」，
-     * 否则用户看到的是「暂无排行榜」，会误以为该平台真的没有榜单。
-     */
     suspend fun getRanks(platform: String = RankCatalog.DEFAULT): RanksData {
         val p = RankCatalog.normalize(platform)
         val ranks = when (p) {
@@ -1500,13 +1400,10 @@ object PlatformMusicService {
         return RanksData(title = RankCatalog.label(p), ranks = RankCatalog.sortRanks(ranks))
     }
 
-    /** 拉取某个榜单的曲目（榜单 id 由对应平台的 [getRanks] 返回，各平台 id 语义不同） */
     suspend fun getRankSongs(platform: String, id: String): List<Song> =
         when (RankCatalog.normalize(platform)) {
             RankCatalog.QQ -> qqRankSongs(id)
             RankCatalog.KUGOU -> kugouRankSongs(id)
-            // 酷我的「新式榜单 id」就是一个歌单 id，直接复用歌单曲目接口（已实测可用），
-            // 这样封面/专辑字段与歌单完全一致，也不用再维护一套解析
             RankCatalog.KUWO -> kuwoPlaylistDetail(id).songs
             else -> getPlaylist(id, limit = RankCatalog.songLimit(RankCatalog.NETEASE))
         }
@@ -1523,7 +1420,6 @@ object PlatformMusicService {
             PlaylistItem(
                 id = id,
                 name = name,
-                // 网易云榜单封面字段是双写：coverImgUrl（新旧接口都有）/ picUrl（部分榜单才有）
                 coverUrl = fixPicUrl(cover),
                 playCount = obj.get("playCount")?.asLong,
                 trackCount = obj.get("trackCount")?.asLong,
@@ -1533,7 +1429,6 @@ object PlatformMusicService {
         }
     }
 
-    /** QQ 榜单：musicu.fcg 的 GetAll 一次返回「巅峰榜 / 地区榜 / 特色榜 / 全球榜」四组 */
     private suspend fun ranksQq(): List<PlaylistItem> {
         val payload = """{"comm":{"ct":24,"cv":0},"toplist":{"module":"musicToplist.ToplistInfoServer","method":"GetAll","param":{}}}"""
         val root = qqPost(payload)
@@ -1547,13 +1442,11 @@ object PlatformMusicService {
             val groupName = group.optString("groupName")?.takeIf { it.isNotBlank() }
             group.getAsJsonArray("toplist")?.forEach { te ->
                 val o = te.asJsonObject ?: return@forEach
-                // topId 是数字，asString 会得到 "26" —— 与 fcg_v8_toplist_cp.fcg 的 topid 参数一致
                 val id = o.get("topId")?.asString ?: return@forEach
                 val name = o.optString("title").orEmpty()
                 out += PlaylistItem(
                     id = id,
                     name = name,
-                    // picUrl 在这个接口里恒为空，真实封面在 frontPicUrl(300) / headPicUrl(500)
                     coverUrl = fixPicUrl(o.optString("frontPicUrl") ?: o.optString("headPicUrl")),
                     playCount = o.optLong("listenNum"),
                     trackCount = o.optLong("totalNum"),
@@ -1566,7 +1459,6 @@ object PlatformMusicService {
         return out
     }
 
-    /** 酷狗榜单：rank/list 一页给全（实测 55 个榜单，无分组） */
     private suspend fun ranksKugou(): List<PlaylistItem> {
         val url = "http://mobilecdnbj.kugou.com/api/v3/rank/list?version=9108&plat=0&pagesize=100&page=1"
         val info = kugouJson(url).getAsJsonObject("data")?.getAsJsonArray("info") ?: return emptyList()
@@ -1577,7 +1469,6 @@ object PlatformMusicService {
             PlaylistItem(
                 id = id,
                 name = name,
-                // 酷狗封面 URL 里带 {size} 占位符，不替换会直接 404
                 coverUrl = fixPicUrl(o.optString("imgurl")?.replace("{size}", "480")),
                 playCount = o.optLong("play_times"),
                 platform = P_KUGOU,
@@ -1586,7 +1477,6 @@ object PlatformMusicService {
         }
     }
 
-    /** 酷我榜单：bang/list 是「分组 → 榜单」两层树；榜单 id 即歌单 id */
     private suspend fun ranksKuwo(): List<PlaylistItem> {
         val root = kuwoRaw("http://wapi.kuwo.cn/api/pc/bang/list")
         val groups = root.getAsJsonArray("child") ?: return emptyList()
@@ -1613,7 +1503,6 @@ object PlatformMusicService {
         return out
     }
 
-    /** QQ 榜单曲目：h5 的 toplist_cp 接口，字段在 songlist[].data 里 */
     private suspend fun qqRankSongs(topId: String): List<Song> {
         val num = RankCatalog.songLimit(RankCatalog.QQ)
         val url = "https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?topid=$topId" +
@@ -1642,17 +1531,12 @@ object PlatformMusicService {
                 title = o.optString("songname").orEmpty(),
                 artist = singer,
                 album = o.optString("albumname").orEmpty(),
-                // 与搜索保持一致：QQ 封面由专辑 mid 拼固定前缀
                 artwork = albMid?.let { "https://y.qq.com/music/photo_new/T002R300x300M000$it.jpg" },
                 platform = P_QQ,
             )
         }
     }
 
-    /**
-     * 酷狗榜单曲目：rank/song 的字段与歌单曲目接口同构，复用 [kugouSongFrom]。
-     * 只取第一页（前 100 首）：榜单的看点在前列，没必要为第 2-5 页多打 4 次请求。
-     */
     private suspend fun kugouRankSongs(rankId: String): List<Song> {
         val url = "http://mobilecdnbj.kugou.com/api/v3/rank/song" +
                 "?version=9108&plat=0&pagesize=${RankCatalog.songLimit(RankCatalog.KUGOU)}&page=1&rankid=$rankId"
@@ -1742,8 +1626,6 @@ object PlatformMusicService {
         return CategoriesData(title = "分类歌单", categories = categories)
     }
 
-    // ==================== 多平台歌词解析 ====================
-
     internal fun unescapeLyric(text: String): String {
         if (!text.contains("&")) return text
         return text
@@ -1792,9 +1674,6 @@ object PlatformMusicService {
 
     private suspend fun getNeteaseLyric(song: Song): LyricData {
         return try {
-            // yv=-1 才会返回 `yrc`（逐字歌词）。实测（2026-10）：
-            //   GET /api/song/lyric?id=..&lv=-1&tv=-1&yv=-1
-            //   → { lrc, tlyric, yrc:{lyric:"[行起始ms,行时长ms](字起始ms,字时长ms,0)字…"} }
             // 注意 yrc 里的字时间是**绝对毫秒**（不是行内偏移），与 parseYrc 的解析口径一致。
             val url = "https://music.163.com/api/song/lyric?id=${URLEncoder.encode(song.id, "UTF-8")}" +
                     "&lv=-1&tv=-1&yv=-1"
@@ -1966,8 +1845,6 @@ object PlatformMusicService {
             sourceName = "官方直连"
         )
     }
-
-    // ==================== 辅助解析 ====================
 
     private fun parseNeteaseSong(element: JsonElement): Song? {
         val obj = element.asJsonObject ?: return null

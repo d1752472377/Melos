@@ -64,7 +64,6 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/** 全部演唱：渐进渲染（每次渲染 50 条，滚到底自动追加 50 条），支持全量歌曲流畅播放与浏览。 */
 private const val PAGE_SIZE = 50
 
 @Composable
@@ -89,7 +88,6 @@ fun ArtistAllSongsScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // 页内过滤：搜歌名 / 歌手 / 专辑（作用于全量列表，假分页基于过滤结果）
     val filtered = remember(songs, searchQuery) {
         val q = searchQuery.trim()
         if (q.isEmpty()) {
@@ -118,7 +116,6 @@ fun ArtistAllSongsScreen(
                 .fillMaxSize()
                 .padding(top = statusBarTop + AppSpacing.xxl)
         ) {
-            // ===== 1. 顶部大标题（与「我的收藏」一致，不再有返回按钮） =====
             Text(
                 text = "全部演唱",
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -131,7 +128,6 @@ fun ArtistAllSongsScreen(
 
             Spacer(Modifier.height(AppSpacing.xxl))
 
-            // ===== 2. 歌手信息卡片（与歌手页同款） =====
             ArtistSummaryCard(
                 name = artistName,
                 alias = alias,
@@ -147,7 +143,6 @@ fun ArtistAllSongsScreen(
                 modifier = Modifier.padding(horizontal = AppSpacing.page)
             )
 
-            // ===== 2.5 列表内搜索 =====
             if (isSearchExpanded) {
                 Spacer(Modifier.height(AppSpacing.xl))
                 ListSearchBar(
@@ -160,7 +155,6 @@ fun ArtistAllSongsScreen(
 
             Spacer(Modifier.height(AppSpacing.xxxl))
 
-            // ===== 3. 列表标题栏 =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -245,7 +239,6 @@ fun ArtistAllSongsScreen(
                             },
                             actions = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // 收藏
                                     Box(
                                         modifier = Modifier
                                             .size(34.dp)
@@ -260,7 +253,6 @@ fun ArtistAllSongsScreen(
                                             modifier = Modifier.size(19.dp),
                                         )
                                     }
-                                    // 下一首播放
                                     Box(
                                         modifier = Modifier
                                             .size(34.dp)
@@ -275,7 +267,6 @@ fun ArtistAllSongsScreen(
                                             modifier = Modifier.size(19.dp),
                                         )
                                     }
-                                    // 更多
                                     Box(
                                         modifier = Modifier
                                             .size(34.dp)
@@ -301,7 +292,6 @@ fun ArtistAllSongsScreen(
                             )
                         }
                     }
-                    // 假分页哨兵：滚到底自动追加下一页
                     if (visibleCount < filtered.size) {
                         item(key = "load_more_sentinel") {
                             LaunchedEffect(visibleCount) {

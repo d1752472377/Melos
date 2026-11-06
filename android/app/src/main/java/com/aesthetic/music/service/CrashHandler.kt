@@ -8,10 +8,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * 全局崩溃日志：未捕获异常写入文件，便于定位闪退原因。
- * 日志位置：Android/data/com.aesthetic.music/files/crash/crash_*.log
- */
 object CrashHandler {
 
     /** 崩溃日志最多保留份数，超出删除最旧的（此前只写不清、无限增长） */

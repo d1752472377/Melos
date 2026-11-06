@@ -1,15 +1,11 @@
 package com.aesthetic.music.player
 
-/** 单字歌词时间戳 */
 data class LyricWord(
     val startMs: Long,
     val endMs: Long,
     val text: String,
 )
 
-/**
- * 单行歌词（带时间戳；translated 非空时显示原文+翻译两行；支持逐字、罗马音与声部标记）
- */
 data class LyricLine(
     val timeMs: Long,
     val text: String,
@@ -23,10 +19,6 @@ data class LyricLine(
     val isWordByWord: Boolean get() = words.isNotEmpty()
 }
 
-/**
- * 歌词制作人与版权元数据智能过滤工具库
- * 参考瓜子音乐 jk4.java 逻辑，过滤非演唱行（如作词/作曲/出品等）
- */
 object MetadataFilter {
     private val FILTER_KEYWORDS = listOf(
         "作词", "作曲", "编曲", "词：", "曲：", "制作人", "混音", "母带",
@@ -35,12 +27,6 @@ object MetadataFilter {
         "Mixed by", "Mastered by", "演唱", "出品", "发行"
     )
 
-    /**
-     * 只在「带冒号」时才算元数据的短标签（OP / SP 是版权方缩写）。
-     *
-     * 为什么单独拎出来：这两个只有 2 个字母，用 `startsWith` 匹配会把
-     * 任何以 "Op…" / "Sp…" 开头的英文歌词行（Open / Spend / Speaking…）整行吃掉。
-     */
     private val COLON_ONLY_KEYWORDS = listOf("OP", "SP", "词", "曲")
 
     fun isMetadataLine(rawText: String, startMs: Long = 0L, title: String = "", artist: String = ""): Boolean {
@@ -64,11 +50,6 @@ object MetadataFilter {
     }
 }
 
-/**
- * 网易云 YRC 逐字歌词解析器
- * 行级：[startMs,durationMs]
- * 词级：(offsetMs,durationMs,0)文字
- */
 fun parseYrc(yrc: String?, title: String = "", artist: String = ""): List<LyricLine> {
     if (yrc.isNullOrBlank()) return emptyList()
     val lineRegex = Regex("""^\[(\d+),(\d+)](.*)$""")
@@ -116,11 +97,6 @@ fun parseYrc(yrc: String?, title: String = "", artist: String = ""): List<LyricL
     return lines.sortedBy { it.timeMs }
 }
 
-/**
- * 酷狗 KRC 逐字歌词解析器
- * 行级：[startMs,durationMs]
- * 词级：<offsetMs,durationMs,0>文字
- */
 fun parseKrc(krc: String?, title: String = "", artist: String = ""): List<LyricLine> {
     if (krc.isNullOrBlank()) return emptyList()
     val lineRegex = Regex("""^\[(\d+),(\d+)](.*)$""")
@@ -169,14 +145,9 @@ fun parseKrc(krc: String?, title: String = "", artist: String = ""): List<LyricL
     return lines.sortedBy { it.timeMs }
 }
 
-/**
- * 解析 LRC 歌词为带时间戳的歌词行。
- * 支持 "[mm:ss.xx]文本" 或 "[mm:ss]文本"，支持一行多个时间标签与 offset 元标签。
- */
 fun parseLrc(lrc: String?, title: String = "", artist: String = ""): List<LyricLine> {
     if (lrc.isNullOrBlank()) return emptyList()
 
-    // 若包含 YRC / KRC 标志，直接按逐字解析
     if (lrc.contains(Regex("""\[\d+,\d+]\(\d+,\d+"""))) {
         val yrcParsed = parseYrc(lrc, title, artist)
         if (yrcParsed.isNotEmpty()) return yrcParsed
@@ -218,9 +189,6 @@ fun parseLrc(lrc: String?, title: String = "", artist: String = ""): List<LyricL
     return lines.sortedBy { it.timeMs }
 }
 
-/**
- * 自动识别格式并解析歌词
- */
 fun parseAutoLyrics(content: String?, title: String = "", artist: String = ""): List<LyricLine> {
     if (content.isNullOrBlank()) return emptyList()
     val trimmed = content.trim()
@@ -231,10 +199,6 @@ fun parseAutoLyrics(content: String?, title: String = "", artist: String = ""): 
     }
 }
 
-/**
- * 二分查找高效合并原文与翻译歌词
- * 时间差 1.2 秒内的翻译行对齐拼接到原文（显示为两行）
- */
 fun mergeTranslation(original: List<LyricLine>, translation: List<LyricLine>?): List<LyricLine> {
     if (translation.isNullOrEmpty()) return original
     val sortedTrans = translation.sortedBy { it.timeMs }
@@ -270,10 +234,6 @@ fun mergeTranslation(original: List<LyricLine>, translation: List<LyricLine>?): 
     }
 }
 
-
-/**
- * 二分查找根据当前播放位置找到当前高亮歌词下标，O(log N) 复杂度
- */
 fun currentLyricIndex(lines: List<LyricLine>, positionMs: Long): Int {
     if (lines.isEmpty() || positionMs < lines.first().timeMs) return -1
     if (positionMs >= lines.last().timeMs) return lines.size - 1
@@ -294,27 +254,6 @@ fun currentLyricIndex(lines: List<LyricLine>, positionMs: Long): Int {
     return result
 }
 
-// ============================================================
-// 逐字（karaoke）能力
-// ============================================================
-
-/**
- * 把逐字歌词（YRC）的**字级时间**贴到已有的 [LyricLine] 上。
- *
- * 为什么不是直接拿 YRC 当歌词：YRC 的文本是按字拼接的，标点会被拆到单独的字里，
- * 有时还会把「说 」这类尾随空格留在字里；而同一首歌的 LRC 文本是完整标点句。
- * 播放层要的是「LRC 的文本 + YRC 的时间」，所以这里按**行起始时间**把两者对齐：
- * 时间差 ≤ [toleranceMs] 视为同一行，直接把 words 搬过去。
- *
- * ## 没有字时间的歌一律按「逐句」处理（重要）
- * 早期版本为了「让每首歌都能逐字」，给纯 LRC 补过一套按字数估算的假字时间。
- * 结果反而更糟：估算的吐字速度与真实演唱对不上（一句 10 个词两秒唱完，染色才走到一半），
- * 用户看到的是「歌词和声音在句子内对不齐」。现在只认**真实返回的逐字数据**：
- * YRC 有就逐字，没有就老实逐句——对得齐比看着花哨重要。
- *
- * @param lines 已解析好的 LRC 行（文本/翻译都在这上面）
- * @param yrc   网易云 YRC 原文；为空时原样返回
- */
 fun attachWordTimings(
     lines: List<LyricLine>,
     yrc: String?,
@@ -340,15 +279,6 @@ fun attachWordTimings(
     }
 }
 
-/**
- * 逐字染色的「已唱长度」——返回 0f..1f 的**宽度占比**。
- *
- * 为什么按「字数」而不是「时间」算占比：染色是按屏幕宽度从左往右擦过去的，
- * 用时间占比会在字宽不等时出现「字还没唱到、颜色已经盖过去」的错位。
- *
- * 只有 [LyricLine.words] 非空（即真有逐字数据）时才可能返回 > 0；
- * 逐句歌词没有字时间，界面走普通文本渲染，不会调用到这里。
- */
 fun karaokeSweepFraction(line: LyricLine, positionMs: Long): Float {
     val words = line.words
     if (words.isEmpty()) return 0f

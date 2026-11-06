@@ -61,35 +61,6 @@ import kotlin.math.roundToInt
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 播放队列抽屉 —— 按用户提供的瓜子截图重做。
- *
- * ## 为什么重做
- * 旧版（`PlayerScreen.kt` 里的 `showQueueSheet` 分支）每行右侧**只有一个 ✕**：
- * 想收藏当前队列里的歌、想把它加进自建歌单，都得先退出队列、去别的页面找那首歌。
- * 队列是用户"挑歌"的地方，却只给了"删掉"这一个动作，信息密度与操作路径都不合理。
- *
- * ## 版式（对齐截图）
- * ```
- * ┌──────────────────────────────────────────────┐
- * │ ‹   播放列表            [30]   清空     ✕    │  ← 标题 20sp Bold / 计数胶囊 / 红色清空
- * │ 长按拖动调整顺序                              │  ← 12sp 辅助说明
- * │ 01 ▢ Don't Start Now        ♡  ≡+  🗑        │  ← 当前项：序号与歌名变红
- * │    ▢ Dua Lipa                                │
- * │ 02 ▢ As It Was              ♡  ≡+  🗑        │
- * └──────────────────────────────────────────────┘
- * ```
- * 每行三颗按钮：**收藏 / 加入歌单 / 从队列移除**；长按整行可拖动排序。
- *
- * ## 两个实现细节
- * 1. **颜色随主题**：截图是浅色主题（白底深字），深色主题下用深底浅字，
- *    否则在深色播放页上弹出一张纯白卡片会非常刺眼。
- * 2. **拖动排序用「交换」而不是「位移」**：拖动过程中每次跨过一行就立即回调
- *    [onMove]，队列数据由 PlayerManager 持有，UI 不自己维护一份副本——
- *    否则「界面顺序」和「实际播放顺序」会出现两份真相。
- *    手势的 `pointerInput(Unit)` 必须不随 index 重启（用 [rememberUpdatedState] 读当前下标），
- *    否则每次交换都会取消正在进行的拖动手势（这是 LazyColumn 拖拽最常见的坑）。
- */
 @Composable
 fun PlayerQueueSheet(
     queue: List<Song>,
@@ -109,7 +80,7 @@ fun PlayerQueueSheet(
     val subColor = if (dark) AppColors.gray else AppColors.graySoft
     val iconColor = if (dark) Color.White.copy(alpha = 0.62f) else AppColors.queueIconLight
     val chipBg = if (dark) Color.White.copy(alpha = 0.10f) else AppColors.queueChipLight
-    val accent = AppColors.queueAccent // 截图里的「清空」与当前项红
+    val accent = AppColors.queueAccent
     val rowActiveBg = if (dark) Color.White.copy(alpha = 0.06f) else AppColors.queueActiveLight
 
     val listState = rememberLazyListState()
@@ -119,7 +90,6 @@ fun PlayerQueueSheet(
         containerColor = container,
         showDragHandle = false,
     ) {
-        // ===== 顶栏 =====
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -144,7 +114,6 @@ fun PlayerQueueSheet(
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.weight(1f))
-            // 计数胶囊
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -159,7 +128,6 @@ fun PlayerQueueSheet(
                 )
             }
             Spacer(Modifier.width(AppSpacing.md))
-            // 清空
             Text(
                 text = "清空",
                 color = accent,
@@ -183,7 +151,6 @@ fun PlayerQueueSheet(
             )
         }
 
-        // ===== 辅助说明 =====
         Text(
             text = "长按拖动调整顺序",
             color = subColor,
@@ -191,10 +158,7 @@ fun PlayerQueueSheet(
             modifier = Modifier.padding(start = AppSpacing.page, bottom = AppSpacing.xs),
         )
 
-        // ===== 队列列表 =====
         // key 必须「跟着歌走」而不是「跟着下标走」：如果 key 里带 index，
-        // 拖动交换一次之后两行的 key 都变了 → 两个 item 被销毁重建 → 正在进行的拖动手势当场被取消，
-        // 表现是「长按拖一下就断」。重复歌曲用出现序号区分。
         val stableKeys = remember(queue) {
             val seen = HashMap<String, Int>()
             queue.map { s ->
@@ -266,7 +230,6 @@ private fun QueueRow(
     val density = LocalDensity.current
     val rowHeightPx = with(density) { QueueRowHeight.toPx() }
 
-    // 拖动状态：起始下标 + 累计位移。用 remember 而非 remember(index)，
     // 手势不能因为「交换后 index 变了」而重启（见文件头注释第 2 点）。
     var dragFrom by remember { mutableIntStateOf(-1) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
@@ -324,7 +287,6 @@ private fun QueueRow(
             .padding(horizontal = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 序号（两位数，当前项红色）
         Text(
             text = (index + 1).toString().padStart(2, '0'),
             color = if (isCurrent) accent else subColor,
@@ -333,7 +295,6 @@ private fun QueueRow(
             modifier = Modifier.width(26.dp),
         )
 
-        // 封面
         Box(
             modifier = Modifier
                 .size(44.dp)
@@ -358,7 +319,6 @@ private fun QueueRow(
 
         Spacer(Modifier.width(AppSpacing.lg))
 
-        // 歌名 + 歌手
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title.ifBlank { "未知歌曲" },
@@ -378,7 +338,6 @@ private fun QueueRow(
             )
         }
 
-        // 三颗操作：收藏 / 加入歌单 / 移除
         QueueAction(
             icon = {
                 Icon(
@@ -415,7 +374,6 @@ private fun QueueRow(
     }
 }
 
-/** 队列行右侧的单颗动作钮：36dp 命中区，无涟漪（与播放页其它圆形钮一致） */
 @Composable
 private fun QueueAction(
     icon: @Composable () -> Unit,

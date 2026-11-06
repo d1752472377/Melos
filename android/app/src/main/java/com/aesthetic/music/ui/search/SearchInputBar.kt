@@ -55,15 +55,13 @@ import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.R
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
-// --- 1. 更新数据模型：加入图标资源字段 ---
 data class PlatformItem(
     val name: String,
     val id: String?,
-    val fallbackColor: Color, // 备用颜色（没图标时显示彩色圆圈）
-    @param:DrawableRes val iconRes: Int? = null // 真实的图片资源 ID
+    val fallbackColor: Color,
+    @param:DrawableRes val iconRes: Int? = null
 )
 
-// --- 2. 配置平台数据源 ---
 // TODO: 把 iconRes 换成你项目里真实的图片资源，例如 R.drawable.ic_qq_music
 private val PlatformFilters = listOf(
     PlatformItem("全部平台", null, AppColors.brandUnknown, R.drawable.ic_music),
@@ -155,7 +153,6 @@ private fun PlatformSelector(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    // 获取当前选中的平台对象，如果没选则默认取第一个（全部平台）
     val currentPlatform = PlatformFilters.firstOrNull { it.id == current } ?: PlatformFilters.first()
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -187,9 +184,7 @@ private fun PlatformSelector(
                 .padding(AppSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // --- 核心修改点：动态显示当前平台图标 ---
             PlatformIcon(item = currentPlatform, size = 22.dp)
-            // --------------------------------------
 
             Spacer(Modifier.width(2.dp))
 
@@ -209,7 +204,7 @@ private fun PlatformSelector(
             ) {
                 Column(
                     modifier = Modifier
-                        .width(150.dp) // 稍微加宽一点给图标留空间
+                        .width(150.dp)
                         .shadow(
                             elevation = 12.dp,
                             shape = RoundedCornerShape(16.dp),
@@ -237,12 +232,9 @@ private fun PlatformSelector(
     }
 }
 
-// --- 3. 提取出统一的图标渲染组件 ---
 @Composable
 private fun PlatformIcon(item: PlatformItem, size: androidx.compose.ui.unit.Dp) {
     if (item.iconRes != null) {
-        // 统一由代码里的 size 控制显示尺寸（已去掉圆形裁剪），按 ContentScale.Fit 等比缩放，
-        // 这样各图标即便固有尺寸/留白不同，显示的边长也一致。
         Image(
             painter = painterResource(id = item.iconRes),
             contentDescription = item.name,
@@ -250,7 +242,6 @@ private fun PlatformIcon(item: PlatformItem, size: androidx.compose.ui.unit.Dp) 
             contentScale = ContentScale.Fit,
         )
     } else {
-        // 如果没有图片，回退显示彩色圆圈+首字母（为了让你现在能跑通）
         Box(
             modifier = Modifier
                 .size(size)
@@ -285,7 +276,6 @@ private fun PlatformMenuItem(
             .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 使用统一的图标组件
         PlatformIcon(item = item, size = 22.dp)
 
         Spacer(Modifier.width(AppSpacing.lg))

@@ -29,13 +29,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
-/**
- * 插件管理页的状态与动作。
- *
- * 页面本身只做渲染：插件列表、检测结论、当前生效源都从这里取；
- * 导入/启用/指定平台/检测/删除都在这里落地，并负责把"用户点了但没生效"的原因讲清楚
- * （例如"这是一份 HTML 而不是脚本"），而不是静默失败。
- */
 class SourceController(
     private val scope: CoroutineScope,
     private val onToast: (String) -> Unit,
@@ -47,7 +40,6 @@ class SourceController(
     private val _probes = MutableStateFlow(SourceStatsStore.all())
     val probes: StateFlow<Map<String, SourceProbe>> = _probes.asStateFlow()
 
-    /** 当前需要展示/检测的全部目标（内置四平台 + 每个插件声明的平台） */
     private val _targets = MutableStateFlow(emptyList<DetectTarget>())
     val targets: StateFlow<List<DetectTarget>> = _targets.asStateFlow()
 
@@ -63,7 +55,6 @@ class SourceController(
     private val _lastDetectAt = MutableStateFlow(0L)
     val lastDetectAt: StateFlow<Long> = _lastDetectAt.asStateFlow()
 
-    /** 沙箱里的脚本 id（用于区分"已安装"与"正在使用"） */
     val loadedPluginId: StateFlow<String?> = UserApiEngine.loadedPluginId
     val engineReady: StateFlow<Boolean> = UserApiEngine.isEngineReady
     val engineError: StateFlow<String?> = UserApiEngine.engineError
@@ -88,7 +79,6 @@ class SourceController(
         refresh()
     }
 
-    /** 重新读一遍注册表与检测结果（导入/删除/启用变更后调用） */
     fun refresh() {
         val list = SourceRegistryStore.list()
         _plugins.value = list
@@ -97,13 +87,6 @@ class SourceController(
         _activeId.value = SourceRegistryStore.activeId()
     }
 
-    // ==================== 导入 ====================
-
-    /**
-     * 导入脚本内容。
-     *
-     * @param targetPlatform 导入时指定的平台（空串 = 全平台通用）
-     */
     fun importFromContent(content: String, targetPlatform: String) {
         val problem = validate(content)
         if (problem != null) {
@@ -126,7 +109,6 @@ class SourceController(
         }
     }
 
-    /** 从系统文件选择器拿到的脚本文件：读取内容后走与文本导入相同的校验流程 */
     fun importFromUri(context: Context, uri: Uri, targetPlatform: String) {
         val text = try {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -145,7 +127,6 @@ class SourceController(
         importFromContent(text, targetPlatform)
     }
 
-    /** 从链接导入：先下载，再走与文件导入相同的校验与登记流程 */
     fun importFromUrl(url: String, targetPlatform: String, onFinished: (Boolean, String) -> Unit) {
         val trimmed = url.trim()
         if (trimmed.isEmpty()) {
@@ -187,7 +168,6 @@ class SourceController(
         }
     }
 
-    /** 导入前校验：把"看起来会失败"的内容挡在沙箱外，并给出人能看懂的原因 */
     private fun validate(content: String): String? {
         val text = content.trim()
         if (text.isEmpty()) return "内容为空，没有可导入的脚本"
@@ -197,7 +177,6 @@ class SourceController(
             return "这看起来是网页而不是脚本（可能下载到了网页或错误页）"
         }
         if (!head.contains("/*!") && !text.contains("musicUrl")) {
-            // 不阻断：有些脚本写法不同，只是提醒可能不符合 LX 音源规范
             onToast("提示：脚本里没有找到 musicUrl 声明，可能不是标准 LX 音源")
         }
         return null
@@ -226,13 +205,11 @@ class SourceController(
         }
     }
 
-    /** 指定平台（空串 = 全平台通用） */
     fun setTargetPlatform(id: String, platformCode: String) {
         SourceRegistryStore.update(id) { it.copy(targetPlatform = platformCode) }
         refresh()
     }
 
-    /** 手动指定当前音源（并立刻加载进沙箱，用户马上就能听到效果） */
     fun activate(id: String) {
         scope.launch {
             val result = SourceManager.activate(id)
@@ -246,7 +223,6 @@ class SourceController(
         }
     }
 
-    /** 重新加载当前指定插件（脚本改过、或沙箱异常时使用） */
     fun reloadActive() {
         scope.launch {
             val ok = SourceManager.preloadActive()
@@ -269,14 +245,6 @@ class SourceController(
         onToast("已删除「$name」")
     }
 
-    // ==================== 检测 ====================
-
-    /**
-     * 检测全部音源（真实请求）。
-     *
-     * 逐条回填结果：检测是网络操作，一次要跑好几秒，
-     * 等全部完成才刷新会让用户以为"卡住了"。
-     */
     fun detectAll() {
         if (_detecting.value) return
         val plugins = SourceRegistryStore.list()
@@ -321,7 +289,6 @@ class SourceController(
         }
     }
 
-    /** 只重测一个目标 */
     fun detectOne(targetId: String) {
         if (_detecting.value) return
         val target = _targets.value.firstOrNull { it.id == targetId } ?: return
@@ -334,14 +301,6 @@ class SourceController(
         }
     }
 
-    // ==================== 插件逐档检测 ====================
-
-    /**
-     * 打开某个插件的检测：quick=true 只测声明的最高两档，false 测全部声明的音质。
-     *
-     * 结果放在 [pluginDetect] 里实时更新，不写 [SourceStatsStore]；列表卡片仍然使用
-     * 平台级的检测结果。
-     */
     fun startPluginDetect(pluginId: String, quick: Boolean) {
         if (pluginDetectJob?.isActive == true) return
         val plugin = SourceRegistryStore.find(pluginId)
@@ -422,7 +381,6 @@ class SourceController(
                 LogReporter.w("Source", "插件检测中断", e)
                 _pluginDetect.update { it?.copy(running = false, error = e.message ?: "检测中断") }
             } finally {
-                // 取消/关闭面板时也要把沙箱恢复到用户当前指定的插件。
                 withContext(kotlinx.coroutines.NonCancellable) {
                     runCatching { SourceManager.restoreActive() }
                 }
@@ -430,7 +388,6 @@ class SourceController(
         }
     }
 
-    /** 关闭检测面板；仍在跑就取消。 */
     fun clearPluginDetect() {
         if (pluginDetectJob?.isActive == true) {
             pluginDetectJob?.cancel()
@@ -442,21 +399,17 @@ class SourceController(
     companion object {
         private const val TAG = "SourceController"
 
-        /** 脚本下载用的 UA：有些脚本托管站点对空 UA 直接 403 */
         private const val BROWSER_UA =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Mobile Safari/537.36"
 
         private const val MAX_SCRIPT_CHARS = 2 * 1024 * 1024
 
-        /** 平台选项：空串表示全平台通用，其余为四个内置平台（咪咕没有内置搜索，不单列） */
         val platformOptions: List<Pair<String, String>> =
             listOf("" to "全平台通用") +
                 SourcePlatform.builtins.map { it.code to it.label }
 
-        /** 把界面上的平台 code 归一化：非法值一律当作"通用" */
         fun platformCode(code: String): String = SourcePlatform.of(code)?.code ?: ""
 
-        /** LX 源标识 → 显示名（脚本声明里用的是 wy/tx/kg/kw/mg） */
         fun lxLabel(lx: String): String = SourcePlatform.labelOf(lx)
     }
 }

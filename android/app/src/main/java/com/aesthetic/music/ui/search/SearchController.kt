@@ -17,15 +17,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** 搜索页结果类型（已去掉歌词搜索） */
 enum class SearchType(val label: String) {
     SONG("单曲"), ARTIST("歌手"), PLAYLIST("歌单"), ALBUM("专辑")
 }
 
-/**
- * 全局搜索控制器：查询 / 类型 / 平台 + 四类结果 + 最近搜索。
- * 已移除：歌词搜索、热门搜索。
- */
 class SearchController(
     private val repository: MusicRepository,
     private val scope: CoroutineScope,
@@ -37,7 +32,6 @@ class SearchController(
     private val _type = MutableStateFlow(SearchType.SONG)
     val type = _type.asStateFlow()
 
-    /** 平台过滤：null = 全部平台；否则为 netease/qq/kugou/kuwo */
     private val _platform = MutableStateFlow<String?>(null)
     val platform = _platform.asStateFlow()
 
@@ -67,7 +61,6 @@ class SearchController(
     private val executedSearchKeys = mutableMapOf<SearchType, String>()
     private var lastSearchedKeyword: String = ""
 
-    /** 冷启动回填最近搜索 */
     fun hydrate() {
         scope.launch(Dispatchers.IO) {
             val words = RecentSearchStore.load()
@@ -123,7 +116,6 @@ class SearchController(
         }
     }
 
-    /** 切换平台：重搜当前类型，并使其它类型的平台缓存失效 */
     fun setPlatform(platform: String?) {
         if (_platform.value == platform) return
         _platform.value = platform
@@ -168,7 +160,6 @@ class SearchController(
         val plat = _platform.value
         val key = "$kw|${plat ?: "*"}"
 
-        // 如果已有当前条件的有效缓存且非强制刷新，直接使用已有结果，不提前置空
         if (!force && executedSearchKeys[searchType] == key) return
 
         searchJobs[searchType]?.cancel()

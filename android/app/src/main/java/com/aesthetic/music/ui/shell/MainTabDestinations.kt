@@ -25,7 +25,6 @@ import com.aesthetic.music.ui.source.SourceController
 import com.aesthetic.music.ui.theme.FmBackground
 import com.aesthetic.music.ui.theme.Palette
 
-/** 主页 */
 @Composable
 fun HomeDestination(
     content: ContentController,
@@ -59,14 +58,11 @@ fun HomeDestination(
         onRetryContent = { content.refreshContent() },
         onPlaySong = { song, list -> actions.playSong(song, list) },
         onSearchBarClick = { nav.navigateSingleTop(ScreenRoute.Search.route) },
-        // GZ 的搜索栏末尾是「听歌识曲」（HomeScreenKt.java:11352-11378）。Melos 暂无识曲能力，
-        // 这里沿用项目既有的「功能开发中」提示写法（AppShell 里对账号导入也是这么处理的）。
         onMicClick = { actions.toast("听歌识曲功能开发中，敬请期待") },
         onOpenPlaylistDetail = { pl ->
             playlistDetail.open(pl)
             nav.navigate(ScreenRoute.PlaylistDetail.route)
         },
-        // 三大入口第一张卡「猜你喜欢」→ 独立推荐页（不再跳歌单详情）
         onOpenGuess = { nav.navigateSingleTop(ScreenRoute.GuessYouLike.route) },
         onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
         onOpenFm = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
@@ -74,8 +70,6 @@ fun HomeDestination(
     )
 }
 
-
-/** 歌单广场 Tab */
 @Composable
 fun PlaylistTabDestination(
     library: LibraryController,
@@ -147,8 +141,6 @@ fun PlaylistTabDestination(
     )
 }
 
-
-/** 我的 / 个人中心 Tab */
 @Composable
 fun ProfileTabDestination(
     library: LibraryController,
@@ -184,7 +176,6 @@ fun ProfileTabDestination(
         historyCount = history.size,
         favoritesCount = favorites.size,
         playlistsCount = myPlaylists.size,
-        // 「下载音乐」只数用户主动下载的（播放缓存在「本地缓存」里，不算下载）
         cacheCount = cacheState.songs.count { it.manual },
         localStats = localStats,
         sourceSummary = when {
@@ -194,7 +185,6 @@ fun ProfileTabDestination(
         },
         onOpenEditProfile = { nav.navigate(ScreenRoute.ProfileEdit.route) },
         onOpenFavorites = { nav.navigate(ScreenRoute.Favorites.route) },
-        // 我的歌单已并入「歌单」Tab（其中就有「我的歌单」分组），不再单开页面
         onOpenMyPlaylists = { nav.switchTab(ScreenRoute.Playlist.route, AppTab.PLAYLIST) },
         onOpenDownloads = {
             cacheState.refresh()
@@ -219,8 +209,6 @@ fun ProfileTabDestination(
     )
 }
 
-
-/** FM 电台 Tab */
 @Composable
 fun FmDestination(
     fm: FmController,
@@ -238,7 +226,6 @@ fun FmDestination(
     val favorites by library.favorites.collectAsState()
     val playerState by playerManager.state.collectAsState()
 
-    // 进入 FM 路由设置与主题匹配的背景，使底部 NavigationDock 呈现深/浅两套毛玻璃质感
     val fmPageBackground = FmBackground
     val fmIsDark = Palette.isDark
     DisposableEffect(fmPageBackground, fmIsDark) {
@@ -248,7 +235,6 @@ fun FmDestination(
         }
     }
 
-    // 首次切入若队列为空，自动开始调频并启播
     LaunchedEffect(Unit) {
         if (fmQueue.isEmpty() && !fmLoading) {
             fm.start(fm.currentChannel.value) { firstSong, list ->
@@ -321,7 +307,6 @@ fun FmDestination(
         onSeek = { ms -> playerManager.seekTo(ms) },
         onSeekToLyric = { line -> playerManager.seekToLyric(line) },
         onExportToPlaylist = { result ->
-            // 宝藏歌曲整体放进新建的歌单
             val id = library.createPlaylist(
                 name = result.name,
                 initialSongs = fmTreasure,

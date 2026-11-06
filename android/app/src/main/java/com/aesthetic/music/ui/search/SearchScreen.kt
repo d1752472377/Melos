@@ -41,21 +41,6 @@ import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 全局搜索页：
- * - 顶部搜索框，平台选择内嵌在其右端（仅影响「单曲」）；已去掉返回按钮，退出走系统返回 / 底部 Dock；
- * - 类型筛选为 tag：单曲 / 歌手 / 歌单 / 专辑 / 歌词；
- * - 未输入时展示：最近搜索（本地持久化，带二次确认的清空）+ 热门搜索（卡片 + 排序列表）；
- * - 单曲/歌词结果行右侧「...」打开单曲操作抽屉
- *   （下一首播放 / 收藏 / 下载 / 加入播放队列 / 添加到歌单）。
- *
- * 播放时按 song.platform 分流到对应音源取直链。
- *
- * 布局说明（方案 B）：
- * - 外层 Column 不再统一加 horizontal padding，搜索框 / tab 各自加 horizontal 20dp；
- * - 结果卡片由 SearchResultLists.kt 的 ResultCard 负责贴到屏幕左右边；
- * - 底部不再为悬浮 Dock 统一预留高度，白卡白底一直探到屏幕底。
- */
 @Composable
 fun SearchScreen(
     search: SearchController,
@@ -80,13 +65,11 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    // 单曲操作抽屉由宿主渲染，这里只上报目标歌曲
     var showClearRecentConfirm by remember { mutableStateOf(false) }
 
     Box(
         Modifier.fillMaxSize()
     ) {
-        // 底层 4-orb 动态呼吸极光光斑
         HomeAmbientGlowBackground()
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Column(
@@ -94,7 +77,6 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(top = statusBarTop + AppSpacing.xxl),
         ) {
-            // ===== 顶部：搜索框（内嵌平台选择），自身保留左右 20dp =====
             Box(Modifier.padding(horizontal = AppSpacing.page)) {
                 SearchInputBar(
                     query = query,
@@ -106,7 +88,6 @@ fun SearchScreen(
                 )
             }
 
-            // 自动聚焦搜索框：仅在无关键词时聚焦（从歌手页等返回且已有结果时不再顶起键盘）
             LaunchedEffect(Unit) {
                 if (query.isBlank()) {
                     focusRequester.requestFocus()
@@ -116,7 +97,6 @@ fun SearchScreen(
 
             Spacer(Modifier.height(AppSpacing.lg))
 
-            // ===== 1. 类型 Tab 优先置顶：单曲 歌手 歌单 专辑 歌词，自身保留左右 20dp =====
             Box(Modifier.padding(horizontal = AppSpacing.page)) {
                 SearchFilterTabs(
                     selected = searchType,
@@ -124,7 +104,6 @@ fun SearchScreen(
                 )
             }
 
-            // 非单曲类型不涉及平台切换（平台选择器在搜索框内，仅影响单曲）
             if (searchType != SearchType.SONG && query.isNotBlank()) {
                 Spacer(Modifier.height(AppSpacing.xs))
                 Text(
@@ -137,10 +116,7 @@ fun SearchScreen(
 
             Spacer(Modifier.height(AppSpacing.md))
 
-            // ===== 内容区 =====
             if (query.isBlank()) {
-                // 未搜索：最近搜索 + 热门搜索（自身保留左右 20dp）
-                // 可滚动：最近最多 10 条 + 热门 8 条，键盘弹起后可视区变小，不滚动会被裁掉且无法触达
                 Column(
                     Modifier
                         .fillMaxSize()
@@ -158,7 +134,6 @@ fun SearchScreen(
                     )
                 }
             } else {
-                // 有关键词：分类型结果，卡片贴屏幕左右边、底部探到屏幕底
                 Column(Modifier.fillMaxSize()) {
                     when {
                         isSearching && allResultsEmpty(searchType, songResults, artistResults, playlistResults, albumResults) -> {
@@ -214,7 +189,6 @@ fun SearchScreen(
     }
 }
 
-/** 当前类型下结果是否全部为空：用于「搜索中」加载态的判定 */
 private fun allResultsEmpty(
     type: SearchType,
     songs: List<Song>,

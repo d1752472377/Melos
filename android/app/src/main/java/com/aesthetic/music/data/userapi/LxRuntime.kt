@@ -31,28 +31,12 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * Thin adapter over whichever QuickJS binding you pick (see HarlonQuickJsEngine.kt for
- * wang.harlon.quickjs:wrapper-android, which Melos/android already uses). All calls are
- * made from ONE thread (LxRuntime's js executor); the engine is not thread-safe.
- *
- *  - bindHost: expose a global object `__host` whose methods map to [handlers] by name.
- *              Arguments arrive as Kotlin values (String / Number); return String or null.
- *  - evaluate: run script text as a global script.
- *  - callGlobal: call e.g. "__lxCore.onTimer" with the given args (then drain microtasks).
- */
 interface JsEngine : AutoCloseable {
     fun bindHost(handlers: Map<String, (List<Any?>) -> Any?>)
     fun evaluate(code: String, fileName: String)
     fun callGlobal(path: String, vararg args: Any?)
 }
 
-/**
- * Same contract as src/node/runtime.js: one instance == one user script.
- * [coreJs] is build/lx-core.js (put it in assets/ and read it as text).
- *
- * infoJson: {"name","description","version","author","homepage", "env":"mobile"}
- */
 class LxRuntime(
     private val engineFactory: () -> JsEngine,
     private val coreJs: String,
@@ -73,13 +57,10 @@ class LxRuntime(
     @Volatile private var closed = false
     private lateinit var engine: JsEngine
 
-    /** Run [block] on the JS thread. */
     private fun onJs(block: () -> Unit) {
         if (closed) return
         jsThread.execute { if (!closed) runCatching(block).onFailure { onLog("[js-error] ${it.message}") } }
     }
-
-    // ---------------------------------------------------------------- public API
 
     data class InitResult(val ready: Boolean, val sources: JSONObject?, val message: String?)
 
@@ -126,7 +107,6 @@ class LxRuntime(
         }
     }
 
-    /** action: "musicUrl" | "lyric" | "pic"; reqInfo e.g. {"type":"320k","musicInfo":{...}} */
     suspend fun request(source: String, action: String, reqInfo: JSONObject, timeoutMs: Long = 20_000): JSONObject {
         if (closed) throw IOException("runtime closed")
         val key = "request__${++seq}"
@@ -166,12 +146,9 @@ class LxRuntime(
         jsThread.shutdown()
     }
 
-    // ---------------------------------------------------------------- host functions (called by JS)
-
     private fun hostHandlers(): Map<String, (List<Any?>) -> Any?> = mapOf(
         "log" to { a -> onLog(a[0].toString()); null },
 
-        // core -> app messages: {channel, data, status, message}
         "deliver" to { a ->
             val m = JSONObject(a[0].toString())
             when (m.optString("channel")) {
@@ -210,8 +187,6 @@ class LxRuntime(
         "deflate" to { a -> b64(deflate(unb64(a[0]))) },
     )
 
-    // ---------------------------------------------------------------- HTTP (OkHttp)
-
     private fun httpStart(id: Int, r: JSONObject) {
         try {
             val method = r.optString("method", "get").uppercase()
@@ -231,12 +206,10 @@ class LxRuntime(
             val rb = Request.Builder().url(r.getString("url")).method(method, body)
             r.optJSONObject("headers")?.let { h -> h.keys().forEach { k -> rb.header(k, h.get(k).toString()) } }
 
-            // needle does not follow redirects and has no default User-Agent; mirror that.
             val builder = client.newBuilder()
                 .followRedirects(false).followSslRedirects(false)
                 .callTimeout(r.optLong("timeout", 60_000), TimeUnit.MILLISECONDS)
 
-            // Per-request proxy, same as src/node/http-needle.js.
             r.optJSONObject("proxy")?.let { p ->
                 val host = p.optString("host")
                 if (host.isNotEmpty()) {
@@ -272,12 +245,9 @@ class LxRuntime(
         }
     }
 
-    // ---------------------------------------------------------------- crypto / zlib helpers
-
     private fun b64(b: ByteArray) = Base64.encodeToString(b, Base64.NO_WRAP)
     private fun unb64(s: Any?) = Base64.decode(s.toString(), Base64.DEFAULT)
 
-    /** mode like "aes-128-cbc" / "aes-256-ecb" (same strings node's createCipheriv takes). */
     private fun aes(mode: String, data: ByteArray, key: ByteArray, iv: String): ByteArray {
         val parts = mode.lowercase().split('-')
         require(parts.size == 3 && parts[0] == "aes") { "unsupported cipher: $mode" }
@@ -293,7 +263,6 @@ class LxRuntime(
         return c.doFinal(data)
     }
 
-    /** Public key in X.509 PEM ("BEGIN PUBLIC KEY"). core.js already left-pads data to 128 bytes. */
     private fun rsaNoPadding(data: ByteArray, pem: String): ByteArray {
         val der = Base64.decode(
             pem.replace(Regex("-----[A-Z ]+-----"), "").replace(Regex("\\s"), ""), Base64.DEFAULT

@@ -14,16 +14,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-
-
-/** 缓存列表页 */
 @Composable
 fun CacheListDestination(
     cacheState: CacheState,
     scope: CoroutineScope,
 ) {
     val context = LocalContext.current
-    // 进页刷新：播放产生的新缓存在这里要能立刻看到
     LaunchedEffect(Unit) { cacheState.refresh() }
 
     CacheListScreen(
@@ -43,10 +39,6 @@ fun CacheListDestination(
     )
 }
 
-
-
-
-/** 本地下载页 */
 @Composable
 fun DownloadsDestination(
     nav: ShellNav,

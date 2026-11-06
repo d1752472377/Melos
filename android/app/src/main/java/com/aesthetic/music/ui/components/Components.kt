@@ -49,7 +49,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.AppColors
 
-/** 封面占位渐变（文件级缓存）：避免每次组合新封面时重复分配 Brush 与颜色列表 */
 private val CoverPlaceholderBrushLight =
     Brush.linearGradient(listOf(AppColors.coverPlaceholderLight1, AppColors.coverPlaceholderLight2))
 private val CoverPlaceholderBrushDark =
@@ -57,7 +56,6 @@ private val CoverPlaceholderBrushDark =
 private val CoverIconTintLight = AppColors.indigoLight.copy(alpha = 0.65f)
 private val CoverIconTintDark = AppColors.slate500
 
-/** 歌曲封面：带精致渐变占位 + 圆角 + 平滑渐入 */
 @Composable
 fun SongCover(
     url: String?,
@@ -96,9 +94,6 @@ fun SongCover(
     }
 }
 
-/** 音波跳动条（当前播放指示）。
- *  动画值在 graphicsLayer 块内延迟读取：只做绘制相位缩放，
- *  不再像旧实现那样把动画喂给 .height() 造成每帧 measure/layout。 */
 @Composable
 fun WaveBars(
     color: Color,
@@ -120,9 +115,8 @@ fun WaveBars(
             Box(
                 Modifier
                     .width(barWidth)
-                    .height(14.dp) // 固定最大高度，布局只做一次
+                    .height(14.dp)
                     .graphicsLayer {
-                        // 绘制相位缩放 + 底部锚点：视觉上仍是"从底部长出"的跳动条
                         scaleY = h / 14f
                         transformOrigin = TransformOrigin(0.5f, 1f)
                     }
@@ -133,7 +127,6 @@ fun WaveBars(
     }
 }
 
-/** 旋转唱片（底部 Dock 中央的小 CD）：仅 [isPlaying] 时匀速旋转，暂停时停在当前角度不跳变 */
 @Composable
 fun RotatingDisc(
     url: String?,
@@ -182,10 +175,6 @@ data class ExtractedThemeColors(
 
 private val colorExtractionCache = androidx.collection.LruCache<String, Int>(60)
 
-/**
- * 根据图片 URL 提取主色调，并生成浅色卡片背景渐变与深色按钮强调色。
- * 具备 LRU 内存高速缓存，滑动时直接命中缓存零开销。
- */
 @Composable
 fun rememberDominantColors(
     url: String?,
@@ -254,7 +243,6 @@ fun rememberDominantColors(
                                 colorInt
                             } else null
                         } finally {
-                            // 释放自己创建的缩放 bitmap，防止累积泄漏
                             sampleBitmap.recycle()
                         }
                     } else null
@@ -264,7 +252,7 @@ fun rememberDominantColors(
             }
         }
         if (color != null) {
-            extractedColorInt = color  // 回到主线程写 State
+            extractedColorInt = color
         }
     }
 
@@ -298,10 +286,6 @@ fun rememberDominantColors(
     }
 }
 
-/**
- * 播放量/数量格式化（"1.2万"/"3.4亿"），首页/发现/歌单页共用，
- * 显式 Locale 避免小数逗号地区显示成 "1,2万"
- */
 fun formatPlayCountText(count: Long?): String {
     if (count == null || count < 0) return ""
     return when {
@@ -311,9 +295,6 @@ fun formatPlayCountText(count: Long?): String {
     }
 }
 
-// ==================== 平台标签 ====================
-
-/** 平台显示名（原先私有在 SearchScreen，搜索结果/歌单等都要用，故上提为公共） */
 fun platformLabel(p: String?): String = when (p) {
     "netease", "chksz" -> "网易"
     "kugou" -> "酷狗"
@@ -323,7 +304,6 @@ fun platformLabel(p: String?): String = when (p) {
     else -> p.take(3)
 }
 
-/** 平台品牌色，供标签与文字着色共用 */
 fun platformColor(p: String?): Color = when (p) {
     "netease", "chksz" -> AppColors.brandNeteaseDeep
     "kugou" -> AppColors.brandKugouAlt
@@ -332,12 +312,6 @@ fun platformColor(p: String?): Color = when (p) {
     else -> AppColors.brandUnknownAlt
 }
 
-/**
- * 平台小标签：品牌色文字 + 同色浅底。
- *
- * 原实现是实底白字的徽标，只能贴在浅色卡片右侧；改成品牌色文字 + 12% 同色底后，
- * 浅色与深色容器上都能保证对比度，也便于内联排版（如放在歌曲副标题里）。
- */
 @Composable
 fun PlatformTag(platform: String?, modifier: Modifier = Modifier) {
     if (platform.isNullOrBlank()) return

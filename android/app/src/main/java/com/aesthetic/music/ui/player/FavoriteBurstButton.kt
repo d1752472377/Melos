@@ -39,10 +39,6 @@ private data class ParticleSpec(
     val rotation: Float,
 )
 
-/**
- * 质感红心微动效按钮（移植自瓜子音乐 BurstHeart 实现）
- * 点赞时触发主心弹性缩放 (1.0 -> 1.35 -> 0.95 -> 1.0) 及 8 颗环形粒子散射淡出爆炸动效。
- */
 @Composable
 fun FavoriteBurstButton(
     isFavorite: Boolean,
@@ -72,11 +68,9 @@ fun FavoriteBurstButton(
 
     LaunchedEffect(isFavorite) {
         if (isFavorite && !lastFavorite) {
-            // 触发点赞爆炸微动效
             burstProgress.snapTo(0f)
             heartScale.snapTo(1f)
 
-            // 心脏弹性回弹
             heartScale.animateTo(
                 targetValue = 1.35f,
                 animationSpec = tween(120, easing = FastOutSlowInEasing)
@@ -85,14 +79,11 @@ fun FavoriteBurstButton(
                 targetValue = 1.0f,
                 animationSpec = spring(dampingRatio = 0.5f, stiffness = 400f)
             )
-            // 粒子：0 → 1 跑一遍（旧实现把这段放在另一个 LaunchedEffect 里，
-            // 且从不归零，于是取消收藏再收藏时粒子已经停在 1.0f，第二次点击"没有动效"）
             burstProgress.animateTo(
                 targetValue = 1.0f,
                 animationSpec = tween(450, easing = FastOutSlowInEasing)
             )
         } else if (!isFavorite) {
-            // 取消收藏：把粒子归零，下次点赞才能再炸一次
             burstProgress.snapTo(0f)
         }
         lastFavorite = isFavorite
@@ -108,7 +99,6 @@ fun FavoriteBurstButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        // 环形散开的 8 颗小粒子
         if (burstProgress.value > 0f && burstProgress.value < 1.0f) {
             val progress = burstProgress.value
             val alpha = (1.0f - progress).coerceIn(0f, 1f)
@@ -140,7 +130,6 @@ fun FavoriteBurstButton(
             }
         }
 
-        // 主心图标
         Icon(
             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
             contentDescription = if (isFavorite) "已收藏" else "未收藏",

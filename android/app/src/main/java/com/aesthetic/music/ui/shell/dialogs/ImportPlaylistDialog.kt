@@ -56,22 +56,11 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 导入歌单：三种入口
- * 1. 粘贴链接：`https://music.163.com/#/playlist?id=...`
- * 2. 识别文案：直接粘贴音乐 App 的分享文案，自动从中提取歌单名与链接
- * 3. 登录账号：按平台登录后导入自己的歌单（当前为占位按钮，功能开发中）
- *
- * 三条入口最终都走同一套解析 → 抓取歌单名/封面/曲目 → 落成本地自建歌单，
- * 把平台原歌单的信息作为"原始记录"保存下来。
- */
 @Composable
 fun ImportPlaylistDialog(
     state: PlaylistResolveState,
     onDismiss: () -> Unit,
-    /** 解析并导入：参数为用户粘贴的链接或分享文案 */
     onImport: (String) -> Unit,
-    /** 账号导入占位按钮回调：参数为平台中文名 */
     onLoginImport: (String) -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -115,7 +104,6 @@ fun ImportPlaylistDialog(
             )
             Spacer(Modifier.height(AppSpacing.xxxl))
 
-            // ===== 三种入口 =====
             Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 ModeChip("粘贴链接", Icons.Filled.Link, mode == 0) { mode = 0 }
                 ModeChip("识别文案", Icons.AutoMirrored.Filled.TextSnippet, mode == 1) { mode = 1 }
@@ -192,7 +180,6 @@ fun ImportPlaylistDialog(
     }
 }
 
-/** 入口切换胶囊 */
 @Composable
 private fun ModeChip(
     text: String,
@@ -287,7 +274,6 @@ private fun PasteRow(onPaste: () -> Unit) {
     }
 }
 
-/** 账号导入：当前为占位入口（按钮点击仅提示"开发中"） */
 @Composable
 private fun LoginImportSection(onLoginImport: (String) -> Unit) {
     Column {
@@ -352,7 +338,6 @@ private fun LoginImportSection(onLoginImport: (String) -> Unit) {
     }
 }
 
-/** 解析 / 导入状态：进度、失败原因、导入成功回执 */
 @Composable
 private fun StatusBlock(state: PlaylistResolveState) {
     when (state) {

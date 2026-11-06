@@ -48,10 +48,6 @@ import dev.chrisbanes.haze.hazeEffect
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 歌曲来源、实时音频技术规格与歌词元数据详情面板（BottomSheet）。
- * 视觉对齐：半透明深色圆角毛玻璃卡片、6 宫格技术规格网格、歌词芯片 Badge。
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongAudioDetailSheet(
@@ -115,7 +111,6 @@ fun SongAudioDetailSheet(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(AppSpacing.xl)
         ) {
-            // 顶部手柄指示线
             Box(
                 modifier = Modifier
                     .size(width = 36.dp, height = 4.dp)
@@ -126,7 +121,6 @@ fun SongAudioDetailSheet(
 
             Spacer(Modifier.height(2.dp))
 
-            // 1. 顶部歌曲信息卡片
             DetailCardContainer {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -184,7 +178,6 @@ fun SongAudioDetailSheet(
                 }
             }
 
-            // 2. 来源卡片
             DetailCardContainer {
                 Text(
                     text = "来源",
@@ -226,7 +219,6 @@ fun SongAudioDetailSheet(
                 InfoRow(label = "来源插件", value = audioSpec.sourcePlugin)
             }
 
-            // 3. 技术规格 · 实时
             DetailCardContainer {
                 Text(
                     text = "技术规格 · 实时",
@@ -236,7 +228,6 @@ fun SongAudioDetailSheet(
                     modifier = Modifier.padding(bottom = AppSpacing.xl)
                 )
 
-                // 2 列 3 行网格
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
@@ -272,7 +263,6 @@ fun SongAudioDetailSheet(
                 InfoRow(label = "解码器", value = audioSpec.decoderName)
             }
 
-            // 4. 歌词卡片
             DetailCardContainer {
                 Text(
                     text = "歌词",
@@ -282,12 +272,10 @@ fun SongAudioDetailSheet(
                     modifier = Modifier.padding(bottom = AppSpacing.lg)
                 )
 
-                // 模式标签 Chips
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                     modifier = Modifier.padding(bottom = AppSpacing.xl)
                 ) {
-                    // 逐字 / 逐行 胶囊 Chip
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -302,7 +290,6 @@ fun SongAudioDetailSheet(
                         )
                     }
 
-                    // LRC / YRC 格式 Chip
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -328,7 +315,6 @@ fun SongAudioDetailSheet(
     }
 }
 
-/** 统一半透明圆角卡片外壳 */
 @Composable
 private fun DetailCardContainer(
     modifier: Modifier = Modifier,
@@ -350,7 +336,6 @@ private fun DetailCardContainer(
     }
 }
 
-/** 键值对行（左右对齐） */
 @Composable
 private fun InfoRow(
     label: String,
@@ -387,7 +372,6 @@ private fun InfoRow(
     }
 }
 
-/** 技术规格 6 宫格单项 */
 @Composable
 private fun SpecGridItem(
     label: String,

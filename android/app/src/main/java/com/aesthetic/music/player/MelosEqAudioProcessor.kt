@@ -12,24 +12,6 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/**
- * 软件 10 段 peaking biquad 均衡器（Media3 AudioProcessor）。
- *
- * 从硬件 `android.media.audiofx.Equalizer` 迁移而来：硬件效果器在部分设备上
- * 首次/切歌挂载会产生无法消除的起播爆音，因此在 PCM 层自行处理。
- *
- * ## 线程模型
- * UI 线程只写 [targetParams]（一个不可变快照的 @Volatile 引用），音频线程在
- * `queueInput` 里读取引用后自行计算，不加锁、不阻塞。
- *
- * ## 平滑
- * 增益、preamp、dry/wet 都以约 30ms 的时长按块线性逼近目标值；
- * biquad 系数每块重算一次，避免拖动滑条/开关 EQ 时出现咔哒声。
- *
- * ## 支持格式
- * 只处理 PCM_16BIT；其他编码（FLOAT 等）原样透传（仍消耗输入、输出相同字节）。
- * 全 0 增益且 preamp 为 0 时同样逐字节原样拷贝，不做任何浮点运算。
- */
 class MelosEqAudioProcessor : BaseAudioProcessor() {
 
     private data class Params(
@@ -58,7 +40,6 @@ class MelosEqAudioProcessor : BaseAudioProcessor() {
     private var channelCount = 0
     private var passthroughEncoding = false
 
-    /** filters[channel][band] */
     private var filters: Array<Array<Biquad>> = emptyArray()
     private val smoothedGains = FloatArray(BANDS)
     private var smoothedPreampDb = 0f
@@ -161,7 +142,6 @@ class MelosEqAudioProcessor : BaseAudioProcessor() {
         val processedBytes = totalFrames * frameBytes
         inputBuffer.position(inputBuffer.position() + processedBytes)
         outputBuffer.position(outputBuffer.position() + processedBytes)
-        // 不足一帧的尾部字节原样搬走，保证输出长度与输入完全一致。
         if (remainingBytes > processedBytes) {
             outputBuffer.put(inputBuffer)
         }
@@ -227,7 +207,6 @@ class MelosEqAudioProcessor : BaseAudioProcessor() {
     private fun isFlatAndSettled(): Boolean {
         val flatGains = smoothedGains.none { abs(it) > 0.001f }
         val flatPreamp = abs(smoothedPreampDb) <= 0.001f
-        // 关闭且已经淡到 0，或所有增益/preamp 都为 0：完全旁路，保证透传。
         if (smoothedWet <= 0.001f) return true
         if (flatGains && flatPreamp) return true
         return false
@@ -245,8 +224,6 @@ class MelosEqAudioProcessor : BaseAudioProcessor() {
         private var y2 = 0f
 
         fun setPeaking(sampleRate: Int, frequencyHz: Float, gainDb: Float, q: Float) {
-            // 频点高于当前采样率的可用上限时直接做恒等变换，避免多个高频段
-            // 被压到同一个接近 Nyquist 的频点上叠加。
             if (frequencyHz >= sampleRate * 0.45f) {
                 b0 = 1f
                 b1 = 0f

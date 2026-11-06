@@ -25,15 +25,6 @@ import com.aesthetic.music.ui.search.SearchType
 import com.aesthetic.music.ui.settings.SettingsController
 import dev.chrisbanes.haze.HazeState
 
-/**
- * 全屏播放器浮层（非 NavHost 路由，覆盖在整壳之上）。
- *
- * ## 为什么 [favoriteKeys] 要从外面传进来（而不是在内部调 `library.isFavorite`）
- * `library.isFavorite(song)` 读的是 `StateFlow.value`，**不是 Compose 状态**：
- * 收藏/取消收藏不会触发这里重组，于是心形图标永远不变——用户看到的就是
- * 「点了喜欢没反应」。把已收藏的 key 集合作为参数传进来（由 AppShell 用
- * `collectAsState()` 订阅），收藏变化才会真正引起重组。
- */
 @Composable
 fun PlayerOverlay(
     visible: Boolean,
@@ -46,7 +37,6 @@ fun PlayerOverlay(
     nav: ShellNav,
     actions: ShellActions,
     onClose: () -> Unit,
-    /** 已收藏歌曲的 `platform:id` 集合（Compose 状态，收藏变化会触发重组） */
     favoriteKeys: Set<String> = emptySet(),
     hazeState: HazeState? = null,
 ) {
@@ -64,7 +54,6 @@ fun PlayerOverlay(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    // 彻底阻断任何未处理的触摸事件向下透传至 underlying NavHost 页面
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(pass = PointerEventPass.Final)

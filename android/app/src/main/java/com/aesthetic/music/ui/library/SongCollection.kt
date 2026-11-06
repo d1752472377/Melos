@@ -60,13 +60,6 @@ import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/**
- * 收藏 / 历史两页共用的“歌曲集合”骨架。
- *
- * 只抽两页完全相同的部分：顶栏、汇总卡、统计列、歌曲行、列表容器、排序抽屉。
- * 页面标题、排序选项、空态文案、清空按钮仍留在各自页面，避免变成万能页面。
- */
-
 @Composable
 fun SongCollectionTopBar(
     onBack: () -> Unit,
@@ -120,7 +113,6 @@ fun SongCollectionHeaderCard(
             .iosGlassCard(shape = RoundedCornerShape(AppRadius.hero), elevation = 4.dp)
             .padding(AppSpacing.xxxl)
     ) {
-        // 第一行：左侧 2x2 拼图 + 标题/排序药丸 + 右侧搜索按钮
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -147,7 +139,6 @@ fun SongCollectionHeaderCard(
 
                 Spacer(Modifier.height(AppSpacing.sm))
 
-                // 排序下拉药丸
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(AppRadius.md))
@@ -181,7 +172,6 @@ fun SongCollectionHeaderCard(
                 }
             }
 
-            // 右上角搜索小按钮
             Box(
                 modifier = Modifier
                     .size(38.dp)
@@ -201,7 +191,6 @@ fun SongCollectionHeaderCard(
 
         Spacer(Modifier.height(AppSpacing.xxl))
 
-        // 第二行：内嵌 3 列统计卡片
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -236,13 +225,11 @@ fun SongCollectionHeaderCard(
 
         Spacer(Modifier.height(AppSpacing.xxl))
 
-        // 第三行：双胶囊操作按钮
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 左：播放全部（主题色实心胶囊）
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -270,7 +257,6 @@ fun SongCollectionHeaderCard(
                 )
             }
 
-            // 右：随机播放（浅白底胶囊）
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -413,7 +399,6 @@ private fun SongCollectionRow(
             .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 封面 + 播放状态波形指示
         Box(
             modifier = Modifier.size(48.dp),
             contentAlignment = Alignment.Center,
@@ -444,7 +429,6 @@ private fun SongCollectionRow(
 
         Spacer(Modifier.width(AppSpacing.lg))
 
-        // 歌曲信息
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
@@ -474,7 +458,6 @@ private fun SongCollectionRow(
             )
         }
 
-        // 右侧三点更多按钮
         Box(
             modifier = Modifier
                 .size(36.dp)

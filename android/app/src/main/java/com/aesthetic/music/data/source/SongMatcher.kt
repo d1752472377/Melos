@@ -2,16 +2,8 @@ package com.aesthetic.music.data.source
 
 import com.aesthetic.music.data.model.Song
 
-/**
- * 歌曲跨平台相似度匹配器
- * 基于 Dice/Bigram 字符二元组相似度算法，用于多音源容灾故障时寻找跨平台最佳同名替换歌曲。
- */
 object SongMatcher {
 
-    /**
-     * 计算两个字符串的 Dice / Bigram 相似度 (0.0f ~ 1.0f)
-     * 算法公式：S = 2 * |A ∩ B| / (|A| + |B|)
-     */
     fun diceCoefficient(s1: String, s2: String): Float {
         val clean1 = normalize(s1)
         val clean2 = normalize(s2)
@@ -45,9 +37,6 @@ object SongMatcher {
         return (2f * matches) / (total1 + total2)
     }
 
-    /**
-     * 清洗歌曲名/歌手名文本（去除各种括号说明、版本说明、伴奏等噪音字符）
-     */
     fun normalize(text: String): String {
         return text.lowercase()
             .replace(Regex("""[（(\[【].*?[）)\]】]"""), "")
@@ -56,10 +45,6 @@ object SongMatcher {
             .trim()
     }
 
-    /**
-     * 计算两首歌曲的综合置信度得分 (0.0f ~ 1.0f)
-     * 权重分配：Title (0.60) + Artist (0.30) + Album (0.10)
-     */
     fun calculateScore(target: Song, candidate: Song): Float {
         val titleScore = diceCoefficient(target.title, candidate.title)
         val artistScore = diceCoefficient(target.artist, candidate.artist)
@@ -67,16 +52,13 @@ object SongMatcher {
         val albumScore = if (target.album.isNotBlank() && candidate.album.isNotBlank()) {
             diceCoefficient(target.album, candidate.album)
         } else {
-            0.5f // 缺少专辑信息时不重罚
+            0.5f
         }
 
         val baseScore = titleScore * 0.60f + artistScore * 0.30f + albumScore * 0.10f
         return baseScore.coerceIn(0.0f, 1.0f)
     }
 
-    /**
-     * 从候选歌曲列表中找出与 target 最匹配的歌曲（得分需大于等于 minScore）
-     */
     fun findBestMatch(
         target: Song,
         candidates: List<Song>,
@@ -86,7 +68,6 @@ object SongMatcher {
         var maxScore = 0.0f
 
         for (cand in candidates) {
-            // 排除同一平台的完全相同曲目
             if (cand.platform == target.platform && cand.id == target.id) continue
             val score = calculateScore(target, cand)
             if (score > maxScore && score >= minScore) {

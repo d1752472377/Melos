@@ -151,12 +151,6 @@ import kotlinx.coroutines.launch
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
-/**
- * 心动 FM 电台：全屏沉浸式拟物黑胶唱机播放页面。
- * 支持动态流光光晕背景、拟物黑胶同心圆声轨旋转、拟物唱针摆动动效、
- * 实时双行悬浮歌词与全屏逐字卡拉OK歌词无缝切换、多频道漫游切换、
- * 不感兴趣丢弃、心动收藏以及宝藏歌单导出。
- */
 @Composable
 fun FmScreen(
     fmQueue: List<Song>,
@@ -201,7 +195,6 @@ fun FmScreen(
         pageCount = { fmQueue.size.coerceAtLeast(1) }
     )
 
-    // 播放引擎自动续播（一曲播毕自动切到下一曲）→ 同步 Pager 位置
     LaunchedEffect(currentSong?.id, fmQueue) {
         val activeId = currentSong?.id ?: return@LaunchedEffect
         val idx = fmQueue.indexOfFirst { it.id == activeId }
@@ -214,7 +207,6 @@ fun FmScreen(
         }
     }
 
-    // 用户在 Pager 上手动上下滑动切歌 → 通知外部播放新曲目
     LaunchedEffect(pagerState.currentPage, fmQueue) {
         if (syncingPager) return@LaunchedEffect
         if (fmQueue.isNotEmpty() && pagerState.currentPage != fmIndex) {
@@ -222,7 +214,6 @@ fun FmScreen(
         }
     }
 
-    // 当前展示曲目（优先取 Pager 当前页对应的曲目，否则取 currentSong）
     val displaySong = fmQueue.getOrNull(pagerState.currentPage) ?: currentSong
 
     Box(
@@ -230,7 +221,6 @@ fun FmScreen(
             .fillMaxSize()
             .background(FmBackground)
     ) {
-        // ===== 1. 动态沉浸背景层 =====
         displaySong?.artwork?.let { artUrl ->
             AsyncImage(
                 model = artUrl,
@@ -242,7 +232,6 @@ fun FmScreen(
                     .alpha(0.35f)
             )
         }
-        // 径向与纵向暗角遮罩
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -257,14 +246,11 @@ fun FmScreen(
                 )
         )
 
-        // ===== 2. 主页面内容判定 =====
         when {
-            // 加载中且列表尚为空
             fmQueue.isEmpty() && fmLoading -> {
                 FmLoadingState(channel = currentChannel)
             }
 
-            // 加载异常/空状态
             fmQueue.isEmpty() -> {
                 FmEmptyState(
                     error = fmError,
@@ -273,15 +259,13 @@ fun FmScreen(
                 )
             }
 
-            // 正常电台内容视图
             else -> {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(bottom = 88.dp) // 底部避开悬浮 NavigationDock，并留一点间隙
+                        .padding(bottom = 88.dp)
                 ) {
-                    // ===== 顶部操作栏（左侧频道卡片 / 右侧宝藏） =====
                     FmTopBar(
                         currentChannel = currentChannel,
                         isPlaying = isPlaying,
@@ -290,7 +274,6 @@ fun FmScreen(
                         onOpenTreasure = { showTreasureSheet = true }
                     )
 
-                    // ===== 中间主内容区（黑胶唱机 / 竖滑页面 / 歌词模式） =====
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -298,7 +281,6 @@ fun FmScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         if (showFullLyrics && displaySong != null) {
-                            // 全屏歌词模式（点唱片进入，点歌词区退出）
                             FmFullLyricsView(
                                 song = displaySong,
                                 lyrics = lyrics,
@@ -312,7 +294,6 @@ fun FmScreen(
                                 onCloseLyrics = { showFullLyrics = false }
                             )
                         } else {
-                            // 主竖滑 VerticalPager：每页只有一张唱片
                             VerticalPager(
                                 state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
@@ -332,7 +313,6 @@ fun FmScreen(
                         }
                     }
 
-                    // ===== 唱片下方信息区：歌名 → 歌手 → 进度条 → 播放控制 → 两张动作卡 =====
                     if (displaySong != null) {
                         val isFav = favorites.contains("${displaySong.platform}:${displaySong.id}") || favorites.contains(displaySong.id)
 
@@ -354,7 +334,6 @@ fun FmScreen(
             }
         }
 
-        // ===== 3. 弹层抽屉 =====
         if (showChannelSheet) {
             FmChannelSheet(
                 channels = channels,
@@ -375,7 +354,6 @@ fun FmScreen(
             )
         }
 
-        // 一键导出到歌单：复用歌单页的新建歌单表单，创建成功后把宝藏歌曲整体放进去
         if (showExportSheet) {
             PlaylistEditorSheet(
                 title = "新建歌单",
@@ -393,9 +371,6 @@ fun FmScreen(
     }
 }
 
-/**
- * 顶部导航与频道选择胶囊
- */
 @Composable
 private fun FmTopBar(
     currentChannel: FmChannel,
@@ -411,7 +386,6 @@ private fun FmTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左侧：频道卡片（白色玻璃底、无描边，点一下下拉换频道）
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
@@ -442,7 +416,6 @@ private fun FmTopBar(
             )
         }
 
-        // 右侧：淘到的宝藏（刷新入口已移除，需要换口味时走空状态的「重新调频」）
         if (treasureCount > 0) {
             Row(
                 modifier = Modifier
@@ -470,7 +443,6 @@ private fun FmTurntable(
     isPlaying: Boolean,
     onTapDisc: () -> Unit,
 ) {
-    // 旋转角度累积（暂停时不重置、不跳动）
     val discRotation = remember { Animatable(0f) }
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
@@ -483,7 +455,6 @@ private fun FmTurntable(
         }
     }
 
-    // 心动光晕呼吸动画
     val pulseTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by pulseTransition.animateFloat(
         initialValue = 0.15f,
@@ -503,7 +474,6 @@ private fun FmTurntable(
             },
         contentAlignment = Alignment.Center
     ) {
-        // 1. 唱盘背后的心动微光光环
         Box(
             modifier = Modifier
                 .size(290.dp)
@@ -518,7 +488,6 @@ private fun FmTurntable(
                 )
         )
 
-        // 2. 黑胶唱片主体
         Box(
             modifier = Modifier
                 .size(270.dp)
@@ -529,12 +498,10 @@ private fun FmTurntable(
                 .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            // 绘制真实黑胶同心圆声轨 (Micro-grooves) 与金属光芒扇区
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2f, size.height / 2f)
                 val maxR = size.width / 2f
 
-                // 同心圆声轨细线
                 val radii = listOf(0.92f, 0.86f, 0.80f, 0.74f, 0.68f, 0.62f, 0.56f)
                 for (rRatio in radii) {
                     drawCircle(
@@ -545,7 +512,6 @@ private fun FmTurntable(
                     )
                 }
 
-                // 对角金属反光质感弧形
                 drawArc(
                     brush = Brush.sweepGradient(
                         0.0f to Color.Transparent,
@@ -560,7 +526,6 @@ private fun FmTurntable(
                 )
             }
 
-            // 唱片中心圆形贴纸与封面（放大封面，让唱片中心的主体更醒目）
             Box(
                 modifier = Modifier
                     .size(184.dp)
@@ -591,7 +556,6 @@ private fun FmTurntable(
                     }
                 }
 
-                // 唱机中心金属轴孔 (Spindle Hole)
                 Box(
                     modifier = Modifier
                         .size(14.dp)
@@ -629,7 +593,6 @@ private fun FmInfoPanel(
             .padding(horizontal = AppSpacing.section),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 歌名
         Text(
             text = song.title.ifBlank { "未知曲目" },
             color = fmOn(),
@@ -643,7 +606,6 @@ private fun FmInfoPanel(
 
         Spacer(Modifier.height(AppSpacing.xxs))
 
-        // 歌手名
         Text(
             text = "${song.artist.ifBlank { "未知歌手" }} · ${song.album.ifBlank { "单曲" }}",
             color = fmOn(0.65f),
@@ -656,7 +618,6 @@ private fun FmInfoPanel(
 
         Spacer(Modifier.height(AppSpacing.xl))
 
-        // 细线进度条（点击定位）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -691,7 +652,6 @@ private fun FmInfoPanel(
 
         Spacer(Modifier.height(AppSpacing.xxl))
 
-        // 播放控制：上一首（小） / 播放暂停（大） / 下一首（小）
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
@@ -734,7 +694,6 @@ private fun FmInfoPanel(
 
         Spacer(Modifier.height(AppSpacing.xxxl))
 
-        // 两张大圆角动作卡：不合口味 / 收藏这首
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)
@@ -757,7 +716,6 @@ private fun FmInfoPanel(
     }
 }
 
-/** 实心圆播放控制按钮：浅色纯黑、深色纯白 */
 @Composable
 private fun FmSolidButton(
     size: Dp,
@@ -776,7 +734,6 @@ private fun FmSolidButton(
     }
 }
 
-/** 大圆角动作卡（玻璃底）：图标 + 文案 */
 @Composable
 private fun FmActionCard(
     text: String,
@@ -813,7 +770,6 @@ private fun FmActionCard(
     }
 }
 
-
 @Composable
 private fun FmFullLyricsView(
     song: Song,
@@ -831,10 +787,8 @@ private fun FmFullLyricsView(
     val animatedPos = remember { mutableLongStateOf(0L) }
     val listState = rememberLazyListState()
 
-    // 全屏歌词页同样常亮（与播放页歌词模式一致）
     KeepScreenOn()
 
-    // 帧级毫秒平滑推移
     LaunchedEffect(isPlaying, progress.positionMs) {
         animatedPos.longValue = progress.positionMs
         if (isPlaying) {
@@ -884,8 +838,6 @@ private fun FmFullLyricsView(
             }
         }
 
-
-        // 浮动返回黑胶标签
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -912,9 +864,6 @@ private fun FmFullLyricsView(
     }
 }
 
-/**
- * 频道选择抽屉：网罗私人心动、新歌速递、热门流行、民谣、摇滚、电音、治愈等 11 款精选频道
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FmChannelSheet(
@@ -973,7 +922,6 @@ private fun FmChannelSheet(
 
             Spacer(Modifier.height(AppSpacing.xxl))
 
-            // 两列卡片（用普通 Column 排，不再嵌套 Lazy 网格：
             // 嵌套滚动会让抽屉底部内容被裁掉且必须上滑才能看到）
             channels.chunked(2).forEach { row ->
                 Row(
@@ -988,7 +936,6 @@ private fun FmChannelSheet(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    // 奇数个时补一个占位，保证最后一个卡片不会独占整行
                     if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(AppSpacing.md))
@@ -1040,13 +987,6 @@ private fun FmChannelCard(
     }
 }
 
-/**
- * 宝藏歌单抽屉：本次会话听到的心动好歌。
- *
- * 固定高度，顶部标题固定；下面是一整张贴边的大卡片（左右/下都到屏幕边缘），
- * 卡片内是歌曲列表（歌曲之间一条分割线），卡片底部固定「一键导出到歌单」按钮。
- * 列表单独滚动，标题与按钮不动。
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FmTreasureSheet(
@@ -1064,7 +1004,6 @@ private fun FmTreasureSheet(
                 .fillMaxWidth()
                 .height(460.dp)
         ) {
-            // ===== 顶部标题行（固定） =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1102,7 +1041,6 @@ private fun FmTreasureSheet(
                 }
             }
 
-            // ===== 大卡片：左右/下贴边，内部列表滚动 =====
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1163,7 +1101,6 @@ private fun FmTreasureSheet(
                     }
                 }
 
-                // ===== 底部按钮（固定在卡片内） =====
                 Button(
                     onClick = onExportToPlaylist,
                     modifier = Modifier
@@ -1184,7 +1121,6 @@ private fun FmTreasureSheet(
         }
     }
 }
-
 
 @Composable
 private fun FmLoadingState(channel: FmChannel) {
@@ -1237,9 +1173,6 @@ private fun FmLoadingState(channel: FmChannel) {
     }
 }
 
-/**
- * 空状态 / 异常重试
- */
 @Composable
 private fun FmEmptyState(
     error: String?,
