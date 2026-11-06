@@ -395,7 +395,7 @@ data class AppVersionDto(
     @SerializedName("has_local_file", alternate = ["hasLocalFile"])
     val hasLocalFile: Boolean = true,
     @SerializedName("created_at", alternate = ["createdAt"])
-    val createdAt: Long = 0L,
+    val createdAt: String = "",
 )
 
 interface MusicApi {

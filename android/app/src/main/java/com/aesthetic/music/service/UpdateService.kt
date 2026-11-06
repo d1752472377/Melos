@@ -21,9 +21,6 @@ import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 data class UpdateInfo(
@@ -82,10 +79,7 @@ object UpdateService {
         } else {
             "$serverBase/${data.apkUrl.trimStart('/')}"
         }
-        val pubTime = if (data.createdAt > 0) {
-            val ms = if (data.createdAt < 10000000000L) data.createdAt * 1000L else data.createdAt
-            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
-        } else ""
+        val publishTime = data.createdAt
         val info = UpdateInfo(
             versionName = data.versionName,
             versionCode = data.versionCode.toInt(),
@@ -96,7 +90,7 @@ object UpdateService {
             sha256 = data.hashSha256,
             forceUpdate = data.forceUpdate,
             updateLog = data.changelog,
-            publishTime = pubTime,
+            publishTime = publishTime,
         )
         CheckResult.Available(info)
     }
