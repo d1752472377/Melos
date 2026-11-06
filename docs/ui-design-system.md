@@ -32,7 +32,7 @@ Screens（组合业务组件，展示 UI State，发出事件）
 
 1. 新代码必须优先使用上述 token，不在页面里新建 `Color(0x...)` 调色板。
 2. 允许的例外：封面取色、均衡器频谱、播放器主题等**由内容动态生成**的颜色；这类颜色应集中在对应 feature 文件，并注明来源。
-3. 圆角/间距统一使用 `AppRadius` / `AppSpacing`（`ui/theme/AppDimens.kt`）。当前已在 `SongCollection`、`States`、`Overlays` 等共享 primitives 中采用；页面级特殊视觉仍可保留字面量，**不要一次性全量替换**，避免视觉回归。
+3. 圆角/间距统一使用 `AppRadius` / `AppSpacing`（`ui/theme/AppDimens.kt`）。当前已在 `SongCollection`、`States`、`Overlays`、`SettingsKit` 等共享 primitives 中采用；页面级特殊视觉仍可保留字面量，**不要一次性全量替换**，避免视觉回归。
 4. `Type.kt` 未启用：如果确定不回退，可删除；否则保留并在 Theme 注释中说明，不要在两处各维护一套 Typography。
 
 ## 3. 第二层：UI Primitives

@@ -44,6 +44,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aesthetic.music.ui.theme.AppRadius
+import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -82,7 +84,7 @@ fun SettingsPageScaffold(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = AppSpacing.page),
     ) {
         Spacer(Modifier.height(statusBarTop + 16.dp))
         Row(
@@ -97,7 +99,7 @@ fun SettingsPageScaffold(
                     .size(24.dp)
                     .clickable(onClick = onBack)
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.lg))
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -108,7 +110,7 @@ fun SettingsPageScaffold(
             )
         }
         if (!subtitle.isNullOrBlank()) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AppSpacing.xs))
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -117,7 +119,7 @@ fun SettingsPageScaffold(
             )
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
         content()
         Spacer(Modifier.height(BottomContentSpacer))
     }
@@ -138,13 +140,13 @@ fun SettingsSection(
                     fontWeight = FontWeight.SemiBold,
                 ),
                 color = TextSoft,
-                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+                modifier = Modifier.padding(start = AppSpacing.xs, bottom = AppSpacing.sm),
             )
         }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 4.dp),
+                .iosGlassCard(shape = RoundedCornerShape(AppRadius.card), elevation = 4.dp),
             content = content,
         )
     }
@@ -162,7 +164,7 @@ private fun RowIcon(icon: ImageVector, tint: Color) {
     Box(
         modifier = Modifier
             .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(AppRadius.xs))
             .background(tint.copy(alpha = 0.1f)),
         contentAlignment = Alignment.Center,
     ) {
@@ -183,11 +185,11 @@ fun SettingsNavRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RowIcon(icon, iconTint)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -203,7 +205,7 @@ fun SettingsNavRow(
                 )
             }
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AppSpacing.sm))
         Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
     }
 }
@@ -221,11 +223,11 @@ fun SettingsSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RowIcon(icon, iconTint)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.lg))
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -241,7 +243,7 @@ fun SettingsSwitchRow(
                 )
             }
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
@@ -266,7 +268,7 @@ fun SettingsSegmentRow(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg)) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
@@ -280,11 +282,11 @@ fun SettingsSegmentRow(
                 color = TextSoft,
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(AppRadius.sm))
                 .background(Stone100)
                 .padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -304,7 +306,7 @@ fun SettingsSegmentRow(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(AppRadius.xs))
                         .background(bg)
                         .clickable { onSelect(index) }
                         .padding(vertical = 7.dp),
@@ -324,7 +326,7 @@ fun SettingsSegmentRow(
         }
         // 选中项的说明放在控件下方，比塞进窄胶囊里可读
         options.getOrNull(selectedIndex)?.desc?.let { desc ->
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
             Text(
                 text = desc,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
@@ -347,18 +349,18 @@ fun SettingsOptionList(
             text = title,
             style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
             color = TextPrimary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.xs),
         )
         options.forEachIndexed { index, option ->
             val selected = index == selectedIndex
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .padding(horizontal = AppSpacing.lg, vertical = 2.dp)
+                    .clip(RoundedCornerShape(AppRadius.sm))
                     .background(if (selected) Stone100 else Color.Transparent)
                     .clickable { onSelect(index) }
-                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                    .padding(horizontal = AppSpacing.md, vertical = AppSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
@@ -401,7 +403,7 @@ fun SettingsNote(text: String) {
         color = TextMuted,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 2.dp),
+            .padding(horizontal = AppSpacing.xxs, vertical = 2.dp),
     )
 }
 
@@ -418,7 +420,7 @@ fun SettingsValueRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = minHeight.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
