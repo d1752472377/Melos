@@ -181,3 +181,31 @@ ui/
 - 真实复杂度主要来自：`data/settings` 的持久化模板、`ui/settings` 与 `ui/shell` 的少量重复 wiring、以及尚未统一的按钮/圆角样式。
 - 阶段 2/3 已消除 MainViewModel 门面、单曲抽屉重复、收藏/历史重复和设置直写。
 - 下一步不应该大规模移动文件；优先按本报告第 3、4 节做“确认后再动”的候选，以及按 UI 规范做增量统一。
+
+## 9. 稳定性、性能与工程化收尾（2026-11-06）
+
+### 9.1 本轮修复
+
+| 位置 | 问题 | 处理 |
+|---|---|---|
+| `LibraryController.performCloudSync` | 冷启动 `hydrate()` / 登录后账号重载是异步的，同步可能先跑，把空库或上一个账号的内存态当成当前数据 | 记录 `hydrateJob` / `accountLoadJob`，同步前 `join()`；拉取后、写入本地后、推送前各再校验一次 `currentUserId()` |
+| `StatsTracker.flushNow` | 在 `pendingLock` 内调用同步回调，回调若再次取事件会形成锁内重入/阻塞 | 改为锁内只算 `shouldTrigger`，锁外触发同步 |
+| `TokenCipher.getOrCreateKey` | 首次并发解密可能同时生成 Keystore 密钥 | 方法加 `@Synchronized` |
+| `PlaylistCoverStore.pick` | 同一张图被 `contentResolver` 读两遍（落盘 + 同步副本），大图峰值 IO 翻倍 | 抽 `readSourceBytes`，一次读取后同时用于落盘与编码 |
+| `PlayerManager.preloadedKey` | 主线程与缓存回调 IO 线程共享，未声明可见性 | 标记 `@Volatile`；顺带修正取链重试日志的占位符 |
+| `FmScreen` 歌曲列表 | `itemsIndexed` 没有 key，列表刷新时按位置复用 | 增加 `platform:id` key 与 contentType |
+| `.gitignore` | `android/.kotlin/` 构建产物未忽略 | 已加入 |
+| `res/drawable/fc_bg.xml` | 全仓无引用 | 删除 |
+
+### 9.2 验证与工程化
+
+- `:app:compileDebugKotlin`、`:app:testDebugUnitTest`、`:app:assembleDebug`、`:app:assembleRelease`（R8/ProGuard）均通过。
+- 新增 `DownloadPolicyTest`：覆盖“关闭边听边下”“仅 WiFi”“手动下载”四条策略分支。
+- 现有 CI 的 quality job 已包含 `lintDebug` 与单测；release job 在 tag/手动触发时执行 R8 打包。
+
+### 9.3 仍保留的风险（未在本轮改动）
+
+- `PlaylistCoverStore` 仍把源图整块读进内存（上限 48MB），低内存设备选超大图有 OOM 风险；彻底解决需要改成“流式落临时文件 + 两次解码”，本轮未动。
+- 首屏封面主色提取、播放器动态主题仍依赖首次解码，未做基准测量；Compose 重组也未用 Macrobenchmark 量化。
+- 云同步没有服务端冲突回放的自动化测试，主要靠 `SyncPlanTest` 的纯逻辑用例覆盖。
+

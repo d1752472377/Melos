@@ -1116,7 +1116,11 @@ private fun FmTreasureSheet(
                         .weight(1f),
                     contentPadding = PaddingValues(vertical = 6.dp)
                 ) {
-                    itemsIndexed(songs) { index, song ->
+                    itemsIndexed(
+                        songs,
+                        key = { _, song -> "${song.platform}:${song.id}" },
+                        contentType = { _, _ -> "fm_song" },
+                    ) { index, song ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

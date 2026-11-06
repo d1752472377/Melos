@@ -30,6 +30,7 @@ import com.aesthetic.music.data.sync.SyncStateStore
 import com.aesthetic.music.service.StatsTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -124,6 +125,10 @@ class LibraryController(
     /** 内存库当前加载自哪个账号（null = 未登录/guest）；用于账号切换检测 */
     private var loadedForUserId: Long? = currentUserId()
 
+    /** 冷启动回填与账号切换重载的 Job；云同步开始前必须等它们完成，避免把空/旧库当成当前账号数据 */
+    private var hydrateJob: Job? = null
+    private var accountLoadJob: Job? = null
+
     /** 当前登录账号的 id；未登录时为 null（同步的全部前提） */
     private fun currentUserId(): Long? = UserStore.user()?.id?.takeIf { it > 0 }
 
@@ -172,7 +177,7 @@ class LibraryController(
         _favoritePlaylists.value = emptyList()
         _favoritePlaylistIds.value = emptySet()
         // 从新命名空间重读持久化数据（旧版本数据在首次读取时迁移到当前账号名下）
-        scope.launch(Dispatchers.IO) {
+        accountLoadJob = scope.launch(Dispatchers.IO) {
             val h = HistoryStore.load().take(HISTORY_LIMIT)
             val f = FavoriteStore.load().take(MAX_FAVORITES)
             val favP = FavoritePlaylistStore.load()
@@ -226,7 +231,8 @@ class LibraryController(
      * 既消除主线程 JSON 解析，又保证用户极早期的操作不被回填覆盖。
      */
     fun hydrate() {
-        scope.launch(Dispatchers.IO) {
+        if (hydrateJob?.isActive == true) return
+        hydrateJob = scope.launch(Dispatchers.IO) {
             val h = HistoryStore.load()
             val f = FavoriteStore.load().take(MAX_FAVORITES)
             val favP = FavoritePlaylistStore.load()
@@ -604,6 +610,10 @@ class LibraryController(
                 withContext(Dispatchers.IO) {
                     var takenEvents: List<PlayEventDto> = emptyList()
                     try {
+                        // 冷启动回填 / 登录后的账号重载可能还在跑：等它们结束，否则同步会把
+                        // 空库或上一个账号的内存态当成当前账号数据推送。
+                        hydrateJob?.join()
+                        accountLoadJob?.join()
                         // 登录态在排队期间可能已变化：换账号后必须重新校验，否则
                         // 拉取/推送用的 token 与基线 uid 不一致，直接造成跨账号读写。
                         if (currentUserId() != uid) {
@@ -620,8 +630,20 @@ class LibraryController(
                             return@withContext
                         }
 
+                        // 拉取期间用户可能退出/换号：此时不能把旧账号的云端数据写进新账号内存。
+                        if (currentUserId() != uid) {
+                            _isSyncing.value = false
+                            return@withContext
+                        }
+
                         // 1. 云端改动落到本地（含墓碑），并按"应用后的本地状态"推进基线
                         applyCloudChanges(uid, cloud)
+
+                        // 推送前再校验一次：applyCloudChanges 可能是耗时操作，期间账号仍可能变化。
+                        if (currentUserId() != uid) {
+                            _isSyncing.value = false
+                            return@withContext
+                        }
 
                         // 2. 只把本地差异推上去（含显式删除的墓碑）
                         takenEvents = pushChanges(uid, includeEvents = true)

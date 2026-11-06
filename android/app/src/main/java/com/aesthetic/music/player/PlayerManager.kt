@@ -298,6 +298,7 @@ class PlayerManager private constructor(private val appContext: Context) {
     }
 
     /** 已预加载的下一首 key，避免同一首反复预取 */
+    @Volatile
     private var preloadedKey: String? = null
 
     /**
@@ -970,7 +971,8 @@ class PlayerManager private constructor(private val appContext: Context) {
                         if (attempt < URL_RESOLVE_ATTEMPTS - 1) {
                             android.util.Log.w(
                                 "PlayerManager",
-                                "取直链失败（第  次）：，ms 后重试",
+                                "取直链失败（第 ${attempt + 1} 次）：${r.exceptionOrNull()?.message}，" +
+                                    "${URL_RESOLVE_RETRY_MS * (attempt + 1)}ms 后重试",
                             )
                             delay(URL_RESOLVE_RETRY_MS * (attempt + 1))
                         }

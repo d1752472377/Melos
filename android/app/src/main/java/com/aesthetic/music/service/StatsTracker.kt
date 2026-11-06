@@ -195,13 +195,13 @@ object StatsTracker {
      */
     fun flushNow() {
         StatsStore.flush()
-        synchronized(pendingLock) {
+        val shouldTrigger = synchronized(pendingLock) {
             val had = pending.isNotEmpty()
             closeSegmentLocked()
-            if (had || pending.isNotEmpty()) {
-                onTriggerSync?.invoke()
-            }
+            had || pending.isNotEmpty()
         }
+        // 回调会触发同步（可能再次取待发事件），不要放在锁内调用。
+        if (shouldTrigger) onTriggerSync?.invoke()
     }
 
     /** 仅封段并入队（不触发同步），供暂停等"稍后一起推"的场景 */

@@ -35,9 +35,17 @@ object DownloadPolicy {
      *
      * @param manual true = 用户主动点的下载（不受「边听边下」开关限制，但仍受「仅 WiFi」限制）
      */
-    fun allowed(context: Context, prefs: UserPrefs = SettingsStore.readPrefs(), manual: Boolean): Boolean {
+    fun allowed(context: Context, prefs: UserPrefs = SettingsStore.readPrefs(), manual: Boolean): Boolean =
+        allowed(prefs, manual, unmetered = isUnmeteredNetwork(context))
+
+    /**
+     * 纯策略判断，便于单测：网络是否不限流量由调用方传入。
+     *
+     * @param manual true = 用户主动点的下载（不受「边听边下」开关限制，但仍受「仅 WiFi」限制）
+     */
+    fun allowed(prefs: UserPrefs, manual: Boolean, unmetered: Boolean): Boolean {
         if (!manual && !prefs.downloadWhilePlaying) return false
-        if (prefs.downloadWifiOnly && !isUnmeteredNetwork(context)) return false
+        if (prefs.downloadWifiOnly && !unmetered) return false
         return true
     }
 

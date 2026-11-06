@@ -49,22 +49,30 @@ object PlaylistCoverStore {
      * 一次完成「拷贝本机 + 生成同步副本」：UI 只拿结果，不再分别调用两个底层方法。
      */
     fun pick(uri: Uri): PlaylistCoverPick? {
-        val path = savePickedImage(uri) ?: return null
-        return PlaylistCoverPick(path = path, dataUrl = encodeCoverDataUrl(uri))
+        // 只读一次源图：落盘与同步副本共用同一份字节，避免大图被 contentResolver 读两遍。
+        val bytes = readSourceBytes(uri) ?: return null
+        val path = savePickedImageBytes(bytes) ?: return null
+        return PlaylistCoverPick(path = path, dataUrl = encodeCoverDataUrlBytes(bytes))
     }
 
-    /**
-     * 把系统选择器返回的图片拷贝进应用私有目录。
-     * @return 落盘后的绝对路径；失败返回 null（调用方提示"封面设置失败"）
-     */
-    fun savePickedImage(uri: Uri): String? {
+    private fun readSourceBytes(uri: Uri): ByteArray? {
         val ctx = appContext ?: return null
         val bytes = try {
             ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (_: Exception) {
             null
         } ?: return null
+        return bytes.takeIf { it.isNotEmpty() && it.size <= MAX_SOURCE_BYTES }
+    }
 
+    /**
+     * 把系统选择器返回的图片拷贝进应用私有目录。
+     * @return 落盘后的绝对路径；失败返回 null（调用方提示"封面设置失败"）
+     */
+    fun savePickedImage(uri: Uri): String? =
+        readSourceBytes(uri)?.let { savePickedImageBytes(it) }
+
+    private fun savePickedImageBytes(bytes: ByteArray): String? {
         if (bytes.isEmpty() || bytes.size > MAX_SOURCE_BYTES) return null
 
         val bitmap = try {
@@ -158,13 +166,10 @@ object PlaylistCoverStore {
      *
      * 失败返回 null（调用方回落到「仅本机路径」的行为，不影响选图本身）。
      */
-    fun encodeCoverDataUrl(uri: Uri): String? {
-        val ctx = appContext ?: return null
-        val bytes = try {
-            ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        } catch (_: Exception) {
-            null
-        } ?: return null
+    fun encodeCoverDataUrl(uri: Uri): String? =
+        readSourceBytes(uri)?.let { encodeCoverDataUrlBytes(it) }
+
+    private fun encodeCoverDataUrlBytes(bytes: ByteArray): String? {
         if (bytes.isEmpty() || bytes.size > MAX_SOURCE_BYTES) return null
 
         val bitmap = try {
