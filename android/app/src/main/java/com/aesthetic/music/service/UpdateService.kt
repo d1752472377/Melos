@@ -11,14 +11,15 @@ import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.api.ApiClient
 import com.aesthetic.music.data.settings.SyncServerStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -43,7 +44,8 @@ object UpdateService {
 
     private const val TAG = "UpdateService"
 
-    const val UPDATE_URL = "https://music.dovislab.com/update.json"
+    /** 版本检查只认自建后端；后端返回即结束，不再等待海外 update.json 兜底。 */
+    private const val CHECK_TIMEOUT_MS = 8_000L
 
     sealed class CheckResult {
         data class Available(val info: UpdateInfo) : CheckResult()
@@ -52,73 +54,51 @@ object UpdateService {
     }
 
     suspend fun checkUpdate(): CheckResult = withContext(Dispatchers.IO) {
-        var serverHasNoNewerVersion = false
-        if (SyncServerStore.isConfigured()) {
-            try {
-                val resp = ApiClient.api.latestVersion()
-                val data = resp.data
-                if (resp.code == 200 && data != null) {
-                    if (data.versionCode > BuildConfig.VERSION_CODE) {
-                        val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
-                        val fullApkUrl = if (data.apkUrl.startsWith("http://") || data.apkUrl.startsWith("https://")) {
-                            data.apkUrl
-                        } else {
-                            "$serverBase/${data.apkUrl.trimStart('/')}"
-                        }
-                        val pubTime = if (data.createdAt > 0) {
-                            val ms = if (data.createdAt < 10000000000L) data.createdAt * 1000L else data.createdAt
-                            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
-                        } else ""
-                        val info = UpdateInfo(
-                            versionName = data.versionName,
-                            versionCode = data.versionCode.toInt(),
-                            apkUrl = fullApkUrl,
-                            fallbackApkUrl = data.apkUrlFallback,
-                            apkSize = data.fileSize,
-                            md5 = "",
-                            sha256 = data.hashSha256,
-                            forceUpdate = data.forceUpdate,
-                            updateLog = data.changelog,
-                            publishTime = pubTime,
-                        )
-                        return@withContext CheckResult.Available(info)
-                    } else {
-                        serverHasNoNewerVersion = true
-                    }
-                }
-            } catch (_: Exception) {
-            }
+        val resp = try {
+            withTimeout(CHECK_TIMEOUT_MS) { ApiClient.api.latestVersion() }
+        } catch (e: TimeoutCancellationException) {
+            LogReporter.w("Update", "检查更新超时")
+            return@withContext CheckResult.Failed("检查更新超时")
+        } catch (e: Exception) {
+            LogReporter.w("Update", "检查更新失败", e)
+            return@withContext CheckResult.Failed(e.message)
         }
 
-        try {
-            val client = OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .build()
-            client.newCall(Request.Builder().url(UPDATE_URL).build()).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    return@withContext if (serverHasNoNewerVersion) CheckResult.UpToDate else CheckResult.Failed("HTTP ${resp.code}")
-                }
-                val body = resp.body?.string() ?: return@withContext if (serverHasNoNewerVersion) CheckResult.UpToDate else CheckResult.Failed("空响应")
-                val json = JSONObject(body)
-                val info = UpdateInfo(
-                    versionName = json.optString("versionName"),
-                    versionCode = json.optInt("versionCode"),
-                    apkUrl = json.optString("apkUrl"),
-                    apkSize = json.optLong("apkSize"),
-                    md5 = json.optString("md5"),
-                    sha256 = json.optString("sha256"),
-                    forceUpdate = json.optBoolean("forceUpdate"),
-                    updateLog = json.optString("updateLog"),
-                    publishTime = json.optString("publishTime"),
-                )
-                if (info.versionCode > BuildConfig.VERSION_CODE) CheckResult.Available(info) else CheckResult.UpToDate
-            }
-        } catch (e: Exception) {
-            // 网络异常必须显式区分，不能静默当成"无更新"
-            LogReporter.w("Update", "检查更新失败", e)
-            if (serverHasNoNewerVersion) CheckResult.UpToDate else CheckResult.Failed(e.message)
+        val data = resp.data
+        if (resp.code != 200) {
+            return@withContext CheckResult.Failed("HTTP ${resp.code}")
         }
+        if (data == null) {
+            return@withContext CheckResult.UpToDate
+        }
+
+        if (data.versionCode <= BuildConfig.VERSION_CODE) {
+            return@withContext CheckResult.UpToDate
+        }
+
+        val serverBase = SyncServerStore.getServerUrl().trimEnd('/')
+        val fullApkUrl = if (data.apkUrl.startsWith("http://") || data.apkUrl.startsWith("https://")) {
+            data.apkUrl
+        } else {
+            "$serverBase/${data.apkUrl.trimStart('/')}"
+        }
+        val pubTime = if (data.createdAt > 0) {
+            val ms = if (data.createdAt < 10000000000L) data.createdAt * 1000L else data.createdAt
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ms))
+        } else ""
+        val info = UpdateInfo(
+            versionName = data.versionName,
+            versionCode = data.versionCode.toInt(),
+            apkUrl = fullApkUrl,
+            fallbackApkUrl = data.apkUrlFallback,
+            apkSize = data.fileSize,
+            md5 = "",
+            sha256 = data.hashSha256,
+            forceUpdate = data.forceUpdate,
+            updateLog = data.changelog,
+            publishTime = pubTime,
+        )
+        CheckResult.Available(info)
     }
 
     private val downloadMutex = Mutex()
