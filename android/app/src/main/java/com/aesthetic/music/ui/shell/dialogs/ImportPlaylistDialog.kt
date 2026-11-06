@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.shell.dialogs
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,9 +49,11 @@ import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.AccentCoral
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
+import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -231,7 +234,8 @@ private fun InputArea(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Stone100)
+            .background(Surface)
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
             .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.lg),
         decorationBox = { inner ->
             Box(contentAlignment = Alignment.CenterStart) {

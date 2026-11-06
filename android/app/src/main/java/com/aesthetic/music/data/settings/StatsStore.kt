@@ -238,7 +238,9 @@ object StatsStore {
                     title = e.title,
                     artist = e.artist,
                 )
-                val continuous = sessionKey == key && timeMs in 1..(sessionEnd + CLOUD_PLAY_SESSION_GAP_MS)
+                // 缺时间戳的旧数据按同歌同设备直接并入当前会话，避免退化成一条一片段。
+                val continuous = sessionKey == key &&
+                    (timeMs <= 0L || timeMs <= sessionEnd + CLOUD_PLAY_SESSION_GAP_MS)
                 if (continuous) {
                     sessionMs += e.listenedMs
                     sessionEnd = maxOf(sessionEnd, timeMs + e.listenedMs)

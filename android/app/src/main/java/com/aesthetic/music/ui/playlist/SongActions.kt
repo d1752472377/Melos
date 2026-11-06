@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.playlist
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,10 +51,12 @@ import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
+import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -358,8 +361,9 @@ fun AddToPlaylistSheet(
                 textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Stone100)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Surface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
                     .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
                 decorationBox = { inner ->
                     if (newPlaylistName.isEmpty()) {

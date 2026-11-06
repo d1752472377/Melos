@@ -41,16 +41,8 @@ class PlaybackService : MediaSessionService() {
         val player = PlayerManager.get(this).sessionPlayer
         // 明确提供会话的打开入口：通知/锁屏/小米超级岛点击时走这条 PendingIntent，
         // 系统不再按包名自行拼 Intent（部分 ROM 会因此报 “click open app” 并卡住）。
-        val sessionActivity = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, com.aesthetic.music.MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
         val session = MediaSession.Builder(this, player)
-            .setSessionActivity(sessionActivity)
+            .setSessionActivity(openAppPendingIntent(this))
             .build()
         mediaSession = session
         addSession(session)
@@ -104,12 +96,7 @@ class PlaybackService : MediaSessionService() {
         val isPlaying = session?.player?.isPlaying ?: PlayerManager.get(this).state.value.isPlaying
         val isLoading = PlayerManager.get(this).state.value.isLoading
         val isOngoing = isPlaying || isLoading
-        val contentIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, com.aesthetic.music.MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        val contentIntent = openAppPendingIntent(this)
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(song?.title ?: "Melos")
@@ -237,6 +224,24 @@ class PlaybackService : MediaSessionService() {
 
         /** 主线程 Handler：refreshCard 的线程兜底（见那里的说明） */
         private val mainHandler = android.os.Handler(Looper.getMainLooper())
+
+        /**
+         * 打开 App 的唯一入口 PendingIntent：媒体会话、通知正文共用。
+         *
+         * 带 SINGLE_TOP | CLEAR_TOP 让点击落在已有任务栈上而不是重建 Activity；
+         * 部分 ROM（如小米超级岛）点击媒体卡片时若拿不到会话的活动入口，会自己按包名
+         * 拼 Intent，表现为反复 "onIslandClick: click open app" 卡住。
+         */
+        @JvmStatic
+        fun openAppPendingIntent(context: Context): PendingIntent =
+            PendingIntent.getActivity(
+                context,
+                0,
+                Intent(context, com.aesthetic.music.MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
         /** 幂等地创建媒体通知渠道，避免与时序竞态导致 startForeground 失败 */
         @JvmStatic

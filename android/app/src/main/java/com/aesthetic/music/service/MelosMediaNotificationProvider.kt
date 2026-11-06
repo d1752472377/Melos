@@ -13,7 +13,6 @@ import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
-import com.aesthetic.music.MainActivity
 import com.aesthetic.music.R
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.source.SourceManager
@@ -43,12 +42,7 @@ class MelosMediaNotificationProvider(private val context: Context) : MediaNotifi
 
         val iconRes = { res: Int -> IconCompat.createWithResource(context, res) }
 
-        val contentIntent = PendingIntent.getActivity(
-            context,
-            0,
-            Intent(context, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        val contentIntent = PlaybackService.openAppPendingIntent(context)
 
         val builder = NotificationCompat.Builder(context, PlaybackService.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
