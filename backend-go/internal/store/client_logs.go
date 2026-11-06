@@ -163,16 +163,19 @@ type AdminClientLog struct {
 	Thread      string            `json:"thread"`
 	Context     map[string]string `json:"context"`
 	Breadcrumbs []BreadcrumbItem  `json:"breadcrumbs"`
+	Resolved    bool              `json:"resolved"`
+	ResolvedAt  int64             `json:"resolvedAt"`
 	CreatedAt   int64             `json:"createdAt"`
 }
 
 // ListClientLogsFilter is the admin log query.
 type ListClientLogsFilter struct {
-	Level   string
-	UserID  int64
-	Search  string
-	Offset  int
-	Limit   int
+	Level    string
+	UserID   int64
+	Search   string
+	Resolved *bool
+	Offset   int
+	Limit    int
 }
 
 // CountClientLogs returns the total rows matching the filter.
@@ -190,7 +193,8 @@ func (s *Store) ListClientLogs(ctx context.Context, f ListClientLogsFilter) ([]A
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT l.id, l.user_id, COALESCE(u.username, ''), l.session_id, l.level, l.tag,
 		       l.message, l.stack, l.extra_json, l.count, l.app_version, l.version_code,
-		       l.os, l.device, l.ip, l.thread, l.context_json, l.breadcrumbs_json, l.created_at
+		       l.os, l.device, l.ip, l.thread, l.context_json, l.breadcrumbs_json,
+		       l.resolved, l.resolved_at, l.created_at
 		FROM client_logs l
 		LEFT JOIN users u ON u.id = l.user_id
 		`+where+`
@@ -204,12 +208,15 @@ func (s *Store) ListClientLogs(ctx context.Context, f ListClientLogsFilter) ([]A
 	for rows.Next() {
 		var r AdminClientLog
 		var extraJSON, stack, ctxJSON, crumbJSON string
+		var resolved int
 		if err := rows.Scan(&r.ID, &r.UserID, &r.Username, &r.SessionID, &r.Level, &r.Tag,
 			&r.Message, &stack, &extraJSON, &r.Count, &r.AppVersion, &r.VersionCode,
-			&r.OS, &r.Device, &r.IP, &r.Thread, &ctxJSON, &crumbJSON, &r.CreatedAt); err != nil {
+			&r.OS, &r.Device, &r.IP, &r.Thread, &ctxJSON, &crumbJSON,
+			&resolved, &r.ResolvedAt, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		r.Stack = stack
+		r.Resolved = resolved != 0
 		if extraJSON != "" {
 			_ = json.Unmarshal([]byte(extraJSON), &r.Extra)
 		}
@@ -235,6 +242,14 @@ func logFilterWhere(f ListClientLogsFilter) (string, []any) {
 		clauses = append(clauses, "l.user_id = ?")
 		args = append(args, f.UserID)
 	}
+	if f.Resolved != nil {
+		clauses = append(clauses, "l.resolved = ?")
+		if *f.Resolved {
+			args = append(args, 1)
+		} else {
+			args = append(args, 0)
+		}
+	}
 	if f.Search != "" {
 		clauses = append(clauses, "(l.tag LIKE ? OR l.message LIKE ? OR l.stack LIKE ? OR l.device LIKE ? OR l.app_version LIKE ?)")
 		like := "%" + f.Search + "%"
@@ -248,11 +263,12 @@ func logFilterWhere(f ListClientLogsFilter) (string, []any) {
 
 // ClientLogStats is the summary header for the admin log page.
 type ClientLogStats struct {
-	Errors24h   int64 `json:"errors24h"`
-	Warns24h    int64 `json:"warns24h"`
-	Total24h    int64 `json:"total24h"`
-	Devices24h  int64 `json:"devices24h"`
-	Total       int64 `json:"total"`
+	Errors24h     int64 `json:"errors24h"`
+	Warns24h      int64 `json:"warns24h"`
+	Unresolved24h int64 `json:"unresolved24h"`
+	Total24h      int64 `json:"total24h"`
+	Devices24h    int64 `json:"devices24h"`
+	Total         int64 `json:"total"`
 }
 
 // GetClientLogStats aggregates headline numbers for the admin console.
@@ -261,10 +277,29 @@ func (s *Store) GetClientLogStats(ctx context.Context, nowMs int64) (*ClientLogS
 	cutoff := nowMs - 24*60*60*1000
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE level='ERROR' AND created_at >= ?`, cutoff).Scan(&st.Errors24h)
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE level='WARN' AND created_at >= ?`, cutoff).Scan(&st.Warns24h)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE resolved=0 AND created_at >= ?`, cutoff).Scan(&st.Unresolved24h)
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE created_at >= ?`, cutoff).Scan(&st.Total24h)
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT COALESCE(NULLIF(device,''), ip)) FROM client_logs WHERE created_at >= ?`, cutoff).Scan(&st.Devices24h)
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs`).Scan(&st.Total)
 	return st, nil
+}
+
+// SetClientLogResolved marks one client log as handled/not handled.
+func (s *Store) SetClientLogResolved(ctx context.Context, id int64, resolved bool, nowMs int64) (bool, error) {
+	flag := 0
+	resolvedAt := int64(0)
+	if resolved {
+		flag = 1
+		resolvedAt = nowMs
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE client_logs SET resolved = ?, resolved_at = ? WHERE id = ?`,
+		flag, resolvedAt, id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // PruneOldClientLogs drops log rows older than the given number of days.

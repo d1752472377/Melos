@@ -19,6 +19,7 @@ func (s *Server) registerLogs(r *gin.Engine) {
 	admin := s.requireAdmin()
 	r.GET("/api/admin/logs", admin, s.handleAdminListLogs)
 	r.GET("/api/admin/logs/stats", admin, s.handleAdminLogStats)
+	r.PATCH("/api/admin/logs/:id", admin, s.handleAdminSetLogResolved)
 	r.DELETE("/api/admin/logs", admin, s.handleAdminPruneLogs)
 }
 
@@ -119,6 +120,11 @@ func (s *Server) handleAdminListLogs(c *gin.Context) {
 	if n, ok := jsParseInt(c.Query("userId")); ok && n > 0 {
 		f.UserID = int64(n)
 	}
+	if raw := strings.TrimSpace(c.Query("resolved")); raw != "" {
+		if v, err := strconv.ParseBool(raw); err == nil {
+			f.Resolved = &v
+		}
+	}
 
 	ctx := c.Request.Context()
 	total, err := s.store.CountClientLogs(ctx, f)
@@ -143,6 +149,35 @@ func (s *Server) handleAdminLogStats(c *gin.Context) {
 		return
 	}
 	ok(c, st)
+}
+
+// handleAdminSetLogResolved marks one log as handled/not handled.
+func (s *Server) handleAdminSetLogResolved(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		fail(c, 400, "非法的日志 id")
+		return
+	}
+	body, okBody := decodeBody(c)
+	if !okBody {
+		return
+	}
+	raw, exists := body["resolved"]
+	if !exists {
+		fail(c, 400, "缺少 resolved 字段")
+		return
+	}
+	resolved, _ := raw.(bool)
+	found, err := s.store.SetClientLogResolved(c.Request.Context(), id, resolved, time.Now().UnixMilli())
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+	if !found {
+		fail(c, 404, "日志不存在")
+		return
+	}
+	ok(c, gin.H{"id": id, "resolved": resolved})
 }
 
 // handleAdminPruneLogs deletes log rows older than ?days (default 30).

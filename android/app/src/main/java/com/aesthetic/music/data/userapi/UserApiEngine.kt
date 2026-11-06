@@ -245,8 +245,14 @@ object UserApiEngine {
                 Result.success(lyric)
             }
         } catch (t: Throwable) {
+            val message = t.message.orEmpty()
+            // 部分音源脚本的 lyric 接口在无歌词时返回 null，脚本自己访问 data.lyric 会抛
+            // “cannot read property 'lyric' of null”。这是正常的“没有歌词”，不上报 WARN。
+            if (message.contains("lyric") && message.contains("null")) {
+                return Result.failure(Exception("音源未提供歌词"))
+            }
             LogReporter.w("UserApi", "歌词解析失败 platform=$platform", t)
-            Result.failure(Exception(t.message ?: "歌词解析失败"))
+            Result.failure(Exception(message.ifBlank { "歌词解析失败" }))
         }
     }
 

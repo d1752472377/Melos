@@ -190,6 +190,8 @@ var schema = []string{
       thread       TEXT NOT NULL DEFAULT '',
       context_json TEXT NOT NULL DEFAULT '',
       breadcrumbs_json TEXT NOT NULL DEFAULT '',
+      resolved     INTEGER NOT NULL DEFAULT 0,
+      resolved_at  INTEGER NOT NULL DEFAULT 0,
       created_at   INTEGER NOT NULL DEFAULT 0
     )`,
 	`CREATE INDEX IF NOT EXISTS idx_client_logs_time   ON client_logs(created_at)`,
@@ -256,6 +258,8 @@ func (s *Store) migrate() error {
 		`ALTER TABLE client_logs ADD COLUMN thread TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE client_logs ADD COLUMN context_json TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE client_logs ADD COLUMN breadcrumbs_json TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE client_logs ADD COLUMN resolved INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE client_logs ADD COLUMN resolved_at INTEGER NOT NULL DEFAULT 0`,
 		// 播放会话合并后已并入本条的事件 id 列表（"|"分隔），用于重试幂等
 		`ALTER TABLE play_events ADD COLUMN merged_ids TEXT NOT NULL DEFAULT ''`,
 	}
