@@ -57,8 +57,8 @@ import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.AppSpacing
-import com.aesthetic.music.ui.theme.AppColors
 
 /**
  * 收藏 / 历史两页共用的“歌曲集合”骨架。
@@ -242,13 +242,13 @@ fun SongCollectionHeaderCard(
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 左：播放全部（深色背景实心胶囊）
+            // 左：播放全部（主题色实心胶囊）
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .height(44.dp)
                     .clip(RoundedCornerShape(AppRadius.lg))
-                    .background(AppColors.coverPlateDark)
+                    .background(PrimaryBrown)
                     .clickable(onClick = onPlayAll),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,

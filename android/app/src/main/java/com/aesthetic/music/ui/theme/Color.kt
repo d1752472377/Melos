@@ -221,7 +221,6 @@ object AppColors {
     val coverPlaceholderDark2 = Color(0xFF1B1B22)
     val coverIconDark = Color(0xFF64748B)
     val coverIconUnknown = Color(0xFF8893A7)
-    val coverPlateDark = Color(0xFF2C2E33)
 
     // ===== FM 页 =====
     val fmDeep = Color(0xFF101014)
