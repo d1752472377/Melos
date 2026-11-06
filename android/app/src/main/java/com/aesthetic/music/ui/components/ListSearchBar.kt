@@ -1,6 +1,7 @@
 package com.aesthetic.music.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,8 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.ui.theme.AppRadius
 import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
-import com.aesthetic.music.ui.theme.Stone100
+import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
@@ -45,7 +47,8 @@ fun ListSearchBar(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(AppRadius.lg))
-            .background(Stone100)
+            .background(Surface)
+            .border(1.dp, CardBorder, RoundedCornerShape(AppRadius.lg))
             .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {

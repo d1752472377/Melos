@@ -46,9 +46,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,6 +77,9 @@ import coil.request.SuccessResult
 import com.aesthetic.music.BuildConfig
 import com.aesthetic.music.data.settings.LocalStats
 import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.AppDropdownDivider
+import com.aesthetic.music.ui.components.AppDropdownItem
+import com.aesthetic.music.ui.components.AppDropdownMenu
 import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.components.glassBorder
 import com.aesthetic.music.ui.home.iosGlassCard
@@ -87,6 +87,7 @@ import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.AccentCyan
 import com.aesthetic.music.ui.theme.AccentMint
+import com.aesthetic.music.ui.theme.AccentRose
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.Stone200
@@ -494,39 +495,30 @@ private fun TopProfileCard(
 
                     val isCustomBackground = !backgroundPath.isNullOrBlank() || isBackgroundBlur
 
-                    DropdownMenu(
+                    AppDropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { onMenuToggle(false) },
-                        modifier = Modifier
-                            .background(Color.White)
-                            .clip(RoundedCornerShape(16.dp)),
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("更换背景", color = AppColors.profileOnLight, fontSize = 13.sp) },
+                        AppDropdownItem(
+                            text = "更换背景",
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Filled.AddPhotoAlternate,
                                     contentDescription = null,
-                                    tint = AppColors.profileOnLight,
+                                    tint = TextMuted,
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
                             onClick = onChangeBackgroundClick,
                         )
 
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = if (isBackgroundBlur) "取消模糊" else "背景模糊",
-                                    color = AppColors.profileOnLight,
-                                    fontSize = 13.sp,
-                                )
-                            },
+                        AppDropdownItem(
+                            text = if (isBackgroundBlur) "取消模糊" else "背景模糊",
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Filled.BlurOn,
                                     contentDescription = null,
-                                    tint = AppColors.profileOnLight,
+                                    tint = TextMuted,
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
@@ -534,13 +526,13 @@ private fun TopProfileCard(
                         )
 
                         if (isCustomBackground) {
-                            DropdownMenuItem(
-                                text = { Text("恢复默认", color = AppColors.profileOnLight, fontSize = 13.sp) },
+                            AppDropdownItem(
+                                text = "恢复默认",
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Filled.RestartAlt,
                                         contentDescription = null,
-                                        tint = AppColors.profileOnLight,
+                                        tint = TextMuted,
                                         modifier = Modifier.size(18.dp),
                                     )
                                 },
@@ -548,13 +540,15 @@ private fun TopProfileCard(
                             )
                         }
 
-                        DropdownMenuItem(
-                            text = { Text("退出登录", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
+                        AppDropdownDivider()
+                        AppDropdownItem(
+                            text = "退出登录",
+                            danger = true,
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Logout,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
+                                    tint = AccentRose,
                                     modifier = Modifier.size(18.dp),
                                 )
                             },

@@ -92,7 +92,7 @@ class MainViewModel : ViewModel() {
         onToast = { _appToast.value = it },
         onAuthChanged = {
             library.refreshSyncState()
-            if (UserStore.isLoggedIn()) library.performCloudSync()
+            if (UserStore.isLoggedIn()) library.performCloudSync(announce = false)
         },
         onLoggedOut = {
             library.refreshSyncState()
@@ -152,7 +152,7 @@ class MainViewModel : ViewModel() {
         auth.installAuthFailedHook()
         search.hydrate()
         library.refreshSyncState()
-        if (library.isSyncConfigured.value) library.performCloudSync()
+        if (library.isSyncConfigured.value) library.performCloudSync(announce = false)
         UserNotice.register { msg -> _appToast.value = msg }
         triggerAppStartupUpdateCheck()
     }

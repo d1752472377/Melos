@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,6 +53,7 @@ import com.aesthetic.music.ui.theme.AppRadius
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Palette
 import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.TextPrimary
 
@@ -109,7 +111,7 @@ fun MelosToastHost(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(AppRadius.pill))
-                    .background(Surface)
+                    .background(if (Palette.isDark) Surface else Color.White)
                     .border(1.dp, CardBorder, RoundedCornerShape(AppRadius.pill))
                     .shadow(
                         elevation = 8.dp,

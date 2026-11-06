@@ -461,7 +461,7 @@ class LibraryController(
         else -> emptyMap()
     }
 
-    fun performCloudSync() {
+    fun performCloudSync(announce: Boolean = true) {
         val uid = currentUserId()
         if (uid == null) {
             onToast("请先登录账号，再同步云端数据")
@@ -494,7 +494,7 @@ class LibraryController(
                         val cloud = pullResult.getOrNull()
                         if (pullResult.isFailure || cloud == null) {
                             val err = pullResult.exceptionOrNull()?.message ?: "拉取失败"
-                            markSyncFailed(uid, err)
+                            markSyncFailed(uid, err, announce)
                             return@withContext
                         }
 
@@ -523,12 +523,12 @@ class LibraryController(
                         _lastSyncedAt.value = now
                         _lastSyncStatus.value = "同步成功"
                         LogReporter.breadcrumb("Sync", "sync success uid=$uid")
-                        onToast("云端同步完成")
+                        if (announce) onToast("云端同步完成")
                     } catch (e: Exception) {
                         if (takenEvents.isNotEmpty()) StatsTracker.reenqueueEvents(takenEvents)
                         val err = e.message ?: "未知错误"
                         LogReporter.e("Sync", "同步异常 uid=$uid", e)
-                        markSyncFailed(uid, err)
+                        markSyncFailed(uid, err, announce)
                     } finally {
                         _isSyncing.value = false
                     }
@@ -537,12 +537,12 @@ class LibraryController(
         }
     }
 
-    private fun markSyncFailed(uid: Long, err: String) {
+    private fun markSyncFailed(uid: Long, err: String, announce: Boolean = true) {
         LogReporter.w("Sync", "同步失败 uid=$uid err=$err")
         val status = "同步失败: $err"
         SyncStateStore.updateSyncStatus(uid, status)
         _lastSyncStatus.value = status
-        onToast("云同步失败：$err")
+        if (announce) onToast("云同步失败：$err")
     }
 
     private fun applyCloudChanges(uid: Long, cloud: CloudSyncPullData) {

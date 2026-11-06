@@ -191,6 +191,9 @@ object StatsStore {
     private const val KEY_INGESTED_EVENTS = "ingested_cloud_events"
     private const val MAX_INGESTED_TRACKED = 2000
 
+    /** 与后端 playSessionGapMs 一致：同一首歌、同设备、间隔不超过 15 秒视为同一次播放。 */
+    private const val CLOUD_PLAY_SESSION_GAP_MS = 15_000L
+
     fun ingestCloudEvents(events: List<SyncPlayEventItem>) {
         if (events.isEmpty()) return
         synchronized(lock) {
@@ -198,57 +201,91 @@ object StatsStore {
             val ingestedSet = p?.getStringSet(KEY_INGESTED_EVENTS, emptySet())?.toMutableSet() ?: mutableSetOf()
             val myDevice = com.aesthetic.music.data.sync.SyncStateStore.deviceId()
 
-            val toIngest = events.filter {
-                it.eventId.isNotBlank() &&
-                it.eventId !in ingestedSet &&
-                (it.deviceId.isBlank() || it.deviceId != myDevice) &&
-                it.listenedMs > 0
-            }
-            if (toIngest.isEmpty()) return
+            val candidates = events
+                .filter {
+                    it.eventId.isNotBlank() &&
+                        it.eventId !in ingestedSet &&
+                        (it.deviceId.isBlank() || it.deviceId != myDevice) &&
+                        it.listenedMs > 0
+                }
+                .sortedBy { if (it.listenedAtMs > 0) it.listenedAtMs else it.updatedAtMs }
+            if (candidates.isEmpty()) return
 
             var stats = loadLocked()
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
-            for (e in toIngest) {
+            // 按"播放会话"计数：连续的同歌片段只算一次播放，时长累加。
+            // 逐条 +1 会把一次收听拆成几十次播放（分片每 20 秒上报一条）。
+            var sessionKey: String? = null
+            var sessionEnd = 0L
+            var sessionMs = 0L
+            var sessionTimeMs = 0L
+            var sessionSong: Song? = null
+            val sessions = mutableListOf<Pair<Song, Pair<Long, Long>>>() // song -> (startMs, listenedMs)
+
+            fun flushSession() {
+                val song = sessionSong ?: return
+                if (sessionMs <= 0L) return
+                sessions.add(song to (sessionTimeMs to sessionMs))
+            }
+
+            for (e in candidates) {
                 val timeMs = if (e.listenedAtMs > 0) e.listenedAtMs else e.updatedAtMs
-                val dayStr = if (timeMs > 0) dateFormat.format(Date(timeMs)) else todayKey()
-                val hour = if (timeMs > 0) hourOf(timeMs) else 0
+                val key = "${e.deviceId}|${e.platform}|${e.songId}"
                 val song = Song(
                     platform = e.platform,
                     id = e.songId,
                     title = e.title,
                     artist = e.artist,
                 )
+                val continuous = sessionKey == key && timeMs in 1..(sessionEnd + CLOUD_PLAY_SESSION_GAP_MS)
+                if (continuous) {
+                    sessionMs += e.listenedMs
+                    sessionEnd = maxOf(sessionEnd, timeMs + e.listenedMs)
+                } else {
+                    flushSession()
+                    sessionKey = key
+                    sessionSong = song
+                    sessionTimeMs = timeMs
+                    sessionMs = e.listenedMs
+                    sessionEnd = timeMs + e.listenedMs
+                }
+                ingestedSet.add(e.eventId)
+            }
+            flushSession()
 
+            for ((song, data) in sessions) {
+                val (startMs, listenedMs) = data
+                val dayStr = if (startMs > 0) dateFormat.format(Date(startMs)) else todayKey()
+                val hour = if (startMs > 0) hourOf(startMs) else 0
                 val day = stats.day(dayStr)
                 val songStat = bumpSong(
                     existing = day?.songs?.firstOrNull { it.key == songKey(song) },
                     song = song,
                     playDelta = 1,
-                    listenDelta = e.listenedMs,
+                    listenDelta = listenedMs,
                     positionMs = 0L,
-                    now = timeMs,
+                    now = startMs,
                 )
                 val hourMs = (if (day?.hourMs?.size == HOURS_PER_DAY) day.hourMs else emptyHourMs())
                     .toMutableList()
-                    .also { it[hour] = it[hour] + e.listenedMs }
+                    .also { it[hour] = it[hour] + listenedMs }
 
                 val updatedDay = (day ?: DayStat(day = dayStr)).copy(
-                    listenMs = (day?.listenMs ?: 0L) + e.listenedMs,
+                    listenMs = (day?.listenMs ?: 0L) + listenedMs,
                     plays = (day?.plays ?: 0) + 1,
                     hourMs = hourMs,
                     songs = putSong(day?.songs ?: emptyList(), songStat),
                 )
 
                 stats = stats.copy(
-                    totalListenMs = stats.totalListenMs + e.listenedMs,
+                    totalListenMs = stats.totalListenMs + listenedMs,
                     totalPlays = stats.totalPlays + 1,
                     firstDay = if (stats.firstDay.isBlank() || (dayStr.isNotBlank() && dayStr < stats.firstDay)) dayStr else stats.firstDay,
-                    lastAtMs = maxOf(stats.lastAtMs, timeMs),
+                    lastAtMs = maxOf(stats.lastAtMs, startMs),
                     days = putDay(stats.days, updatedDay),
-                    topSongs = bumpGlobal(stats.topSongs, songStat, playDelta = 1, listenDelta = e.listenedMs),
+                    topSongs = bumpGlobal(stats.topSongs, songStat, playDelta = 1, listenDelta = listenedMs),
                 )
-                ingestedSet.add(e.eventId)
             }
 
             val trimmedSet = if (ingestedSet.size > MAX_INGESTED_TRACKED) {

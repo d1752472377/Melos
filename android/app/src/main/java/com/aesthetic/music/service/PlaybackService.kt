@@ -39,7 +39,19 @@ class PlaybackService : MediaSessionService() {
         ensureChannelExists(this)
         super.onCreate()
         val player = PlayerManager.get(this).sessionPlayer
-        val session = MediaSession.Builder(this, player).build()
+        // 明确提供会话的打开入口：通知/锁屏/小米超级岛点击时走这条 PendingIntent，
+        // 系统不再按包名自行拼 Intent（部分 ROM 会因此报 “click open app” 并卡住）。
+        val sessionActivity = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, com.aesthetic.music.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val session = MediaSession.Builder(this, player)
+            .setSessionActivity(sessionActivity)
+            .build()
         mediaSession = session
         addSession(session)
 

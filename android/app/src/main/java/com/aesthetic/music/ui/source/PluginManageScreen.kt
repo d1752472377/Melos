@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -45,14 +46,13 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -67,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +85,9 @@ import com.aesthetic.music.data.source.SourcePlugin
 import com.aesthetic.music.data.source.SourceProbe
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppConfirmDialog
+import com.aesthetic.music.ui.components.AppDropdownDivider
+import com.aesthetic.music.ui.components.AppDropdownItem
+import com.aesthetic.music.ui.components.AppDropdownMenu
 import com.aesthetic.music.ui.components.AppSolidButton
 import com.aesthetic.music.ui.home.iosGlassCard
 import com.aesthetic.music.ui.theme.AccentAmber
@@ -212,27 +216,28 @@ fun PluginManageScreen(
                     Text("音源", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp), color = TextSoft)
                     Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = TextSoft, modifier = Modifier.size(16.dp))
                 }
-                DropdownMenu(
+                AppDropdownMenu(
                     expanded = topMenuExpanded,
                     onDismissRequest = { topMenuExpanded = false },
-                    modifier = Modifier.background(Surface),
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("刷新列表", fontSize = 14.sp, color = TextPrimary) },
+                    AppDropdownItem(
+                        text = "刷新列表",
                         onClick = {
                             topMenuExpanded = false
                             actions.refresh()
                         },
                     )
-                    DropdownMenuItem(
-                        text = { Text("全部检测", fontSize = 14.sp, color = TextPrimary) },
+                    AppDropdownItem(
+                        text = "全部检测",
                         onClick = {
                             topMenuExpanded = false
                             actions.detectAll()
                         },
                     )
-                    DropdownMenuItem(
-                        text = { Text("停止使用脚本", fontSize = 14.sp, color = AccentRose) },
+                    AppDropdownDivider()
+                    AppDropdownItem(
+                        text = "停止使用脚本",
+                        danger = true,
                         onClick = {
                             topMenuExpanded = false
                             showUnloadConfirm = true
@@ -356,21 +361,14 @@ fun PluginManageScreen(
                 IconButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Filled.Sort, contentDescription = "排序", tint = TextSoft, modifier = Modifier.size(18.dp))
                 }
-                DropdownMenu(
+                AppDropdownMenu(
                     expanded = sortMenuExpanded,
                     onDismissRequest = { sortMenuExpanded = false },
-                    modifier = Modifier.background(Surface),
                 ) {
                     SortMode.entries.forEach { mode ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = mode.label,
-                                    fontSize = 14.sp,
-                                    color = if (mode == sortMode) PrimaryBrown else TextPrimary,
-                                    fontWeight = if (mode == sortMode) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            },
+                        AppDropdownItem(
+                            text = mode.label,
+                            selected = mode == sortMode,
                             onClick = {
                                 sortMode = mode
                                 sortMenuExpanded = false
@@ -460,10 +458,16 @@ fun PluginManageScreen(
                 OutlinedTextField(
                     value = urlInput,
                     onValueChange = { urlInput = it },
-                    label = { Text("脚本链接") },
                     placeholder = { Text("https://example.com/source.js") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Surface,
+                        unfocusedContainerColor = Surface,
+                        focusedBorderColor = PrimaryBrown,
+                        unfocusedBorderColor = CardBorder,
+                    ),
                 )
                 Spacer(Modifier.height(AppSpacing.md))
                 PlatformPickerRow(selected = importPlatform, onSelect = { importPlatform = it })
@@ -745,9 +749,17 @@ fun PluginManageScreen(
                     )
                 }
                 Spacer(Modifier.height(AppSpacing.sm))
-                state.groups.filter { it.qualities.isNotEmpty() }.forEach { group ->
-                    QualityGroupCard(group)
-                    Spacer(Modifier.height(AppSpacing.sm))
+                val maxListHeight = (LocalConfiguration.current.screenHeightDp * 0.42f).dp
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxListHeight)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    state.groups.filter { it.qualities.isNotEmpty() }.forEach { group ->
+                        QualityGroupCard(group)
+                        Spacer(Modifier.height(AppSpacing.sm))
+                    }
                 }
                 Spacer(Modifier.height(AppSpacing.xs))
                 AppSolidButton(
@@ -900,28 +912,28 @@ private fun PluginCard(
                 IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(30.dp)) {
                     Icon(Icons.Filled.MoreVert, contentDescription = "更多", tint = TextSoft, modifier = Modifier.size(19.dp))
                 }
-                DropdownMenu(
+                AppDropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
-                    modifier = Modifier.background(Surface),
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("设为当前", fontSize = 14.sp, color = TextPrimary) },
+                    AppDropdownItem(
+                        text = "设为当前",
                         onClick = {
                             menuExpanded = false
                             onActivate()
                         },
                     )
-                    DropdownMenuItem(
-                        text = { Text("指定平台", fontSize = 14.sp, color = TextPrimary) },
+                    AppDropdownItem(
+                        text = "指定平台",
                         onClick = {
                             menuExpanded = false
                             onPickPlatform()
                         },
                     )
-                    HorizontalDivider(color = Stone200.copy(alpha = 0.6f))
-                    DropdownMenuItem(
-                        text = { Text("移除插件", fontSize = 14.sp, color = AccentRose) },
+                    AppDropdownDivider()
+                    AppDropdownItem(
+                        text = "移除插件",
+                        danger = true,
                         onClick = {
                             menuExpanded = false
                             onDelete()

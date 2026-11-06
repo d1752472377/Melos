@@ -54,7 +54,9 @@ import com.aesthetic.music.ui.components.AppSolidButton
 import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.library.PlaylistResolveState
 import com.aesthetic.music.ui.theme.AccentCoral
+import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Surface
 import com.aesthetic.music.ui.theme.Stone100
 import com.aesthetic.music.ui.theme.Stone200
 import com.aesthetic.music.ui.theme.TextMuted
@@ -431,7 +433,8 @@ private fun InputBox(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Stone100)
+            .background(Surface)
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
             .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.lg),
         decorationBox = { inner ->
             Box(contentAlignment = Alignment.CenterStart) {

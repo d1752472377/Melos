@@ -129,8 +129,8 @@ private fun AuthField(
         visualTransformation = visualTransformation,
         interactionSource = interaction,
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = SurfaceSoft,
-            unfocusedContainerColor = SurfaceSoft,
+            focusedContainerColor = Surface,
+            unfocusedContainerColor = Surface,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent,
