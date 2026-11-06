@@ -15,7 +15,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import com.aesthetic.music.data.MusicRepository
 import com.aesthetic.music.data.model.Song
 import com.aesthetic.music.data.settings.PlayerSessionStore
@@ -48,6 +52,25 @@ import com.aesthetic.music.data.source.SourceManager
 
 /** 播放模式（参考 App 的 PlayMode） */
 enum class PlayMode { SEQUENCE, REPEAT, SHUFFLE }
+
+/**
+ * 把软件均衡器 AudioProcessor 接入 Media3 的音频输出链。
+ * 其余 AudioSink 配置保持 DefaultRenderersFactory 的默认行为。
+ */
+private class EqRenderersFactory(
+    context: Context,
+    private val eqProcessor: AudioProcessor,
+) : DefaultRenderersFactory(context) {
+    override fun buildAudioSink(
+        context: Context,
+        enableFloatOutput: Boolean,
+        enableAudioTrackPlaybackParams: Boolean,
+    ): AudioSink = DefaultAudioSink.Builder(context)
+        .setEnableFloatOutput(enableFloatOutput)
+        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+        .setAudioProcessors(arrayOf(eqProcessor))
+        .build()
+}
 
 /** 淡入淡出每步时长（10 步 ≈ 300ms，短到不影响手感，长到听不出突跳） */
 private const val FADE_STEP_MS = 30L
@@ -158,16 +181,11 @@ class PlayerManager private constructor(private val appContext: Context) {
     private val repository = MusicRepository()
 
     val player: ExoPlayer by lazy {
-        // 预生成 AudioSessionId 并在建播放器时写入：默认情况下 ExoPlayer 要到首次起播
-        // 初始化音频输出才创建 session，此时再挂 Equalizer 会在第一首歌开头产生爆音。
-        // 先固定 session，效果器可以在播放前（静音状态）就绑定好，首曲不再重建。
-        val audioSessionId = appContext.getSystemService(AudioManager::class.java)
-            ?.generateAudioSessionId()
-            ?: C.AUDIO_SESSION_ID_UNSET
         // handleAudioFocus=true：来电/导航/其他 App 播放时自动让出焦点（暂停或降音量）；
         // setHandleAudioBecomingNoisy(true)：拔耳机（AUDIO_BECOMING_NOISY）自动暂停；
         // setWakeMode(C.WAKE_MODE_NETWORK)：后台播放时持有 CPU WakeLock 和 WifiLock，防止息屏时音频流中断。
         ExoPlayer.Builder(appContext)
+            .setRenderersFactory(EqRenderersFactory(appContext, MelosEqualizer.processor))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -179,9 +197,6 @@ class PlayerManager private constructor(private val appContext: Context) {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
             .apply {
-                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
-                    setAudioSessionId(audioSessionId)
-                }
                 setPlaybackSpeed(SettingsStore.getPlaybackSpeed())
             }
     }
@@ -630,28 +645,11 @@ class PlayerManager private constructor(private val appContext: Context) {
 
         try {
             MelosEqualizer.init(appContext)
-            MelosEqualizer.attachAudioSession(player.audioSessionId)
         } catch (_: Throwable) {}
 
         player.addListener(object : Player.Listener {
-            /**
-             * AudioSessionId 可能在播放器准备音频输出时才真正分配/变化。
-             * 在这里重新绑定效果器，避免在 onIsPlayingChanged（已经开始出声）时
-             * 创建/替换 Equalizer 造成起播瞬间的爆音。
-             */
-            override fun onAudioSessionIdChanged(audioSessionId: Int) {
-                try {
-                    MelosEqualizer.attachAudioSession(audioSessionId)
-                } catch (_: Throwable) {
-                }
-            }
-
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
-                try {
-                    MelosEqualizer.onPlaybackActive(isPlaying)
-                } catch (_: Throwable) {
-                }
                 if (isPlaying) {
                     // 淡入：从静音升到正常音量，避免每次起播"啪"一声
                     fadeIn()
@@ -715,10 +713,6 @@ class PlayerManager private constructor(private val appContext: Context) {
                         notifyState()
                     }
                     Player.STATE_ENDED -> {
-                        try {
-                            MelosEqualizer.onPlaybackActive(false)
-                        } catch (_: Throwable) {
-                        }
                         acquireTransitionLock()
                         onSongComplete()
                     }
@@ -1107,7 +1101,9 @@ class PlayerManager private constructor(private val appContext: Context) {
                 .build()
             player.setMediaItem(mediaItem)
             player.setPlaybackSpeed(_state.value.speed)
-            player.setVolume(1f)
+            // 开启淡入淡出时先从 0 起播，避免 onIsPlayingChanged 回调前的满音量窗口；
+            // 关闭时保持原来的立即满音量行为。
+            player.setVolume(if (userPrefs.crossFade) 0f else 1f)
             player.prepare()
             if (pendingSeekMs > 0) {
                 player.seekTo(pendingSeekMs.coerceAtLeast(0))

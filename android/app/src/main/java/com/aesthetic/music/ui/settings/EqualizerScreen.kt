@@ -122,7 +122,7 @@ fun EqualizerScreen(
                         color = TextPrimary,
                     )
                     Text(
-                        text = "10段图形均衡器 · 硬件音效驱动",
+                        text = "10段图形均衡器 · 软件音效处理",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = TextSoft,
                     )

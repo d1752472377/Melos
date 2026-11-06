@@ -2,9 +2,6 @@ package com.aesthetic.music.player
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.media.audiofx.Equalizer
-import android.util.Log
-import com.aesthetic.music.service.LogReporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,17 +29,17 @@ data class EqualizerState(
 )
 
 /**
- * 全局均衡器管理器：
- * 1. 深度对齐 GZ Music 专业调音台设计；
- * 2. 支持 10 频段精细微调（31Hz, 62Hz, 125Hz, 250Hz, 500Hz, 1kHz, 2kHz, 4kHz, 8kHz, 16kHz）；
- * 3. 支持预衰减（Preamp，避免大增益导致的数字削波破音）；
- * 4. 内置 8 种高品质大师调音预设 + 自定义记忆；
- * 5. 自动对接 Android 原生 Hardware Equalizer (android.media.audiofx.Equalizer)；
- * 6. 提供高精度三次平滑频响曲线算法，供 UI 实时绘制极光贝塞尔频响曲线。
+ * 全局均衡器管理器。
+ *
+ * 音频处理已从 `android.media.audiofx.Equalizer` 迁移到 PCM 层的
+ * [MelosEqAudioProcessor]（Media3 AudioProcessor）：
+ * 硬件效果器在部分设备上首次/切歌挂载会产生无法消除的起播爆音，软件均衡器不受影响。
+ *
+ * 这个 object 仍然只负责状态、预设、持久化，以及把参数推送给处理器；
+ * UI（EqualizerScreen）和原有调用方接口保持不变。
  */
 object MelosEqualizer {
 
-    private const val TAG = "MelosEqualizer"
     private const val PREFS_NAME = "melos_equalizer_prefs"
 
     // 10 个标准倍频程中心频率
@@ -64,18 +61,10 @@ object MelosEqualizer {
     private val _state = MutableStateFlow(EqualizerState())
     val state: StateFlow<EqualizerState> = _state.asStateFlow()
 
-    private var prefs: SharedPreferences? = null
-    private var hardwareEqualizer: Equalizer? = null
-    private var currentSessionId: Int = 0
+    /** 交给 ExoPlayer 的 AudioProcessor，由 PlayerManager 在构建 AudioSink 时接入 */
+    val processor = MelosEqAudioProcessor()
 
-    /**
-     * 已拿到但还没挂效果器的 session。
-     *
-     * 首次起播时 AudioSession 才真正建立，如果这一刻创建/启用 Equalizer，
-     * 部分设备会在第一首歌开头爆音；因此先记下 session，等第一次暂停/切歌
-     * （此时没有音频输出）再挂载，后续歌曲直接复用已经启用的效果器。
-     */
-    private var pendingSessionId: Int = 0
+    private var prefs: SharedPreferences? = null
 
     fun init(context: Context) {
         val sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -97,92 +86,56 @@ object MelosEqualizer {
             preampGain = preamp,
             bandGains = gains
         )
+        pushToProcessor()
     }
 
     /**
-     * 绑定播放器的 AudioSessionId 并应用硬件生效
+     * 已弃用：软件均衡器不再需要绑定硬件 AudioSession。
+     * 保留空实现只为不打断现有调用方。
      */
+    @Deprecated("Software EQ no longer needs an AudioSession")
     fun attachAudioSession(sessionId: Int) {
-        if (sessionId <= 0 || sessionId == currentSessionId) return
-        currentSessionId = sessionId
-        pendingSessionId = sessionId
-
-        // 已经挂过效果器（会话切换）只能在当前时刻迁移；首次挂载延迟到暂停/切歌。
-        if (hardwareEqualizer != null) {
-            createHardwareEqualizer(sessionId)
-        }
+        // no-op
     }
 
-    /** 播放状态变化：暂停/结束时再挂载首次效果器，避免首曲起播瞬态。 */
+    /** 已弃用：软件均衡器不需要在暂停/切歌时延迟挂载。 */
+    @Deprecated("Software EQ does not need deferred attachment")
     fun onPlaybackActive(active: Boolean) {
-        if (!active) ensureHardwareEqualizer()
+        // no-op
     }
 
-    private fun ensureHardwareEqualizer() {
-        val sessionId = pendingSessionId
-        if (sessionId <= 0 || hardwareEqualizer != null) return
-        createHardwareEqualizer(sessionId)
-    }
-
-    private fun createHardwareEqualizer(sessionId: Int) {
-        try {
-            hardwareEqualizer?.release()
-            val eq = Equalizer(0, sessionId)
-            // 先以关闭状态建好并写入各频段，再启用：
-            // 部分设备在效果器启用后再 setBandLevel 会产生一次明显的爆音/瞬态。
-            eq.enabled = false
-            hardwareEqualizer = eq
-            applyHardwareBands()
-            eq.enabled = _state.value.isEnabled
-            Log.d(TAG, "Attached to audioSessionId: $sessionId (hardware bands=${eq.numberOfBands})")
-        } catch (e: Throwable) {
-            LogReporter.w("Equalizer", "attachAudioSession 失败 session=$sessionId", e)
-            hardwareEqualizer = null
-        }
-    }
-
+    /** 已弃用：处理器生命周期跟随 AudioSink，不需要手动 release 硬件效果器。 */
+    @Deprecated("Software EQ is released with the player's AudioSink")
     fun release() {
-        try {
-            hardwareEqualizer?.release()
-        } catch (_: Throwable) {}
-        hardwareEqualizer = null
-        currentSessionId = 0
-        pendingSessionId = 0
+        // no-op
     }
 
     fun setEnabled(enabled: Boolean) {
         _state.value = _state.value.copy(isEnabled = enabled)
         prefs?.edit()?.putBoolean("enabled", enabled)?.apply()
-        if (enabled) ensureHardwareEqualizer()
-        try {
-            hardwareEqualizer?.enabled = enabled
-        } catch (e: Throwable) {
-            LogReporter.w("Equalizer", "setEnabled 失败 enabled=$enabled", e)
-        }
+        pushToProcessor()
     }
 
     fun setPreampGain(gain: Float) {
         val clamped = gain.coerceIn(-12f, 12f)
         _state.value = _state.value.copy(preampGain = clamped)
         prefs?.edit()?.putFloat("preamp", clamped)?.apply()
+        pushToProcessor()
     }
 
     fun applyPreset(presetId: String) {
         val preset = PRESETS.firstOrNull { it.id == presetId } ?: return
-        LogReporter.breadcrumb("Equalizer", "preset=$presetId")
-        ensureHardwareEqualizer()
         val newGains = preset.gains
         _state.value = _state.value.copy(
             currentPresetId = presetId,
             bandGains = newGains
         )
-        saveBains(newGains, presetId)
-        applyHardwareBands()
+        saveBands(newGains, presetId)
+        pushToProcessor()
     }
 
     fun setBandGain(bandIndex: Int, gain: Float) {
         if (bandIndex !in 0 until 10) return
-        ensureHardwareEqualizer()
         val clamped = gain.coerceIn(-12f, 12f)
         val currentGains = _state.value.bandGains.toMutableList()
         currentGains[bandIndex] = clamped
@@ -200,8 +153,8 @@ object MelosEqualizer {
             currentPresetId = matchedPreset,
             bandGains = currentGains
         )
-        saveBains(currentGains, matchedPreset)
-        applyHardwareBands()
+        saveBands(currentGains, matchedPreset)
+        pushToProcessor()
     }
 
     fun resetToFlat() {
@@ -209,7 +162,7 @@ object MelosEqualizer {
         setPreampGain(0f)
     }
 
-    private fun saveBains(gains: List<Float>, presetId: String) {
+    private fun saveBands(gains: List<Float>, presetId: String) {
         val editor = prefs?.edit() ?: return
         editor.putString("preset_id", presetId)
         for (i in gains.indices) {
@@ -218,26 +171,13 @@ object MelosEqualizer {
         editor.apply()
     }
 
-    private fun applyHardwareBands() {
-        val eq = hardwareEqualizer ?: return
-        if (!_state.value.isEnabled) return
-
-        try {
-            val numBands = eq.numberOfBands.toInt()
-            val minMB = eq.bandLevelRange[0] // 通常 -1500 (-15dB)
-            val maxMB = eq.bandLevelRange[1] // 通常 +1500 (+15dB)
-
-            for (hwBand in 0 until numBands) {
-                val hwFreq = eq.getCenterFreq(hwBand.toShort()) / 1000 // 转为 Hz
-                // 找到与硬件频点最接近的软件频段
-                val closestIdx = FREQUENCIES.indices.minByOrNull { kotlin.math.abs(FREQUENCIES[it] - hwFreq) } ?: 0
-                val gainDb = _state.value.bandGains[closestIdx]
-                val levelMB = (gainDb * 100).toInt().coerceIn(minMB.toInt(), maxMB.toInt()).toShort()
-                eq.setBandLevel(hwBand.toShort(), levelMB)
-            }
-        } catch (e: Throwable) {
-            LogReporter.w("Equalizer", "applyHardwareBands 失败", e)
-        }
+    private fun pushToProcessor() {
+        val s = _state.value
+        processor.setParams(
+            enabled = s.isEnabled,
+            preampDb = s.preampGain,
+            gainsDb = s.bandGains,
+        )
     }
 
     /**
