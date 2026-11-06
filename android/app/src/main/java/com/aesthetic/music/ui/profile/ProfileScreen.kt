@@ -318,8 +318,8 @@ fun ProfileScreen(
                             ProfileFeatureRow(
                                 icon = Icons.Filled.CloudSync,
                                 iconTint = AppColors.purple,
-                                title = "云端备份与同步",
-                                subtitle = "WebDAV / 多端云歌单同步",
+                                title = "账号与云端同步",
+                                subtitle = "登录设备 · 云歌单 · 手动同步",
                                 onClick = onOpenCloudManage,
                             )
                         }
@@ -328,20 +328,7 @@ fun ProfileScreen(
             }
 
 
-            // ===== 3. 分组标题：系统与设置 =====
-            item(key = "section_system_settings") {
-                Column(modifier = Modifier.padding(start = AppSpacing.xxs, top = AppSpacing.sm, bottom = AppSpacing.xxs)) {
-                    Text(
-                        text = "系统与设置",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = TextPrimary,
-                    )
-                }
-            }
-
+            // ===== 3. 系统功能列表（不再单独放「系统与设置」大标题） =====
             // 剩余系统功能列表 (毛玻璃卡片组)
             item(key = "feature_menu_card") {
                 Box(

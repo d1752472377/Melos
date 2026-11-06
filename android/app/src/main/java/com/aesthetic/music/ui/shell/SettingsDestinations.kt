@@ -54,7 +54,6 @@ fun SettingsDestination(
                     SettingsPage.APPEARANCE -> ScreenRoute.SettingsAppearance
                     SettingsPage.QUALITY -> ScreenRoute.SettingsQuality
                     SettingsPage.PLAYBACK -> ScreenRoute.SettingsPlayback
-                    SettingsPage.EQUALIZER -> ScreenRoute.Equalizer
                     SettingsPage.LYRICS -> ScreenRoute.SettingsLyrics
                     SettingsPage.DOWNLOAD -> ScreenRoute.SettingsDownload
                     SettingsPage.CACHE -> ScreenRoute.SettingsCache

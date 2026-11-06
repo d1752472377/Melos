@@ -69,7 +69,7 @@ private val ThemeMode.label: String
 
 /** 设置主页可跳转的子页面 */
 enum class SettingsPage {
-    APPEARANCE, QUALITY, PLAYBACK, EQUALIZER, LYRICS, DOWNLOAD, CACHE
+    APPEARANCE, QUALITY, PLAYBACK, LYRICS, DOWNLOAD, CACHE
 }
 
 /**
@@ -152,13 +152,6 @@ fun SettingsScreen(
                     if (userPrefs.mixWithOthers) append(" · 混合播放")
                 },
                 onClick = { onOpenPage(SettingsPage.PLAYBACK) }
-            )
-            SettingRow(
-                icon = Icons.Filled.Tune,
-                iconTint = PrimaryBrown,
-                label = "专业调音台 (均衡器)",
-                subtitle = "10段图形EQ · 大师预设 · 贝塞尔频响曲线",
-                onClick = { onOpenPage(SettingsPage.EQUALIZER) }
             )
             SettingRow(
                 icon = Icons.Filled.Subtitles,

@@ -58,9 +58,5 @@ fun AppearanceSettingsScreen(
             }
         }
 
-        SettingsGap(10)
-
-        SettingsNote("· 状态栏选「仅播放页」时，进入播放页会隐藏状态栏，退出后自动恢复。")
-        SettingsNote("· 部分系统（如 MIUI/HarmonyOS）对隐藏状态栏的策略不同，可能仍会保留一条细线。")
     }
 }

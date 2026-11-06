@@ -394,19 +394,6 @@ fun SettingsOptionList(
     }
 }
 
-/** 说明文字块（页面底部解释"为什么"） */
-@Composable
-fun SettingsNote(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
-        color = TextMuted,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = AppSpacing.xxs, vertical = 2.dp),
-    )
-}
-
 /** 键值展示行（不可点击，用于"占用 128MB"这类只读信息） */
 @Composable
 fun SettingsValueRow(

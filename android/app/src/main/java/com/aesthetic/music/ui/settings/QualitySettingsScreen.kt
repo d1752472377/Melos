@@ -51,8 +51,5 @@ fun QualitySettingsScreen(
             }
         }
 
-        SettingsGap(10)
-
-        SettingsNote("· 音质等级会影响播放直链与缓存文件：切换后同一首歌会重新按新音质获取。")
     }
 }

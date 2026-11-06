@@ -216,11 +216,6 @@ fun CacheManageScreen(
             )
         }
 
-        SettingsGap(10)
-
-        SettingsNote("· 「下载音乐」是边听边下产生的音频文件；清理后已缓存歌曲需要重新联网获取。")
-        SettingsNote("· 「图片缓存」主要是专辑封面与头像；清理后会在浏览时重新下载，不影响本地文件。")
-        SettingsNote("· 「临时文件」包含下载分片与其它临时数据，可安全清理。")
     }
 
     if (showDetail) {

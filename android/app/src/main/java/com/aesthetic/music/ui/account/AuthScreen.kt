@@ -1,6 +1,8 @@
 package com.aesthetic.music.ui.account
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -34,9 +38,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,6 +54,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -73,6 +78,7 @@ import com.aesthetic.music.ui.theme.SurfaceSoft
 import com.aesthetic.music.ui.theme.TextMuted
 import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
+import com.aesthetic.music.ui.theme.AppRadius
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
 
@@ -84,6 +90,60 @@ private enum class AuthTab {
 private enum class LoginMode {
     PASSWORD,
     EMAIL_CODE,
+}
+
+/**
+ * 登录/注册统一输入框：浅色填充底、无下划线，聚焦时主题色描边。
+ * 比 Material 默认 OutlinedTextField 更贴合页面的圆角卡片风格。
+ */
+@Composable
+private fun AuthField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    leadingIcon: ImageVector? = null,
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailingIcon: (@Composable () -> Unit)? = null,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(AppRadius.lg)
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, if (focused) PrimaryBrown else Color.Transparent, shape),
+        placeholder = { Text(placeholder, color = TextMuted, fontSize = 14.sp) },
+        leadingIcon = leadingIcon?.let {
+            {
+                Icon(
+                    imageVector = it,
+                    contentDescription = null,
+                    tint = if (focused) PrimaryBrown else TextMuted,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        },
+        trailingIcon = trailingIcon,
+        singleLine = true,
+        shape = shape,
+        keyboardOptions = keyboardOptions,
+        visualTransformation = visualTransformation,
+        interactionSource = interaction,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = SurfaceSoft,
+            unfocusedContainerColor = SurfaceSoft,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            cursorColor = PrimaryBrown,
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+        ),
+    )
 }
 
 /**
@@ -178,19 +238,29 @@ fun AuthScreen(auth: AuthController) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(9999.dp))
-                    .background(SurfaceSoft)
-                    .border(1.dp, CardBorder, RoundedCornerShape(9999.dp))
-                    .padding(AppSpacing.xxs),
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(AppRadius.pill))
+                    .background(Stone100)
+                    .padding(3.dp),
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     // 登录 Tab
+                    val loginSelected = activeTab == AuthTab.LOGIN
+                    val loginBg by animateColorAsState(
+                        if (loginSelected) PrimaryBrown else Color.Transparent,
+                        tween(180),
+                        label = "loginTabBg",
+                    )
+                    val loginText by animateColorAsState(
+                        if (loginSelected) Color.White else TextMuted,
+                        tween(180),
+                        label = "loginTabText",
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(9999.dp))
-                            .background(if (activeTab == AuthTab.LOGIN) Surface else Color.Transparent)
+                            .clip(RoundedCornerShape(AppRadius.pill))
+                            .background(loginBg)
                             .clickable {
                                 if (activeTab != AuthTab.LOGIN) {
                                     activeTab = AuthTab.LOGIN
@@ -204,18 +274,29 @@ fun AuthScreen(auth: AuthController) {
                             text = "登录",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = 14.sp,
-                                fontWeight = if (activeTab == AuthTab.LOGIN) FontWeight.Bold else FontWeight.Medium,
+                                fontWeight = if (loginSelected) FontWeight.Bold else FontWeight.Medium,
                             ),
-                            color = if (activeTab == AuthTab.LOGIN) PrimaryBrown else TextMuted,
+                            color = loginText,
                         )
                     }
 
                     // 注册 Tab
+                    val registerSelected = activeTab == AuthTab.REGISTER
+                    val registerBg by animateColorAsState(
+                        if (registerSelected) PrimaryBrown else Color.Transparent,
+                        tween(180),
+                        label = "registerTabBg",
+                    )
+                    val registerText by animateColorAsState(
+                        if (registerSelected) Color.White else TextMuted,
+                        tween(180),
+                        label = "registerTabText",
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(9999.dp))
-                            .background(if (activeTab == AuthTab.REGISTER) Surface else Color.Transparent)
+                            .clip(RoundedCornerShape(AppRadius.pill))
+                            .background(registerBg)
                             .clickable {
                                 if (activeTab != AuthTab.REGISTER) {
                                     activeTab = AuthTab.REGISTER
@@ -229,9 +310,9 @@ fun AuthScreen(auth: AuthController) {
                             text = "注册",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = 14.sp,
-                                fontWeight = if (activeTab == AuthTab.REGISTER) FontWeight.Bold else FontWeight.Medium,
+                                fontWeight = if (registerSelected) FontWeight.Bold else FontWeight.Medium,
                             ),
-                            color = if (activeTab == AuthTab.REGISTER) PrimaryBrown else TextMuted,
+                            color = registerText,
                         )
                     }
                 }
@@ -259,23 +340,15 @@ fun AuthScreen(auth: AuthController) {
                                 color = TextSoft,
                             )
                             Spacer(Modifier.height(AppSpacing.xs))
-                            OutlinedTextField(
+                            AuthField(
                                 value = loginAccount,
                                 onValueChange = {
                                     loginAccount = it
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("输入用户名或绑定的邮箱", color = TextMuted, fontSize = 14.sp) },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Person, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryBrown,
-                                    unfocusedBorderColor = Stone200,
-                                ),
+                                placeholder = "输入用户名或绑定的邮箱",
+                                leadingIcon = Icons.Filled.Person,
                             )
 
                             Spacer(Modifier.height(AppSpacing.xxl))
@@ -286,17 +359,15 @@ fun AuthScreen(auth: AuthController) {
                                 color = TextSoft,
                             )
                             Spacer(Modifier.height(AppSpacing.xs))
-                            OutlinedTextField(
+                            AuthField(
                                 value = loginPassword,
                                 onValueChange = {
                                     loginPassword = it
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("输入登录密码", color = TextMuted, fontSize = 14.sp) },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                                },
+                                placeholder = "输入登录密码",
+                                leadingIcon = Icons.Filled.Lock,
                                 trailingIcon = {
                                     IconButton(onClick = { showLoginPassword = !showLoginPassword }) {
                                         Icon(
@@ -309,12 +380,6 @@ fun AuthScreen(auth: AuthController) {
                                 },
                                 visualTransformation = if (showLoginPassword) VisualTransformation.None else PasswordVisualTransformation(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryBrown,
-                                    unfocusedBorderColor = Stone200,
-                                ),
                             )
 
                             Spacer(Modifier.height(AppSpacing.lg))
@@ -345,24 +410,16 @@ fun AuthScreen(auth: AuthController) {
                                 color = TextSoft,
                             )
                             Spacer(Modifier.height(AppSpacing.xs))
-                            OutlinedTextField(
+                            AuthField(
                                 value = loginEmail,
                                 onValueChange = {
                                     loginEmail = it
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("输入注册/绑定的邮箱", color = TextMuted, fontSize = 14.sp) },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Email, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                                },
+                                placeholder = "输入注册/绑定的邮箱",
+                                leadingIcon = Icons.Filled.Email,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryBrown,
-                                    unfocusedBorderColor = Stone200,
-                                ),
                             )
 
                             Spacer(Modifier.height(AppSpacing.xxl))
@@ -378,27 +435,21 @@ fun AuthScreen(auth: AuthController) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
                             ) {
-                                OutlinedTextField(
+                                AuthField(
                                     value = loginCode,
                                     onValueChange = {
                                         if (it.length <= 6) loginCode = it
                                         if (authError != null) auth.clearError()
                                     },
                                     modifier = Modifier.weight(1f),
-                                    placeholder = { Text("6 位数字", color = TextMuted, fontSize = 14.sp) },
+                                placeholder = "6 位数字",
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = PrimaryBrown,
-                                        unfocusedBorderColor = Stone200,
-                                    ),
                                 )
 
                                 // 发送验证码按钮
                                 Box(
                                     modifier = Modifier
-                                        .height(52.dp)
+                                        .height(56.dp)
                                         .clip(RoundedCornerShape(14.dp))
                                         .background(if (codeCountdown > 0 || isSendingCode) Stone100 else SurfaceSoft)
                                         .border(1.dp, if (codeCountdown > 0 || isSendingCode) Stone200 else PrimaryBrown, RoundedCornerShape(14.dp))
@@ -502,24 +553,16 @@ fun AuthScreen(auth: AuthController) {
                             color = TextSoft,
                         )
                         Spacer(Modifier.height(AppSpacing.xs))
-                        OutlinedTextField(
+                        AuthField(
                             value = regEmail,
                             onValueChange = {
                                 regEmail = it
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("输入您的真实邮箱地址", color = TextMuted, fontSize = 14.sp) },
-                            leadingIcon = {
-                                Icon(Icons.Filled.Email, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                            },
+                                placeholder = "输入您的真实邮箱地址",
+                            leadingIcon = Icons.Filled.Email,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryBrown,
-                                unfocusedBorderColor = Stone200,
-                            ),
                         )
 
                         Spacer(Modifier.height(AppSpacing.xl))
@@ -536,26 +579,20 @@ fun AuthScreen(auth: AuthController) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
                         ) {
-                            OutlinedTextField(
+                            AuthField(
                                 value = regCode,
                                 onValueChange = {
                                     if (it.length <= 6) regCode = it
                                     if (authError != null) auth.clearError()
                                 },
                                 modifier = Modifier.weight(1f),
-                                placeholder = { Text("6 位数字验证码", color = TextMuted, fontSize = 14.sp) },
+                                placeholder = "6 位数字验证码",
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryBrown,
-                                    unfocusedBorderColor = Stone200,
-                                ),
                             )
 
                             Box(
                                 modifier = Modifier
-                                    .height(52.dp)
+                                    .height(56.dp)
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(if (codeCountdown > 0 || isSendingCode) Stone100 else SurfaceSoft)
                                     .border(1.dp, if (codeCountdown > 0 || isSendingCode) Stone200 else PrimaryBrown, RoundedCornerShape(14.dp))
@@ -586,23 +623,15 @@ fun AuthScreen(auth: AuthController) {
                             color = TextSoft,
                         )
                         Spacer(Modifier.height(AppSpacing.xs))
-                        OutlinedTextField(
+                        AuthField(
                             value = regUsername,
                             onValueChange = {
                                 regUsername = it
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("2-20 位（字母/数字/中文/下划线）", color = TextMuted, fontSize = 14.sp) },
-                            leadingIcon = {
-                                Icon(Icons.Filled.Person, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryBrown,
-                                unfocusedBorderColor = Stone200,
-                            ),
+                                placeholder = "2-20 位（字母/数字/中文/下划线）",
+                            leadingIcon = Icons.Filled.Person,
                         )
 
                         Spacer(Modifier.height(AppSpacing.xl))
@@ -614,17 +643,15 @@ fun AuthScreen(auth: AuthController) {
                             color = TextSoft,
                         )
                         Spacer(Modifier.height(AppSpacing.xs))
-                        OutlinedTextField(
+                        AuthField(
                             value = regPassword,
                             onValueChange = {
                                 regPassword = it
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("5-64 位密码", color = TextMuted, fontSize = 14.sp) },
-                            leadingIcon = {
-                                Icon(Icons.Filled.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                            },
+                                placeholder = "5-64 位密码",
+                            leadingIcon = Icons.Filled.Lock,
                             trailingIcon = {
                                 IconButton(onClick = { showRegPassword = !showRegPassword }) {
                                     Icon(
@@ -637,12 +664,6 @@ fun AuthScreen(auth: AuthController) {
                             },
                             visualTransformation = if (showRegPassword) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryBrown,
-                                unfocusedBorderColor = Stone200,
-                            ),
                         )
 
                         Spacer(Modifier.height(AppSpacing.xl))
@@ -654,20 +675,14 @@ fun AuthScreen(auth: AuthController) {
                             color = TextSoft,
                         )
                         Spacer(Modifier.height(AppSpacing.xs))
-                        OutlinedTextField(
+                        AuthField(
                             value = regNickname,
                             onValueChange = {
                                 regNickname = it
                                 if (authError != null) auth.clearError()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("展示在个人主页的昵称", color = TextMuted, fontSize = 14.sp) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryBrown,
-                                unfocusedBorderColor = Stone200,
-                            ),
+                                placeholder = "展示在个人主页的昵称",
                         )
 
                         Spacer(Modifier.height(AppSpacing.xxl))

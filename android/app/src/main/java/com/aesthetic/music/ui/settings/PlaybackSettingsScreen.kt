@@ -55,11 +55,5 @@ fun PlaybackSettingsScreen(
                 onCheckedChange = onMixWithOthersChange,
             )
         }
-
-        SettingsGap(10)
-
-        SettingsNote("· 「预加载下一首」在下拉歌单/连播时生效；开启「仅 WiFi 下载」后，预加载也只在 WiFi 下进行。")
-        SettingsNote("· 「混合播放」开启后本 App 不再独占音频焦点，可与其他播放器同时出声；检测到录音/通话占用麦克风时会暂停，结束自动继续。")
-        SettingsNote("· 「打断自动恢复」关闭后，被来电打断会停在暂停态，需要手动点播放。")
     }
 }

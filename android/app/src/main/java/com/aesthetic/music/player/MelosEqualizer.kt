@@ -68,6 +68,15 @@ object MelosEqualizer {
     private var hardwareEqualizer: Equalizer? = null
     private var currentSessionId: Int = 0
 
+    /**
+     * 已拿到但还没挂效果器的 session。
+     *
+     * 首次起播时 AudioSession 才真正建立，如果这一刻创建/启用 Equalizer，
+     * 部分设备会在第一首歌开头爆音；因此先记下 session，等第一次暂停/切歌
+     * （此时没有音频输出）再挂载，后续歌曲直接复用已经启用的效果器。
+     */
+    private var pendingSessionId: Int = 0
+
     fun init(context: Context) {
         val sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs = sp
@@ -96,7 +105,26 @@ object MelosEqualizer {
     fun attachAudioSession(sessionId: Int) {
         if (sessionId <= 0 || sessionId == currentSessionId) return
         currentSessionId = sessionId
+        pendingSessionId = sessionId
 
+        // 已经挂过效果器（会话切换）只能在当前时刻迁移；首次挂载延迟到暂停/切歌。
+        if (hardwareEqualizer != null) {
+            createHardwareEqualizer(sessionId)
+        }
+    }
+
+    /** 播放状态变化：暂停/结束时再挂载首次效果器，避免首曲起播瞬态。 */
+    fun onPlaybackActive(active: Boolean) {
+        if (!active) ensureHardwareEqualizer()
+    }
+
+    private fun ensureHardwareEqualizer() {
+        val sessionId = pendingSessionId
+        if (sessionId <= 0 || hardwareEqualizer != null) return
+        createHardwareEqualizer(sessionId)
+    }
+
+    private fun createHardwareEqualizer(sessionId: Int) {
         try {
             hardwareEqualizer?.release()
             val eq = Equalizer(0, sessionId)
@@ -119,11 +147,13 @@ object MelosEqualizer {
         } catch (_: Throwable) {}
         hardwareEqualizer = null
         currentSessionId = 0
+        pendingSessionId = 0
     }
 
     fun setEnabled(enabled: Boolean) {
         _state.value = _state.value.copy(isEnabled = enabled)
         prefs?.edit()?.putBoolean("enabled", enabled)?.apply()
+        if (enabled) ensureHardwareEqualizer()
         try {
             hardwareEqualizer?.enabled = enabled
         } catch (e: Throwable) {
@@ -140,6 +170,7 @@ object MelosEqualizer {
     fun applyPreset(presetId: String) {
         val preset = PRESETS.firstOrNull { it.id == presetId } ?: return
         LogReporter.breadcrumb("Equalizer", "preset=$presetId")
+        ensureHardwareEqualizer()
         val newGains = preset.gains
         _state.value = _state.value.copy(
             currentPresetId = presetId,
@@ -151,6 +182,7 @@ object MelosEqualizer {
 
     fun setBandGain(bandIndex: Int, gain: Float) {
         if (bandIndex !in 0 until 10) return
+        ensureHardwareEqualizer()
         val clamped = gain.coerceIn(-12f, 12f)
         val currentGains = _state.value.bandGains.toMutableList()
         currentGains[bandIndex] = clamped

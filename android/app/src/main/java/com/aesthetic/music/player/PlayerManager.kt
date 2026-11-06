@@ -648,6 +648,10 @@ class PlayerManager private constructor(private val appContext: Context) {
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _state.value = _state.value.copy(isPlaying = isPlaying)
+                try {
+                    MelosEqualizer.onPlaybackActive(isPlaying)
+                } catch (_: Throwable) {
+                }
                 if (isPlaying) {
                     // 淡入：从静音升到正常音量，避免每次起播"啪"一声
                     fadeIn()
@@ -711,6 +715,10 @@ class PlayerManager private constructor(private val appContext: Context) {
                         notifyState()
                     }
                     Player.STATE_ENDED -> {
+                        try {
+                            MelosEqualizer.onPlaybackActive(false)
+                        } catch (_: Throwable) {
+                        }
                         acquireTransitionLock()
                         onSongComplete()
                     }

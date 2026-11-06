@@ -69,11 +69,5 @@ fun DownloadSettingsScreen(
                 onSelect = { idx -> onFailurePolicyChange(DownloadFailurePolicy.entries[idx]) },
             )
         }
-
-        SettingsGap(10)
-
-        SettingsNote("· 缓存落在应用私有目录，卸载即清空；可在「设置 → 缓存管理」查看占用并清理。")
-        SettingsNote("· 命名规则只影响新缓存的文件名，已缓存的文件不会被重命名。")
-        SettingsNote("· 「提示我」策略下失败会弹一次提示；「自动重试」最多重试 2 次后停止。")
     }
 }

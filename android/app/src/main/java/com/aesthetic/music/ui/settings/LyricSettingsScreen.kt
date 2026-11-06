@@ -56,13 +56,5 @@ fun LyricSettingsScreen(
                 onCheckedChange = onLocalChange,
             )
         }
-
-        SettingsGap(10)
-
-        SettingsNote(
-            "优先级：同时开启时先用本地歌词，本地没有再用在线歌词；" +
-                "只开本地 = 纯离线歌词（没有本地文件就没有歌词）；两个都关 = 不显示歌词。"
-        )
-        SettingsNote("· 开启「下载与缓存 → 封面与歌词」后，边听边下会把歌词一并保存到本地，供这里离线使用。")
     }
 }
