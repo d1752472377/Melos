@@ -41,16 +41,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.AppColors
+import com.aesthetic.music.ui.theme.AppRadius
+import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.CardBorder
+import com.aesthetic.music.ui.theme.PrimaryBrown
+import com.aesthetic.music.ui.theme.Surface
+import com.aesthetic.music.ui.theme.TextPrimary
 
 /**
  * 顶部悬浮灵动胶囊通知（Top Floating Capsule Toast）。
@@ -109,19 +112,19 @@ fun MelosToastHost(
             val iconTint = when {
                 isError -> AppColors.toastError
                 isSuccess -> AppColors.toastSuccess
-                else -> AppColors.toastInfo
+                else -> PrimaryBrown
             }
 
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(9999.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(AppColors.toastBgTop, AppColors.toastBgBottom)
-                        )
+                    .clip(RoundedCornerShape(AppRadius.pill))
+                    .background(Surface)
+                    .border(1.dp, CardBorder, RoundedCornerShape(AppRadius.pill))
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(AppRadius.pill),
+                        spotColor = AppColors.toastShadow,
                     )
-                    .border(1.dp, AppColors.bentoOverlayWhite20, RoundedCornerShape(9999.dp))
-                    .shadow(elevation = 12.dp, shape = RoundedCornerShape(9999.dp), spotColor = AppColors.toastShadow)
                     .clickable {
                         currentMsg = null
                         onDismiss()
@@ -134,17 +137,25 @@ fun MelosToastHost(
                             }
                         }
                     }
-                    .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md)
+                    .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.sm)
                     .widthIn(min = 120.dp, max = 360.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(17.dp),
-                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(AppRadius.pill))
+                        .background(iconTint.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
                 Spacer(Modifier.width(AppSpacing.sm))
                 Text(
                     text = text,
@@ -152,7 +163,7 @@ fun MelosToastHost(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     ),
-                    color = AppColors.onAccent,
+                    color = TextPrimary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

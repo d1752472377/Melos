@@ -333,10 +333,6 @@ object AppColors {
     // ===== Toast =====
     val toastError = Color(0xFFF87171)
     val toastSuccess = Color(0xFF4ADE80)
-    val toastInfo = Color(0xFFFDE68A)
-    val toastBgTop = Color(0xE6241E1C)
-    val toastBgBottom = Color(0xE638302C)
-    val toastBorder = Color(0x33FFFFFF)
     val toastShadow = Color(0x66000000)
 
     // ===== GZ 玻璃 token（GlassTokens.kt）=====
