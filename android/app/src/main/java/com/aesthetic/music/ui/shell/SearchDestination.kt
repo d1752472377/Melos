@@ -42,6 +42,8 @@ fun SearchDestination(
             nav.navigate(ScreenRoute.AlbumDetail.route)
         },
         onMoreSong = songActions::showActions,
+        // 识曲前先停掉本机播放，否则麦克风录到的是自己
+        onBeforeRecord = { if (playerState.isPlaying) playerManager.toggle() },
     )
 
     SongActionsHost(

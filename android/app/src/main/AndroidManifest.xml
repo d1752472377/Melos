@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 听歌识曲：点一下录 10 秒，用完即弃，不保存录音文件 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!--
       usesCleartextTraffic 保持 true：部分音源平台的封面/资源直链仍为 http，

@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
@@ -178,6 +179,7 @@ fun PlayerScreen(
     var showQueueSheet by remember { mutableStateOf(false) }
     var showControlCenterSheet by remember { mutableStateOf(false) }
     var showAudioDetailSheet by remember { mutableStateOf(false) }
+    var showCommentSheet by remember { mutableStateOf(false) }
 
     val bgGradient: Brush = remember(currentPlayerTheme) {
         when (currentPlayerTheme) {
@@ -326,6 +328,24 @@ fun PlayerScreen(
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.12f))
                     )
+                    // 评论只有四个内置平台有稳定接口；咪咕没有，别给一个点了必失败的入口
+                    if (song != null && song.platform != "migu") {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.12f))
+                                .clickable { showCommentSheet = true },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ChatBubbleOutline,
+                                contentDescription = "查看评论",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(19.dp),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -379,6 +399,15 @@ fun PlayerScreen(
                 onOpenQueue = { showQueueSheet = true },
             )
         }
+    }
+
+    if (song != null && showCommentSheet) {
+        CommentSheet(
+            songTitle = song.title,
+            platform = song.platform,
+            songId = song.id,
+            onDismiss = { showCommentSheet = false },
+        )
     }
 
     if (showQueueSheet) {

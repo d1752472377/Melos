@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -79,6 +80,7 @@ fun SearchInputBar(
     platform: String?,
     onPlatformSelect: (String?) -> Unit,
     focusRequester: FocusRequester,
+    onOpenRecognition: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
@@ -141,7 +143,24 @@ fun SearchInputBar(
                     .size(16.dp)
                     .clickable { onQueryChange("") },
             )
+            Spacer(Modifier.width(AppSpacing.sm))
         }
+
+        // 听歌识曲入口：点一下开始录，不用按住
+        Icon(
+            imageVector = Icons.Filled.Mic,
+            contentDescription = "听歌识曲",
+            tint = TextMuted,
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onOpenRecognition,
+                )
+                .padding(1.dp),
+        )
     }
 }
 

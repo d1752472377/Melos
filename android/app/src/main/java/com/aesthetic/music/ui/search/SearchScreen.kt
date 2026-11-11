@@ -50,6 +50,7 @@ fun SearchScreen(
     onOpenPlaylist: (PlaylistItem) -> Unit,
     onOpenAlbum: (AlbumItem) -> Unit,
     onMoreSong: (Song) -> Unit,
+    onBeforeRecord: () -> Unit = {},
 ) {
     val query by search.query.collectAsState()
     val searchType by search.type.collectAsState()
@@ -66,6 +67,7 @@ fun SearchScreen(
     val keyboard = LocalSoftwareKeyboardController.current
 
     var showClearRecentConfirm by remember { mutableStateOf(false) }
+    var showRecognition by remember { mutableStateOf(false) }
 
     Box(
         Modifier.fillMaxSize()
@@ -85,6 +87,7 @@ fun SearchScreen(
                     platform = platform,
                     onPlatformSelect = search::setPlatform,
                     focusRequester = focusRequester,
+                    onOpenRecognition = { showRecognition = true },
                 )
             }
 
@@ -182,6 +185,22 @@ fun SearchScreen(
                     onConfirm = {
                         showClearRecentConfirm = false
                         search.clearRecent()
+                    },
+                )
+            }
+
+            if (showRecognition) {
+                RecognitionSheet(
+                    onDismiss = { showRecognition = false },
+                    onBeforeRecord = onBeforeRecord,
+                    onPickSong = { recognized ->
+                        showRecognition = false
+                        // 识别结果按「歌名 歌手」再走一次搜索，播放仍走用户已有的音源
+                        search.submit(listOfNotNull(
+                            recognized.title.takeIf { it.isNotBlank() },
+                            recognized.artist.takeIf { it.isNotBlank() },
+                        ).joinToString(" "))
+                        keyboard?.hide()
                     },
                 )
             }
