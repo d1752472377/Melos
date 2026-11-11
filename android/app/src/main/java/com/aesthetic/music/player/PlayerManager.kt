@@ -128,6 +128,8 @@ data class PlayerState(
     val currentIndex: Int = -1,
     val isPlaying: Boolean = false,
     val lyrics: List<LyricLine> = emptyList(),
+    /** 作词/作曲等制作信息，来自歌词头部的元数据行；没有就是空列表 */
+    val lyricCredits: List<String> = emptyList(),
     val syncedLyrics: SyncedLyrics? = null,
     val lyricsLoading: Boolean = false,
     val isLoading: Boolean = false,
@@ -801,6 +803,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         _progress.value = PlaybackProgress()
         _state.value = _state.value.copy(
             lyrics = emptyList(),
+            lyricCredits = emptyList(),
             syncedLyrics = null,
             lyricsLoading = true,
             errorMessage = null,
@@ -1013,6 +1016,7 @@ class PlayerManager private constructor(private val appContext: Context) {
         if (gen != playGeneration) return
         _state.value = _state.value.copy(
             lyrics = emptyList(),
+            lyricCredits = emptyList(),
             syncedLyrics = null,
             lyricSpec = LyricMetaSpec(),
             lyricsLoading = if (keepLoadingState) _state.value.lyricsLoading else false,
@@ -1111,6 +1115,8 @@ class PlayerManager private constructor(private val appContext: Context) {
 
         _state.value = _state.value.copy(
             lyrics = merged,
+            // 作词/作曲这些行被正文过滤掉了，这里单独收集起来给界面固定展示
+            lyricCredits = extractCredits(rawLyricIn),
             syncedLyrics = finalSynced,
             lyricSpec = lyricMeta,
         )

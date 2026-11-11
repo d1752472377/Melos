@@ -392,6 +392,7 @@ fun PlayerScreen(
                         onRetryLyric = onReloadLyrics,
                         onToggleLyricMode = { showLyric = false },
                         onLineLongClick = { showAudioDetailSheet = true },
+                        credits = state.lyricCredits,
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {

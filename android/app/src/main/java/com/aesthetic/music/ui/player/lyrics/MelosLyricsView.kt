@@ -76,6 +76,8 @@ fun MelosLyricsView(
     activeIndexProvider: () -> Int,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    /** 作词/作曲等制作信息，显示在歌词末尾；空列表就不显示 */
+    credits: List<String> = emptyList(),
     currentTimeMsProvider: (() -> Long)? = null,
     fontSizeSp: Int = 22,
     showTranslation: Boolean = true,
@@ -299,6 +301,38 @@ fun MelosLyricsView(
                             lineHeight = (fontSizeSp * 0.90f).sp,
                             textAlign = TextAlign.Start,
                         )
+                    }
+                }
+            }
+
+            // 制作信息放在歌词末尾：滚动到这里说明已经看到最后，
+            // 这些行以前被正文过滤掉，界面完全看不到词曲作者。
+            if (credits.isNotEmpty()) {
+                item(key = "lyric_credits") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = AppSpacing.xl,
+                                vertical = AppSpacing.page,
+                            ),
+                    ) {
+                        Text(
+                            text = "歌词制作信息",
+                            color = Color.White.copy(alpha = 0.30f),
+                            fontSize = (fontSizeSp - 11).coerceAtLeast(11).sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        credits.forEach { credit ->
+                            Text(
+                                text = credit,
+                                color = Color.White.copy(alpha = 0.38f),
+                                fontSize = (fontSizeSp - 9).coerceAtLeast(12).sp,
+                                lineHeight = (fontSizeSp * 0.95f).sp,
+                                modifier = Modifier.padding(vertical = 2.dp),
+                            )
+                        }
                     }
                 }
             }

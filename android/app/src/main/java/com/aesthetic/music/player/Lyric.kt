@@ -29,6 +29,21 @@ object MetadataFilter {
 
     private val COLON_ONLY_KEYWORDS = listOf("OP", "SP", "词", "曲")
 
+    /** 给 [extractCredits] 判断"冒号左边是不是制作信息的键名"。 */
+    fun looksLikeCreditKey(key: String): Boolean {
+        val k = key.trim()
+        if (k.isEmpty() || k.length > 8) return false
+        if (FILTER_KEYWORDS.any { k.equals(it, ignoreCase = true) || k.endsWith(it, ignoreCase = true) }) return true
+        if (COLON_ONLY_KEYWORDS.any { k.equals(it, ignoreCase = true) }) return true
+        return false
+    }
+
+    /**
+     * 判断是不是"作词 : 周杰伦"这类制作信息行。
+     *
+     * 这些行不属于歌词正文（滚动到那里已经很晚了），但**是有价值的信息**，
+     * 所以不直接丢掉，而是由 [extractCredits] 收集起来单独展示。
+     */
     fun isMetadataLine(rawText: String, startMs: Long = 0L, title: String = "", artist: String = ""): Boolean {
         val clean = rawText.replace(Regex("""[（(\[【].*?[）)\]】]"""), "").trim()
         if (clean.isBlank()) return true
@@ -48,6 +63,37 @@ object MetadataFilter {
         }
         return false
     }
+}
+
+/**
+ * 从原始歌词里把「作词 : 周杰伦」「作曲 : 周杰伦」这类制作信息捞出来。
+ *
+ * 各平台都会把这些行写进 LRC 头部（时间戳通常是 0~8 秒），以前它们被
+ * [MetadataFilter] 直接丢掉，所以界面上完全看不到词曲作者。
+ * 现在收集成独立列表，由歌词视图固定在末尾展示，既不干扰滚动，也不会丢信息。
+ *
+ * 只保留"键 : 值"这种带冒号的写法，避免把正文里恰好以"演唱"开头的句子也捞出来。
+ */
+fun extractCredits(raw: String?, maxLines: Int = 12): List<String> {
+    if (raw.isNullOrBlank()) return emptyList()
+    val seen = LinkedHashSet<String>()
+    for (line in raw.lineSequence()) {
+        // 去掉行首的时间戳（[00:00.000] / [123,456] / [123,456]<...>）
+        var text = line.trim()
+        text = text.replace(Regex("""^\[[\d,:.]{4,}]"""), "").trim()
+        text = text.replace(Regex("""^\[[\d,:.]{4,}]"""), "").trim()
+        if (text.isEmpty()) continue
+        // 必须是"键 : 值"，且键足够短（排除正文句子）
+        val colon = text.indexOfFirst { it == ':' || it == '：' }
+        if (colon !in 1..8) continue
+        val key = text.substring(0, colon).trim()
+        val value = text.substring(colon + 1).trim()
+        if (key.isEmpty() || value.isEmpty()) continue
+        if (!MetadataFilter.looksLikeCreditKey(key)) continue
+        seen.add("$key：$value")
+        if (seen.size >= maxLines) break
+    }
+    return seen.toList()
 }
 
 fun parseYrc(yrc: String?, title: String = "", artist: String = ""): List<LyricLine> {
