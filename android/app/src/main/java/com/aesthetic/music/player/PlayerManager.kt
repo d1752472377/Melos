@@ -411,9 +411,12 @@ class PlayerManager private constructor(private val appContext: Context) {
         if (!userPrefs.downloadCoverLyrics) return
         scope.launch {
             runCatching {
-                if (userPrefs.lyricOnline) {
-                    repository.getLyric(song).getOrNull()?.let { d ->
-                        LocalLyricStore.saveLocalLyric(appContext, song, d.lyric)
+                // 歌词落盘也是阻塞 IO，别占着主线程；封面在 saveCover 内部自己切 IO
+                withContext(Dispatchers.IO) {
+                    if (userPrefs.lyricOnline) {
+                        repository.getLyric(song).getOrNull()?.let { d ->
+                            LocalLyricStore.saveLocalLyric(appContext, song, d.lyric)
+                        }
                     }
                 }
                 SongSidecarStore.saveCover(appContext, song)
