@@ -144,6 +144,7 @@ object UpdateService {
             val dir = file.parentFile ?: File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
 
             if (isApkReady(context, info)) {
+                LogReporter.i(TAG, "安装包已下载且校验通过，跳过下载：${file.name}")
                 if (info.apkSize > 0) onProgress(info.apkSize, info.apkSize)
                 return@withLock file.absolutePath
             }
@@ -170,18 +171,45 @@ object UpdateService {
                 .retryOnConnectionFailure(true)
                 .build()
 
+            val startedAt = System.currentTimeMillis()
+            var lastUrl = downloadUrls.firstOrNull().orEmpty()
             var lastError: Exception? = null
+            // 进度只在 0/25/50/75/100 这几个节点上报，避免每 64KB 一条把日志队列打满
+            var lastBucket = -1
+            val progressBridge: (Long, Long) -> Unit = { done, total ->
+                onProgress(done, total)
+                if (total > 0) {
+                    val pct = ((done * 100) / total).toInt().coerceIn(0, 100)
+                    val bucket = pct / 25 * 25
+                    if (bucket != lastBucket) {
+                        lastBucket = bucket
+                        LogReporter.i(TAG, "安装包下载进度 $pct%（${done / 1024}KB / ${total / 1024}KB）")
+                        LogReporter.breadcrumb(TAG, "下载进度 $pct%")
+                    }
+                }
+            }
             for (url in downloadUrls) {
+                lastUrl = url
                 try {
-                    Log.i(TAG, "开始下载 $url")
-                    downloadWithResume(client, url, tmpFile, info.apkSize, onProgress)
+                    LogReporter.i(
+                        TAG,
+                        "开始下载安装包 v${info.versionName}（versionCode=${info.versionCode}，" +
+                            "size=${info.apkSize}B，${if (url.startsWith("https://")) "HTTPS" else "HTTP"}）",
+                    )
+                    LogReporter.breadcrumb(TAG, "开始下载 v${info.versionName}")
+                    downloadWithResume(client, url, tmpFile, info.apkSize, progressBridge)
                     lastError = null
                     break
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     lastError = e
-                    Log.w(TAG, "下载失败（$url）: ${e.message}，尝试下一个地址")
+                    LogReporter.w(
+                        TAG,
+                        "安装包下载失败，尝试下一个地址：${e.message}",
+                        e,
+                        mapOf("url" to url, "received" to tmpFile.length().toString()),
+                    )
                     if (tmpFile.exists()) tmpFile.delete()
                 }
             }
@@ -190,12 +218,19 @@ object UpdateService {
             val received = tmpFile.length()
             if (info.apkSize > 0 && received != info.apkSize) {
                 tmpFile.delete()
+                LogReporter.w(TAG, "安装包大小校验失败：收到 $received，期望 ${info.apkSize}")
                 throw Exception("安装包大小校验失败（$received / ${info.apkSize}），请重新检查更新")
             }
             selectDigestSpec(sha256 = info.sha256, md5 = info.md5)?.let { spec ->
                 val actual = computeFileDigest(tmpFile, spec.algorithm)
                 if (!actual.equals(spec.expected, ignoreCase = true)) {
                     tmpFile.delete()
+                    LogReporter.w(
+                        TAG,
+                        "安装包摘要校验失败（${spec.algorithm}）",
+                        null,
+                        mapOf("expected" to spec.expected, "actual" to actual),
+                    )
                     throw Exception("安装包校验失败（${spec.algorithm}），请重新检查更新")
                 }
             }
@@ -205,13 +240,21 @@ object UpdateService {
                 throw Exception("安装包签名与当前应用不一致，已拦截，请通过官方渠道更新")
             }
 
-            if (tmpFile.renameTo(file)) {
-                file.absolutePath
+            val finalFile = if (tmpFile.renameTo(file)) {
+                file
             } else {
                 tmpFile.copyTo(file, overwrite = true)
                 tmpFile.delete()
-                file.absolutePath
+                file
             }
+            // 成功日志放到最后：只有整条链路（大小、摘要、签名）都过了才算"下载完成"
+            LogReporter.i(
+                TAG,
+                "安装包下载完成 v${info.versionName}：${finalFile.length() / 1024}KB，" +
+                    "耗时 ${(System.currentTimeMillis() - startedAt) / 1000}s，" +
+                    "url=${lastUrl.substringAfter("://").substringBefore('/')}",
+            )
+            finalFile.absolutePath
         }
     }
 
