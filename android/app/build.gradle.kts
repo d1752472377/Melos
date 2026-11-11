@@ -14,8 +14,8 @@ android {
         applicationId = "com.aesthetic.music"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "2.1.9"
+        versionCode = 35
+        versionName = "2.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     lint {
