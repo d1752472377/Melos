@@ -4,6 +4,7 @@ import android.util.Log
 import com.aesthetic.music.data.AppJson
 import com.aesthetic.music.data.arrayOrEmpty
 import com.aesthetic.music.data.asObjOrNull
+import com.aesthetic.music.data.intOrNull
 import com.aesthetic.music.data.objOrNull
 import com.aesthetic.music.data.strOrNull
 import com.aesthetic.music.data.api.AlbumDetailData
@@ -1068,7 +1069,7 @@ object PlatformMusicService {
         """.trimIndent()
         val root = qqPost(payload)
         val req = root.objOrNull("req_1")
-        if (req?.optInt("code") != 0) throw IOException("QQ 音乐专辑接口返回异常")
+        if (req?.intOrNull("code") != 0) throw IOException("QQ 音乐专辑接口返回异常")
         val data = req.objOrNull("data") ?: throw IOException("未找到专辑信息")
         val total = data.optLong("totalNum") ?: 0L
         val list = data.arrayOrEmpty("songList")
