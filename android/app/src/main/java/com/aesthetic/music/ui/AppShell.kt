@@ -375,12 +375,20 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         nav = nav,
                         actions = actions,
                         isPlaying = playerState.isPlaying,
-                        onRequestRecognition = viewModel::requestRecognition,
                     )
                 }
 
                 composable(ScreenRoute.Fm.route) {
-                    FmDestination(viewModel.fm, viewModel.library, actions, playerManager, viewModel::updatePageBackground)
+                    FmDestination(
+                        fm = viewModel.fm,
+                        library = viewModel.library,
+                        actions = actions,
+                        playerManager = playerManager,
+                        onPageBackground = viewModel::updatePageBackground,
+                        onOpenDiscover = { nav.switchTab(ScreenRoute.Home.route, AppTab.HOME) },
+                        onOpenSearch = { nav.navigateSingleTop(ScreenRoute.Search.route) },
+                        onOpenRecognition = { nav.navigate(ScreenRoute.Recognition.route) },
+                    )
                 }
 
                 composable(ScreenRoute.Playlist.route) {
@@ -391,7 +399,18 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     ProfileTabDestination(viewModel.library, viewModel.sources, viewModel.auth, localStats, isCheckingUpdate, { viewModel.checkForUpdate(manual = true) }, nav, actions, cacheState)
                 }
 
-                composable(ScreenRoute.Search.route) {
+                composable(ScreenRoute.Search.route) { entry ->
+                    // 搜索页被弹出（真正离开，而不是下钻到歌手/专辑）时清空本次搜索状态，
+                    // 下次进来是干净的一页；最近搜索保留。
+                    DisposableEffect(entry) {
+                        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                            if (event == androidx.lifecycle.Lifecycle.Event.ON_DESTROY) {
+                                viewModel.search.reset()
+                            }
+                        }
+                        entry.lifecycle.addObserver(observer)
+                        onDispose { entry.lifecycle.removeObserver(observer) }
+                    }
                     SearchDestination(
                         viewModel.search,
                         viewModel.artistPage,

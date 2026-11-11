@@ -32,7 +32,6 @@ fun HomeDestination(
     nav: ShellNav,
     actions: ShellActions,
     isPlaying: Boolean = false,
-    onRequestRecognition: () -> Unit = {},
 ) {
     val dailyPlaylists by content.dailyPlaylists.collectAsState()
     val newSongs by content.newSongs.collectAsState()
@@ -58,18 +57,13 @@ fun HomeDestination(
         isLoading = isLoadingContent,
         onRetryContent = { content.refreshContent() },
         onPlaySong = { song, list -> actions.playSong(song, list) },
-        onSearchBarClick = { nav.navigateSingleTop(ScreenRoute.Search.route) },
-        onMicClick = {
-            // 识曲面板在搜索页里，切过去再请它打开
-            nav.navigateSingleTop(ScreenRoute.Search.route)
-            onRequestRecognition()
-        },
+        onOpenSearch = { nav.navigateSingleTop(ScreenRoute.Search.route) },
+        onOpenRecognition = { nav.navigate(ScreenRoute.Recognition.route) },
         onOpenPlaylistDetail = { pl ->
             playlistDetail.open(pl)
             nav.navigateSingleTop(ScreenRoute.PlaylistDetail.route)
         },
         onOpenGuess = { nav.navigateSingleTop(ScreenRoute.GuessYouLike.route) },
-        onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
         onOpenFm = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
         isPlaying = isPlaying,
     )
@@ -221,6 +215,9 @@ fun FmDestination(
     actions: ShellActions,
     playerManager: PlayerManager,
     onPageBackground: (Color?, Boolean) -> Unit,
+    onOpenDiscover: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
+    onOpenRecognition: () -> Unit = {},
 ) {
     val fmQueue by fm.queue.collectAsState()
     val fmIndex by fm.index.collectAsState()
@@ -259,6 +256,9 @@ fun FmDestination(
         favorites = favorites,
         onPickCover = library::pickPlaylistCover,
         onDeleteCover = library::deletePlaylistCover,
+        onOpenDiscover = onOpenDiscover,
+        onOpenSearch = onOpenSearch,
+        onOpenRecognition = onOpenRecognition,
         currentSong = playerState.currentSong,
         isPlaying = playerState.isPlaying,
         isBuffering = playerState.isLoading,

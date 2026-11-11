@@ -71,11 +71,10 @@ fun HomeScreen(
     contentError: String? = null,
     onRetryContent: (() -> Unit)? = null,
     onPlaySong: (Song, List<Song>) -> Unit,
-    onSearchBarClick: () -> Unit,
-    onMicClick: (() -> Unit)? = null,
+    onOpenSearch: () -> Unit,
+    onOpenRecognition: () -> Unit,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
     onOpenGuess: () -> Unit,
-    onOpenRanksPage: () -> Unit,
     onOpenFm: () -> Unit = {},
     isPlaying: Boolean = false,
 ) {
@@ -100,15 +99,6 @@ fun HomeScreen(
 
     val timeScene = remember { resolveTimeScene(currentHourOfDay()) }
 
-    val songsMap = remember(newSongs, hotSongs, poolSongs) {
-        mapOf(
-            RankingTab.RISING to poolSongs.take(10),
-            RankingTab.NEW to (if (newSongs.isNotEmpty()) newSongs else poolSongs).take(10),
-            RankingTab.ORIGINAL to poolSongs.reversed().take(10),
-            RankingTab.HOT to (if (hotSongs.isNotEmpty()) hotSongs else poolSongs).take(10)
-        )
-    }
-
     val listState = rememberLazyListState()
 
     val iosOverscroll = rememberIOSOverScrollEffect()
@@ -130,11 +120,13 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(AppSpacing.xxxl)
         ) {
             item(key = "home_top_bar") {
-                HomeHeader()
-            }
-
-            item(key = "home_search_bar") {
-                HomeSearchEntry(onClick = onSearchBarClick, onMicClick = onMicClick)
+                DiscoverTopBar(
+                    active = DiscoverTab.DISCOVER,
+                    onOpenDiscover = {},
+                    onOpenFm = onOpenFm,
+                    onSearch = onOpenSearch,
+                    onRecognition = onOpenRecognition,
+                )
             }
 
             if (targetPlaylist != null) {
@@ -152,12 +144,7 @@ fun HomeScreen(
             }
 
             item(key = "home_entry_cards") {
-                HomeEntryCards(
-                    onOpenRecommend = onOpenGuess,
-                    onOpenRanks = onOpenRanksPage,
-                    onOpenFm = onOpenFm,
-                    isPlaying = isPlaying,
-                )
+                HomeEntryCards(onOpenRecommend = onOpenGuess)
             }
 
             if (isLoading && hasNoContent) {
@@ -184,14 +171,6 @@ fun HomeScreen(
                 }
             }
 
-            item(key = "home_ranking_card") {
-                HomeRankingCard(
-                    songsMap = songsMap,
-                    onPlaySong = onPlaySong,
-                    onOpenRanksPage = onOpenRanksPage
-                )
-            }
-
             item(key = "bottom_spacer") {
                 Spacer(Modifier.height(AppSpacing.lg))
             }
@@ -199,85 +178,3 @@ fun HomeScreen(
     }
 }
 
-@Composable
-private fun Modifier.gzPressScale(pressedScale: Float, onClick: () -> Unit): Modifier {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = tween(
-            durationMillis = 150,
-            easing = CubicBezierEasing(0.2f, 0f, 0f, 1f),
-        ),
-        label = "pressScale",
-    )
-    return this
-        .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }
-        .clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick,
-        )
-}
-
-@Composable
-private fun HomeSearchEntry(onClick: () -> Unit, onMicClick: (() -> Unit)?) {
-    val dark = appIsDark()
-    val shape = RoundedCornerShape(24.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = AppSpacing.xxl)
-            .height(48.dp)
-            .liquidGlassCardSurface(
-                shape = shape,
-                flat = true,
-                elevation = 0.dp,
-                liquidGlassEnabled = false,
-            )
-            .gzPressScale(pressedScale = 0.985f, onClick = onClick)
-            .padding(start = AppSpacing.xl, top = 0.dp, end = AppSpacing.xs, bottom = 0.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.Search,
-            contentDescription = null,
-            tint = textLow(),
-            modifier = Modifier.size(19.dp),
-        )
-        Text(
-            text = "搜索歌曲、歌手、专辑",
-            color = textMedium(),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.W500,
-            maxLines = 1,
-            modifier = Modifier
-                .padding(start = AppSpacing.md)
-                .weight(1f, fill = true),
-        )
-
-        if (onMicClick != null) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(
-                        color = textHigh().copy(alpha = if (dark) 0.1f else 0.06f),
-                        shape = RectangleShape,
-                    )
-                    .gzPressScale(pressedScale = 0.9f, onClick = onMicClick),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Mic,
-                    contentDescription = "听歌识曲",
-                    tint = textHigh(),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
-    }
-}

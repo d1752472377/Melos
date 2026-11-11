@@ -66,59 +66,29 @@ import com.aesthetic.music.ui.theme.AppColors
 @Composable
 fun HomeEntryCards(
     onOpenRecommend: () -> Unit,
-    onOpenRanks: () -> Unit,
-    onOpenFm: () -> Unit,
-    isPlaying: Boolean = false,
     modifier: Modifier = Modifier,
     coverTone: Color = DefaultCoverTone,
     coverToneAlpha: Float = 1f,
     isCompact: Boolean = true,
     horizontalPadding: Dp = 16.dp,
 ) {
-    val items = listOf(
-        HomeEntryItem(
+    // 首页只保留「猜你喜欢」一张卡片，作为进入推荐页的入口
+    HomeDiscoveryEntryCard(
+        item = HomeEntryItem(
             label = "猜你喜欢",
             status = "每日精选",
             artwork = 0,
             live = false,
             onClick = onOpenRecommend,
         ),
-        HomeEntryItem(
-            label = "排行榜",
-            status = "此刻热门",
-            artwork = 1,
-            live = false,
-            onClick = onOpenRanks,
-        ),
-        HomeEntryItem(
-            label = "随心听",
-            status = if (isPlaying) "正在播放" else "随机漫游",
-            artwork = 2,
-            live = isPlaying,
-            onClick = onOpenFm,
-        ),
-    )
-
-    Row(
+        isCompact = isCompact,
+        coverTone = coverTone,
+        coverToneAlpha = coverToneAlpha,
         modifier = modifier
-            .fillMaxWidth(1f)
+            .fillMaxWidth()
             .padding(horizontal = horizontalPadding)
-            .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
-        verticalAlignment = Alignment.Top,
-    ) {
-        items.forEach { item ->
-            HomeDiscoveryEntryCard(
-                item = item,
-                isCompact = isCompact,
-                coverTone = coverTone,
-                coverToneAlpha = coverToneAlpha,
-                modifier = Modifier
-                    .weight(1f, fill = true)
-                    .fillMaxHeight(1f),
-            )
-        }
-    }
+            .height(92.dp),
+    )
 }
 
 private data class HomeEntryItem(

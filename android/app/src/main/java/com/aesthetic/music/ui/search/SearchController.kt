@@ -68,6 +68,24 @@ class SearchController(
         }
     }
 
+    /**
+     * 退出搜索页时调用：下次进来是全新的一次搜索。
+     *
+     * 只清"这一次搜索"的状态；最近搜索是用户资产，保留。
+     */
+    fun reset() {
+        debounceJob?.cancel()
+        cancelAllJobs()
+        executedSearchKeys.clear()
+        lastSearchedKeyword = ""
+        _query.value = ""
+        _type.value = SearchType.SONG
+        _platform.value = null
+        _isSearching.value = false
+        _searchError.value = null
+        resetResults()
+    }
+
     fun onQueryChanged(q: String) {
         _query.value = q
         debounceJob?.cancel()

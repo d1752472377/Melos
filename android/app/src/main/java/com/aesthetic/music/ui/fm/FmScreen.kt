@@ -118,6 +118,8 @@ import com.aesthetic.music.player.PlaybackProgress
 import com.aesthetic.music.player.currentLyricIndex
 
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.home.DiscoverTab
+import com.aesthetic.music.ui.home.DiscoverTopBar
 import com.aesthetic.music.ui.playlist.PlaylistEditorResult
 import com.aesthetic.music.ui.playlist.PlaylistEditorSheet
 import com.aesthetic.music.ui.components.WaveBars
@@ -182,6 +184,10 @@ fun FmScreen(
     onExportToPlaylist: (PlaylistEditorResult) -> Unit,
     onPickCover: (Uri) -> PlaylistCoverPick? = { null },
     onDeleteCover: (String?) -> Unit = {},
+    /** 随心听已提到首页层级：顶部用首页同款导航，切回「发现」不压返回栈 */
+    onOpenDiscover: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
+    onOpenRecognition: () -> Unit = {},
 ) {
     var showChannelSheet by remember { mutableStateOf(false) }
     var showTreasureSheet by remember { mutableStateOf(false) }
@@ -248,15 +254,27 @@ fun FmScreen(
 
         when {
             fmQueue.isEmpty() && fmLoading -> {
-                FmLoadingState(channel = currentChannel)
+                FmStateWithTopBar(
+                    onOpenDiscover = onOpenDiscover,
+                    onOpenSearch = onOpenSearch,
+                    onOpenRecognition = onOpenRecognition,
+                ) {
+                    FmLoadingState(channel = currentChannel)
+                }
             }
 
             fmQueue.isEmpty() -> {
-                FmEmptyState(
-                    error = fmError,
-                    onRetry = onRefreshRecommendation,
-                    channel = currentChannel
-                )
+                FmStateWithTopBar(
+                    onOpenDiscover = onOpenDiscover,
+                    onOpenSearch = onOpenSearch,
+                    onOpenRecognition = onOpenRecognition,
+                ) {
+                    FmEmptyState(
+                        error = fmError,
+                        onRetry = onRefreshRecommendation,
+                        channel = currentChannel
+                    )
+                }
             }
 
             else -> {
@@ -266,6 +284,14 @@ fun FmScreen(
                         .statusBarsPadding()
                         .padding(bottom = 88.dp)
                 ) {
+                    DiscoverTopBar(
+                        active = DiscoverTab.FM,
+                        onOpenDiscover = onOpenDiscover,
+                        onOpenFm = {},
+                        onSearch = onOpenSearch,
+                        onRecognition = onOpenRecognition,
+                        statusBarPadding = false,
+                    )
                     FmTopBar(
                         currentChannel = currentChannel,
                         isPlaying = isPlaying,
@@ -1224,6 +1250,34 @@ private fun FmEmptyState(
                 color = Color.White,
                 fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+/** 加载/空状态下也保留首页同款顶部导航，避免在随心听里无处可去 */
+@Composable
+private fun FmStateWithTopBar(
+    onOpenDiscover: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenRecognition: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(bottom = 88.dp),
+    ) {
+        DiscoverTopBar(
+            active = DiscoverTab.FM,
+            onOpenDiscover = onOpenDiscover,
+            onOpenFm = {},
+            onSearch = onOpenSearch,
+            onRecognition = onOpenRecognition,
+            statusBarPadding = false,
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            content()
         }
     }
 }
