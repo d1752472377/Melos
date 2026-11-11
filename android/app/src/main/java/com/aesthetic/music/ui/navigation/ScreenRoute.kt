@@ -7,6 +7,8 @@ sealed class ScreenRoute(val route: String) {
     data object Profile : ScreenRoute("profile")
 
     data object Search : ScreenRoute("search")
+    data object Recognition : ScreenRoute("recognition")
+    data object RecognitionHistory : ScreenRoute("recognition_history")
     data object Ranks : ScreenRoute("ranks")
     data object GuessYouLike : ScreenRoute("guess_you_like")
     data object SheetSquare : ScreenRoute("sheet_square")

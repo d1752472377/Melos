@@ -43,6 +43,7 @@ class MelosApplication : Application() {
         PlaylistCoverStore.init(this)
         StatsStore.init(this)
         PlayerSessionStore.init(this)
+        com.aesthetic.music.data.recognition.RecognitionStore.init(this)
         GuessHistoryStore.init(this)
 
         // 注意 UserApiEngine 自身不再自动加载脚本（多插件下"加载哪个"由 SourceManager 决定）。

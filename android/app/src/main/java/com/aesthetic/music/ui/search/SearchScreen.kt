@@ -50,9 +50,9 @@ fun SearchScreen(
     onOpenPlaylist: (PlaylistItem) -> Unit,
     onOpenAlbum: (AlbumItem) -> Unit,
     onMoreSong: (Song) -> Unit,
-    onBeforeRecord: () -> Unit = {},
     openRecognition: Boolean = false,
     onRecognitionOpened: () -> Unit = {},
+    onOpenRecognition: () -> Unit = {},
 ) {
     val query by search.query.collectAsState()
     val searchType by search.type.collectAsState()
@@ -69,13 +69,12 @@ fun SearchScreen(
     val keyboard = LocalSoftwareKeyboardController.current
 
     var showClearRecentConfirm by remember { mutableStateOf(false) }
-    var showRecognition by remember { mutableStateOf(false) }
 
     // 首页麦克风投递过来的"请打开识曲"信号：打开一次并清掉
     LaunchedEffect(openRecognition) {
         if (openRecognition) {
-            showRecognition = true
             onRecognitionOpened()
+            onOpenRecognition()
         }
     }
 
@@ -97,7 +96,10 @@ fun SearchScreen(
                     platform = platform,
                     onPlatformSelect = search::setPlatform,
                     focusRequester = focusRequester,
-                    onOpenRecognition = { showRecognition = true },
+                    onOpenRecognition = {
+                        keyboard?.hide()
+                        onOpenRecognition()
+                    },
                 )
             }
 
@@ -200,21 +202,6 @@ fun SearchScreen(
                 )
             }
 
-            if (showRecognition) {
-                RecognitionSheet(
-                    onDismiss = { showRecognition = false },
-                    onBeforeRecord = onBeforeRecord,
-                    onPickSong = { recognized ->
-                        showRecognition = false
-                        // 识别结果按「歌名 歌手」再走一次搜索，播放仍走用户已有的音源
-                        search.submit(listOfNotNull(
-                            recognized.title.takeIf { it.isNotBlank() },
-                            recognized.artist.takeIf { it.isNotBlank() },
-                        ).joinToString(" "))
-                        keyboard?.hide()
-                    },
-                )
-            }
         }
     }
 }

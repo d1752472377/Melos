@@ -253,6 +253,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
             },
             switchTab = { route: String, tabEnum: AppTab -> navigateToTab(route, tabEnum) },
+            popTo = { route: String ->
+                if (!navController.popBackStack(route, /* inclusive= */ false)) {
+                    navController.navigate(route)
+                }
+            },
         )
     }
     val actions = remember(playerManager, context) {
@@ -397,6 +402,35 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         playerManager,
                         recognitionRequest = viewModel.pendingRecognition,
                         onRecognitionConsumed = viewModel::consumeRecognition,
+                    )
+                }
+
+                composable(ScreenRoute.Recognition.route) {
+                    com.aesthetic.music.ui.recognition.RecognitionScreen(
+                        onBack = nav.popBack,
+                        onOpenHistory = { nav.navigate(ScreenRoute.RecognitionHistory.route) },
+                        onPickSong = { song ->
+                            // 识别结果按「歌名 歌手」再走一次搜索，播放仍走用户已有的音源
+                            viewModel.search.submit(recognitionQuery(song.title, song.artist))
+                            nav.popTo(ScreenRoute.Search.route)
+                        },
+                        onOpenSearch = { nav.popTo(ScreenRoute.Search.route) },
+                        // 识曲前先停掉本机播放，否则麦克风录到的是自己
+                        onBeforeRecord = {
+                            if (playerManager.state.value.isPlaying) playerManager.toggle()
+                        },
+                    )
+                }
+
+                composable(ScreenRoute.RecognitionHistory.route) {
+                    com.aesthetic.music.ui.recognition.RecognitionHistoryScreen(
+                        onBack = nav.popBack,
+                        onPickSong = { song ->
+                            viewModel.search.submit(recognitionQuery(song.title, song.artist))
+                            nav.popTo(ScreenRoute.Search.route)
+                        },
+                        onOpenRecognition = { nav.navigate(ScreenRoute.Recognition.route) },
+                        onToast = { msg -> actions.toast(msg) },
                     )
                 }
 
@@ -576,3 +610,10 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
         }
     }
 }
+
+/** 识曲结果转成搜索词：歌名 + 歌手 */
+private fun recognitionQuery(title: String, artist: String): String =
+    listOfNotNull(
+        title.takeIf { it.isNotBlank() },
+        artist.takeIf { it.isNotBlank() },
+    ).joinToString(" ")
