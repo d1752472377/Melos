@@ -97,7 +97,7 @@ class PlaylistDetailController(
         val req = ++requestId
         scope.launch {
             _isLoading.value = true
-            repository.getAlbum(album.id).onSuccess { detail ->
+            repository.getAlbum(album.id, album.platform).onSuccess { detail ->
                 if (req != requestId) return@onSuccess
                 _songs.value = detail.songs
                 detail.info?.let { info ->

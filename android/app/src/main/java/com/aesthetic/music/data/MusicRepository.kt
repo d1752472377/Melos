@@ -64,8 +64,8 @@ class MusicRepository(
     suspend fun searchAlbums(keyword: String, limit: Int = 20, platform: String? = null): Result<List<AlbumItem>> =
         apiCatching { PlatformMusicService.searchAlbums(keyword, limit, platform) }
 
-    suspend fun getAlbum(id: String): Result<AlbumDetailData> = apiCatching {
-        PlatformMusicService.getAlbum(id)
+    suspend fun getAlbum(id: String, platform: String? = null): Result<AlbumDetailData> = apiCatching {
+        PlatformMusicService.getAlbum(id, platform)
     }
 
     suspend fun searchArtists(keyword: String, limit: Int = 12, platform: String? = null): Result<List<ArtistItem>> =

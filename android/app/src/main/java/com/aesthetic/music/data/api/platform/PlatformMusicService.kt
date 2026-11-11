@@ -2,6 +2,10 @@ package com.aesthetic.music.data.api.platform
 
 import android.util.Log
 import com.aesthetic.music.data.AppJson
+import com.aesthetic.music.data.arrayOrEmpty
+import com.aesthetic.music.data.asObjOrNull
+import com.aesthetic.music.data.objOrNull
+import com.aesthetic.music.data.strOrNull
 import com.aesthetic.music.data.api.AlbumDetailData
 import com.aesthetic.music.data.api.AlbumItem
 import com.aesthetic.music.data.api.ArtistDetailData
@@ -1013,7 +1017,21 @@ object PlatformMusicService {
             }
         }
 
-    suspend fun getAlbum(id: String): AlbumDetailData {
+    /**
+     * 专辑详情。
+     *
+     * 以前这里只查网易云接口，QQ/酷狗/酷我的专辑 id 拿去查必然拿不到歌，
+     * 表现就是"能显示歌曲数量、但一首也加载不出来"。现在按平台分流。
+     */
+    suspend fun getAlbum(id: String, platform: String? = null): AlbumDetailData =
+        when (platform?.lowercase()) {
+            P_QQ -> getQqAlbum(id)
+            P_KUGOU -> getKugouAlbum(id)
+            P_KUWO -> getKuwoAlbum(id)
+            else -> getNeteaseAlbum(id)
+        }
+
+    private suspend fun getNeteaseAlbum(id: String): AlbumDetailData {
         val url = "https://music.163.com/api/album/${URLEncoder.encode(id, "UTF-8")}"
         val root = getJson(url)
         val albumObj = root.getAsJsonObject("album") ?: throw IOException("未找到专辑信息")
@@ -1029,10 +1047,138 @@ object PlatformMusicService {
             artist = artist,
             coverUrl = fixPicUrl(cover),
             size = size,
-            platform = "netease"
+            platform = P_NETEASE,
         )
         val songsArr = root.getAsJsonArray("songs") ?: JsonArray()
         val songs = songsArr.mapNotNull { parseNeteaseSong(it) }
+        return AlbumDetailData(info = info, songs = songs)
+    }
+
+    /**
+     * QQ 专辑详情。album id 既可能是数字 albumID 也可能是 albumMid，
+     * 两种都能直接喂给 GetAlbumSongList（实测都返回完整曲目）。
+     */
+    private suspend fun getQqAlbum(id: String): AlbumDetailData {
+        val safeId = id.replace("\\", "\\\\").replace("\"", "\\\"")
+        val idField = if (safeId.all(Char::isDigit)) "\"albumId\":$safeId" else "\"albumMid\":\"$safeId\""
+        val payload = """
+            {"comm":{"ct":24,"cv":0},
+             "req_1":{"module":"music.musichallAlbum.AlbumSongList","method":"GetAlbumSongList",
+                      "param":{$idField,"begin":0,"num":500,"order":2}}}
+        """.trimIndent()
+        val root = qqPost(payload)
+        val req = root.objOrNull("req_1")
+        if (req?.optInt("code") != 0) throw IOException("QQ 音乐专辑接口返回异常")
+        val data = req.objOrNull("data") ?: throw IOException("未找到专辑信息")
+        val total = data.optLong("totalNum") ?: 0L
+        val list = data.arrayOrEmpty("songList")
+        val songs = list.mapNotNull { e ->
+            val songInfo = e.asObjOrNull()?.objOrNull("songInfo") ?: return@mapNotNull null
+            val mid = songInfo.strOrNull("mid")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val singers = songInfo.arrayOrEmpty("singer")
+                .mapNotNull { it.asObjOrNull()?.strOrNull("name")?.takeIf { n -> n.isNotBlank() } }
+                .joinToString("/")
+            val albumObj = songInfo.objOrNull("album")
+            val albumMid = albumObj?.strOrNull("mid")
+            Song(
+                id = mid,
+                title = songInfo.strOrNull("title")?.takeIf { it.isNotBlank() }
+                    ?: songInfo.strOrNull("name").orEmpty(),
+                artist = singers,
+                album = albumObj?.strOrNull("name").orEmpty(),
+                artwork = albumMid?.takeIf { it.isNotBlank() }
+                    ?.let { "https://y.gtimg.cn/music/photo_new/T002R300x300M000$it.jpg" },
+                platform = P_QQ,
+            )
+        }
+        val first = songs.firstOrNull()
+        val albumMid = data.strOrNull("albumMid")?.takeIf { it.isNotBlank() }
+            ?: list.firstOrNull()?.asObjOrNull()
+                ?.objOrNull("songInfo")
+                ?.objOrNull("album")
+                ?.strOrNull("mid")
+        val info = AlbumItem(
+            id = albumMid ?: id,
+            name = first?.album.orEmpty(),
+            artist = first?.artist.orEmpty(),
+            coverUrl = albumMid?.takeIf { it.isNotBlank() }
+                ?.let { "https://y.gtimg.cn/music/photo_new/T002R500x500M000$it.jpg" },
+            size = total,
+            platform = P_QQ,
+        )
+        return AlbumDetailData(info = info, songs = songs)
+    }
+
+    private suspend fun getKugouAlbum(id: String): AlbumDetailData {
+        val url = "http://mobiles.kugou.com/api/v3/album/song" +
+                "?version=9108&albumid=${URLEncoder.encode(id, "UTF-8")}" +
+                "&plat=0&pagesize=500&area_code=0&page=1&with_res_tag=0"
+        val root = kugouJson(url)
+        val data = root.objOrNull("data") ?: throw IOException("未找到专辑信息")
+        val total = data.optLong("total") ?: 0L
+        val list = data.arrayOrEmpty("info")
+        val songs = list.mapNotNull { e ->
+            val o = e.asObjOrNull() ?: return@mapNotNull null
+            val hash = o.strOrNull("hash")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            // 酷狗专辑接口只给 "歌手 - 歌名" 拼好的 filename
+            val rawFilename = o.strOrNull("filename").orEmpty()
+            val parts = rawFilename.split(" - ", limit = 2)
+            val (artist, title) = if (parts.size == 2) parts[0].trim() to parts[1].trim() else "" to rawFilename
+            Song(
+                id = hash,
+                title = title.ifBlank { rawFilename },
+                artist = artist,
+                album = "",
+                artwork = o.objOrNull("trans_param")?.strOrNull("union_cover")
+                    ?.replace("{size}", "240")?.let { fixPicUrl(it) }
+                    ?: kugouCover(o),
+                platform = P_KUGOU,
+            )
+        }
+        val first = songs.firstOrNull()
+        val info = AlbumItem(
+            id = id,
+            name = "",
+            artist = first?.artist.orEmpty(),
+            coverUrl = first?.artwork,
+            size = total,
+            platform = P_KUGOU,
+        )
+        return AlbumDetailData(info = info, songs = songs)
+    }
+
+    private suspend fun getKuwoAlbum(id: String): AlbumDetailData {
+        val url = "http://search.kuwo.cn/r.s?stype=albuminfo&albumid=${URLEncoder.encode(id, "UTF-8")}" +
+                "&show_copyright_off=1&rn=500&pn=0&vipver=MUSIC_9.0.8.0&encoding=utf8&rformat=json&mobi=1"
+        val root = kuwoRaw(url)
+        val list = root.arrayOrEmpty("musiclist").let {
+            if (it.size() > 0) it else root.arrayOrEmpty("musicList")
+        }
+        val songs = list.mapNotNull { e ->
+            val o = e.asObjOrNull() ?: return@mapNotNull null
+            val rid = o.strOrNull("musicrid").orEmpty().removePrefix("MUSIC_")
+                .ifBlank { o.strOrNull("id").orEmpty() }
+                .trim()
+                .takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val coverPath = o.strOrNull("hts_web_albumpic_short") ?: o.strOrNull("web_albumpic_short")
+            Song(
+                id = rid,
+                title = cleanKuwoText(o.strOrNull("name")),
+                artist = cleanKuwoText(o.strOrNull("artist")),
+                album = cleanKuwoText(o.strOrNull("album")),
+                artwork = kuwoCover(coverPath),
+                platform = P_KUWO,
+            )
+        }
+        val first = songs.firstOrNull()
+        val info = AlbumItem(
+            id = root.strOrNull("albumid")?.takeIf { it.isNotBlank() } ?: id,
+            name = cleanKuwoText(root.strOrNull("name") ?: root.strOrNull("album")),
+            artist = cleanKuwoText(root.strOrNull("artist")),
+            coverUrl = kuwoCover(root.strOrNull("hts_img") ?: root.strOrNull("img")) ?: first?.artwork,
+            size = songs.size.toLong(),
+            platform = P_KUWO,
+        )
         return AlbumDetailData(info = info, songs = songs)
     }
 

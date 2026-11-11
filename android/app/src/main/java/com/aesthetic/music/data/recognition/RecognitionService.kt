@@ -2,6 +2,10 @@ package com.aesthetic.music.data.recognition
 
 import android.util.Log
 import com.aesthetic.music.data.AppJson
+import com.aesthetic.music.data.arrayOrEmpty
+import com.aesthetic.music.data.asObjOrNull
+import com.aesthetic.music.data.intOrNull
+import com.aesthetic.music.data.strOrNull
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -112,28 +116,33 @@ object RecognitionService {
         } ?: throw IOException("识别服务返回了无法解析的内容")
 
         // status=1 / error_code=0 才是正常应答；data 为空对象表示"没匹配到"。
-        val status = root.get("status")?.asInt ?: 0
-        val errorCode = root.get("error_code")?.asInt ?: 0
+        val status = root.intOrNull("status") ?: 0
+        val errorCode = root.intOrNull("error_code") ?: 0
         if (status != 1 || errorCode != 0) throw IOException("识别服务返回异常")
 
         // 未匹配时 data 可能是空对象 `{}`，不能直接当数组用。
-        val data = root.get("data")
-        if (data == null || !data.isJsonArray) return emptyList()
-        val arr = data.asJsonArray
+        // 注意：Gson 的 getAsJsonArray(name) 是无检查强转，这里必须走类型安全的取法，
+        // 否则字段形状一变就是 ClassCastException（混淆后表现为 kj1 cannot be cast to li1）。
+        val arr = root.arrayOrEmpty("data")
         val seen = mutableSetOf<String>()
         val out = mutableListOf<RecognitionSong>()
         for (element in arr) {
-            val o = element.asJsonObject ?: continue
-            val id = (o.get("mixsongid")?.asString ?: o.get("songid")?.asString)?.takeIf {
+            val o = element.asObjOrNull() ?: continue
+            val id = (o.strOrNull("mixsongid") ?: o.strOrNull("songid"))?.takeIf {
                 it.isNotBlank() && it.all(Char::isDigit) && it != "0"
             } ?: continue
             if (!seen.add(id)) continue
-            val title = o.get("songname")?.asString?.trim().orEmpty()
+            val title = o.strOrNull("songname")?.trim().orEmpty()
             if (title.isBlank()) continue
-            val artist = o.get("singername")?.asString?.trim().orEmpty()
-            val album = o.getAsJsonArray("album")
-                ?.firstOrNull()?.asJsonObject
-                ?.get("albumname")?.asString?.trim().orEmpty()
+            val artist = o.strOrNull("singername")?.trim().orEmpty()
+            // album 在不同应答里既可能是数组也可能是对象，两种都兼容
+            val albumObj = o.get("album")
+            val album = when {
+                albumObj?.isJsonArray == true ->
+                    albumObj.asJsonArray.firstOrNull()?.asObjOrNull()?.strOrNull("albumname")
+                albumObj?.isJsonObject == true -> albumObj.asObjOrNull()?.strOrNull("albumname")
+                else -> null
+            }?.trim().orEmpty()
             out += RecognitionSong(
                 id = id,
                 title = title.take(120),
