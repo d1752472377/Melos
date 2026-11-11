@@ -47,6 +47,9 @@ object PlatformMusicService {
     private const val BROWSER_UA =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+    /** 网易云 /api/ 老接口的风控 cookie：不带它会被拦成 -462（“绑定手机后…”风控页） */
+    private const val NETEASE_COOKIE = "os=pc; appver=2.9.7"
+
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(12, TimeUnit.SECONDS)
@@ -122,7 +125,7 @@ object PlatformMusicService {
         url: String,
         form: FormBody,
         referer: String = "https://music.163.com",
-        cookie: String = "os=pc; appver=2.9.7",
+        cookie: String = NETEASE_COOKIE,
     ): JsonObject =
         withContext(Dispatchers.IO) {
             val request = Request.Builder()
@@ -1034,23 +1037,29 @@ object PlatformMusicService {
 
     private suspend fun getNeteaseAlbum(id: String): AlbumDetailData {
         val url = "https://music.163.com/api/album/${URLEncoder.encode(id, "UTF-8")}"
-        val root = getJson(url)
-        val albumObj = root.getAsJsonObject("album") ?: throw IOException("未找到专辑信息")
-        val albumId = albumObj.get("id")?.asString ?: id
-        val name = albumObj.get("name")?.asString.orEmpty()
-        val cover = albumObj.get("picUrl")?.asString
-        val size = albumObj.get("size")?.asLong
-        val artist = albumObj.getAsJsonArray("artists")?.firstOrNull()?.asJsonObject?.get("name")?.asString.orEmpty()
+        // 不带 cookie 时这个端点会返回 -462（“绑定手机后，可进行下一步操作哦~”风控页），
+        // 响应里压根没有 album 字段，于是详情解析失败、界面只剩搜索卡片自带的歌曲数量。
+        val root = getJson(url, mapOf("Cookie" to NETEASE_COOKIE))
+        if (root.intOrNull("code") == -462) throw IOException("网易云专辑接口触发风控")
+        val albumObj = root.objOrNull("album") ?: throw IOException("未找到专辑信息")
+
+        // 歌曲列表在 album.songs 里（老接口有时会放到顶层 songs）
+        val songsArr = albumObj.arrayOrEmpty("songs").let {
+            if (it.size() > 0) it else root.arrayOrEmpty("songs")
+        }
+        val size = (albumObj.get("size") as? com.google.gson.JsonPrimitive)
+            ?.takeIf { it.isNumber }?.asLong
+            ?: songsArr.size().toLong().takeIf { it > 0 }
 
         val info = AlbumItem(
-            id = albumId,
-            name = name,
-            artist = artist,
-            coverUrl = fixPicUrl(cover),
+            id = albumObj.strOrNull("id") ?: id,
+            name = albumObj.strOrNull("name").orEmpty(),
+            artist = albumObj.arrayOrEmpty("artists")
+                .firstOrNull()?.asObjOrNull()?.strOrNull("name").orEmpty(),
+            coverUrl = fixPicUrl(albumObj.strOrNull("picUrl")),
             size = size,
             platform = P_NETEASE,
         )
-        val songsArr = root.getAsJsonArray("songs") ?: JsonArray()
         val songs = songsArr.mapNotNull { parseNeteaseSong(it) }
         return AlbumDetailData(info = info, songs = songs)
     }
