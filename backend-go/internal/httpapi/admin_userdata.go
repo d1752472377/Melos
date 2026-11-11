@@ -95,10 +95,13 @@ func (s *Server) handleAdminUserActiveStats(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUserFavorites(c *gin.Context) {
-	id, _ := jsParseInt(c.Param("id"))
+	id, okUser := s.adminRequireUser(c)
+	if !okUser {
+		return
+	}
 	page, limit, offset := readPageParams(c)
 	ctx := c.Request.Context()
-	total, items, err := s.store.AdminUserFavorites(ctx, int64(id), offset, limit)
+	total, items, err := s.store.AdminUserFavorites(ctx, id, offset, limit)
 	if err != nil {
 		s.fail500(c, err)
 		return
@@ -108,9 +111,12 @@ func (s *Server) handleAdminUserFavorites(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUserPlaylists(c *gin.Context) {
-	id, _ := jsParseInt(c.Param("id"))
+	id, okUser := s.adminRequireUser(c)
+	if !okUser {
+		return
+	}
 	ctx := c.Request.Context()
-	items, err := s.store.AdminUserPlaylists(ctx, int64(id))
+	items, err := s.store.AdminUserPlaylists(ctx, id)
 	if err != nil {
 		s.fail500(c, err)
 		return
@@ -119,11 +125,14 @@ func (s *Server) handleAdminUserPlaylists(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUserPlaylistSongs(c *gin.Context) {
-	id, _ := jsParseInt(c.Param("id"))
+	id, okUser := s.adminRequireUser(c)
+	if !okUser {
+		return
+	}
 	pid := c.Param("pid")
 	page, limit, offset := readPageParams(c)
 	ctx := c.Request.Context()
-	total, items, err := s.store.AdminUserPlaylistSongs(ctx, int64(id), pid, offset, limit)
+	total, items, err := s.store.AdminUserPlaylistSongs(ctx, id, pid, offset, limit)
 	if err != nil {
 		s.fail500(c, err)
 		return
@@ -133,10 +142,13 @@ func (s *Server) handleAdminUserPlaylistSongs(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUserHistory(c *gin.Context) {
-	id, _ := jsParseInt(c.Param("id"))
+	id, okUser := s.adminRequireUser(c)
+	if !okUser {
+		return
+	}
 	page, limit, offset := readPageParams(c)
 	ctx := c.Request.Context()
-	total, items, err := s.store.AdminUserHistory(ctx, int64(id), offset, limit)
+	total, items, err := s.store.AdminUserHistory(ctx, id, offset, limit)
 	if err != nil {
 		s.fail500(c, err)
 		return
@@ -146,9 +158,12 @@ func (s *Server) handleAdminUserHistory(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUserScripts(c *gin.Context) {
-	id, _ := jsParseInt(c.Param("id"))
+	id, okUser := s.adminRequireUser(c)
+	if !okUser {
+		return
+	}
 	ctx := c.Request.Context()
-	items, err := s.store.AdminUserScripts(ctx, int64(id))
+	items, err := s.store.AdminUserScripts(ctx, id)
 	if err != nil {
 		s.fail500(c, err)
 		return
@@ -157,10 +172,13 @@ func (s *Server) handleAdminUserScripts(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUserDownloads(c *gin.Context) {
-	id, _ := jsParseInt(c.Param("id"))
+	id, okUser := s.adminRequireUser(c)
+	if !okUser {
+		return
+	}
 	page, limit, offset := readPageParams(c)
 	ctx := c.Request.Context()
-	total, items, err := s.store.AdminUserDownloads(ctx, int64(id), offset, limit)
+	total, items, err := s.store.AdminUserDownloads(ctx, id, offset, limit)
 	if err != nil {
 		s.fail500(c, err)
 		return
@@ -170,13 +188,16 @@ func (s *Server) handleAdminUserDownloads(c *gin.Context) {
 }
 
 func (s *Server) handleAdminUserPlayEvents(c *gin.Context) {
-	id, _ := jsParseInt(c.Param("id"))
+	id, okUser := s.adminRequireUser(c)
+	if !okUser {
+		return
+	}
 	page, limit, offset := readPageParams(c)
 	ctx := c.Request.Context()
 	// 默认返回按"连续播放"合并后的会话（管理端看到的就是"一次播放"）；
 	// raw=1 时才返回逐条原始心跳，供核对上报行为。
 	if c.Query("raw") == "1" {
-		total, items, err := s.store.AdminUserPlayEvents(ctx, int64(id), offset, limit)
+		total, items, err := s.store.AdminUserPlayEvents(ctx, id, offset, limit)
 		if err != nil {
 			s.fail500(c, err)
 			return
@@ -185,7 +206,7 @@ func (s *Server) handleAdminUserPlayEvents(c *gin.Context) {
 		ok(c, gin.H{"items": items, "total": total, "page": page, "limit": limit, "mode": "raw"})
 		return
 	}
-	total, items, err := s.store.AdminUserPlaySessions(ctx, int64(id), offset, limit)
+	total, items, err := s.store.AdminUserPlaySessions(ctx, id, offset, limit)
 	if err != nil {
 		s.fail500(c, err)
 		return

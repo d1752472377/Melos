@@ -195,6 +195,21 @@ type AdminPlaylistSongRow struct {
 	UpdatedAtMs int64           `json:"updatedAtMs"`
 }
 
+// AdminPlaylistExists reports whether the user still has a live playlist with this id.
+//
+// 管理端往歌单加歌前要先问一句：直接 INSERT playlist_songs 会留下一条
+// 挂在不存在歌单上的孤儿行（管理端「查看歌曲」和客户端都看不到它）。
+func (s *Store) AdminPlaylistExists(ctx context.Context, userID int64, playlistID string) (bool, error) {
+	var n int64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM playlists WHERE user_id = ? AND playlist_id = ? AND deleted = 0`,
+		userID, playlistID).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 // AdminUserPlaylistSongs returns the live songs of one playlist in order.
 func (s *Store) AdminUserPlaylistSongs(ctx context.Context, userID int64, playlistID string, offset, limit int) (int64, []AdminPlaylistSongRow, error) {
 	var total int64

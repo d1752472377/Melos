@@ -232,7 +232,7 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 	favUp, favDel := getCollection(body, "favorites")
 	for _, item := range favUp {
 		m, ok := item.(map[string]any)
-		if !ok || !truthy(m["platform"]) || m["id"] == nil {
+		if !ok || !truthy(m["platform"]) || !truthy(m["id"]) {
 			continue
 		}
 		lww = append(lww, lwwOp{
@@ -244,8 +244,10 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 		})
 	}
 	for _, item := range favDel {
+		// 和 scripts/downloads 一样先校验主键：否则 {"delete":[{}]} 会写出一条
+		// platform=""、song_id="" 的墓碑，之后每次 pull 都甩给用户所有设备。
 		m, ok := item.(map[string]any)
-		if !ok {
+		if !ok || !truthy(m["platform"]) || !truthy(m["id"]) {
 			continue
 		}
 		lww = append(lww, lwwOp{
@@ -261,7 +263,7 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 	histUp, histDel := getCollection(body, "history")
 	for _, item := range histUp {
 		m, ok := item.(map[string]any)
-		if !ok || !truthy(m["platform"]) || m["id"] == nil {
+		if !ok || !truthy(m["platform"]) || !truthy(m["id"]) {
 			continue
 		}
 		lww = append(lww, lwwOp{
@@ -274,7 +276,7 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 	}
 	for _, item := range histDel {
 		m, ok := item.(map[string]any)
-		if !ok {
+		if !ok || !truthy(m["platform"]) || !truthy(m["id"]) {
 			continue
 		}
 		lww = append(lww, lwwOp{

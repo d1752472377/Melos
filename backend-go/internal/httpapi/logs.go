@@ -167,7 +167,13 @@ func (s *Server) handleAdminSetLogResolved(c *gin.Context) {
 		fail(c, 400, "缺少 resolved 字段")
 		return
 	}
-	resolved, _ := raw.(bool)
+	// 只接受真正的布尔值：以前非 bool 会被静默当成 false，
+	// 于是 {"resolved":"true"} 反而把日志标成"未处理"，还回 200。
+	resolved, isBool := raw.(bool)
+	if !isBool {
+		fail(c, 400, "resolved 必须是布尔值")
+		return
+	}
 	found, err := s.store.SetClientLogResolved(c.Request.Context(), id, resolved, time.Now().UnixMilli())
 	if err != nil {
 		s.fail500(c, err)

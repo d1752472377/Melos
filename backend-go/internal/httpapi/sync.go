@@ -21,16 +21,23 @@ func (s *Server) registerSync(r *gin.Engine) {
 	r.POST("/api/sync/push", auth, s.handleSyncPush)
 }
 
+// queryInt64 parses a non-negative int64 query parameter.
+//
+// 只放行有限的非负值：`?since=1e400` 会解析成 +Inf，Go 里转 int64 的结果是平台相关的
+// （amd64 上是 MinInt64），随后 `since == 0` 判断失效，pull 会退回"全量含墓碑"的语义。
 func queryInt64(raw string) int64 {
 	if raw == "" {
 		return 0
 	}
 	f, err := strconv.ParseFloat(raw, 64)
-	if err != nil || math.IsNaN(f) {
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
 		return 0
 	}
 	if f < 0 {
 		return 0
+	}
+	if f > math.MaxInt64 {
+		return math.MaxInt64
 	}
 	return int64(f)
 }

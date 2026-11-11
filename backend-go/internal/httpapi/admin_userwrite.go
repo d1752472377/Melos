@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"melos-backend/internal/store"
 )
 
 // registerAdminUserWrite mounts the admin's write endpoints for user data.
@@ -55,6 +58,66 @@ func (s *Server) adminRequireUser(c *gin.Context) (int64, bool) {
 	return user.ID, true
 }
 
+// failAdminWrite turns a store error into a response.
+//
+// store.ErrNoRows 表示"目标是空的"（删除一个不存在的脚本/收藏/歌单…），
+// 这种情况回 404 而不是 200，否则管理端会以为删成功了。
+func (s *Server) failAdminWrite(c *gin.Context, err error, notFoundMsg string) {
+	if errors.Is(err, store.ErrNoRows) {
+		fail(c, http.StatusNotFound, notFoundMsg)
+		return
+	}
+	s.fail500(c, err)
+}
+
+// adminBodyStr reads the first non-empty string among keys from a decoded body.
+func adminBodyStr(body map[string]any, keys ...string) string {
+	for _, k := range keys {
+		if v, ok := body[k]; ok {
+			if str := strings.TrimSpace(asString(v)); str != "" {
+				return str
+			}
+		}
+	}
+	return ""
+}
+
+// adminScriptIDFrom resolves the script id: path param first, then body aliases.
+func adminScriptIDFrom(c *gin.Context, body map[string]any) string {
+	if id := strings.TrimSpace(c.Param("sid")); id != "" {
+		return id
+	}
+	return adminBodyStr(body, "id", "scriptId", "script_id")
+}
+
+// newAdminScriptID mints an id for a script created from the admin console.
+//
+// 管理端「新增脚本」没有客户端那种本地脚本 id，旧实现里这里直接回
+// 400「脚本 id 不能为空」，导致新增音源脚本这条唯一入口完全不可用。
+// 生成的 id 只用于同步主键与 /scripts/:sid，不参与脚本解析。
+func newAdminScriptID() string {
+	return fmt.Sprintf("admin_%d_%s", time.Now().UnixMilli(), randomBase36(4))
+}
+
+// validateAdminScriptID rejects ids that cannot survive /scripts/:sid.
+func validateAdminScriptID(id string) string {
+	if id == "" {
+		return "脚本 id 不能为空"
+	}
+	if len(id) > 120 {
+		return "脚本 id 过长（上限 120 字节）"
+	}
+	if strings.ContainsAny(id, "/\\") {
+		return "脚本 id 不能包含斜杠"
+	}
+	for _, r := range id {
+		if r < 0x20 || r == 0x7f {
+			return "脚本 id 含控制字符"
+		}
+	}
+	return ""
+}
+
 // ==================== 脚本 ====================
 
 func (s *Server) handleAdminSaveScript(c *gin.Context) {
@@ -66,17 +129,22 @@ func (s *Server) handleAdminSaveScript(c *gin.Context) {
 	if !okBody {
 		return
 	}
-	scriptID := strings.TrimSpace(c.Param("sid"))
+	scriptID := adminScriptIDFrom(c, body)
 	if scriptID == "" {
-		scriptID = strings.TrimSpace(asString(body["id"]))
+		// POST 新建：前端没有 id，服务端补一个，而不是拒绝请求。
+		scriptID = newAdminScriptID()
 	}
-	if scriptID == "" {
-		fail(c, http.StatusBadRequest, "脚本 id 不能为空")
+	if msg := validateAdminScriptID(scriptID); msg != "" {
+		fail(c, http.StatusBadRequest, msg)
 		return
 	}
 	code, isStr := body["code"].(string)
 	if !isStr {
 		fail(c, http.StatusBadRequest, "缺少脚本源码 code")
+		return
+	}
+	if strings.TrimSpace(code) == "" {
+		fail(c, http.StatusBadRequest, "脚本内容不能为空")
 		return
 	}
 	if len(code) > 2*1024*1024 {
@@ -85,9 +153,13 @@ func (s *Server) handleAdminSaveScript(c *gin.Context) {
 	}
 	name := strings.TrimSpace(asString(body["name"]))
 	if name == "" {
+		name = scriptNameFromCode(code)
+	}
+	if name == "" {
 		name = scriptID
 	}
-	description := asString(body["description"])
+	name = truncateStr(name, 80)
+	description := truncateStr(asString(body["description"]), 300)
 	enabled := true
 	if v, present := body["enabled"]; present {
 		enabled = truthyAny(v)
@@ -97,7 +169,7 @@ func (s *Server) handleAdminSaveScript(c *gin.Context) {
 		s.fail500(c, err)
 		return
 	}
-	okMsg(c, "脚本已保存")
+	okMsgData(c, "脚本已保存", gin.H{"id": scriptID, "name": name})
 }
 
 func (s *Server) handleAdminDeleteScript(c *gin.Context) {
@@ -106,12 +178,12 @@ func (s *Server) handleAdminDeleteScript(c *gin.Context) {
 		return
 	}
 	scriptID := strings.TrimSpace(c.Param("sid"))
-	if scriptID == "" {
-		fail(c, http.StatusBadRequest, "脚本 id 不能为空")
+	if msg := validateAdminScriptID(scriptID); msg != "" {
+		fail(c, http.StatusBadRequest, msg)
 		return
 	}
-	if err := s.store.AdminDeleteScript(c.Request.Context(), userID, scriptID, time.Now().UnixMilli()); err != nil {
-		s.fail500(c, err)
+	if _, err := s.store.AdminDeleteScript(c.Request.Context(), userID, scriptID, time.Now().UnixMilli()); err != nil {
+		s.failAdminWrite(c, err, "脚本不存在")
 		return
 	}
 	okMsg(c, "脚本已删除")
@@ -144,9 +216,9 @@ func (s *Server) handleAdminImportScriptURL(c *gin.Context) {
 	// 强制 HTTP/1.1：这台服务器到 raw.githubusercontent.com 的 HTTP/2 连接
 	// 会被中途 RST（curl 走 1.1 却能通），Go 默认协商 h2 就会"连接被重置"。
 	transport := &http.Transport{
-		Proxy:              http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:  false,
-		TLSNextProto:       map[string]func(string, *tls.Conn) http.RoundTripper{},
+		Proxy:               http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:   false,
+		TLSNextProto:        map[string]func(string, *tls.Conn) http.RoundTripper{},
 		TLSHandshakeTimeout: 15 * time.Second,
 	}
 	client := &http.Client{Timeout: 20 * time.Second, Transport: transport}
@@ -155,16 +227,16 @@ func (s *Server) handleAdminImportScriptURL(c *gin.Context) {
 	var code string
 	var usedSource string
 	for _, candidate := range scriptSourceCandidates(rawURL) {
-		body, err := fetchScript(c.Request.Context(), client, candidate, maxBytes)
+		text, err := fetchScript(c.Request.Context(), client, candidate, maxBytes)
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		if strings.TrimSpace(body) == "" {
+		if strings.TrimSpace(text) == "" {
 			lastErr = fmt.Errorf("%s 内容为空", candidate)
 			continue
 		}
-		code = body
+		code = text
 		usedSource = candidate
 		break
 	}
@@ -184,11 +256,16 @@ func (s *Server) handleAdminImportScriptURL(c *gin.Context) {
 	if name == "" {
 		name = urlBaseName(rawURL)
 	}
-	scriptID := strings.TrimSpace(asString(body["id"]))
+	name = truncateStr(name, 80)
+	scriptID := adminScriptIDFrom(c, body)
 	if scriptID == "" {
-		scriptID = "admin_" + fmt.Sprintf("%d", time.Now().UnixNano()/1e6)
+		scriptID = newAdminScriptID()
 	}
-	description := asString(body["description"])
+	if msg := validateAdminScriptID(scriptID); msg != "" {
+		fail(c, http.StatusBadRequest, msg)
+		return
+	}
+	description := truncateStr(asString(body["description"]), 300)
 	enabled := true
 	if v, present := body["enabled"]; present {
 		enabled = truthyAny(v)
@@ -337,7 +414,7 @@ func (s *Server) handleAdminAddFavorite(c *gin.Context) {
 		return
 	}
 	platform := strings.TrimSpace(asString(body["platform"]))
-	songID := strings.TrimSpace(asString(body["id"]))
+	songID := adminBodyStr(body, "id", "songId")
 	if platform == "" || songID == "" {
 		fail(c, http.StatusBadRequest, "platform 与歌曲 id 不能为空")
 		return
@@ -370,9 +447,14 @@ func (s *Server) handleAdminDeleteFavorite(c *gin.Context) {
 	if !okUser {
 		return
 	}
-	if err := s.store.AdminDeleteFavorite(c.Request.Context(), userID,
-		strings.TrimSpace(c.Param("platform")), strings.TrimSpace(c.Param("songId")), time.Now().UnixMilli()); err != nil {
-		s.fail500(c, err)
+	platform := strings.TrimSpace(c.Param("platform"))
+	songID := strings.TrimSpace(c.Param("songId"))
+	if platform == "" || songID == "" {
+		fail(c, http.StatusBadRequest, "platform 与歌曲 id 不能为空")
+		return
+	}
+	if _, err := s.store.AdminDeleteFavorite(c.Request.Context(), userID, platform, songID, time.Now().UnixMilli()); err != nil {
+		s.failAdminWrite(c, err, "该收藏不存在")
 		return
 	}
 	okMsg(c, "已取消收藏")
@@ -391,18 +473,24 @@ func (s *Server) handleAdminSavePlaylist(c *gin.Context) {
 	}
 	playlistID := strings.TrimSpace(c.Param("pid"))
 	if playlistID == "" {
-		playlistID = strings.TrimSpace(asString(body["id"]))
+		playlistID = adminBodyStr(body, "id", "playlistId", "playlist_id")
 	}
 	if playlistID == "" {
-		playlistID = fmt.Sprintf("local_admin_%d", time.Now().UnixNano()/1e6)
+		// 同名毫秒级并发创建时不该撞主键，补一段随机后缀。
+		playlistID = fmt.Sprintf("local_admin_%d_%s", time.Now().UnixNano()/1e6, randomBase36(3))
+	}
+	if strings.ContainsAny(playlistID, "/\\") {
+		fail(c, http.StatusBadRequest, "歌单 id 不能包含斜杠")
+		return
 	}
 	name := strings.TrimSpace(asString(body["name"]))
 	if name == "" {
 		fail(c, http.StatusBadRequest, "歌单名不能为空")
 		return
 	}
+	name = truncateStr(name, 80)
 	kind := asString(body["kind"])
-	cover := asString(body["coverUrl"])
+	cover := truncateStr(asString(body["coverUrl"]), 500)
 
 	if err := s.store.AdminUpsertPlaylist(c.Request.Context(), userID, playlistID, kind, name, cover, time.Now().UnixMilli()); err != nil {
 		s.fail500(c, err)
@@ -416,9 +504,13 @@ func (s *Server) handleAdminDeletePlaylist(c *gin.Context) {
 	if !okUser {
 		return
 	}
-	if err := s.store.AdminDeletePlaylist(c.Request.Context(), userID,
-		strings.TrimSpace(c.Param("pid")), time.Now().UnixMilli()); err != nil {
-		s.fail500(c, err)
+	playlistID := strings.TrimSpace(c.Param("pid"))
+	if playlistID == "" {
+		fail(c, http.StatusBadRequest, "歌单 id 不能为空")
+		return
+	}
+	if _, err := s.store.AdminDeletePlaylist(c.Request.Context(), userID, playlistID, time.Now().UnixMilli()); err != nil {
+		s.failAdminWrite(c, err, "歌单不存在")
 		return
 	}
 	okMsg(c, "歌单已删除")
@@ -435,9 +527,20 @@ func (s *Server) handleAdminAddPlaylistSong(c *gin.Context) {
 	}
 	playlistID := strings.TrimSpace(c.Param("pid"))
 	platform := strings.TrimSpace(asString(body["platform"]))
-	songID := strings.TrimSpace(asString(body["id"]))
+	songID := adminBodyStr(body, "id", "songId")
 	if playlistID == "" || platform == "" || songID == "" {
 		fail(c, http.StatusBadRequest, "歌单 id / platform / 歌曲 id 都不能为空")
+		return
+	}
+	// 歌单不存在时必须拦住：否则会写出一条只挂在孤立 playlist_id 上的歌，
+	// 管理端「查看歌曲」看不到，用户端也永远拉不到。
+	exists, err := s.store.AdminPlaylistExists(c.Request.Context(), userID, playlistID)
+	if err != nil {
+		s.fail500(c, err)
+		return
+	}
+	if !exists {
+		fail(c, http.StatusNotFound, "歌单不存在")
 		return
 	}
 	songJSON := "{}"
@@ -462,10 +565,16 @@ func (s *Server) handleAdminDeletePlaylistSong(c *gin.Context) {
 	if !okUser {
 		return
 	}
-	if err := s.store.AdminDeletePlaylistSong(c.Request.Context(), userID,
-		strings.TrimSpace(c.Param("pid")), strings.TrimSpace(c.Param("platform")),
-		strings.TrimSpace(c.Param("songId")), time.Now().UnixMilli()); err != nil {
-		s.fail500(c, err)
+	playlistID := strings.TrimSpace(c.Param("pid"))
+	platform := strings.TrimSpace(c.Param("platform"))
+	songID := strings.TrimSpace(c.Param("songId"))
+	if playlistID == "" || platform == "" || songID == "" {
+		fail(c, http.StatusBadRequest, "歌单 id / platform / 歌曲 id 都不能为空")
+		return
+	}
+	if _, err := s.store.AdminDeletePlaylistSong(c.Request.Context(), userID,
+		playlistID, platform, songID, time.Now().UnixMilli()); err != nil {
+		s.failAdminWrite(c, err, "歌单里没有这首歌")
 		return
 	}
 	okMsg(c, "已从歌单移除")
@@ -478,9 +587,15 @@ func (s *Server) handleAdminDeleteHistory(c *gin.Context) {
 	if !okUser {
 		return
 	}
-	if err := s.store.AdminDeleteHistory(c.Request.Context(), userID,
-		strings.TrimSpace(c.Param("platform")), strings.TrimSpace(c.Param("songId")), time.Now().UnixMilli()); err != nil {
-		s.fail500(c, err)
+	platform := strings.TrimSpace(c.Param("platform"))
+	songID := strings.TrimSpace(c.Param("songId"))
+	if platform == "" || songID == "" {
+		fail(c, http.StatusBadRequest, "platform 与歌曲 id 不能为空")
+		return
+	}
+	if _, err := s.store.AdminDeleteHistory(c.Request.Context(), userID,
+		platform, songID, time.Now().UnixMilli()); err != nil {
+		s.failAdminWrite(c, err, "该条历史不存在")
 		return
 	}
 	okMsg(c, "已删除该条历史")
@@ -504,10 +619,16 @@ func (s *Server) handleAdminDeleteDownload(c *gin.Context) {
 	if !okUser {
 		return
 	}
-	if err := s.store.AdminDeleteDownload(c.Request.Context(), userID,
-		strings.TrimSpace(c.Param("platform")), strings.TrimSpace(c.Param("songId")),
-		strings.TrimSpace(c.Param("deviceId")), time.Now().UnixMilli()); err != nil {
-		s.fail500(c, err)
+	platform := strings.TrimSpace(c.Param("platform"))
+	songID := strings.TrimSpace(c.Param("songId"))
+	deviceID := strings.TrimSpace(c.Param("deviceId"))
+	if platform == "" || songID == "" || deviceID == "" {
+		fail(c, http.StatusBadRequest, "platform / 歌曲 id / 设备 id 都不能为空")
+		return
+	}
+	if _, err := s.store.AdminDeleteDownload(c.Request.Context(), userID,
+		platform, songID, deviceID, time.Now().UnixMilli()); err != nil {
+		s.failAdminWrite(c, err, "该条下载记录不存在")
 		return
 	}
 	okMsg(c, "已删除下载记录")

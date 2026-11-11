@@ -675,6 +675,18 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
             }}
             columns={[
               { title: "脚本名", dataIndex: "name", key: "name", render: (v: string) => v || "未命名" },
+              {
+                title: "脚本 id",
+                dataIndex: "scriptId",
+                key: "id",
+                width: 180,
+                ellipsis: true,
+                render: (v: string) => (
+                  <Text type="secondary" style={{ fontSize: 12 }} copyable={{ text: v || "" }}>
+                    {v || "-"}
+                  </Text>
+                ),
+              },
               { title: "描述", dataIndex: "description", key: "d", ellipsis: true },
               {
                 title: "启用",
@@ -928,6 +940,17 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
 };
 
 /**
+ * 新增脚本时用的 id。
+ *
+ * 管理端没有客户端那种"本地脚本 id"，以前 POST 直接把 `id: undefined` 发出去，
+ * JSON.stringify 会把这整个字段丢掉，后端就回 400「脚本 id 不能为空」——
+ * 「新增脚本」因此完全不可用。后端现在也会兜底生成，但前端带上 id 更稳：
+ * 保存后刷新列表能立刻定位到这条记录。
+ */
+const newScriptId = () =>
+  `admin_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/**
  * 脚本编辑器：三种录入方式共用一份 code。
  *
  * - 手写：直接编辑源码；
@@ -1006,9 +1029,9 @@ const ScriptEditorModal: React.FC<{
         return;
       }
       setSaving(true);
-      const id = item?.scriptId;
+      const id = item?.scriptId || newScriptId();
       const url = isEdit
-        ? `/admin/users/${userId}/scripts/${encodeURIComponent(id)}`
+        ? `/admin/users/${userId}/scripts/${encodeURIComponent(item.scriptId)}`
         : `/admin/users/${userId}/scripts`;
       const res = await request(url, {
         method: isEdit ? "PUT" : "POST",

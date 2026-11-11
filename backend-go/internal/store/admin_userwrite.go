@@ -3,8 +3,16 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
+
+// ErrNoRows 表示"这一行本来就不存在"。
+//
+// 管理端的删除操作以前无论有没有命中都回 200，管理端会以为数据已被清掉；
+// 现在删除类函数在零命中时返回它，接口据此回 404，同时整个事务回滚，
+// 不会白白推进 sync_seq（否则用户设备会拉到一个空增量）。
+var ErrNoRows = errors.New("no rows affected")
 
 // 管理员对用户数据的写操作。
 //
@@ -68,14 +76,27 @@ func (s *Store) AdminSaveScript(ctx context.Context, userID int64, scriptID, nam
 	})
 }
 
-// AdminDeleteScript tombstones a user script.
-func (s *Store) AdminDeleteScript(ctx context.Context, userID int64, scriptID string, nowMs int64) error {
-	return s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
-		_, err := tx.ExecContext(ctx, `
+// AdminDeleteScript tombstones a user script and reports how many rows matched.
+//
+// 返回受影响行数是为了让接口能区分"删掉了"和"本来就不存在"：
+// 之前无论有没有命中都回 200「脚本已删除」，管理端会以为用户设备上的脚本被清掉了。
+// 注意命中的可能是已有墓碑行（deleted=1），SQLite 的 RowsAffected 统计的是
+// WHERE 匹配的行数，所以重复删除依然返回 1，不会误报 404。
+func (s *Store) AdminDeleteScript(ctx context.Context, userID int64, scriptID string, nowMs int64) (int64, error) {
+	var n int64
+	err := s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
+		res, err := tx.ExecContext(ctx, `
 			UPDATE user_scripts SET deleted = 1, update_seq = ?, updated_at_ms = ?
 			WHERE user_id = ? AND script_id = ?`, seq, nowMs, userID, scriptID)
-		return err
+		if err != nil {
+			return err
+		}
+		if n, _ = res.RowsAffected(); n == 0 {
+			return ErrNoRows
+		}
+		return nil
 	})
+	return n, err
 }
 
 // ==================== 收藏 ====================
@@ -98,13 +119,21 @@ func (s *Store) AdminAddFavorite(ctx context.Context, userID int64, platform, so
 }
 
 // AdminDeleteFavorite tombstones one favourite.
-func (s *Store) AdminDeleteFavorite(ctx context.Context, userID int64, platform, songID string, nowMs int64) error {
-	return s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
-		_, err := tx.ExecContext(ctx, `
+func (s *Store) AdminDeleteFavorite(ctx context.Context, userID int64, platform, songID string, nowMs int64) (int64, error) {
+	var n int64
+	err := s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
+		res, err := tx.ExecContext(ctx, `
 			UPDATE favorites SET deleted = 1, update_seq = ?, updated_at_ms = ?
 			WHERE user_id = ? AND platform = ? AND song_id = ?`, seq, nowMs, userID, platform, songID)
-		return err
+		if err != nil {
+			return err
+		}
+		if n, _ = res.RowsAffected(); n == 0 {
+			return ErrNoRows
+		}
+		return nil
 	})
+	return n, err
 }
 
 // ==================== 歌单 ====================
@@ -130,18 +159,27 @@ func (s *Store) AdminUpsertPlaylist(ctx context.Context, userID int64, playlistI
 }
 
 // AdminDeletePlaylist tombstones a playlist and all of its songs.
-func (s *Store) AdminDeletePlaylist(ctx context.Context, userID int64, playlistID string, nowMs int64) error {
-	return s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
-		if _, err := tx.ExecContext(ctx, `
+//
+// 返回歌单行是否命中：歌单本来就不存在时不再连带更新歌曲表，
+// 也让接口能回 404 而不是假成功。
+func (s *Store) AdminDeletePlaylist(ctx context.Context, userID int64, playlistID string, nowMs int64) (int64, error) {
+	var n int64
+	err := s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
+		res, err := tx.ExecContext(ctx, `
 			UPDATE playlists SET deleted = 1, update_seq = ?, updated_at_ms = ?
-			WHERE user_id = ? AND playlist_id = ?`, seq, nowMs, userID, playlistID); err != nil {
+			WHERE user_id = ? AND playlist_id = ?`, seq, nowMs, userID, playlistID)
+		if err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `
+		if n, _ = res.RowsAffected(); n == 0 {
+			return ErrNoRows
+		}
+		_, err = tx.ExecContext(ctx, `
 			UPDATE playlist_songs SET deleted = 1, update_seq = ?, updated_at_ms = ?
 			WHERE user_id = ? AND playlist_id = ?`, seq, nowMs, userID, playlistID)
 		return err
 	})
+	return n, err
 }
 
 // AdminUpsertPlaylistSong adds or repositions one track inside a playlist.
@@ -165,26 +203,42 @@ func (s *Store) AdminUpsertPlaylistSong(ctx context.Context, userID int64, playl
 }
 
 // AdminDeletePlaylistSong tombstones one track of a playlist.
-func (s *Store) AdminDeletePlaylistSong(ctx context.Context, userID int64, playlistID, platform, songID string, nowMs int64) error {
-	return s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
-		_, err := tx.ExecContext(ctx, `
+func (s *Store) AdminDeletePlaylistSong(ctx context.Context, userID int64, playlistID, platform, songID string, nowMs int64) (int64, error) {
+	var n int64
+	err := s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
+		res, err := tx.ExecContext(ctx, `
 			UPDATE playlist_songs SET deleted = 1, update_seq = ?, updated_at_ms = ?
 			WHERE user_id = ? AND playlist_id = ? AND platform = ? AND song_id = ?`,
 			seq, nowMs, userID, playlistID, platform, songID)
-		return err
+		if err != nil {
+			return err
+		}
+		if n, _ = res.RowsAffected(); n == 0 {
+			return ErrNoRows
+		}
+		return nil
 	})
+	return n, err
 }
 
 // ==================== 听歌历史 / 下载记录 ====================
 
 // AdminDeleteHistory tombstones one history entry.
-func (s *Store) AdminDeleteHistory(ctx context.Context, userID int64, platform, songID string, nowMs int64) error {
-	return s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
-		_, err := tx.ExecContext(ctx, `
+func (s *Store) AdminDeleteHistory(ctx context.Context, userID int64, platform, songID string, nowMs int64) (int64, error) {
+	var n int64
+	err := s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
+		res, err := tx.ExecContext(ctx, `
 			UPDATE history SET deleted = 1, update_seq = ?, updated_at_ms = ?
 			WHERE user_id = ? AND platform = ? AND song_id = ?`, seq, nowMs, userID, platform, songID)
-		return err
+		if err != nil {
+			return err
+		}
+		if n, _ = res.RowsAffected(); n == 0 {
+			return ErrNoRows
+		}
+		return nil
 	})
+	return n, err
 }
 
 // AdminClearHistory tombstones every history entry of the user.
@@ -204,12 +258,20 @@ func (s *Store) AdminClearHistory(ctx context.Context, userID int64, nowMs int64
 }
 
 // AdminDeleteDownload tombstones one per-device download record.
-func (s *Store) AdminDeleteDownload(ctx context.Context, userID int64, platform, songID, deviceID string, nowMs int64) error {
-	return s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
-		_, err := tx.ExecContext(ctx, `
+func (s *Store) AdminDeleteDownload(ctx context.Context, userID int64, platform, songID, deviceID string, nowMs int64) (int64, error) {
+	var n int64
+	err := s.adminWriteTx(ctx, userID, nowMs, func(tx *sql.Tx, seq int64) error {
+		res, err := tx.ExecContext(ctx, `
 			UPDATE downloads SET deleted = 1, update_seq = ?, updated_at_ms = ?
 			WHERE user_id = ? AND platform = ? AND song_id = ? AND device_id = ?`,
 			seq, nowMs, userID, platform, songID, deviceID)
-		return err
+		if err != nil {
+			return err
+		}
+		if n, _ = res.RowsAffected(); n == 0 {
+			return ErrNoRows
+		}
+		return nil
 	})
+	return n, err
 }

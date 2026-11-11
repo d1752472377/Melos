@@ -20,17 +20,22 @@ if [ -f "$SRC/favicon.ico" ]; then cp -f "$SRC/favicon.ico" "$DST/favicon.ico"; 
 cp -f "$SRC/index.html" "$DST/index.html"
 
 echo "== 3) drop superseded static files =="
-NEWJS=$(grep -o -E 'assets/[A-Za-z0-9._-]+\.js' "$DST/index.html" | head -1 | sed 's|assets/||')
-NEWCSS=$(grep -o -E 'assets/[A-Za-z0-9._-]+\.css' "$DST/index.html" | head -1 | sed 's|assets/||')
-echo "keep: js=$NEWJS css=$NEWCSS"
+# 只删"这次构建里没有"的文件：index.html 只引用入口 bundle，
+# 路由 chunk（api-*.js / 其它 index-*.js）是懒加载的，按 index.html 裁剪
+# 会把它们一起删掉，站点能打开但每个子路由 404。
+KEPT=0
 for f in "$DST"/assets/*; do
   [ -e "$f" ] || continue
   base=$(basename "$f")
-  if [ "$base" != "$NEWJS" ] && [ "$base" != "$NEWCSS" ]; then
+  if [ -e "$SRC/assets/$base" ]; then
+    KEPT=$((KEPT+1))
+  else
     echo "  rm assets/$base"
     rm -f "$f"
   fi
 done
+echo "kept $KEPT file(s) from this build"
+echo "asset count on disk: $(ls -1 "$DST"/assets | wc -l)"
 for old in "$DST"/index.html.bak "$DST"/index.html.bak_* "$DST"/server.js; do
   [ -e "$old" ] && { echo "  rm $(basename "$old")"; rm -f "$old"; }
 done

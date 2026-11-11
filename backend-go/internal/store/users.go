@@ -166,6 +166,7 @@ type AdminUpdateParams struct {
 	Nickname     *string
 	Avatar       *string
 	Role         *string
+	Email        *string
 	PasswordHash *string
 	Salt         *string
 }
@@ -189,6 +190,9 @@ func (s *Store) AdminUpdateUser(ctx context.Context, id int64, p AdminUpdatePara
 	}
 	if p.Role != nil {
 		add("role", *p.Role)
+	}
+	if p.Email != nil {
+		add("email", *p.Email)
 	}
 	if p.PasswordHash != nil && p.Salt != nil {
 		add("password_hash", *p.PasswordHash)
@@ -307,15 +311,20 @@ func (s *Store) CreateSession(ctx context.Context, userID int64, tokenHash, devi
 func (s *Store) FindSessionByTokenHash(ctx context.Context, tokenHash string) (*SessionUser, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT s.id, s.user_id, s.token_hash, s.device_name, s.created_at, s.last_seen_at, s.expires_at, s.revoked_at,
-		        u.id, u.username, u.password_hash, u.salt, u.nickname, u.avatar, u.background, u.role, u.email, u.created_at, u.updated_at
+		        u.id, u.username, u.password_hash, u.salt, u.nickname, u.avatar, u.background, u.role, u.email,
+		        u.created_at, u.updated_at, u.last_active_at
 		 FROM sessions s JOIN users u ON u.id = s.user_id
 		 WHERE s.token_hash = ?`, tokenHash)
 
 	var su SessionUser
+	// last_active_at 必须一起取出来：漏了它会让 User.LastActiveAt 永远是 0，
+	// 于是 authenticate 里"每分钟最多写一次"的节流永远成立，
+	// 每个鉴权请求都会 UPDATE users；同时 /api/me 也会一直返回 0。
 	err := row.Scan(&su.SessionID, &su.UserID, &su.TokenHash, &su.DeviceName, &su.SessionCreatedAt,
 		&su.LastSeenAt, &su.ExpiresAt, &su.RevokedAt,
 		&su.User.ID, &su.User.Username, &su.User.PasswordHash, &su.User.Salt, &su.User.Nickname,
-		&su.User.Avatar, &su.User.Background, &su.User.Role, &su.User.Email, &su.User.CreatedAt, &su.User.UpdatedAt)
+		&su.User.Avatar, &su.User.Background, &su.User.Role, &su.User.Email, &su.User.CreatedAt, &su.User.UpdatedAt,
+		&su.User.LastActiveAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -337,10 +346,15 @@ func (s *Store) RevokeSessionByTokenHash(ctx context.Context, tokenHash string) 
 	return err
 }
 
-// RevokeSessionByID deletes a single owned session.
-func (s *Store) RevokeSessionByID(ctx context.Context, userID int64, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ? AND user_id = ?`, id, userID)
-	return err
+// RevokeSessionByID deletes a single owned session and reports how many rows matched.
+// 返回行数让接口能区分"真的下线了"和"id 不存在/不属于自己"。
+func (s *Store) RevokeSessionByID(ctx context.Context, userID int64, id string) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ? AND user_id = ?`, id, userID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // RevokeAllSessions deletes every session of the user, optionally sparing one.

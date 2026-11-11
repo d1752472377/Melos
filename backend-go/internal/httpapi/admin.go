@@ -218,6 +218,27 @@ func (s *Server) handleAdminUpdateUser(c *gin.Context) {
 		}
 		params.Avatar = &a
 	}
+	// 管理端编辑用户时会把整张表单（含邮箱）一起提交，旧实现直接忽略 email，
+	// 接口却回 200「用户信息修改成功」，管理员以为改掉了。
+	if v, present := body["email"]; present {
+		email, okEmail, errMsg := normalizeEmail(v)
+		if !okEmail {
+			fail(c, http.StatusBadRequest, errMsg)
+			return
+		}
+		if email != "" {
+			holder, err := s.store.FindUserByEmail(ctx, email)
+			if err != nil {
+				s.fail500(c, err)
+				return
+			}
+			if holder != nil && holder.ID != int64(id) {
+				fail(c, http.StatusConflict, "该邮箱已被其它账号绑定")
+				return
+			}
+		}
+		params.Email = &email
+	}
 	if v, present := body["role"]; present {
 		role := asString(v)
 		if role != "admin" && role != "user" {
@@ -262,6 +283,10 @@ func (s *Server) handleAdminUpdateUser(c *gin.Context) {
 
 	updated, err := s.store.AdminUpdateUser(ctx, int64(id), params, time.Now().UnixMilli())
 	if err != nil {
+		if isEmailConflict(err) {
+			fail(c, http.StatusConflict, "该邮箱已被其它账号绑定")
+			return
+		}
 		s.fail500(c, err)
 		return
 	}

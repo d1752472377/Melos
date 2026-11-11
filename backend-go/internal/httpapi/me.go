@@ -258,21 +258,30 @@ func (s *Server) handleListSessions(c *gin.Context) {
 	sess := currentSession(c)
 	items := make([]gin.H, 0, len(list))
 	for _, si := range list {
+		current := sess != nil && si.ID == sess.SessionID
 		items = append(items, gin.H{
 			"id":         si.ID,
 			"deviceName": si.DeviceName,
 			"createdAt":  si.CreatedAt,
 			"lastSeenAt": si.LastSeenAt,
 			"expiresAt":  si.ExpiresAt,
-			"current":    sess != nil && si.ID == sess.SessionID,
+			"current":    current,
+			// Android 端读的是 isCurrent（SessionDto.isCurrent），
+			// 之前只给 current，于是"本机"永远不会被高亮，还能被误踢下线。
+			"isCurrent": current,
 		})
 	}
 	ok(c, items)
 }
 
 func (s *Server) handleRevokeSession(c *gin.Context) {
-	if err := s.store.RevokeSessionByID(c.Request.Context(), currentUser(c).ID, c.Param("id")); err != nil {
+	n, err := s.store.RevokeSessionByID(c.Request.Context(), currentUser(c).ID, c.Param("id"))
+	if err != nil {
 		s.fail500(c, err)
+		return
+	}
+	if n == 0 {
+		fail(c, http.StatusNotFound, "设备不存在或已下线")
 		return
 	}
 	okMsg(c, "已移除设备")
