@@ -172,6 +172,7 @@ object UpdateService {
                 .build()
 
             val startedAt = System.currentTimeMillis()
+            val initialBytes = if (tmpFile.exists()) tmpFile.length() else 0L
             var lastUrl = downloadUrls.firstOrNull().orEmpty()
             var lastError: Exception? = null
             // 进度只在 0/25/50/75/100 这几个节点上报，避免每 64KB 一条把日志队列打满
@@ -183,7 +184,14 @@ object UpdateService {
                     val bucket = pct / 25 * 25
                     if (bucket != lastBucket) {
                         lastBucket = bucket
-                        LogReporter.i(TAG, "安装包下载进度 $pct%（${done / 1024}KB / ${total / 1024}KB）")
+                        // 速度按本次会话实际传输的字节算，断点续传时不会被已存在的部分虚高
+                        val elapsedSec = ((System.currentTimeMillis() - startedAt) / 1000).coerceAtLeast(1)
+                        val speedKb = ((done - initialBytes).coerceAtLeast(0) / 1024) / elapsedSec
+                        LogReporter.i(
+                            TAG,
+                            "安装包下载进度 $pct%（${done / 1024}KB / ${total / 1024}KB，" +
+                                "${speedKb}KB/s，已用 ${elapsedSec}s）",
+                        )
                         LogReporter.breadcrumb(TAG, "下载进度 $pct%")
                     }
                 }
@@ -191,10 +199,12 @@ object UpdateService {
             for (url in downloadUrls) {
                 lastUrl = url
                 try {
+                    val scheme = if (url.startsWith("https://")) "HTTPS" else "HTTP"
+                    val resumeNote = if (initialBytes > 0) "，续传自 ${initialBytes / 1024}KB" else ""
                     LogReporter.i(
                         TAG,
                         "开始下载安装包 v${info.versionName}（versionCode=${info.versionCode}，" +
-                            "size=${info.apkSize}B，${if (url.startsWith("https://")) "HTTPS" else "HTTP"}）",
+                            "size=${info.apkSize}B，$scheme$resumeNote）",
                     )
                     LogReporter.breadcrumb(TAG, "开始下载 v${info.versionName}")
                     downloadWithResume(client, url, tmpFile, info.apkSize, progressBridge)
