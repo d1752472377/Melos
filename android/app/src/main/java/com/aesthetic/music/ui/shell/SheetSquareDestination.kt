@@ -35,7 +35,7 @@ fun SheetSquareDestination(
         onRetry = { sheet.load(force = true) },
         onOpenPlaylist = { pl ->
             playlistDetail.open(pl)
-            nav.navigate(ScreenRoute.PlaylistDetail.route)
+            nav.navigateSingleTop(ScreenRoute.PlaylistDetail.route)
         },
         onBack = nav.popBack,
     )

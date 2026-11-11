@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,6 +34,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -118,6 +121,31 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
     val userPrefs by viewModel.settings.prefs.collectAsState()
     val activity = context as? androidx.activity.ComponentActivity
+
+    // 播放层是盖在 NavHost 之上的覆盖层，下层页面（尤其是搜索页）依然存在、依然持有焦点。
+    // 如果不在这里主动清掉，切后台再回前台时系统会把焦点还给那个 TextField，输入法自己弹出来。
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(showPlayer) {
+        if (showPlayer) {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
+    // 回前台时系统会恢复窗口焦点，若播放层还开着就再清一次——
+    // 只靠上面那个 LaunchedEffect 挡不住"后台期间焦点被系统记住"这条路径。
+    DisposableEffect(activity, showPlayer) {
+        val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onResume(owner: androidx.lifecycle.LifecycleOwner) {
+                if (showPlayer) {
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
+                }
+            }
+        }
+        activity?.lifecycle?.addObserver(observer)
+        onDispose { activity?.lifecycle?.removeObserver(observer) }
+    }
     val hideStatusBar = when (userPrefs.statusBarMode) {
         com.aesthetic.music.data.settings.StatusBarMode.ALWAYS -> false
         com.aesthetic.music.data.settings.StatusBarMode.PLAYER_ONLY -> showPlayer
@@ -211,6 +239,9 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 val now = SystemClock.uptimeMillis()
                 if (now - lastPopBackTime > 260L && now - lastNavigateTime > 300L) {
                     lastNavigateTime = now
+                    // 栈顶已经是同一个目的地时只更新它的内容、不再压一层：
+                    // 详情页（歌手/专辑/歌单）都是"无参数路由 + Controller 持有数据"，
+                    // 所以不必担心单顶复用后显示的是上一首歌的旧数据。
                     navController.navigate(route) { launchSingleTop = true }
                 }
             },
@@ -333,7 +364,14 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     },
                 ) {
                 composable(ScreenRoute.Home.route) {
-                    HomeDestination(viewModel.content, viewModel.playlistDetail, nav, actions, playerState.isPlaying)
+                    HomeDestination(
+                        content = viewModel.content,
+                        playlistDetail = viewModel.playlistDetail,
+                        nav = nav,
+                        actions = actions,
+                        isPlaying = playerState.isPlaying,
+                        onRequestRecognition = viewModel::requestRecognition,
+                    )
                 }
 
                 composable(ScreenRoute.Fm.route) {
@@ -349,7 +387,17 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
 
                 composable(ScreenRoute.Search.route) {
-                    SearchDestination(viewModel.search, viewModel.artistPage, viewModel.playlistDetail, viewModel.library, nav, actions, playerManager)
+                    SearchDestination(
+                        viewModel.search,
+                        viewModel.artistPage,
+                        viewModel.playlistDetail,
+                        viewModel.library,
+                        nav,
+                        actions,
+                        playerManager,
+                        recognitionRequest = viewModel.pendingRecognition,
+                        onRecognitionConsumed = viewModel::consumeRecognition,
+                    )
                 }
 
                 composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel.rank, viewModel.playlistDetail, nav) }
@@ -477,7 +525,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 playerManager = playerManager,
                 library = viewModel.library,
                 artist = viewModel.artistPage,
-                search = viewModel.search,
+                playlistDetail = viewModel.playlistDetail,
                 settings = viewModel.settings,
                 nav = nav,
                 actions = actions,

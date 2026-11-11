@@ -51,6 +51,8 @@ fun SearchScreen(
     onOpenAlbum: (AlbumItem) -> Unit,
     onMoreSong: (Song) -> Unit,
     onBeforeRecord: () -> Unit = {},
+    openRecognition: Boolean = false,
+    onRecognitionOpened: () -> Unit = {},
 ) {
     val query by search.query.collectAsState()
     val searchType by search.type.collectAsState()
@@ -68,6 +70,14 @@ fun SearchScreen(
 
     var showClearRecentConfirm by remember { mutableStateOf(false) }
     var showRecognition by remember { mutableStateOf(false) }
+
+    // 首页麦克风投递过来的"请打开识曲"信号：打开一次并清掉
+    LaunchedEffect(openRecognition) {
+        if (openRecognition) {
+            showRecognition = true
+            onRecognitionOpened()
+        }
+    }
 
     Box(
         Modifier.fillMaxSize()
@@ -92,7 +102,8 @@ fun SearchScreen(
             }
 
             LaunchedEffect(Unit) {
-                if (query.isBlank()) {
+                // 从首页麦克风进来时是要识曲，不该同时把输入法弹出来
+                if (query.isBlank() && !openRecognition) {
                     focusRequester.requestFocus()
                     keyboard?.show()
                 }

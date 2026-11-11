@@ -34,7 +34,7 @@ fun RanksDestination(
         onBack = nav.popBack,
         onOpenRank = { rankItem ->
             playlistDetail.openRank(rankItem)
-            nav.navigate(ScreenRoute.PlaylistDetail.route)
+            nav.navigateSingleTop(ScreenRoute.PlaylistDetail.route)
         },
     )
 }

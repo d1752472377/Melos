@@ -122,6 +122,40 @@ class PlaylistDetailController(
         lastAction?.invoke()
     }
 
+    /**
+     * 按「专辑名 + 歌手」找专辑。歌曲数据里只有专辑名、没有专辑 id，
+     * 所以点专辑时必须先搜一次拿到 id 才能打开详情。
+     *
+     * 优先取名字完全一致的那张；找不到就回调 [onMissing]，由调用方提示。
+     */
+    fun openAlbumByName(
+        platform: String?,
+        albumName: String,
+        artistName: String,
+        onResolved: () -> Unit,
+        onMissing: () -> Unit,
+    ) {
+        val name = albumName.trim()
+        if (name.isEmpty()) {
+            onMissing()
+            return
+        }
+        scope.launch {
+            val keyword = listOf(name, artistName.trim()).filter { it.isNotBlank() }.joinToString(" ")
+            val list = repository.searchAlbums(keyword, limit = 10, platform = platform)
+                .getOrNull().orEmpty()
+            val candidate = list.firstOrNull { it.name.trim().equals(name, ignoreCase = true) }
+                ?: list.firstOrNull()
+            if (candidate == null) {
+                LogReporter.w("PlaylistDetail", "按名字找专辑无结果: $keyword platform=$platform")
+                onMissing()
+                return@launch
+            }
+            openAlbum(candidate)
+            onResolved()
+        }
+    }
+
     fun showLocal(item: PlaylistItem, songs: List<Song>) {
         lastAction = null
         ++requestId

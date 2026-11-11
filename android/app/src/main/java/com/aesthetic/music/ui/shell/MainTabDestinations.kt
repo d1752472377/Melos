@@ -32,6 +32,7 @@ fun HomeDestination(
     nav: ShellNav,
     actions: ShellActions,
     isPlaying: Boolean = false,
+    onRequestRecognition: () -> Unit = {},
 ) {
     val dailyPlaylists by content.dailyPlaylists.collectAsState()
     val newSongs by content.newSongs.collectAsState()
@@ -58,10 +59,14 @@ fun HomeDestination(
         onRetryContent = { content.refreshContent() },
         onPlaySong = { song, list -> actions.playSong(song, list) },
         onSearchBarClick = { nav.navigateSingleTop(ScreenRoute.Search.route) },
-        onMicClick = { actions.toast("听歌识曲功能开发中，敬请期待") },
+        onMicClick = {
+            // 识曲面板在搜索页里，切过去再请它打开
+            nav.navigateSingleTop(ScreenRoute.Search.route)
+            onRequestRecognition()
+        },
         onOpenPlaylistDetail = { pl ->
             playlistDetail.open(pl)
-            nav.navigate(ScreenRoute.PlaylistDetail.route)
+            nav.navigateSingleTop(ScreenRoute.PlaylistDetail.route)
         },
         onOpenGuess = { nav.navigateSingleTop(ScreenRoute.GuessYouLike.route) },
         onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
@@ -89,11 +94,11 @@ fun PlaylistTabDestination(
         favoritePlaylists = favoritePlaylists,
         onOpenMyPlaylist = { id ->
             library.myPlaylist(id)?.let(playlistDetail::showLocalPlaylist)
-            nav.navigate(ScreenRoute.PlaylistDetail.route)
+            nav.navigateSingleTop(ScreenRoute.PlaylistDetail.route)
         },
         onOpenPlaylistDetail = { pl ->
             playlistDetail.open(pl)
-            nav.navigate(ScreenRoute.PlaylistDetail.route)
+            nav.navigateSingleTop(ScreenRoute.PlaylistDetail.route)
         },
         importPreview = importPreview,
         onResolveImport = playlistImport::resolveForPreview,

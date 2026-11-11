@@ -162,6 +162,17 @@ class MainViewModel : ViewModel() {
     fun openImportDialog() { _showImportDialog.value = true }
     fun closeImportDialog() { _showImportDialog.value = false }
 
+    /**
+     * 首页搜索框旁的麦克风：切到搜索页并让那边打开识曲面板。
+     *
+     * 识曲面板的状态在搜索页内部，这里只投递一个"请打开"的信号，
+     * 由搜索页消费后清掉，避免用户切走再回来时又弹一次。
+     */
+    private val _pendingRecognition = MutableStateFlow(false)
+    val pendingRecognition: StateFlow<Boolean> = _pendingRecognition.asStateFlow()
+    fun requestRecognition() { _pendingRecognition.value = true }
+    fun consumeRecognition() { _pendingRecognition.value = false }
+
     fun switchTab(tab: AppTab) {
         _currentTab.value = tab
         playlistDetail.close()

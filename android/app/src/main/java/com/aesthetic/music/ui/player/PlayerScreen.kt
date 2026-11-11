@@ -144,7 +144,8 @@ fun PlayerScreen(
     onSpeedChange: (Float) -> Unit,
     onSleepTimer: (Int) -> Unit,
     onCancelSleepTimer: () -> Unit,
-    onArtistClick: ((artistName: String, artistId: String?, platform: String?) -> Unit)? = null,
+    onArtistClick: ((Song) -> Unit)? = null,
+    onAlbumClick: ((albumName: String, artistName: String, platform: String) -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
     onAddToPlaylist: ((Song) -> Unit)? = null,
     hazeState: HazeState? = null,
@@ -255,36 +256,64 @@ fun PlayerScreen(
                         maxLines = 2,
                     )
                     Spacer(Modifier.height(3.dp))
+                    // 歌手和专辑是两个独立的点击目标：以前它们被同一个 Row 的 clickable 包住，
+                    // 点专辑等于点歌手。现在拆开，各自带自己的下划线反馈区。
                     val artistDisplayName = song?.artist?.ifBlank { "未知歌手" } ?: "未知歌手"
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    if (song != null && onArtistClick != null) {
-                                        onArtistClick(
-                                            song.artist,
-                                            song.artistId,
-                                            song.artistPlatform ?: song.platform
-                                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = {
+                                        if (song != null && onArtistClick != null) {
+                                            onArtistClick(song)
+                                        }
                                     }
-                                }
+                                )
+                                .padding(vertical = 2.dp),
+                        ) {
+                            Text(
+                                text = artistDisplayName,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                                color = Color.White.copy(alpha = 0.85f),
+                                maxLines = 1,
                             )
-                            .padding(vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = artistDisplayName,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                            ),
-                            color = Color.White.copy(alpha = 0.85f),
-                            maxLines = 1,
-                        )
-                        if (!song?.album.isNullOrBlank()) {
+                            Spacer(Modifier.width(2.dp))
+                            Icon(
+                                Icons.Filled.ChevronRight,
+                                contentDescription = "查看歌手",
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+
+                        if (!song?.album.isNullOrBlank() && onAlbumClick != null) {
+                            Text(
+                                text = " · ",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                color = Color.White.copy(alpha = 0.5f),
+                            )
+                            Text(
+                                text = song.album,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                color = Color.White.copy(alpha = 0.62f),
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { onAlbumClick(song.album, song.artist, song.platform) },
+                                    )
+                                    .padding(vertical = 2.dp),
+                            )
+                        } else if (!song?.album.isNullOrBlank()) {
                             Text(
                                 text = " · ${song.album}",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
@@ -292,13 +321,6 @@ fun PlayerScreen(
                                 maxLines = 1,
                             )
                         }
-                        Spacer(Modifier.width(3.dp))
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = "查看歌手",
-                            tint = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.size(15.dp),
-                        )
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {

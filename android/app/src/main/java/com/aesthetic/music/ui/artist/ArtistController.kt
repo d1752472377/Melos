@@ -125,4 +125,45 @@ class ArtistController(
         _isLoadingAllSongs.value = false
         _allSongsError.value = null
     }
+
+    /**
+     * 只知道歌手名字、不知道平台 id 时用它。
+     *
+     * 合唱歌曲里除第一位之外的歌手，平台数据里根本没有存 id，只能搜一次。
+     * 搜到就用它（同名优先，否则退到第一条），再通过 [onResolved] 让界面跳转；
+     * 完全搜不到则回调 [onMissing]，由调用方提示用户。
+     */
+    fun openByName(
+        platform: String?,
+        name: String,
+        onResolved: () -> Unit,
+        onMissing: () -> Unit,
+    ) {
+        val keyword = name.trim()
+        if (keyword.isEmpty()) {
+            onMissing()
+            return
+        }
+        scope.launch {
+            val result = repository.searchArtists(keyword, limit = 8, platform = platform)
+            val list = result.getOrNull().orEmpty()
+            val candidate = list.firstOrNull { it.name.trim().equals(keyword, ignoreCase = true) }
+                ?: list.firstOrNull()
+            if (candidate == null) {
+                LogReporter.w("Artist", "按名字找歌手无结果: $keyword platform=$platform")
+                onMissing()
+                return@launch
+            }
+            open(
+                ArtistRef(
+                    platform = candidate.platform ?: platform ?: "netease",
+                    id = candidate.id,
+                    name = candidate.name,
+                    avatar = candidate.avatar,
+                    alias = candidate.alias,
+                )
+            )
+            onResolved()
+        }
+    }
 }
