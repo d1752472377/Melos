@@ -241,18 +241,18 @@ func PublicUser(u *User) map[string]any {
 		role = "user"
 	}
 	return map[string]any{
-		"id":         u.ID,
-		"username":   u.Username,
-		"nickname":   nickname,
-		"avatar":     u.Avatar,
-		"background": u.Background,
-		"role":       role,
-		"email":      u.Email,
-		"created_at":    u.CreatedAt,
-		"updated_at":    u.UpdatedAt,
-		"createdAt":     u.CreatedAt,
+		"id":             u.ID,
+		"username":       u.Username,
+		"nickname":       nickname,
+		"avatar":         u.Avatar,
+		"background":     u.Background,
+		"role":           role,
+		"email":          u.Email,
+		"created_at":     u.CreatedAt,
+		"updated_at":     u.UpdatedAt,
+		"createdAt":      u.CreatedAt,
 		"last_active_at": u.LastActiveAt,
-		"lastActiveAt":  u.LastActiveAt,
+		"lastActiveAt":   u.LastActiveAt,
 	}
 }
 

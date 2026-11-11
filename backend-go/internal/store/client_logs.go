@@ -272,15 +272,31 @@ type ClientLogStats struct {
 }
 
 // GetClientLogStats aggregates headline numbers for the admin console.
+//
+// 错误必须带出去：以前每个计数都用 `_ =` 忽略，DB 异常时日志页会显示
+// 一片 0，看起来像"日志被清了"。
 func (s *Store) GetClientLogStats(ctx context.Context, nowMs int64) (*ClientLogStats, error) {
 	st := &ClientLogStats{}
 	cutoff := nowMs - 24*60*60*1000
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE level='ERROR' AND created_at >= ?`, cutoff).Scan(&st.Errors24h)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE level='WARN' AND created_at >= ?`, cutoff).Scan(&st.Warns24h)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE resolved=0 AND created_at >= ?`, cutoff).Scan(&st.Unresolved24h)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs WHERE created_at >= ?`, cutoff).Scan(&st.Total24h)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT COALESCE(NULLIF(device,''), ip)) FROM client_logs WHERE created_at >= ?`, cutoff).Scan(&st.Devices24h)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM client_logs`).Scan(&st.Total)
+	targets := []struct {
+		dst *int64
+		sql string
+		arg []any
+	}{
+		{&st.Errors24h, `SELECT COUNT(*) FROM client_logs WHERE level='ERROR' AND created_at >= ?`, []any{cutoff}},
+		{&st.Warns24h, `SELECT COUNT(*) FROM client_logs WHERE level='WARN' AND created_at >= ?`, []any{cutoff}},
+		{&st.Unresolved24h, `SELECT COUNT(*) FROM client_logs WHERE resolved=0 AND created_at >= ?`, []any{cutoff}},
+		{&st.Total24h, `SELECT COUNT(*) FROM client_logs WHERE created_at >= ?`, []any{cutoff}},
+		{&st.Devices24h, `SELECT COUNT(DISTINCT COALESCE(NULLIF(device,''), ip)) FROM client_logs WHERE created_at >= ?`, []any{cutoff}},
+		{&st.Total, `SELECT COUNT(*) FROM client_logs`, nil},
+	}
+	for _, t := range targets {
+		var n int64
+		if err := s.db.QueryRowContext(ctx, t.sql, t.arg...).Scan(&n); err != nil {
+			return nil, err
+		}
+		*t.dst = n
+	}
 	return st, nil
 }
 

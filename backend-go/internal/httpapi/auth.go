@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -76,11 +77,17 @@ func (s *Server) handleSendCode(c *gin.Context) {
 	code := fmt.Sprintf("%06d", randomInt(100000, 1000000))
 	expiresAt := now + 5*60*1000
 
-	if _, err := s.store.SaveEmailCode(c.Request.Context(), email, code, scene, expiresAt, now); err != nil {
+	// 先落库再发信：落库是为了让 60 秒冷却挡住并发狂刷（发信本身慢且不可回滚）。
+	// 但发信失败必须把这行删掉，否则用户没收到邮件却要等 60 秒才能重试。
+	codeID, err := s.store.SaveEmailCode(c.Request.Context(), email, code, scene, expiresAt, now)
+	if err != nil {
 		s.fail500(c, err)
 		return
 	}
 	if err := s.mail.SendVerifyCode(c.Request.Context(), email, code, scene); err != nil {
+		if delErr := s.store.DeleteEmailCode(c.Request.Context(), codeID); delErr != nil {
+			log.Printf("[melos-backend] 回滚验证码失败 id=%d: %v", codeID, delErr)
+		}
 		s.fail500(c, fmt.Errorf("验证码发送失败：%s", err.Error()))
 		return
 	}

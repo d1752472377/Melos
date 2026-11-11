@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // Admin per-user data queries (read-only views over the sync tables).
@@ -25,16 +26,53 @@ type AdminUserOverview struct {
 	LastListenAt  int64 `json:"lastListenAt"`
 }
 
-// playSessionsSQL counts merged sessions: an event starts a new session when
-// the previous event of the same song was more than 10s earlier.
-const playSessionsSQL = `
-SELECT COUNT(*) FROM (
-  SELECT CASE WHEN LAG(listened_at_ms) OVER (PARTITION BY song_id ORDER BY listened_at_ms)
-                   IS NULL
-                   OR listened_at_ms - LAG(listened_at_ms) OVER (PARTITION BY song_id ORDER BY listened_at_ms) > 10000
+// playSessionGapMs（见 sync.go）是"一次连续播放"的唯一定义：同一
+// (平台, 歌曲, 设备) 上，上一段结束（开始+时长）后 15 秒内开始的段算同一次
+// 播放。ingest 合并、概览的"播放次数"、活跃统计的每日播放数、播放记录 Tab
+// 全部从这里取数，避免同一份数据算出三个数字。
+
+// playSessionsCTE 把某个用户的 play_events 归并成播放会话（CTE 名 play_sessions）。
+// 调用方在后面接自己的 SELECT。
+var playSessionsCTE = fmt.Sprintf(`
+WITH ordered AS (
+  SELECT id, platform, song_id, device_id, title, artist, listened_at_ms, listened_ms, duration_ms,
+         CASE WHEN LAG(listened_at_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id) IS NULL
+                OR listened_at_ms > LAG(listened_at_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id)
+                                   + LAG(listened_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id)
+                                   + %d
               THEN 1 ELSE 0 END AS is_new
-  FROM play_events WHERE user_id = ?
-) WHERE is_new = 1`
+  FROM play_events
+  WHERE user_id = ?
+),
+numbered AS (
+  SELECT *, SUM(is_new) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id) AS sess
+  FROM ordered
+),
+play_sessions AS (
+  SELECT platform, song_id, device_id, sess,
+         MIN(listened_at_ms) AS started_at,
+         MAX(listened_at_ms) AS last_at,
+         SUM(listened_ms)    AS listened_ms,
+         MAX(duration_ms)    AS duration_ms,
+         COUNT(*)            AS segments,
+         MIN(title)          AS title,
+         MIN(artist)         AS artist
+  FROM numbered
+  GROUP BY platform, song_id, device_id, sess
+)`, playSessionGapMs)
+
+// deviceNameSQL resolves a client device id to its human-readable name.
+//
+// play_events.device_id 是客户端自己生成的设备 id，sessions.id 是服务端会话
+// UUID，两者永远不会相等——旧 SQL 按 sessions.id = device_id 关联，所以
+// 「设备」列一直是空的。真正同时存了客户端设备 id 与名称的只有 downloads。
+const deviceNameSQL = `COALESCE((SELECT d.device_name FROM downloads d
+     WHERE d.user_id = %s AND d.device_id = %s AND d.device_name <> ''
+     ORDER BY d.updated_at_ms DESC LIMIT 1), '')`
+
+func deviceNameExpr(userExpr, deviceExpr string) string {
+	return fmt.Sprintf(deviceNameSQL, userExpr, deviceExpr)
+}
 
 // AdminUserActiveDay is one day of listening totals for the activity chart.
 type AdminUserActiveDay struct {
@@ -45,54 +83,59 @@ type AdminUserActiveDay struct {
 
 func (s *Store) AdminUserOverview(ctx context.Context, userID int64) (*AdminUserOverview, error) {
 	o := &AdminUserOverview{}
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM favorites WHERE user_id = ? AND deleted = 0`, userID).Scan(&o.Favorites)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM history WHERE user_id = ? AND deleted = 0`, userID).Scan(&o.History)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM playlists WHERE user_id = ? AND deleted = 0`, userID).Scan(&o.Playlists)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM playlist_songs WHERE user_id = ? AND deleted = 0`, userID).Scan(&o.PlaylistSongs)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM downloads WHERE user_id = ? AND deleted = 0`, userID).Scan(&o.Downloads)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_scripts WHERE user_id = ? AND deleted = 0`, userID).Scan(&o.Scripts)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(listened_ms),0), COALESCE(MIN(listened_at_ms),0), COALESCE(MAX(listened_at_ms),0), COUNT(DISTINCT device_id) FROM play_events WHERE user_id = ?`,
-		userID).Scan(&o.PlayEvents, &o.ListenedMs, &o.FirstListenAt, &o.LastListenAt, &o.Devices)
-	_ = s.db.QueryRowContext(ctx, playSessionsSQL, userID).Scan(&o.PlaySessions)
+	// 计数查询必须把错误带出去：以前忽略错误，DB 异常时接口回 200 + 全 0。
+	count := func(sqlStr string, args ...any) (int64, error) {
+		var n int64
+		if err := s.db.QueryRowContext(ctx, sqlStr, args...).Scan(&n); err != nil {
+			return 0, err
+		}
+		return n, nil
+	}
+	targets := []struct {
+		dst *int64
+		sql string
+	}{
+		{&o.Favorites, `SELECT COUNT(*) FROM favorites WHERE user_id = ? AND deleted = 0`},
+		{&o.History, `SELECT COUNT(*) FROM history WHERE user_id = ? AND deleted = 0`},
+		{&o.Playlists, `SELECT COUNT(*) FROM playlists WHERE user_id = ? AND deleted = 0`},
+		{&o.PlaylistSongs, `SELECT COUNT(*) FROM playlist_songs WHERE user_id = ? AND deleted = 0`},
+		{&o.Downloads, `SELECT COUNT(*) FROM downloads WHERE user_id = ? AND deleted = 0`},
+		{&o.Scripts, `SELECT COUNT(*) FROM user_scripts WHERE user_id = ? AND deleted = 0`},
+	}
+	for _, t := range targets {
+		n, err := count(t.sql, userID)
+		if err != nil {
+			return nil, err
+		}
+		*t.dst = n
+	}
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*), COALESCE(SUM(listened_ms),0), COALESCE(MIN(listened_at_ms),0),
+		       COALESCE(MAX(listened_at_ms),0), COUNT(DISTINCT device_id)
+		FROM play_events WHERE user_id = ?`, userID).Scan(
+		&o.PlayEvents, &o.ListenedMs, &o.FirstListenAt, &o.LastListenAt, &o.Devices); err != nil {
+		return nil, err
+	}
+	if err := s.db.QueryRowContext(ctx, playSessionsCTE+` SELECT COUNT(*) FROM play_sessions`, userID).Scan(&o.PlaySessions); err != nil {
+		return nil, err
+	}
 	return o, nil
 }
 
-// AdminUserActiveDays returns per-day listening totals over the last N days
-// (default 30, max 90). Days without activity are filled with zero rows.
 // AdminUserActiveDays returns per-day listening totals over the last 30 days.
-// Clients emit incremental heartbeats (~1s each), so raw event count wildly
-// over-counts plays. Consecutive events of the same song within 10s are merged
-// into one "play session" via the window function below; sessions define the
-// reported play count, while listened time is summed as-is (heartbeats don't
-// overlap, so the raw sum is already correct).
-const activeDaysSQL = `
-WITH ordered AS (
-  SELECT date(listened_at_ms / 1000, 'unixepoch', 'localtime') AS d,
-         song_id,
-         listened_at_ms,
-         listened_ms,
-         LAG(listened_at_ms) OVER (PARTITION BY song_id ORDER BY listened_at_ms) AS prev_at
-  FROM play_events
-  WHERE user_id = ? AND listened_at_ms >= (strftime('%s','now') - 30*86400) * 1000
-),
-flagged AS (
-  SELECT d, listened_ms,
-         CASE WHEN prev_at IS NULL OR listened_at_ms - prev_at > 10000 THEN 1 ELSE 0 END AS is_new
-  FROM ordered
-),
-sessions AS (
-  SELECT d, listened_ms, SUM(is_new) OVER (ORDER BY d) AS dummy
-  FROM flagged
-)
-SELECT d,
-       SUM(is_new) AS plays,
-       SUM(listened_ms) AS listened
-FROM flagged
-GROUP BY d
-ORDER BY d`
-
+//
+// 播放数按会话计（与概览、播放记录 Tab 同一口径），一次会话记在它开始的
+// 那一天；听歌时长按会话累计，两者都来自 playSessionsCTE，不再单独写一套窗口函数。
 func (s *Store) AdminUserActiveDays(ctx context.Context, userID int64) ([]AdminUserActiveDay, error) {
-	rows, err := s.db.QueryContext(ctx, activeDaysSQL, userID)
+	windowStart := nowMs() - 30*24*60*60*1000
+	rows, err := s.db.QueryContext(ctx, playSessionsCTE+`
+		SELECT date(started_at / 1000, 'unixepoch', 'localtime') AS d,
+		       COUNT(*)        AS plays,
+		       SUM(listened_ms) AS listened
+		FROM play_sessions
+		WHERE started_at >= ?
+		GROUP BY d
+		ORDER BY d`, userID, windowStart)
 	if err != nil {
 		return nil, err
 	}
@@ -367,40 +410,6 @@ type AdminPlaySession struct {
 	Segments   int64  `json:"segments"`
 }
 
-// playSessionsCTE groups play_events rows into playback sessions.
-//
-// A row starts a new session when the previous row of the same
-// (platform, song, device) ended more than 15s before it started. That window
-// matches the server-side ingest merge (playSessionGapMs), so what the admin
-// sees equals what the counters count.
-const playSessionsCTE = `
-WITH ordered AS (
-  SELECT id, platform, song_id, device_id, title, artist, listened_at_ms, listened_ms, duration_ms,
-         CASE WHEN LAG(listened_at_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id) IS NULL
-                OR listened_at_ms > LAG(listened_at_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id)
-                                   + LAG(listened_ms) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id)
-                                   + 15000
-              THEN 1 ELSE 0 END AS is_new
-  FROM play_events
-  WHERE user_id = ?
-),
-numbered AS (
-  SELECT *, SUM(is_new) OVER (PARTITION BY platform, song_id, device_id ORDER BY listened_at_ms, id) AS sess
-  FROM ordered
-),
-play_sessions AS (
-  SELECT platform, song_id, device_id, sess,
-         MIN(listened_at_ms) AS started_at,
-         MAX(listened_at_ms) AS last_at,
-         SUM(listened_ms)    AS listened_ms,
-         MAX(duration_ms)    AS duration_ms,
-         COUNT(*)            AS segments,
-         MIN(title)          AS title,
-         MIN(artist)         AS artist
-  FROM numbered
-  GROUP BY platform, song_id, device_id, sess
-)`
-
 // AdminUserPlaySessions returns merged playback sessions, newest first.
 func (s *Store) AdminUserPlaySessions(ctx context.Context, userID int64, offset, limit int) (int64, []AdminPlaySession, error) {
 	var total int64
@@ -409,10 +418,10 @@ func (s *Store) AdminUserPlaySessions(ctx context.Context, userID int64, offset,
 	}
 	rows, err := s.db.QueryContext(ctx, playSessionsCTE+`
 		SELECT platform, song_id, device_id,
-		       COALESCE((SELECT device_name FROM sessions s2 WHERE s2.id = play_sessions.device_id), ''),
+		       `+deviceNameExpr("?", "play_sessions.device_id")+`,
 		       title, artist, started_at, last_at, listened_ms, duration_ms, segments
 		FROM play_sessions
-		ORDER BY started_at DESC LIMIT ? OFFSET ?`, userID, limit, offset)
+		ORDER BY started_at DESC LIMIT ? OFFSET ?`, userID, userID, limit, offset)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -454,7 +463,7 @@ func (s *Store) AdminUserPlayEvents(ctx context.Context, userID int64, offset, l
 		return 0, nil, err
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT e.event_id, e.device_id, COALESCE((SELECT device_name FROM sessions s WHERE s.id = e.device_id), ''), e.platform, e.song_id, e.title, e.artist, e.listened_ms, e.duration_ms, e.listened_at_ms
+		`SELECT e.event_id, e.device_id, `+deviceNameExpr("e.user_id", "e.device_id")+`, e.platform, e.song_id, e.title, e.artist, e.listened_ms, e.duration_ms, e.listened_at_ms
 		 FROM play_events e WHERE e.user_id = ? ORDER BY e.listened_at_ms DESC LIMIT ? OFFSET ?`, userID, limit, offset)
 	if err != nil {
 		return 0, nil, err

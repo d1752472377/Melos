@@ -506,8 +506,15 @@ func (s *Store) ApplySync(ctx context.Context, userID int64, body map[string]any
 		}
 	}
 	var acceptedEvents int64
+	// 本次推送开始时的事件行号水位：只有这一批新建的行才允许继续合并，
+	// 否则"合并进旧行"会让其他设备永远拉不到增量（详见 applyPlayEvent）。
+	var eventFloor int64
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(id), 0) FROM play_events WHERE user_id = ?`, userID).Scan(&eventFloor); err != nil {
+		return 0, 0, err
+	}
 	for _, ev := range playEvents {
-		ok, err := applyPlayEvent(ctx, tx, userID, ev.eventID, ev.deviceID, ev.platform, ev.songID,
+		ok, err := applyPlayEvent(ctx, tx, userID, eventFloor, ev.eventID, ev.deviceID, ev.platform, ev.songID,
 			ev.title, ev.artist, ev.listenedMs, ev.durationMs, ev.listenedAt, nowMs)
 		if err != nil {
 			return 0, 0, err
@@ -541,15 +548,23 @@ const playSessionGapMs = 15_000
 // mergedEventIDsCap bounds the idempotency key list stored per session row.
 const mergedEventIDsCap = 600
 
-// applyPlayEvent stores one play event, merging it into the previous session of
-// the same (user, song, device) when playback was continuous.
+// recentPlayRows is how many previous rows of the same (song, device) are
+// inspected for the "segment already merged" idempotency check.
+const recentPlayRows = 5
+
+// applyPlayEvent stores one play event.
+//
+// batchFloor 是本次推送开始前该用户 play_events 的最大行号：只有本次推送
+// **新建**的行（id > batchFloor）才允许继续合并。
+//
+// 为什么必须限制在这一批里：pull 的游标是行号（id > eventSince），合并进旧行
+// 只改 listened_ms 不改 id，其他设备早就拉过那一行、再也不会拿到增量，管理端
+// 按设备统计也会少算。限制成"一批内合并"后，每一批推送都是新行 ⇒ 其他设备
+// 一定能在下次 pull 拿到这一段；而同一批里的多段仍然合一行，重试也靠
+// merged_ids 去重，不会重复计时。
 //
 // Returns whether the event was newly accepted (false = duplicate/ignored).
-//
-// Merging keeps the session's original start time and event id, and appends the
-// merged event ids into merged_ids so that a client retry of an already-merged
-// segment is recognised and does not double-count the listening time.
-func applyPlayEvent(ctx context.Context, tx *sql.Tx, userID int64, eventID, deviceID, platform, songID,
+func applyPlayEvent(ctx context.Context, tx *sql.Tx, userID, batchFloor int64, eventID, deviceID, platform, songID,
 	title, artist string, listenedMs, durationMs, listenedAt, nowMs int64) (bool, error) {
 
 	// 1) Exact retry of an event we already stored as its own row.
@@ -563,39 +578,61 @@ func applyPlayEvent(ctx context.Context, tx *sql.Tx, userID int64, eventID, devi
 		return false, err
 	}
 
-	// 2) Most recent session of this song on this device.
+	// 2) Recent rows of this song on this device: the newest one decides
+	// "continuous or not"; any of them may already own eventID as a merged id.
 	var (
-		rowID       int64
-		rowStart    int64
-		rowListened int64
-		rowMerged   string
+		latestID       int64
+		latestStart    int64
+		latestListened int64
+		latestMerged   string
+		haveLatest     bool
 	)
-	err = tx.QueryRowContext(ctx, `
+	rows, err := tx.QueryContext(ctx, `
 		SELECT id, listened_at_ms, listened_ms, merged_ids FROM play_events
 		WHERE user_id = ? AND platform = ? AND song_id = ? AND device_id = ?
-		ORDER BY listened_at_ms DESC, id DESC LIMIT 1`,
-		userID, platform, songID, deviceID).Scan(&rowID, &rowStart, &rowListened, &rowMerged)
-	switch {
-	case err == nil:
-		// 2a) Retry of a segment that was already merged into this row.
-		if mergedIDsContain(rowMerged, eventID) {
+		ORDER BY listened_at_ms DESC, id DESC LIMIT ?`,
+		userID, platform, songID, deviceID, recentPlayRows)
+	if err != nil {
+		return false, err
+	}
+	for rows.Next() {
+		var (
+			id, start, listened int64
+			merged              string
+		)
+		if err := rows.Scan(&id, &start, &listened, &merged); err != nil {
+			_ = rows.Close()
+			return false, err
+		}
+		if mergedIDsContain(merged, eventID) {
+			_ = rows.Close()
 			return false, nil
 		}
-		prevEnd := rowStart + rowListened
-		continuous := listenedAt >= rowStart && listenedAt <= prevEnd+playSessionGapMs
-		if continuous {
+		if !haveLatest {
+			haveLatest, latestID, latestStart, latestListened, latestMerged = true, id, start, listened, merged
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return false, err
+	}
+	_ = rows.Close()
+
+	// 3) 连续播放 + 目标行是本次推送新建的 → 合并进这一行。
+	if haveLatest && latestID > batchFloor {
+		prevEnd := latestStart + latestListened
+		if listenedAt >= latestStart && listenedAt <= prevEnd+playSessionGapMs {
 			_, err = tx.ExecContext(ctx, `
 				UPDATE play_events
 				SET listened_ms = ?, duration_ms = MAX(duration_ms, ?), updated_at_ms = ?, merged_ids = ?
 				WHERE id = ?`,
-				rowListened+listenedMs, durationMs, nowMs, mergedIDsAppend(rowMerged, eventID), rowID)
+				latestListened+listenedMs, durationMs, nowMs,
+				mergedIDsAppend(latestMerged, eventID), latestID)
 			return true, err
 		}
-	case err != sql.ErrNoRows:
-		return false, err
 	}
 
-	// 3) Not continuous (or first ever): a new play session.
+	// 4) 新的一段：独立成行，行号推进 ⇒ 其他设备下次 pull 必然拿到。
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO play_events (user_id, event_id, device_id, platform, song_id, title, artist,
 		                         listened_ms, duration_ms, listened_at_ms, updated_at_ms, merged_ids)
@@ -999,21 +1036,43 @@ type GlobalSyncEvent struct {
 }
 
 // GetGlobalSyncStats queries aggregate counts from all sync tables.
+//
+// 每个计数都必须把 SQL 错误带出去：以前用 `_ =` 忽略错误，DB 锁/缺列时
+// 接口照样回 200 + 全 0，监控页看起来像"数据被清空了"。
 func (s *Store) GetGlobalSyncStats(ctx context.Context, nowMs int64) (*GlobalSyncStats, error) {
 	st := &GlobalSyncStats{}
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&st.TotalUsers)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_state WHERE sync_seq > 0`).Scan(&st.SyncUsers)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM favorites WHERE deleted = 0`).Scan(&st.TotalFavorites)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM playlists WHERE deleted = 0`).Scan(&st.TotalPlaylists)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM playlist_songs WHERE deleted = 0`).Scan(&st.TotalPlaylistSongs)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM history WHERE deleted = 0`).Scan(&st.TotalHistory)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM downloads WHERE deleted = 0`).Scan(&st.TotalDownloads)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_scripts WHERE deleted = 0`).Scan(&st.TotalScripts)
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM play_events`).Scan(&st.TotalPlayEvents)
-
+	count := func(sqlStr string, args ...any) (int64, error) {
+		var n int64
+		if err := s.db.QueryRowContext(ctx, sqlStr, args...).Scan(&n); err != nil {
+			return 0, err
+		}
+		return n, nil
+	}
 	oneDayAgo := nowMs - 24*60*60*1000
-	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM play_events WHERE listened_at_ms >= ?`, oneDayAgo).Scan(&st.RecentPlayEvents)
 
+	targets := []struct {
+		dst *int64
+		sql string
+		arg []any
+	}{
+		{&st.TotalUsers, `SELECT COUNT(*) FROM users`, nil},
+		{&st.SyncUsers, `SELECT COUNT(*) FROM user_state WHERE sync_seq > 0`, nil},
+		{&st.TotalFavorites, `SELECT COUNT(*) FROM favorites WHERE deleted = 0`, nil},
+		{&st.TotalPlaylists, `SELECT COUNT(*) FROM playlists WHERE deleted = 0`, nil},
+		{&st.TotalPlaylistSongs, `SELECT COUNT(*) FROM playlist_songs WHERE deleted = 0`, nil},
+		{&st.TotalHistory, `SELECT COUNT(*) FROM history WHERE deleted = 0`, nil},
+		{&st.TotalDownloads, `SELECT COUNT(*) FROM downloads WHERE deleted = 0`, nil},
+		{&st.TotalScripts, `SELECT COUNT(*) FROM user_scripts WHERE deleted = 0`, nil},
+		{&st.TotalPlayEvents, `SELECT COUNT(*) FROM play_events`, nil},
+		{&st.RecentPlayEvents, `SELECT COUNT(*) FROM play_events WHERE listened_at_ms >= ?`, []any{oneDayAgo}},
+	}
+	for _, t := range targets {
+		n, err := count(t.sql, t.arg...)
+		if err != nil {
+			return nil, err
+		}
+		*t.dst = n
+	}
 	return st, nil
 }
 

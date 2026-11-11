@@ -99,7 +99,7 @@ func TestAdminDeleteMissingRows(t *testing.T) {
 	e.mustOK(rec, "seed script")
 
 	var seqBefore int64
-	if err := e.st.DB().QueryRow("SELECT sync_seq FROM user_state WHERE user_id = "+uid).Scan(&seqBefore); err != nil {
+	if err := e.st.DB().QueryRow("SELECT sync_seq FROM user_state WHERE user_id = " + uid).Scan(&seqBefore); err != nil {
 		t.Fatalf("read sync_seq: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestAdminDeleteMissingRows(t *testing.T) {
 
 	// 空操作不该推进同步游标（否则用户设备会拉到一个空增量）
 	var seqAfter int64
-	if err := e.st.DB().QueryRow("SELECT sync_seq FROM user_state WHERE user_id = "+uid).Scan(&seqAfter); err != nil {
+	if err := e.st.DB().QueryRow("SELECT sync_seq FROM user_state WHERE user_id = " + uid).Scan(&seqAfter); err != nil {
 		t.Fatalf("read sync_seq: %v", err)
 	}
 	e.want(seqAfter == seqBefore, "failed deletes leave sync_seq untouched", itoa(float64(seqBefore)), itoa(float64(seqAfter)))

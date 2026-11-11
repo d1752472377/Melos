@@ -320,7 +320,7 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
               { title: "日期", dataIndex: "day", key: "day" },
               {
                 title: (
-                  <Tooltip title="同首歌连续心跳（间隔≤10秒）合并为一次播放；客户端逐秒上报的心跳不重复计数">
+                  <Tooltip title="同一首歌、同一台设备上，间隔≤15 秒的连续上报合并为一次播放；客户端逐秒上报的心跳不重复计数">
                     播放次数 (已合并)
                   </Tooltip>
                 ),
@@ -876,7 +876,7 @@ export const UserDetailPage: React.FC<{ userId: number; open: boolean; onClose: 
             value={overview?.playSessions ?? 0}
             prefix={<PlayCircleOutlined />}
             suffix={overview && overview.playEvents > overview.playSessions ? (
-              <Tooltip title={`客户端逐秒心跳共上报 ${overview.playEvents} 条原始事件，已合并同首歌连续心跳（间隔≤10秒）为一次播放`}>
+              <Tooltip title={`客户端共上报 ${overview.playEvents} 条原始记录；同一首歌、同一台设备上间隔≤15 秒的连续记录已合并为一次播放`}>
                 <Text type="secondary" style={{ fontSize: 11 }}>({overview.playEvents} 事件)</Text>
               </Tooltip>
             ) : undefined}

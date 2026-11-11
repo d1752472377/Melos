@@ -51,6 +51,16 @@ func (s *Store) MarkEmailCodeUsed(ctx context.Context, id int64) error {
 	return err
 }
 
+// DeleteEmailCode removes one row.
+//
+// 用途：验证码是"先落库再发信"（落库才有 60 秒冷却，能挡住并发狂刷），
+// 但如果发信失败，这行必须删掉——否则用户立刻重试会命中冷却，明明没收到邮件
+// 却被要求"稍后再试"。
+func (s *Store) DeleteEmailCode(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM email_codes WHERE id = ?`, id)
+	return err
+}
+
 // GetLatestCodeSentTime returns created_at of the most recent code for the
 // email+scene pair (0 when none exist), used for the 60s resend cooldown.
 func (s *Store) GetLatestCodeSentTime(ctx context.Context, email, scene string) (int64, error) {
