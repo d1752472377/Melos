@@ -8,8 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
@@ -17,8 +17,8 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.aesthetic.music.R
 import com.aesthetic.music.player.MediaCardFavorites
+import com.aesthetic.music.player.MediaCardInfo
 import com.aesthetic.music.player.PlayerManager
-import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,6 +30,15 @@ class PlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
     private var foregroundedWithId = -1
+
+    /** 上一次真正发出去的通知内容签名；内容没变就不重复发 */
+    @Volatile
+    private var lastNotifySignature: String? = null
+
+    @Volatile
+    private var lastNotifyAt = 0L
+
+    private var pendingNotify: Runnable? = null
 
     private val cardScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var cardStateJob: Job? = null
@@ -162,6 +171,81 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
+    /**
+     * 通知刷新的唯一入口：media3 内部所有"需要更新通知"的时机都会走到这里。
+     *
+     * 小米超级岛/灵动岛对每一次通知更新都会重建视图，而切歌、缓冲、封面加载、
+     * 收藏变化会在一两秒里连续触发多次；系统还有通知入队速率上限
+     * （`Package enqueue rate ... Shedding`），超出部分直接被丢弃。
+     *
+     * 这里做两件事：内容签名没变就不发；变了但离上次不足 [NOTIFY_MIN_INTERVAL_MS]
+     * 就合并到窗口末尾只发一次。startInForegroundRequired 不能延后——那是
+     * "服务必须立刻进前台"的要求，拖了会被系统判定 startForeground 超时。
+     */
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        if (startInForegroundRequired) {
+            pendingNotify?.let { mainHandler.removeCallbacks(it) }
+            pendingNotify = null
+            lastNotifySignature = notificationSignature()
+            lastNotifyAt = SystemClock.elapsedRealtime()
+            postNotificationUpdate(session, startInForeground = true)
+            return
+        }
+
+        if (notificationSignature() == lastNotifySignature) return
+
+        val now = SystemClock.elapsedRealtime()
+        val wait = lastNotifyAt + NOTIFY_MIN_INTERVAL_MS - now
+        if (wait <= 0L) {
+            lastNotifySignature = notificationSignature()
+            lastNotifyAt = now
+            postNotificationUpdate(session, startInForeground = false)
+        } else {
+            pendingNotify?.let { mainHandler.removeCallbacks(it) }
+            val task = Runnable {
+                pendingNotify = null
+                val target = mediaSession ?: return@Runnable
+                lastNotifySignature = notificationSignature()
+                lastNotifyAt = SystemClock.elapsedRealtime()
+                postNotificationUpdate(target, startInForeground = false)
+            }
+            pendingNotify = task
+            mainHandler.postDelayed(task, wait)
+        }
+    }
+
+    private fun postNotificationUpdate(session: MediaSession, startInForeground: Boolean) {
+        try {
+            super.onUpdateNotification(session, startInForeground)
+        } catch (e: Exception) {
+            LogReporter.w("PlaybackService", "更新媒体通知失败", e)
+        }
+    }
+
+    private fun requestNotificationUpdate() {
+        val session = mediaSession ?: return
+        onUpdateNotification(session, startInForegroundRequired = false)
+    }
+
+    /** 通知里所有会变的内容；任何一项变了才值得重发 */
+    private fun notificationSignature(): String {
+        val state = PlayerManager.get(this).state.value
+        val song = state.currentSong
+        return buildString {
+            append(song?.platform).append(':').append(song?.id)
+            append('|').append(song?.title)
+            append('|').append(MediaCardInfo.artistLine(song?.artist))
+            append('|').append(song?.album)
+            append('|').append(com.aesthetic.music.data.settings.SettingsStore.getQuality().value)
+            append('|').append(com.aesthetic.music.data.source.SourceManager.lastSourceName.value)
+            append("|playing=").append(state.isPlaying)
+            append("|loading=").append(state.isLoading)
+            append("|fav=").append(MediaCardFavorites.isFavorite(song))
+            append("|art=").append(MediaCardArtwork.cached(this@PlaybackService, song?.artwork) != null)
+            append("|queue=").append(state.queue.size > 1)
+        }
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
         if (player == null || player.mediaItemCount == 0) {
@@ -230,28 +314,15 @@ class PlaybackService : MediaSessionService() {
         private var actionFactory: MediaNotification.ActionFactory? = null
 
         /**
-         * 上一次真正发出去的通知内容签名。
+         * 两次真实通知之间的最小间隔。
          *
          * 系统对同一应用有"通知入队速率"上限（约 5 条/秒），超了就丢弃并打
-         * `Package enqueue rate is ... Shedding`。切歌瞬间会连着触发
-         * 状态变化 → startForeground、封面加载完成 → refreshCard、健康检查 → refreshCard，
-         * 短时间能攒到 6 条以上，被丢掉的那几条还会让灵动岛反复重建。
-         *
-         * 这里做两层拦：内容没变直接不发（绝大多数重复调用都是这种），
-         * 内容变了也至少间隔 [NOTIFY_MIN_INTERVAL_MS] 才发。
+         * `Package enqueue rate is ... Shedding`；被丢掉的通知还会让灵动岛反复重建。
+         * 具体节流逻辑在 [onUpdateNotification]。
          */
-        @Volatile
-        private var lastPostedSignature: String? = null
-
-        @Volatile
-        private var lastPostedAt = 0L
-
         private const val NOTIFY_MIN_INTERVAL_MS = 400L
 
-        /** 节流用的延后任务令牌，重发前先按它撤掉上一个，避免堆积 */
-        private val POST_TOKEN = Any()
-
-        /** 主线程 Handler：refreshCard 的线程兜底（见那里的说明） */
+        /** 主线程 Handler：通知节流与 refreshCard 的线程兜底 */
         private val mainHandler = android.os.Handler(Looper.getMainLooper())
 
         /**
@@ -297,59 +368,19 @@ class PlaybackService : MediaSessionService() {
         const val ACTION_PREVIOUS = "com.aesthetic.music.action.PREVIOUS"
         const val ACTION_NEXT = "com.aesthetic.music.action.NEXT"
 
+        /**
+         * 请求刷新媒体卡片（收藏变化、封面加载完成、状态巡检等）。
+         *
+         * 统一走 [onUpdateNotification] 的节流与去重，不再自己单独 notify，
+         * 否则它会和 media3 内部的通知更新叠在一起，把入队速率打满。
+         */
         @JvmStatic
         fun refreshCard(context: Context) {
             if (Looper.myLooper() != Looper.getMainLooper()) {
                 mainHandler.post { refreshCard(context.applicationContext) }
                 return
             }
-            val service = instance ?: return
-            val session = service.mediaSession ?: return
-            val factory = actionFactory
-
-            // 通知内容签名：只有它变了才值得发一条新通知
-            val state = PlayerManager.get(service).state.value
-            val song = state.currentSong
-            val signature = buildString {
-                append(song?.platform).append(':').append(song?.id)
-                append('|').append(song?.title)
-                append('|').append(song?.artist)
-                append("|playing=").append(state.isPlaying)
-                append("|loading=").append(state.isLoading)
-                append("|fav=").append(MediaCardFavorites.isFavorite(song))
-                append("|art=").append(MediaCardArtwork.cached(service, song?.artwork) != null)
-            }
-            if (signature == lastPostedSignature) return
-            val now = android.os.SystemClock.elapsedRealtime()
-            if (now - lastPostedAt < NOTIFY_MIN_INTERVAL_MS) {
-                // 太密了：把这次延后到窗口末尾再发，避免和下一次抖动叠在一起
-                mainHandler.removeCallbacksAndMessages(POST_TOKEN)
-                mainHandler.postAtTime(
-                    Runnable { runCatching { refreshCard(service.applicationContext) } },
-                    POST_TOKEN,
-                    lastPostedAt + NOTIFY_MIN_INTERVAL_MS,
-                )
-                return
-            }
-
-            runCatching {
-                val notification = if (factory != null) {
-                    MelosMediaNotificationProvider(service).createNotification(
-                        session,
-                        ImmutableList.of(),
-                        factory,
-                        MediaNotification.Provider.Callback { },
-                    ).notification
-                } else {
-                    service.buildForegroundNotification()
-                }
-                val manager = NotificationManagerCompat.from(service)
-                if (manager.areNotificationsEnabled()) {
-                    manager.notify(NOTIFICATION_ID, notification)
-                }
-                lastPostedSignature = signature
-                lastPostedAt = now
-            }.onFailure { LogReporter.w("PlaybackService", "刷新媒体卡片失败", it) }
+            instance?.requestNotificationUpdate()
         }
     }
 
