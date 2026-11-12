@@ -207,6 +207,8 @@ fun SongAudioDetailSheet(
                         val id = song?.id
                         if (!id.isNullOrBlank()) {
                             clipboardManager.setText(AnnotatedString(id))
+                            // 这是 ModalBottomSheet（独立窗口），应用内的顶部提示会被它盖住，
+                            // 所以这一处仍用系统 Toast，保证用户能看到复制成功。
                             Toast.makeText(context, "歌曲 ID 已复制到剪贴板", Toast.LENGTH_SHORT).show()
                         }
                     }
