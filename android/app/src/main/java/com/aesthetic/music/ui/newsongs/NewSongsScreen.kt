@@ -14,11 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +49,8 @@ import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
 import com.aesthetic.music.ui.theme.AppColors
 import com.aesthetic.music.ui.theme.AppSpacing
+import com.aesthetic.music.ui.theme.Palette
+import com.aesthetic.music.ui.theme.PrimaryBrown
 
 /**
  * 新歌首发：按地区看最近上架的歌曲，点一首直接播放。
@@ -183,26 +186,37 @@ private fun RegionChips(
     selected: NewSongRegions.Region,
     onSelect: (NewSongRegions.Region) -> Unit,
 ) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = AppSpacing.page),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+    // 和搜索页的类型切换保持同一套样式：纯文字 + 选中下划线，不用灰底胶囊
+    val activeColor = if (Palette.isDark) AppColors.sky else PrimaryBrown
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.page),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.section),
     ) {
-        items(regions, key = { it.id }) { item ->
+        regions.forEach { item ->
             val active = item.id == selected.id
-            Text(
-                text = item.label,
-                color = if (active) textHigh() else textMedium(),
-                fontSize = 13.sp,
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(9999.dp))
-                    .background(
-                        if (active) textHigh().copy(alpha = 0.08f)
-                        else textHigh().copy(alpha = 0.03f)
-                    )
-                    .clickable { onSelect(item) }
-                    .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.sm),
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = item.label,
+                    color = if (active) activeColor else textLow(),
+                    fontSize = 14.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clickable { onSelect(item) }
+                        .padding(vertical = AppSpacing.xxs),
+                )
+                Spacer(Modifier.height(AppSpacing.xxs))
+                Box(
+                    modifier = Modifier
+                        .width(18.dp)
+                        .height(2.5.dp)
+                        .background(
+                            color = if (active) activeColor else Color.Transparent,
+                            shape = RoundedCornerShape(1.5.dp),
+                        ),
+                )
+            }
         }
     }
 }

@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,18 +28,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.aesthetic.music.data.api.PlaylistItem
 import com.aesthetic.music.data.model.Song
+import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.ui.components.textHigh
 import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.theme.AppColors
 import com.aesthetic.music.ui.theme.AppSpacing
 
-/** 首页区块的标题行：左边标题，右边小箭头（点击进入对应页面） */
+/**
+ * 首页区块的标题行：左边标题，右边小箭头（点击进入对应页面）。
+ * 外层卡片负责水平内边距，这里不再重复加。
+ */
 @Composable
 private fun SectionHeader(
     title: String,
@@ -48,23 +52,21 @@ private fun SectionHeader(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = AppSpacing.xxl),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = title,
             color = textHigh(),
-            fontSize = 20.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.3).sp,
+            lineHeight = 20.sp,
             modifier = Modifier.weight(1f),
         )
         if (onOpenMore != null) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(28.dp)
                     .clip(CircleShape)
                     .clickable(onClick = onOpenMore),
                 contentAlignment = Alignment.Center,
@@ -80,6 +82,22 @@ private fun SectionHeader(
     }
 }
 
+/** 首页卡片容器：和「新歌首发」用同一套玻璃卡样式 */
+@Composable
+private fun HomeSectionCard(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.xxl)
+            .glassCard(shape = RoundedCornerShape(20.dp))
+            .padding(AppSpacing.xl),
+        content = content,
+    )
+}
+
 /**
  * 猜你喜欢：一行歌曲，点击单曲直接播放，右上角箭头进推荐页。
  */
@@ -91,30 +109,27 @@ fun GuessLikeSection(
     modifier: Modifier = Modifier,
 ) {
     if (songs.isEmpty()) return
-    Column(modifier = modifier.fillMaxWidth()) {
+    HomeSectionCard(modifier = modifier) {
         SectionHeader(title = "猜你喜欢", onOpenMore = onOpenMore)
         Spacer(Modifier.size(AppSpacing.lg))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = AppSpacing.xxl),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg),
-        ) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
             items(songs.take(10), key = { "${it.platform}:${it.id}" }) { song ->
                 Column(
                     modifier = Modifier
-                        .width(112.dp)
+                        .width(104.dp)
                         .clickable { onPlaySong(song, songs) },
                 ) {
                     Box {
                         CoverBox(
                             url = song.artwork,
-                            size = 112.dp,
-                            modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+                            size = 104.dp,
+                            modifier = Modifier.clip(RoundedCornerShape(12.dp)),
                         )
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(AppSpacing.sm)
-                                .size(28.dp)
+                                .padding(AppSpacing.xs)
+                                .size(26.dp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.92f)),
                             contentAlignment = Alignment.Center,
@@ -123,7 +138,7 @@ fun GuessLikeSection(
                                 imageVector = Icons.Filled.PlayArrow,
                                 contentDescription = null,
                                 tint = AppColors.ink,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(17.dp),
                             )
                         }
                     }
@@ -131,7 +146,7 @@ fun GuessLikeSection(
                     Text(
                         text = song.title,
                         color = textHigh(),
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -161,23 +176,20 @@ fun RandomPlaylistSection(
     modifier: Modifier = Modifier,
 ) {
     if (playlists.isEmpty()) return
-    Column(modifier = modifier.fillMaxWidth()) {
+    HomeSectionCard(modifier = modifier) {
         SectionHeader(title = "随机歌单", onOpenMore = onOpenMore)
         Spacer(Modifier.size(AppSpacing.lg))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = AppSpacing.xxl),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg),
-        ) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
             items(playlists.take(10), key = { "${it.platform}:${it.id}" }) { playlist ->
                 Column(
                     modifier = Modifier
-                        .width(132.dp)
+                        .width(120.dp)
                         .clickable { onOpenPlaylist(playlist) },
                 ) {
                     CoverBox(
                         url = playlist.coverUrl,
-                        size = 132.dp,
-                        modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+                        size = 120.dp,
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp)),
                     )
                     Spacer(Modifier.size(AppSpacing.sm))
                     Text(
@@ -196,7 +208,7 @@ fun RandomPlaylistSection(
 }
 
 @Composable
-private fun CoverBox(url: String?, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+private fun CoverBox(url: String?, size: Dp, modifier: Modifier = Modifier) {
     AsyncImage(
         model = url,
         contentDescription = null,
