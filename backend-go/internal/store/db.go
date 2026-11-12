@@ -198,6 +198,23 @@ var schema = []string{
 	`CREATE INDEX IF NOT EXISTS idx_client_logs_level  ON client_logs(level, created_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_client_logs_user   ON client_logs(user_id, created_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_client_logs_fp     ON client_logs(tag, message)`,
+	// 用户问题反馈：客户端提交，管理端查看与回复
+	`CREATE TABLE IF NOT EXISTS feedback (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL,
+      type        TEXT NOT NULL DEFAULT '',
+      content     TEXT NOT NULL DEFAULT '',
+      images_json TEXT NOT NULL DEFAULT '[]',
+      with_logs   INTEGER NOT NULL DEFAULT 0,
+      app_version TEXT NOT NULL DEFAULT '',
+      device      TEXT NOT NULL DEFAULT '',
+      status      TEXT NOT NULL DEFAULT 'pending',
+      reply       TEXT NOT NULL DEFAULT '',
+      created_at  INTEGER NOT NULL DEFAULT 0,
+      updated_at  INTEGER NOT NULL DEFAULT 0
+    )`,
+	`CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, id DESC)`,
 }
 
 // Open initialises the database, creating parent directories and applying the

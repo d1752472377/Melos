@@ -31,19 +31,21 @@ const (
 
 // Server bundles the dependencies shared by all handlers.
 type Server struct {
-	cfg     *config.Config
-	store   *store.Store
-	mail    *mail.Client
-	lockout *security.LoginLockout
+	cfg      *config.Config
+	store    *store.Store
+	mail     *mail.Client
+	lockout  *security.LoginLockout
+	captchas *captchaStore
 }
 
 // NewServer builds a Server.
 func NewServer(cfg *config.Config, st *store.Store) *Server {
 	return &Server{
-		cfg:     cfg,
-		store:   st,
-		mail:    mail.New(cfg),
-		lockout: security.NewLoginLockout(),
+		cfg:      cfg,
+		store:    st,
+		mail:     mail.New(cfg),
+		lockout:  security.NewLoginLockout(),
+		captchas: newCaptchaStore(),
 	}
 }
 
@@ -104,6 +106,7 @@ func (s *Server) Router() *gin.Engine {
 	s.registerSync(r)
 	s.registerAdmin(r)
 	s.registerLogs(r)
+	s.registerFeedback(r)
 	s.registerVersionPublic(r)
 
 	r.NoRoute(func(c *gin.Context) {
