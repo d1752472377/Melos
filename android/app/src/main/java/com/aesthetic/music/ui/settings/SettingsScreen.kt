@@ -29,9 +29,9 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -68,7 +68,7 @@ private val ThemeMode.label: String
     }
 
 enum class SettingsPage {
-    APPEARANCE, QUALITY, PLAYBACK, LYRICS, DOWNLOAD, CACHE
+    APPEARANCE, QUALITY, PLAYBACK, LYRICS, DOWNLOAD, CACHE, EQUALIZER
 }
 
 @Composable
@@ -164,6 +164,13 @@ fun SettingsScreen(
                     if (userPrefs.downloadWifiOnly) append(" · 仅 WiFi")
                 },
                 onClick = { onOpenPage(SettingsPage.DOWNLOAD) }
+            )
+            SettingRow(
+                icon = Icons.Filled.Tune,
+                iconTint = PrimaryBrown,
+                label = "专业调音台",
+                subtitle = "10 段均衡器 · 频响预设",
+                onClick = { onOpenPage(SettingsPage.EQUALIZER) }
             )
             SettingRow(
                 icon = Icons.Filled.Storage,

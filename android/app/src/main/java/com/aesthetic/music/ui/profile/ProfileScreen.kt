@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -165,7 +166,7 @@ fun ProfileScreen(
     onOpenHistory: () -> Unit,
     onOpenListeningStats: () -> Unit,
     onOpenCloudManage: () -> Unit = {},
-    onOpenEqualizer: () -> Unit = {},
+    onOpenFeedback: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenPluginManage: () -> Unit,
     onPickAvatar: (Uri) -> String?,
@@ -260,53 +261,39 @@ fun ProfileScreen(
             }
 
             item(key = "music_entry_section") {
-                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
-                    MusicStatsCard(
-                        favoritesCount = favoritesCount,
-                        playlistsCount = playlistsCount,
-                        historyCount = historyCount,
-                        cacheCount = cacheCount,
-                        onOpenFavorites = onOpenFavorites,
-                        onOpenMyPlaylists = onOpenMyPlaylists,
-                        onOpenHistory = onOpenHistory,
-                        onOpenDownloads = onOpenDownloads,
-                    )
+                MusicStatsCard(
+                    favoritesCount = favoritesCount,
+                    playlistsCount = playlistsCount,
+                    historyCount = historyCount,
+                    cacheCount = cacheCount,
+                    onOpenFavorites = onOpenFavorites,
+                    onOpenMyPlaylists = onOpenMyPlaylists,
+                    onOpenHistory = onOpenHistory,
+                    onOpenDownloads = onOpenDownloads,
+                )
+            }
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
-                            .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
-                            .padding(vertical = 2.dp),
-                    ) {
-                        Column {
-                            ProfileFeatureRow(
-                                icon = Icons.Filled.GraphicEq,
-                                iconTint = AccentCyan,
-                                title = "听歌统计",
-                                subtitle = "时间脉络 · 数据回顾 · 喜好洞察",
-                                onClick = onOpenListeningStats,
-                            )
-                            ProfileRowDivider()
-                            ProfileFeatureRow(
-                                icon = Icons.Filled.Tune,
-                                iconTint = AppColors.sky,
-                                title = "专业调音台",
-                                subtitle = "大师级频响预设 · 动态平滑曲线",
-                                badge = "10段EQ",
-                                badgeTint = AppColors.skyDeep,
-                                onClick = onOpenEqualizer,
-                            )
-                            ProfileRowDivider()
-                            ProfileFeatureRow(
-                                icon = Icons.Filled.CloudSync,
-                                iconTint = AppColors.purple,
-                                title = "账号与云端同步",
-                                subtitle = "登录设备 · 云歌单 · 手动同步",
-                                onClick = onOpenCloudManage,
-                            )
-                        }
-                    }
+            item(key = "service_cards") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg),
+                ) {
+                    ProfileHalfCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Filled.GraphicEq,
+                        iconTint = AccentCyan,
+                        title = "统计",
+                        subtitle = "使用数据一览",
+                        onClick = onOpenListeningStats,
+                    )
+                    ProfileHalfCard(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Filled.CloudSync,
+                        iconTint = AppColors.purple,
+                        title = "云端",
+                        subtitle = "同步与备份",
+                        onClick = onOpenCloudManage,
+                    )
                 }
             }
 
@@ -334,6 +321,13 @@ fun ProfileScreen(
                             onClick = onOpenPluginManage,
                         )
                         ProfileMenuItem(
+                            icon = Icons.Filled.Feedback,
+                            iconTint = AppColors.sky,
+                            title = "提交反馈",
+                            subtitle = "问题与建议",
+                            onClick = onOpenFeedback,
+                        )
+                        ProfileMenuItem(
                             icon = Icons.Filled.SystemUpdate,
                             iconTint = AccentCoral,
                             title = "检查更新",
@@ -342,6 +336,25 @@ fun ProfileScreen(
                             onClick = onCheckUpdate,
                         )
                     }
+                }
+            }
+
+            item(key = "logout_button") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(9999.dp))
+                        .border(1.dp, AppColors.crimson.copy(alpha = 0.45f), RoundedCornerShape(9999.dp))
+                        .clickable { showLogoutConfirm = true }
+                        .padding(vertical = AppSpacing.lg),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "退出登录",
+                        color = AppColors.crimson,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
                 }
             }
         }
@@ -969,4 +982,50 @@ private fun ProfileRowDivider() {
             .height(1.dp)
             .background(Stone200.copy(alpha = 0.5f)),
     )
+}
+/** 个人页「统计 / 云端」这种半宽功能卡 */
+@Composable
+private fun ProfileHalfCard(
+    icon: ImageVector,
+    iconTint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
+            .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(AppSpacing.xl),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(iconTint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Spacer(Modifier.height(AppSpacing.lg))
+        Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = subtitle,
+            color = TextSoft,
+            fontSize = 11.sp,
+        )
+    }
 }

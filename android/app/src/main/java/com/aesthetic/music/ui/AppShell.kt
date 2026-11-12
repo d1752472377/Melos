@@ -463,6 +463,14 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     )
                 }
 
+                composable(ScreenRoute.Feedback.route) {
+                    com.aesthetic.music.ui.feedback.FeedbackScreen(
+                        controller = viewModel.feedback,
+                        onBack = nav.popBack,
+                        onToast = { msg -> actions.toast(msg) },
+                    )
+                }
+
                 composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel.rank, viewModel.playlistDetail, nav) }
 
                 composable(ScreenRoute.GuessYouLike.route) {

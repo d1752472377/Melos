@@ -375,6 +375,38 @@ data class SyncPushResult(
     val serverTime: Long = 0L,
 )
 
+// ---------------- 问题反馈 ----------------
+
+data class FeedbackCaptchaDto(
+    val id: String = "",
+    /** base64(PNG)；客户端自己解码成 Bitmap 显示 */
+    val image: String = "",
+)
+
+data class FeedbackItemDto(
+    val id: Long = 0,
+    val type: String = "",
+    val content: String = "",
+    val status: String = "pending",
+    val reply: String = "",
+    @SerializedName("createdAt") val createdAt: Long = 0,
+)
+
+data class FeedbackSubmitBody(
+    val type: String,
+    val content: String,
+    val images: List<String> = emptyList(),
+    val withLogs: Boolean = false,
+    val appVersion: String = "",
+    val device: String = "",
+    val captchaId: String,
+    val captcha: String,
+)
+
+data class FeedbackCreatedDto(
+    val id: Long = 0,
+)
+
 data class AppVersionDto(
     val id: Long = 0L,
     @SerializedName("version_code", alternate = ["versionCode"])
@@ -456,6 +488,15 @@ interface MusicApi {
 
     @POST("api/logs/batch")
     suspend fun logsBatch(@Body body: LogBatchPayload): ApiResponse<LogBatchResult>
+
+    @GET("api/feedback/captcha")
+    suspend fun feedbackCaptcha(): ApiResponse<FeedbackCaptchaDto>
+
+    @POST("api/feedback")
+    suspend fun submitFeedback(@Body body: FeedbackSubmitBody): ApiResponse<FeedbackCreatedDto>
+
+    @GET("api/feedback/mine")
+    suspend fun myFeedback(): ApiResponse<List<FeedbackItemDto>>
 }
 
 data class LogBatchItem(

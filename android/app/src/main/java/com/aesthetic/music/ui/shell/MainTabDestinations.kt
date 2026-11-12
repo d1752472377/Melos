@@ -198,7 +198,7 @@ fun ProfileTabDestination(
         },
         onOpenListeningStats = { nav.navigate(ScreenRoute.ListeningStats.route) },
         onOpenCloudManage = { nav.navigate(ScreenRoute.CloudManage.route) },
-        onOpenEqualizer = { nav.navigate(ScreenRoute.Equalizer.route) },
+        onOpenFeedback = { nav.navigate(ScreenRoute.Feedback.route) },
         onOpenSettings = { nav.navigate(ScreenRoute.Settings.route) },
         onOpenPluginManage = { nav.navigate(ScreenRoute.PluginManage.route) },
         onPickAvatar = { uri -> auth.saveAvatarFromUri(context, uri) },

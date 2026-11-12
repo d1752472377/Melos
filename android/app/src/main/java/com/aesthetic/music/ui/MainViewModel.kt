@@ -82,6 +82,7 @@ class MainViewModel : ViewModel() {
 
     val sheet = SheetController(repository, viewModelScope)
     val newSongs = com.aesthetic.music.ui.newsongs.NewSongsController(repository, viewModelScope)
+    val feedback = com.aesthetic.music.ui.feedback.FeedbackController(viewModelScope)
     val artistPage = ArtistController(repository, viewModelScope)
     val search = SearchController(repository, viewModelScope)
     val playlistDetail = PlaylistDetailController(repository, viewModelScope)

@@ -49,6 +49,7 @@ fun SettingsDestination(
                     SettingsPage.LYRICS -> ScreenRoute.SettingsLyrics
                     SettingsPage.DOWNLOAD -> ScreenRoute.SettingsDownload
                     SettingsPage.CACHE -> ScreenRoute.SettingsCache
+                    SettingsPage.EQUALIZER -> ScreenRoute.Equalizer
                 }.route
             )
         },

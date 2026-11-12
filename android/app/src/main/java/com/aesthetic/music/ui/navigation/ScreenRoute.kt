@@ -12,6 +12,7 @@ sealed class ScreenRoute(val route: String) {
     data object Ranks : ScreenRoute("ranks")
     data object GuessYouLike : ScreenRoute("guess_you_like")
     data object NewSongs : ScreenRoute("new_songs")
+    data object Feedback : ScreenRoute("feedback")
     data object SheetSquare : ScreenRoute("sheet_square")
     data object PlaylistDetail : ScreenRoute("playlist_detail")
     data object AlbumDetail : ScreenRoute("album_detail")
