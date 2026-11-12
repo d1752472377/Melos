@@ -48,8 +48,10 @@ class MelosSessionPlayer(
 
     override fun seekToPrevious() = switchToPrevious()
 
+    @Suppress("OVERRIDE_DEPRECATION") // media3 的窗口级切歌接口已标记弃用，但兼容层仍要转发
     override fun seekToNextWindow() = switchToNext()
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun seekToPreviousWindow() = switchToPrevious()
 
     private fun switchToNext() {

@@ -48,6 +48,7 @@ class IosOverscrollEffect(
 
     private val layoutNode = OverscrollLayoutNode(this)
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override val effectModifier: Modifier = OverscrollNodeElement(layoutNode)
 
     override val isInProgress: Boolean

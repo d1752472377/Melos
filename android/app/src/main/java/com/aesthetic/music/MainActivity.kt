@@ -88,11 +88,11 @@ class MainActivity : ComponentActivity() {
             jankStats = JankStats.createAndTrack(
                 window,
                 object : JankStats.OnFrameListener {
-                    override fun onFrame(frameData: FrameData) {
-                        if (frameData.isJank) {
+                    override fun onFrame(volatileFrameData: FrameData) {
+                        if (volatileFrameData.isJank) {
                             Log.w(
                                 "JankStats",
-                                "janky frame ${frameData.frameDurationUiNanos / 1_000_000f}ms states=${frameData.states}",
+                                "janky frame ${volatileFrameData.frameDurationUiNanos / 1_000_000f}ms states=${volatileFrameData.states}",
                             )
                         }
                     }

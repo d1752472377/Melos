@@ -33,7 +33,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -373,7 +373,7 @@ fun PlaylistScreen(
                 id = "CUSTOM",
                 title = "自建",
                 subtitle = "$custom 个歌单",
-                icon = Icons.Filled.PlaylistAdd
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd
             ),
             SelectionItem(
                 id = "FAVORITE",

@@ -204,6 +204,9 @@ object LogContext {
         }
     }
 
+    // EVDO/CDMA/1xRTT 这些常量在 API 30 被标记弃用，但 getDataNetworkType() 仍会返回它们，
+    // 作为诊断信息保留映射不会影响新设备。
+    @Suppress("DEPRECATION")
     private fun cellTypeName(type: Int): String = when (type) {
         TelephonyManager.NETWORK_TYPE_NR -> "5G"
         TelephonyManager.NETWORK_TYPE_LTE -> "4G"

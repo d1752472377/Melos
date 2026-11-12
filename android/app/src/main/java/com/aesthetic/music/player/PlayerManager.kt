@@ -554,12 +554,14 @@ class PlayerManager private constructor(private val appContext: Context) {
                     fadeIn()
                     val s = _state.value
                     val song = s.currentSong
-                    val key = song?.let { it.platform + ":" + it.id }
-                    if (key != null && key != statsSongKey) {
-                        statsSongKey = key
-                        com.aesthetic.music.service.StatsTracker.pauseSegment()
-                        StatsTracker.onPlayStarted(song)
-                        if (song != null) onPlaybackStarted?.invoke(song)
+                    if (song != null) {
+                        val key = song.platform + ":" + song.id
+                        if (key != statsSongKey) {
+                            statsSongKey = key
+                            com.aesthetic.music.service.StatsTracker.pauseSegment()
+                            StatsTracker.onPlayStarted(song)
+                            onPlaybackStarted?.invoke(song)
+                        }
                     }
                     preloadNextIfEnabled()
                 } else {

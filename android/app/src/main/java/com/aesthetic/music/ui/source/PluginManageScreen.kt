@@ -37,11 +37,11 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
@@ -323,7 +323,7 @@ fun PluginManageScreen(
                     color = TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
             }
             Box(Modifier.width(1.dp).height(18.dp).background(Stone200))
             Row(
@@ -341,7 +341,7 @@ fun PluginManageScreen(
                     color = TextPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
             }
         }
 
@@ -359,7 +359,7 @@ fun PluginManageScreen(
             )
             Box {
                 IconButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Sort, contentDescription = "排序", tint = TextSoft, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "排序", tint = TextSoft, modifier = Modifier.size(18.dp))
                 }
                 AppDropdownMenu(
                     expanded = sortMenuExpanded,
@@ -722,7 +722,7 @@ fun PluginManageScreen(
                     Spacer(Modifier.height(AppSpacing.md))
                     val progress = if (state.total > 0) (state.done.toFloat() / state.total).coerceIn(0f, 1f) else 0f
                     LinearProgressIndicator(
-                        progress = progress,
+                        progress = { progress },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
@@ -1229,7 +1229,7 @@ private fun SettingRow(
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
         Text(value, fontSize = 12.sp, color = TextSoft)
         Spacer(Modifier.width(AppSpacing.xxs))
-        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -1289,7 +1289,7 @@ private fun DetectChoiceRow(
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
             Text(subtitle, fontSize = 10.5.sp, color = TextSoft)
         }
-        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
     }
 }
 

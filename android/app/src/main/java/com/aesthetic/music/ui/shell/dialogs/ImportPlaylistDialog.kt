@@ -59,6 +59,7 @@ import com.aesthetic.music.ui.theme.TextPrimary
 import com.aesthetic.music.ui.theme.TextSoft
 import com.aesthetic.music.ui.theme.AppSpacing
 
+@Suppress("DEPRECATION") // 同上：粘贴链接用的旧剪贴板 API
 @Composable
 fun ImportPlaylistDialog(
     state: PlaylistResolveState,

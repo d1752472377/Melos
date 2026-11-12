@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -97,7 +97,7 @@ fun NewSongRegionSection(
             if (onOpenMore != null) {
                 Spacer(Modifier.weight(1f))
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     contentDescription = "全部新歌",
                     tint = textLow(),
                     modifier = Modifier

@@ -75,6 +75,7 @@ import com.aesthetic.music.ui.theme.TextSoft
 import kotlinx.coroutines.delay
 import com.aesthetic.music.ui.theme.AppSpacing
 
+@Suppress("DEPRECATION") // 复制文案用的 LocalClipboardManager 尚未迁移到 suspend 版 LocalClipboard
 @Composable
 fun ProfileEditScreen(
     initialNickname: String,

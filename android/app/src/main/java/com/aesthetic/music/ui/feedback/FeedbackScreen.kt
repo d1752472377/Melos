@@ -35,7 +35,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -180,7 +180,7 @@ fun FeedbackScreen(
                     )
 
                     FeedbackCard(
-                        icon = Icons.Filled.List,
+                        icon = Icons.AutoMirrored.Filled.List,
                         title = "问题类型",
                         hint = "选择最接近的一项",
                     ) {

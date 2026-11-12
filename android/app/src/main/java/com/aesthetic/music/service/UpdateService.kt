@@ -333,6 +333,8 @@ object UpdateService {
         }
         throw lastError ?: Exception("下载失败，请检查网络后重试")
     }
+    // API 28 以下没有 signingInfo，只能用已弃用的 signatures 字段；新系统走上面的分支
+    @Suppress("DEPRECATION")
     private fun verifyApkSignature(context: Context, filePath: String): Boolean {
         return try {
             val pm = context.packageManager
