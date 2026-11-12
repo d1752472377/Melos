@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aesthetic.music.player.LyricLine
 import com.aesthetic.music.player.karaokeSweepFraction
+import com.aesthetic.music.ui.theme.MiSans
 import com.aesthetic.music.ui.theme.AmberLight
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -466,7 +467,7 @@ private fun KaraokeSweepLine(
     var fullWidthPx by remember(line.text, fontSizeSp) { mutableIntStateOf(0) }
     val density = LocalDensity.current
 
-    val style = TextStyle(
+    val style = TextStyle(fontFamily = MiSans, 
         fontSize = fontSizeSp.sp,
         fontWeight = FontWeight.Bold,
         lineHeight = (fontSizeSp * 1.38f).sp,

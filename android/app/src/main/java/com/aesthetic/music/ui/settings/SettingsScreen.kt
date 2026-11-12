@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -201,6 +202,13 @@ fun SettingsScreen(
                 iconTint = PrimaryBrown,
                 label = "当前版本",
                 subtitle = com.aesthetic.music.BuildConfig.VERSION_NAME,
+                onClick = {}
+            )
+            SettingRow(
+                icon = Icons.Filled.TextFields,
+                iconTint = PrimaryBrown,
+                label = "字体",
+                subtitle = "MiSans（由小米提供并授权使用）",
                 onClick = {}
             )
         }

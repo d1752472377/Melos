@@ -48,6 +48,7 @@ import com.aesthetic.music.data.api.PlaylistLinkParser
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.library.PlaylistResolveState
+import com.aesthetic.music.ui.theme.MiSans
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -231,7 +232,7 @@ private fun InputArea(
         onValueChange = onValueChange,
         singleLine = singleLine,
         maxLines = if (singleLine) 1 else 5,
-        textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
+        textStyle = TextStyle(fontFamily = MiSans, fontSize = 14.sp, color = TextPrimary),
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))

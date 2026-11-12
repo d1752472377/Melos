@@ -51,6 +51,7 @@ import com.aesthetic.music.data.settings.MyPlaylist
 import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppDialog
 import com.aesthetic.music.ui.components.SongCover
+import com.aesthetic.music.ui.theme.MiSans
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Rose
@@ -315,7 +316,7 @@ fun AddToPlaylistSheet(
                             if (alreadyIn) {
                                 Text(
                                     text = "已包含",
-                                    style = TextStyle(fontSize = 11.sp, color = TextMuted),
+                                    style = TextStyle(fontFamily = MiSans, fontSize = 11.sp, color = TextMuted),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Stone100)
@@ -358,7 +359,7 @@ fun AddToPlaylistSheet(
                 value = newPlaylistName,
                 onValueChange = { if (it.length <= 30) newPlaylistName = it },
                 singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
+                textStyle = TextStyle(fontFamily = MiSans, fontSize = 15.sp, color = TextPrimary),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))

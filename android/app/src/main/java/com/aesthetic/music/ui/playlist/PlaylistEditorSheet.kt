@@ -53,6 +53,7 @@ import com.aesthetic.music.ui.components.AppBottomSheet
 import com.aesthetic.music.ui.components.AppSolidButton
 import com.aesthetic.music.ui.components.PlaylistCoverImage
 import com.aesthetic.music.ui.library.PlaylistResolveState
+import com.aesthetic.music.ui.theme.MiSans
 import com.aesthetic.music.ui.theme.AccentCoral
 import com.aesthetic.music.ui.theme.CardBorder
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -429,7 +430,7 @@ private fun InputBox(
         onValueChange = onValueChange,
         singleLine = singleLine,
         maxLines = maxLines,
-        textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
+        textStyle = TextStyle(fontFamily = MiSans, fontSize = 14.sp, color = TextPrimary),
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))

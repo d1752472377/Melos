@@ -74,6 +74,7 @@ import com.aesthetic.music.ui.components.textHigh
 import com.aesthetic.music.ui.components.textLow
 import com.aesthetic.music.ui.components.textMedium
 import com.aesthetic.music.ui.home.HomeAmbientGlowBackground
+import com.aesthetic.music.ui.theme.MiSans
 import com.aesthetic.music.ui.theme.AppColors
 import com.aesthetic.music.ui.theme.AppSpacing
 import com.aesthetic.music.ui.theme.CardBorder
@@ -322,7 +323,7 @@ fun FeedbackScreen(
                                     value = captchaInput,
                                     onValueChange = { captchaInput = it.filter(Char::isLetterOrDigit).take(5) },
                                     singleLine = true,
-                                    textStyle = TextStyle(
+                                    textStyle = TextStyle(fontFamily = MiSans, 
                                         color = textHigh(),
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Medium,
@@ -554,7 +555,7 @@ private fun DescriptionField(value: String, onValueChange: (String) -> Unit) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            textStyle = TextStyle(
+            textStyle = TextStyle(fontFamily = MiSans, 
                 color = textHigh(),
                 fontSize = 13.sp,
                 lineHeight = 19.sp,

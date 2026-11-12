@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aesthetic.music.ui.components.BottomContentSpacer
+import com.aesthetic.music.ui.theme.MiSans
 import com.aesthetic.music.ui.theme.AccentMint
 import com.aesthetic.music.ui.theme.Background
 import com.aesthetic.music.ui.theme.PrimaryBrown
@@ -442,7 +443,7 @@ private fun UnderlineInput(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text
                 ),
-                textStyle = TextStyle(
+                textStyle = TextStyle(fontFamily = MiSans, 
                     fontSize = 16.sp,
                     color = TextPrimary,
                 ),
@@ -452,7 +453,7 @@ private fun UnderlineInput(
                     if (value.isEmpty() && placeholder.isNotBlank()) {
                         Text(
                             text = placeholder,
-                            style = TextStyle(fontSize = 15.sp, color = TextMuted.copy(alpha = 0.6f)),
+                            style = TextStyle(fontFamily = MiSans, fontSize = 15.sp, color = TextMuted.copy(alpha = 0.6f)),
                         )
                     }
                     innerTextField()

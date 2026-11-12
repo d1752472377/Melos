@@ -87,6 +87,7 @@ import com.aesthetic.music.ui.components.SongCover
 import com.aesthetic.music.ui.components.formatPlayCountText
 import com.aesthetic.music.ui.components.rememberDominantColors
 import com.aesthetic.music.ui.components.BottomContentSpacer
+import com.aesthetic.music.ui.theme.MiSans
 import com.aesthetic.music.ui.theme.PrimaryBrown
 import com.aesthetic.music.ui.theme.Rose
 import com.aesthetic.music.ui.theme.Stone100
@@ -341,7 +342,7 @@ fun PlaylistDetailScreen(
                         ) {
                             Text(
                                 text = playlist.name.ifBlank { "精选歌单" },
-                                style = TextStyle(
+                                style = TextStyle(fontFamily = MiSans, 
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -364,7 +365,7 @@ fun PlaylistDetailScreen(
                                 ) {
                                     Text(
                                         text = playlist.platform.orEmpty().uppercase(),
-                                        style = TextStyle(
+                                        style = TextStyle(fontFamily = MiSans, 
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White.copy(0.9f)
@@ -380,7 +381,7 @@ fun PlaylistDetailScreen(
                             ) {
                                 Text(
                                     text = "${playlist.trackCount ?: songs.size} 首歌曲",
-                                    style = TextStyle(
+                                    style = TextStyle(fontFamily = MiSans, 
                                         fontSize = 12.5.sp,
                                         color = Color.White.copy(alpha = 0.8f),
                                         fontWeight = FontWeight.Medium
@@ -395,7 +396,7 @@ fun PlaylistDetailScreen(
                                     )
                                     Text(
                                         text = "${formatPlayCountText(playlist.playCount)} 次收听",
-                                        style = TextStyle(
+                                        style = TextStyle(fontFamily = MiSans, 
                                             fontSize = 12.5.sp,
                                             color = Color.White.copy(alpha = 0.8f),
                                             fontWeight = FontWeight.Medium
@@ -509,14 +510,14 @@ fun PlaylistDetailScreen(
                                     value = searchQuery,
                                     onValueChange = { searchQuery = it },
                                     singleLine = true,
-                                    textStyle = TextStyle(fontSize = 13.sp, color = Color.White),
+                                    textStyle = TextStyle(fontFamily = MiSans, fontSize = 13.sp, color = Color.White),
                                     cursorBrush = SolidColor(Color.White),
                                     modifier = Modifier.weight(1f),
                                     decorationBox = { inner ->
                                         if (searchQuery.isEmpty()) {
                                             Text(
                                                 text = "搜索歌单内歌曲、歌手…",
-                                                style = TextStyle(fontSize = 13.sp, color = Color.White.copy(alpha = 0.45f))
+                                                style = TextStyle(fontFamily = MiSans, fontSize = 13.sp, color = Color.White.copy(alpha = 0.45f))
                                             )
                                         }
                                         inner()
@@ -537,7 +538,7 @@ fun PlaylistDetailScreen(
                             if (searchQuery.isNotBlank()) {
                                 Text(
                                     text = "共找到 ${displaySongs.size} 首匹配歌曲",
-                                    style = TextStyle(fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f)),
+                                    style = TextStyle(fontFamily = MiSans, fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f)),
                                     modifier = Modifier.padding(top = AppSpacing.xs, start = AppSpacing.xxs)
                                 )
                             }
@@ -556,7 +557,7 @@ fun PlaylistDetailScreen(
                     ) {
                         Text(
                             text = "正在加载歌曲列表…",
-                            style = TextStyle(fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
+                            style = TextStyle(fontFamily = MiSans, fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f))
                         )
                     }
                 }
@@ -581,7 +582,7 @@ fun PlaylistDetailScreen(
                     ) {
                         Text(
                             text = if (searchQuery.isNotBlank()) "未搜索到相关歌曲" else "歌单内暂无歌曲",
-                            style = TextStyle(fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f))
+                            style = TextStyle(fontFamily = MiSans, fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f))
                         )
                     }
                 }
@@ -701,7 +702,7 @@ private fun PlaylistSongRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
-                style = TextStyle(
+                style = TextStyle(fontFamily = MiSans, 
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = titleColor
@@ -724,13 +725,13 @@ private fun PlaylistSongRow(
                 ) {
                     Text(
                         text = "SQ",
-                        style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AppColors.coral)
+                        style = TextStyle(fontFamily = MiSans, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AppColors.coral)
                     )
                 }
                 Spacer(Modifier.width(5.dp))
                 Text(
                     text = song.subtitleText,
-                    style = TextStyle(
+                    style = TextStyle(fontFamily = MiSans, 
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.65f)
                     ),

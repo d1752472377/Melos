@@ -32,6 +32,7 @@ fun AestheticMusicTheme(content: @Composable () -> Unit) {
     ) {
         MaterialTheme(
             colorScheme = if (isDark) GzDarkColorScheme else GzLightColorScheme,
+            typography = MiSansTypography,
             content = content,
         )
     }
