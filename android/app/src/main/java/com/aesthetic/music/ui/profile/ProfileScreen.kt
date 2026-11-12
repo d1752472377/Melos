@@ -431,12 +431,11 @@ private fun ProfileHeader(
     val menuTint = if (isLightBackground) AppColors.profileOnLight else Color.White
 
     Box(Modifier.fillMaxWidth()) {
-        // 背景直接铺满顶部（含状态栏），不再套个人资料卡片
+        // 背景直接铺满顶部（含状态栏），矩形、不做圆角，底部用渐变过渡到页面底色
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(imageHeight)
-                .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)),
+                .height(imageHeight),
         ) {
             if (!backgroundPath.isNullOrBlank()) {
                 AsyncImage(
@@ -472,6 +471,18 @@ private fun ProfileHeader(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(Color.Black.copy(alpha = 0.18f), Color.Transparent)
+                        )
+                    ),
+            )
+
+            // 底部向页面底色过渡：矩形 + 柔和渐变，不做圆角
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.55f to Color.Transparent,
+                            1f to Background,
                         )
                     ),
             )
