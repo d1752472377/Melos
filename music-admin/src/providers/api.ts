@@ -178,3 +178,45 @@ export const syncAdminApi = {
   },
 };
 
+
+// ---------------- 问题反馈 ----------------
+
+export interface FeedbackItem {
+  id: number;
+  userId: number;
+  username?: string;
+  type: string;
+  content: string;
+  /** base64（不含 data: 前缀） */
+  images: string[];
+  withLogs: boolean;
+  appVersion: string;
+  device: string;
+  status: "pending" | "processing" | "resolved" | string;
+  reply: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const feedbackApi = {
+  list: async (params: { status?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.status && params.status !== "all") query.append("status", params.status);
+    query.append("limit", String(params.limit ?? 20));
+    query.append("offset", String(params.offset ?? 0));
+    const res = await request<{ total: number; items: FeedbackItem[] }>(
+      `/admin/feedback?${query.toString()}`
+    );
+    return {
+      items: res.data?.items || [],
+      total: res.data?.total || 0,
+    };
+  },
+
+  reply: async (id: number, status: string, reply: string) => {
+    return request<{ ok: boolean }>(`/admin/feedback/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, reply }),
+    });
+  },
+};

@@ -25,6 +25,7 @@ import {
   AndroidOutlined,
   DownloadOutlined,
   FileTextOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/data";
@@ -54,6 +55,9 @@ const DownloadPage = React.lazy(() =>
 );
 const LogsPage = React.lazy(() =>
   import("./pages/logs").then((m) => ({ default: m.LogsPage }))
+);
+const FeedbackPage = React.lazy(() =>
+  import("./pages/feedback").then((m) => ({ default: m.FeedbackPage }))
 );
 const Login = React.lazy(() =>
   import("./pages/login").then((m) => ({ default: m.Login }))
@@ -101,6 +105,11 @@ function AppContent() {
           meta: { label: "客户端日志", icon: <FileTextOutlined /> },
         },
         {
+          name: "feedback",
+          list: "/feedback",
+          meta: { label: "问题反馈", icon: <MessageOutlined /> },
+        },
+        {
           // 公开下载落地页（无需登录，手机/PC 都能开）。
           // 之前它只存在于路由里、侧栏没有任何入口，等于「有页面但找不到」——
           // 这里挂成菜单项，点开即离开控制台布局，回到可分享的下载页。
@@ -132,6 +141,7 @@ function AppContent() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/sync" element={<SyncPage />} />
             <Route path="/logs" element={<LogsPage />} />
+            <Route path="/feedback" element={<FeedbackPage />} />
           </Route>
 
           {/* 公开下载落地页（适配手机与PC） */}
