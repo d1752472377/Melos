@@ -64,6 +64,9 @@ fun HomeDestination(
             nav.navigateSingleTop(ScreenRoute.PlaylistDetail.route)
         },
         onOpenGuess = { nav.navigateSingleTop(ScreenRoute.GuessYouLike.route) },
+        onOpenNewSongs = { nav.navigateSingleTop(ScreenRoute.NewSongs.route) },
+        onOpenSheetSquare = { nav.navigateSingleTop(ScreenRoute.SheetSquare.route) },
+        onOpenRanksPage = { nav.navigate(ScreenRoute.Ranks.route) },
         onOpenFm = { nav.switchTab(ScreenRoute.Fm.route, AppTab.SHEET) },
         isPlaying = isPlaying,
     )

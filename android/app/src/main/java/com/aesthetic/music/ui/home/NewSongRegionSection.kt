@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -66,6 +67,7 @@ fun NewSongRegionSection(
     groups: List<RegionNewSongs>,
     onPlayRegion: (List<Song>) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenMore: (() -> Unit)? = null,
 ) {
     if (groups.isEmpty()) return
 
@@ -92,6 +94,18 @@ fun NewSongRegionSection(
                 letterSpacing = 1.sp,
                 lineHeight = 12.sp,
             )
+            if (onOpenMore != null) {
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowRight,
+                    contentDescription = "全部新歌",
+                    tint = textLow(),
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onOpenMore),
+                )
+            }
         }
 
         Spacer(Modifier.height(AppSpacing.lg))

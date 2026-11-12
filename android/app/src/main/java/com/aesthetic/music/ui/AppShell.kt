@@ -453,6 +453,14 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     )
                 }
 
+                composable(ScreenRoute.NewSongs.route) {
+                    com.aesthetic.music.ui.newsongs.NewSongsScreen(
+                        controller = viewModel.newSongs,
+                        onBack = nav.popBack,
+                        onPlaySong = { song, list -> actions.playSong(song, list) },
+                    )
+                }
+
                 composable(ScreenRoute.Ranks.route) { RanksDestination(viewModel.rank, viewModel.playlistDetail, nav) }
 
                 composable(ScreenRoute.GuessYouLike.route) {

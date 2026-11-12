@@ -167,7 +167,10 @@ fun RecognitionScreen(
     Box(Modifier.fillMaxSize()) {
         HomeAmbientGlowBackground()
 
-        Column(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             SecondaryPageTopBar(title = "听歌识曲", onBack = ::back)
 
             HistoryEntry(

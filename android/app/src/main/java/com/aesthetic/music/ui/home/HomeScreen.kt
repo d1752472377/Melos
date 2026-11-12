@@ -75,12 +75,29 @@ fun HomeScreen(
     onOpenRecognition: () -> Unit,
     onOpenPlaylistDetail: (PlaylistItem) -> Unit,
     onOpenGuess: () -> Unit,
+    onOpenNewSongs: () -> Unit = {},
+    onOpenSheetSquare: () -> Unit = {},
+    onOpenRanksPage: () -> Unit = {},
     onOpenFm: () -> Unit = {},
     isPlaying: Boolean = false,
 ) {
     val poolSongs = remember(newSongs, hotSongs) {
         (if (newSongs.isNotEmpty()) newSongs else hotSongs)
             .distinctBy { it.id }
+    }
+
+    // 猜你喜欢优先用按日推荐的歌单曲目，拿不到就退回新歌/热歌池
+    val guessSongs = remember(recommendSongs, poolSongs) {
+        (if (recommendSongs.isNotEmpty()) recommendSongs else poolSongs).distinctBy { it.id }
+    }
+
+    val songsMap = remember(newSongs, hotSongs, poolSongs) {
+        mapOf(
+            RankingTab.RISING to poolSongs.take(10),
+            RankingTab.NEW to (if (newSongs.isNotEmpty()) newSongs else poolSongs).take(10),
+            RankingTab.ORIGINAL to poolSongs.reversed().take(10),
+            RankingTab.HOT to (if (hotSongs.isNotEmpty()) hotSongs else poolSongs).take(10),
+        )
     }
 
     val targetPlaylist = dailyPlaylists.firstOrNull() ?: hotPlaylists.firstOrNull()
@@ -143,8 +160,20 @@ fun HomeScreen(
                 }
             }
 
-            item(key = "home_entry_cards") {
-                HomeEntryCards(onOpenRecommend = onOpenGuess)
+            item(key = "home_guess_like") {
+                GuessLikeSection(
+                    songs = guessSongs,
+                    onOpenMore = onOpenGuess,
+                    onPlaySong = onPlaySong,
+                )
+            }
+
+            item(key = "home_random_playlists") {
+                RandomPlaylistSection(
+                    playlists = (hotPlaylists + dailyPlaylists).distinctBy { it.id },
+                    onOpenMore = onOpenSheetSquare,
+                    onOpenPlaylist = onOpenPlaylistDetail,
+                )
             }
 
             if (isLoading && hasNoContent) {
@@ -167,8 +196,17 @@ fun HomeScreen(
                             val first = songs.firstOrNull()
                             if (first != null) onPlaySong(first, songs)
                         },
+                        onOpenMore = onOpenNewSongs,
                     )
                 }
+            }
+
+            item(key = "home_ranking_card") {
+                HomeRankingCard(
+                    songsMap = songsMap,
+                    onPlaySong = onPlaySong,
+                    onOpenRanksPage = onOpenRanksPage,
+                )
             }
 
             item(key = "bottom_spacer") {
