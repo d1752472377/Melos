@@ -33,9 +33,9 @@ class ApiClientUrlTest {
     fun `常规无子路径服务器正确重定向`() {
         val result = rewriteUrl(
             placeholderUrl = "http://127.0.0.1:8787/api/sync/pull?since=10",
-            configuredServerUrl = "http://39.96.39.134"
+            configuredServerUrl = "http://music.example.com"
         )
-        assertEquals("http://39.96.39.134/api/sync/pull?since=10", result)
+        assertEquals("http://music.example.com/api/sync/pull?since=10", result)
     }
 
     @Test

@@ -52,7 +52,7 @@ docker run -d -p 8787:8787 -v /var/data/melos:/app/data --name melos-backend mel
 | `TRUST_PROXY` | `0` | 反向代理后设为 `1`，正确识别客户端 IP |
 | `RATE_LIMIT_DISABLED` | `0` | 设为 `1` 关闭全局限速 |
 | `MAIL_SERVICE_URL` | `https://mail.dovislab.com` | 自建邮件服务地址 |
-| `MAIL_ADMIN_AUTH` | `REDACTED` | 邮件服务管理密钥（`x-admin-auth`） |
+| `MAIL_ADMIN_AUTH` | 无（必填，由部署者自行设置） | 邮件服务管理密钥（`x-admin-auth`） |
 | `MAIL_FROM_ADDRESS` | `melos@dovislab.com` | 发件邮箱 |
 | `MAIL_FROM_NAME` | `Melos 音乐` | 发件人名称 |
 | `APK_DIR` | `data/apk` | APK 文件存放目录 |

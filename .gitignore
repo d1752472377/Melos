@@ -83,3 +83,20 @@ Thumbs.db
 !**/.env.production
 *.tar.gz
 *.tgz
+
+# ---- 仅本机保留：部署脚本 / IDE / 内部文档 ----
+# 部署脚本里有服务器地址与运维命令，不随仓库公开
+.deploy/
+.idea/
+# 第三方闭源应用的逆向产物与内部调研
+/docs/gz-reverse/
+/docs/评论与脚本检测调研.md
+/docs/admin-api-fix-20261111.md
+# 生成的报告 / 本机数据库
+android/code-quality-report.html
+backend-go/data/
+*.db
+
+# ---- 音源脚本工具的本地密钥 ----
+scripts/chksz/dist/
+*.key
