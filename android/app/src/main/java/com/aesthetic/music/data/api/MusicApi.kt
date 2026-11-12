@@ -417,6 +417,9 @@ data class AppVersionDto(
     val apkUrl: String = "",
     @SerializedName("apk_url_fallback", alternate = ["apkUrlFallback"])
     val apkUrlFallback: String = "",
+    /** GitHub Release 直链（可能经过国内加速代理），作为镜像之外的备用下载源 */
+    @SerializedName("apk_url_github", alternate = ["apkUrlGithub"])
+    val apkUrlGithub: String = "",
     @SerializedName("file_size", alternate = ["fileSize"])
     val fileSize: Long = 0L,
     @SerializedName("hash_sha256", alternate = ["hashSha256"])

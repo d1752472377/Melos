@@ -28,6 +28,8 @@ data class UpdateInfo(
     val versionCode: Int,
     val apkUrl: String,
     val fallbackApkUrl: String = "",
+    /** GitHub Release 直链（可能带国内加速前缀），镜像失败时的第二个候选 */
+    val githubApkUrl: String = "",
     val apkSize: Long,
     /** 旧字段，保留用于兼容历史 update.json；有 [sha256] 时不再使用 */
     val md5: String,
@@ -85,6 +87,7 @@ object UpdateService {
             versionCode = data.versionCode.toInt(),
             apkUrl = fullApkUrl,
             fallbackApkUrl = data.apkUrlFallback,
+            githubApkUrl = data.apkUrlGithub,
             apkSize = data.fileSize,
             md5 = "",
             sha256 = data.hashSha256,
@@ -161,7 +164,12 @@ object UpdateService {
             if (file.exists()) file.delete()
 
             val downloadUrls = buildList {
+                // 顺序：镜像 → GitHub（可用加速前缀）→ 自有后端兜底
                 add(resolveDownloadUrl(info.apkUrl))
+                if (info.githubApkUrl.isNotBlank()) {
+                    val gh = resolveDownloadUrl(info.githubApkUrl)
+                    if (gh !in this) add(gh)
+                }
                 val fb = resolveDownloadUrl(info.fallbackApkUrl)
                 if (info.fallbackApkUrl.isNotBlank() && fb !in this) add(fb)
             }

@@ -49,6 +49,19 @@ func (s *Server) enrichVersionPublic(v *store.AppVersion) map[string]any {
 		m["apkUrlFallback"] = apkURLPrefix + apkFile
 		m["apk_url_fallback"] = apkURLPrefix + apkFile
 	}
+
+	// GitHub Release 直链（可经国内加速前缀），作为镜像之外的备用来源。
+	// 客户端会按 镜像 → GitHub → 本机 的顺序依次尝试。
+	if repo := strings.TrimSpace(s.cfg.GitHubRepo); repo != "" && strings.TrimSpace(v.VersionName) != "" {
+		ver := strings.TrimSpace(v.VersionName)
+		gh := "https://github.com/" + repo + "/releases/download/v" + ver +
+			"/aesthetic_music_v" + ver + ".apk"
+		if proxy := strings.TrimRight(strings.TrimSpace(s.cfg.GitHubProxyURL), "/"); proxy != "" {
+			gh = proxy + "/" + gh
+		}
+		m["apkUrlGithub"] = gh
+		m["apk_url_github"] = gh
+	}
 	return m
 }
 
