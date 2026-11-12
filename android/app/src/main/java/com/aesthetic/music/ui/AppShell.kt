@@ -375,6 +375,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         nav = nav,
                         actions = actions,
                         isPlaying = playerState.isPlaying,
+                        onOpenSearch = {
+                            // 每次从外部进入搜索都是全新一页：清掉上次的关键词/类型/结果
+                            viewModel.search.reset()
+                            nav.navigateSingleTop(ScreenRoute.Search.route)
+                        },
                     )
                 }
 
@@ -386,7 +391,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                         playerManager = playerManager,
                         onPageBackground = viewModel::updatePageBackground,
                         onOpenDiscover = { nav.switchTab(ScreenRoute.Home.route, AppTab.HOME) },
-                        onOpenSearch = { nav.navigateSingleTop(ScreenRoute.Search.route) },
+                        onOpenSearch = {
+                            // 每次从外部进入搜索都是全新一页：清掉上次的关键词/类型/结果
+                            viewModel.search.reset()
+                            nav.navigateSingleTop(ScreenRoute.Search.route)
+                        },
                         onOpenRecognition = { nav.navigate(ScreenRoute.Recognition.route) },
                     )
                 }
@@ -399,18 +408,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                     ProfileTabDestination(viewModel.library, viewModel.sources, viewModel.auth, localStats, isCheckingUpdate, { viewModel.checkForUpdate(manual = true) }, nav, actions, cacheState)
                 }
 
-                composable(ScreenRoute.Search.route) { entry ->
-                    // 搜索页被弹出（真正离开，而不是下钻到歌手/专辑）时清空本次搜索状态，
-                    // 下次进来是干净的一页；最近搜索保留。
-                    DisposableEffect(entry) {
-                        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                            if (event == androidx.lifecycle.Lifecycle.Event.ON_DESTROY) {
-                                viewModel.search.reset()
-                            }
-                        }
-                        entry.lifecycle.addObserver(observer)
-                        onDispose { entry.lifecycle.removeObserver(observer) }
-                    }
+                composable(ScreenRoute.Search.route) {
                     SearchDestination(
                         viewModel.search,
                         viewModel.artistPage,
@@ -433,7 +431,11 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                             viewModel.search.submit(recognitionQuery(song.title, song.artist))
                             nav.popTo(ScreenRoute.Search.route)
                         },
-                        onOpenSearch = { nav.popTo(ScreenRoute.Search.route) },
+                        onOpenSearch = {
+                            // 「去搜索」也是一次全新的搜索
+                            viewModel.search.reset()
+                            nav.popTo(ScreenRoute.Search.route)
+                        },
                         // 识曲前先停掉本机播放，否则麦克风录到的是自己
                         onBeforeRecord = {
                             if (playerManager.state.value.isPlaying) playerManager.toggle()

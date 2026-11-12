@@ -32,6 +32,7 @@ fun HomeDestination(
     nav: ShellNav,
     actions: ShellActions,
     isPlaying: Boolean = false,
+    onOpenSearch: (() -> Unit)? = null,
 ) {
     val dailyPlaylists by content.dailyPlaylists.collectAsState()
     val newSongs by content.newSongs.collectAsState()
@@ -57,7 +58,7 @@ fun HomeDestination(
         isLoading = isLoadingContent,
         onRetryContent = { content.refreshContent() },
         onPlaySong = { song, list -> actions.playSong(song, list) },
-        onOpenSearch = { nav.navigateSingleTop(ScreenRoute.Search.route) },
+        onOpenSearch = onOpenSearch ?: { nav.navigateSingleTop(ScreenRoute.Search.route) },
         onOpenRecognition = { nav.navigate(ScreenRoute.Recognition.route) },
         onOpenPlaylistDetail = { pl ->
             playlistDetail.open(pl)
