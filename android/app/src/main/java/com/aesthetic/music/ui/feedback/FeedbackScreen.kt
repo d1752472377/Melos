@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.aesthetic.music.data.api.FeedbackItemDto
+import com.aesthetic.music.ui.components.BottomContentSpacer
 import com.aesthetic.music.ui.components.SecondaryPageTopBar
 import com.aesthetic.music.ui.components.glassCard
 import com.aesthetic.music.ui.components.textHigh
@@ -168,7 +169,8 @@ fun FeedbackScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = AppSpacing.page),
+                        .padding(horizontal = AppSpacing.page)
+                        .padding(bottom = BottomContentSpacer),
                     verticalArrangement = Arrangement.spacedBy(AppSpacing.lg),
                 ) {
                     Text(
@@ -635,7 +637,7 @@ private fun MyFeedbackTab(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
                     start = AppSpacing.page,
                     end = AppSpacing.page,
-                    bottom = AppSpacing.section,
+                    bottom = BottomContentSpacer,
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
             ) {

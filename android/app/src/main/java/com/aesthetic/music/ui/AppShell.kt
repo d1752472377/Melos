@@ -110,7 +110,6 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
 
     val pageBackground by viewModel.currentPageBackground.collectAsState()
     val isDarkPage by viewModel.isDarkPage.collectAsState()
-    val localStats by viewModel.localStats.collectAsState()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
 
     val cacheState = rememberCacheState(context, scope)
@@ -405,7 +404,7 @@ fun AppShell(viewModel: MainViewModel, playerManager: PlayerManager) {
                 }
 
                 composable(ScreenRoute.Profile.route) {
-                    ProfileTabDestination(viewModel.library, viewModel.sources, viewModel.auth, localStats, isCheckingUpdate, { viewModel.checkForUpdate(manual = true) }, nav, actions, cacheState)
+                    ProfileTabDestination(viewModel.library, viewModel.sources, viewModel.auth, isCheckingUpdate, { viewModel.checkForUpdate(manual = true) }, nav, actions, cacheState)
                 }
 
                 composable(ScreenRoute.Search.route) {

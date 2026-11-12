@@ -149,7 +149,6 @@ fun ProfileTabDestination(
     library: LibraryController,
     sources: SourceController,
     auth: AuthController,
-    localStats: LocalStats,
     isCheckingUpdate: Boolean,
     onCheckUpdate: () -> Unit,
     nav: ShellNav,
@@ -167,6 +166,7 @@ fun ProfileTabDestination(
     val profileBackground by auth.profileBackground.collectAsState()
     val isProfileBgBlur by auth.isProfileBgBlur.collectAsState()
     val profileUserId by auth.profileUserId.collectAsState()
+    val profileBio by auth.profileBio.collectAsState()
 
     ProfileScreen(
         nickname = profileNickname,
@@ -180,7 +180,7 @@ fun ProfileTabDestination(
         favoritesCount = favorites.size,
         playlistsCount = myPlaylists.size,
         cacheCount = cacheState.songs.count { it.manual },
-        localStats = localStats,
+        bio = profileBio,
         sourceSummary = when {
             sourcePlugins.isEmpty() -> "内置直连"
             sourcePlugins.count { it.enable } == 0 -> "${sourcePlugins.size} 个插件（全部停用）"

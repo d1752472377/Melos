@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,6 +71,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.ImageLoader
@@ -157,7 +160,7 @@ fun ProfileScreen(
     favoritesCount: Int,
     playlistsCount: Int,
     cacheCount: Int,
-    localStats: LocalStats,
+    bio: String = "",
     sourceSummary: String,
     onOpenEditProfile: () -> Unit,
     onOpenFavorites: () -> Unit,
@@ -221,22 +224,21 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(AppSpacing.xxl),
             contentPadding = PaddingValues(
-                top = statusBarTop + 16.dp,
-                start = 20.dp,
-                end = 20.dp,
+                top = 0.dp,
+                start = 0.dp,
+                end = 0.dp,
                 bottom = BottomContentSpacer,
             ),
         ) {
             item(key = "top_profile_card") {
-                TopProfileCard(
+                ProfileHeader(
                     nickname = nickname,
                     userId = userId,
                     username = username,
-                    createdAt = createdAt,
+                    bio = bio,
                     avatarPath = avatarPath,
                     backgroundPath = backgroundPath,
                     isBackgroundBlur = isBackgroundBlur,
-                    localStats = localStats,
                     showMenu = showMenu,
                     onMenuToggle = { showMenu = it },
                     onAvatarClick = { avatarPickerLauncher.launch("image/*") },
@@ -261,21 +263,25 @@ fun ProfileScreen(
             }
 
             item(key = "music_entry_section") {
-                MusicStatsCard(
-                    favoritesCount = favoritesCount,
-                    playlistsCount = playlistsCount,
-                    historyCount = historyCount,
-                    cacheCount = cacheCount,
-                    onOpenFavorites = onOpenFavorites,
-                    onOpenMyPlaylists = onOpenMyPlaylists,
-                    onOpenHistory = onOpenHistory,
-                    onOpenDownloads = onOpenDownloads,
-                )
+                Column(Modifier.padding(horizontal = AppSpacing.page)) {
+                    MusicStatsCard(
+                        favoritesCount = favoritesCount,
+                        playlistsCount = playlistsCount,
+                        historyCount = historyCount,
+                        cacheCount = cacheCount,
+                        onOpenFavorites = onOpenFavorites,
+                        onOpenMyPlaylists = onOpenMyPlaylists,
+                        onOpenHistory = onOpenHistory,
+                        onOpenDownloads = onOpenDownloads,
+                    )
+                }
             }
 
             item(key = "service_cards") {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = AppSpacing.page),
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg),
                 ) {
                     ProfileHalfCard(
@@ -301,6 +307,7 @@ fun ProfileScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = AppSpacing.page)
                         .iosGlassCard(shape = RoundedCornerShape(20.dp), elevation = 2.dp)
                         .border(1.dp, glassBorder(), RoundedCornerShape(20.dp))
                         .padding(vertical = AppSpacing.xxs),
@@ -343,6 +350,7 @@ fun ProfileScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = AppSpacing.page)
                         .clip(RoundedCornerShape(9999.dp))
                         .border(1.dp, AppColors.crimson.copy(alpha = 0.45f), RoundedCornerShape(9999.dp))
                         .clickable { showLogoutConfirm = true }
@@ -389,15 +397,14 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun TopProfileCard(
+private fun ProfileHeader(
     nickname: String,
     userId: String,
     username: String,
-    createdAt: Long,
+    bio: String,
     avatarPath: String?,
     backgroundPath: String?,
     isBackgroundBlur: Boolean,
-    localStats: LocalStats,
     showMenu: Boolean,
     onMenuToggle: (Boolean) -> Unit,
     onAvatarClick: () -> Unit,
@@ -408,194 +415,166 @@ private fun TopProfileCard(
     onLogoutClick: () -> Unit,
 ) {
     val context = LocalContext.current
-
     var isLightBackground by remember { mutableStateOf(true) }
 
     LaunchedEffect(backgroundPath) {
-        if (!backgroundPath.isNullOrBlank()) {
-            isLightBackground = calculateImageIsLight(context, backgroundPath)
+        isLightBackground = if (backgroundPath.isNullOrBlank()) {
+            true
         } else {
-            isLightBackground = true
+            calculateImageIsLight(context, backgroundPath)
         }
     }
 
-    val primaryTextColor = if (isLightBackground) AppColors.profileOnLight else Color.White
-    val secondaryTextColor = if (isLightBackground) AppColors.profileSecondaryOnLight else Color.White.copy(alpha = 0.72f)
-    val buttonBgColor = if (isLightBackground) Color.White.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.15f)
-    val buttonBorderColor = if (isLightBackground) Color.White else Color.White.copy(alpha = 0.22f)
-    val avatarBorderColor = if (isLightBackground) Color.White else Color.White.copy(alpha = 0.85f)
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val imageHeight = statusBarTop + 176.dp
+    val avatarSize = 88.dp
+    val menuTint = if (isLightBackground) AppColors.profileOnLight else Color.White
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.12f))
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        AppColors.profileAvatar1,
-                        AppColors.profileAvatar2,
-                        AppColors.profileAvatar3,
-                    ),
-                    start = Offset(0f, Float.POSITIVE_INFINITY),
-                    end = Offset(Float.POSITIVE_INFINITY, 0f)
+    Box(Modifier.fillMaxWidth()) {
+        // 背景直接铺满顶部（含状态栏），不再套个人资料卡片
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(imageHeight)
+                .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)),
+        ) {
+            if (!backgroundPath.isNullOrBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context).data(backgroundPath).crossfade(true).build(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .then(if (isBackgroundBlur) Modifier.blur(20.dp) else Modifier),
+                    contentScale = ContentScale.Crop,
                 )
-            ),
-    ) {
-        if (!backgroundPath.isNullOrBlank()) {
-            AsyncImage(
-                model = ImageRequest.Builder(context).data(backgroundPath).crossfade(true).build(),
-                contentDescription = null,
-                modifier = Modifier
-                    .matchParentSize()
-                    .then(if (isBackgroundBlur) Modifier.blur(20.dp) else Modifier),
-                contentScale = ContentScale.Crop,
-            )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    AppColors.profileAvatar1,
+                                    AppColors.profileAvatar2,
+                                    AppColors.profileAvatar3,
+                                ),
+                                start = Offset(0f, Float.POSITIVE_INFINITY),
+                                end = Offset(Float.POSITIVE_INFINITY, 0f),
+                            )
+                        ),
+                )
+            }
+
+            // 顶部压一层暗色，保证右上角菜单在任何背景上都看得清
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .background(
-                        if (isLightBackground) {
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.15f),
-                                    Color.White.copy(alpha = 0.15f)
-                                )
-                            )
-                        } else {
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.20f),
-                                    Color.Black.copy(alpha = 0.65f)
-                                )
-                            )
-                        }
-                    )
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.18f), Color.Transparent)
+                        )
+                    ),
             )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = AppSpacing.sm, end = AppSpacing.md),
+            ) {
+                IconButton(
+                    onClick = { onMenuToggle(!showMenu) },
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "更多设置",
+                        tint = menuTint,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                val isCustomBackground = !backgroundPath.isNullOrBlank() || isBackgroundBlur
+
+                AppDropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { onMenuToggle(false) },
+                ) {
+                    AppDropdownItem(
+                        text = "更换背景",
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.AddPhotoAlternate,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        onClick = onChangeBackgroundClick,
+                    )
+
+                    AppDropdownItem(
+                        text = if (isBackgroundBlur) "取消模糊" else "背景模糊",
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.BlurOn,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        onClick = onToggleBgBlur,
+                    )
+
+                    if (isCustomBackground) {
+                        AppDropdownItem(
+                            text = "恢复默认",
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.RestartAlt,
+                                    contentDescription = null,
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            onClick = onRestoreDefaults,
+                        )
+                    }
+
+                    AppDropdownDivider()
+                    AppDropdownItem(
+                        text = "退出登录",
+                        danger = true,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = null,
+                                tint = AccentRose,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        onClick = onLogoutClick,
+                    )
+                }
+            }
         }
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(AppSpacing.page)
+                .padding(top = imageHeight - avatarSize / 2),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "MELOS MUSIC PROFILE",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                    ),
-                    color = secondaryTextColor,
-                )
-                Box {
-                    IconButton(
-                        onClick = { onMenuToggle(!showMenu) },
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = "更多设置",
-                            tint = primaryTextColor,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-
-                    val isCustomBackground = !backgroundPath.isNullOrBlank() || isBackgroundBlur
-
-                    AppDropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { onMenuToggle(false) },
-                    ) {
-                        AppDropdownItem(
-                            text = "更换背景",
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.AddPhotoAlternate,
-                                    contentDescription = null,
-                                    tint = TextMuted,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
-                            onClick = onChangeBackgroundClick,
-                        )
-
-                        AppDropdownItem(
-                            text = if (isBackgroundBlur) "取消模糊" else "背景模糊",
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.BlurOn,
-                                    contentDescription = null,
-                                    tint = TextMuted,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
-                            onClick = onToggleBgBlur,
-                        )
-
-                        if (isCustomBackground) {
-                            AppDropdownItem(
-                                text = "恢复默认",
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Filled.RestartAlt,
-                                        contentDescription = null,
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                },
-                                onClick = onRestoreDefaults,
-                            )
-                        }
-
-                        AppDropdownDivider()
-                        AppDropdownItem(
-                            text = "退出登录",
-                            danger = true,
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Logout,
-                                    contentDescription = null,
-                                    tint = AccentRose,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
-                            onClick = onLogoutClick,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(AppSpacing.lg))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AppSpacing.page),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
-                        .size(70.dp)
+                        .size(avatarSize)
                         .clip(CircleShape)
-                        .border(
-                            2.dp,
-                            Brush.sweepGradient(
-                                listOf(
-                                    AppColors.amber,
-                                    AppColors.sky,
-                                    AppColors.pink,
-                                    AppColors.amber
-                                )
-                            ),
-                            CircleShape
-                        )
-                        .padding(2.5.dp)
-                        .clip(CircleShape)
-                        .border(1.dp, avatarBorderColor, CircleShape)
+                        .border(3.dp, Color.White, CircleShape)
                         .clickable(onClick = onAvatarClick),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -603,127 +582,77 @@ private fun TopProfileCard(
                         AsyncImage(
                             model = ImageRequest.Builder(context).data(avatarPath).crossfade(true).build(),
                             contentDescription = "用户头像",
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.Crop,
                         )
                     } else {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(AppColors.profileAvatar2),
+                        )
                         Icon(
                             imageVector = Icons.Filled.Person,
                             contentDescription = null,
-                            tint = primaryTextColor,
-                            modifier = Modifier.size(38.dp),
+                            tint = Color.White,
+                            modifier = Modifier.size(44.dp),
                         )
                     }
                 }
 
-                Spacer(Modifier.width(AppSpacing.xxl))
+                Spacer(Modifier.weight(1f))
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-                    ) {
-                        Text(
-                            text = nickname,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontSize = 21.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                            ),
-                            color = primaryTextColor,
-                            maxLines = 1,
-                        )
-                    }
-
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "@${ProfileFormat.usernameDisplay(username)}",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = secondaryTextColor,
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9999.dp))
+                        .background(Color.White.copy(alpha = 0.92f))
+                        .clickable(onClick = onEditProfileClick)
+                        .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = null,
+                        tint = AppColors.ink,
+                        modifier = Modifier.size(14.dp),
                     )
-
-                    val totalMinutes = (localStats.totalPlayMs / 60000L).coerceAtLeast(0)
-                    val totalHours = totalMinutes / 60
-                    val remainMin = totalMinutes % 60
-                    val durationStr = if (totalHours > 0) "${totalHours}h${remainMin}m" else "${remainMin}m"
-
-                    Spacer(Modifier.height(AppSpacing.xs))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(primaryTextColor.copy(alpha = 0.08f))
-                                .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "听歌 ${localStats.totalPlays} 首",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
-                                color = secondaryTextColor
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(primaryTextColor.copy(alpha = 0.08f))
-                                .padding(horizontal = AppSpacing.xs, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "时长 $durationStr",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
-                                color = secondaryTextColor
-                            )
-                        }
-                    }
+                    Spacer(Modifier.width(AppSpacing.xs))
+                    Text(
+                        text = "编辑个人资料",
+                        color = AppColors.ink,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
                 }
             }
 
-            Spacer(Modifier.height(AppSpacing.xxxl))
+            Spacer(Modifier.height(AppSpacing.xl))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp)
-                    .clip(RoundedCornerShape(21.dp))
-                    .background(buttonBgColor)
-                    .border(1.dp, buttonBorderColor, RoundedCornerShape(21.dp))
-                    .clickable(onClick = onEditProfileClick)
-                    .padding(horizontal = AppSpacing.xxl),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+            Column(
+                modifier = Modifier.padding(horizontal = AppSpacing.page),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = null,
-                        tint = primaryTextColor,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(AppSpacing.sm))
-                    Text(
-                        text = "编辑音乐资料",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                        color = primaryTextColor,
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "个人档案",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = secondaryTextColor,
-                    )
-                    Spacer(Modifier.width(AppSpacing.xxs))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                        contentDescription = null,
-                        tint = secondaryTextColor,
-                        modifier = Modifier.size(10.dp),
-                    )
-                }
+                Text(
+                    text = nickname,
+                    color = TextPrimary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(AppSpacing.xxs))
+                Text(
+                    text = ProfileFormat.bioDisplay(bio),
+                    color = TextMuted,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(AppSpacing.xs))
+                Text(
+                    text = "@${ProfileFormat.usernameDisplay(username)}",
+                    color = TextSoft,
+                    fontSize = 11.sp,
+                )
             }
         }
     }
